@@ -11,7 +11,7 @@ import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.armor.MadokuArmor;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.clock.MadokuClock;
-import madoku.craft.clock.MadokuGameplayClock;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.network.WorldTimeSync;
 import madoku.craft.network.HungerHudSync;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -39,13 +39,12 @@ public class MadokuCraft implements ModInitializer {
 		MadokuHealth.initialize();
 		MadokuHunger.initialize();
 		MadokuOxygen.initialize();
-		EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
+			EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
 		WorldTimeSync.initialize();
 		HungerHudSync.initialize();
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
 			MadokuDebug.resetSession();
 			MadokuClock.reset();
-			MadokuGameplayClock.reset();
 			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuItemStack.reset();
@@ -73,7 +72,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuOxygen.savePersistedData(server);
 			MadokuItemStack.savePersistedData(server);
 			MadokuClock.reset();
-			MadokuGameplayClock.reset();
 			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuScheduler.reset();
@@ -85,11 +83,9 @@ public class MadokuCraft implements ModInitializer {
 			WorldTimeSync.reset();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			MadokuGameplayClock.tick();
 			long tickIncrement = MadokuSleep.getTickIncrement(server);
-			MadokuSmeltingManager.onServerTickIncrement(MadokuGameplayClock.getTicks(), tickIncrement);
-			MadokuClock.tick(tickIncrement);
-			MadokuScheduler.tick(server);
+			MadokuSmeltingManager.onServerTickIncrement(tickIncrement);
+			MadokuTicks.advance(server, tickIncrement);
 			MadokuScheduler.autosavePersistedData(server);
 			MadokuTime.autosavePersistedData(server);
 			MadokuHealth.autosavePersistedData(server);

@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuClock;
-import madoku.craft.clock.MadokuGameplayClock;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -84,7 +83,7 @@ public final class MadokuOxygen {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -92,7 +91,7 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -149,10 +148,10 @@ public final class MadokuOxygen {
 		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
 		SCHEDULED_PLAYERS.remove(playerId);
 		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && context.getGameplayTick() == lastProcessed) {
+		if (lastProcessed != null && context.getNowTick() == lastProcessed) {
 			return;
 		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getGameplayTick());
+		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
 
 		if (!settings.enabled) {
 			return;
@@ -163,7 +162,7 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		boolean stillActive = processPlayer(player, context.getGameplayTick());
+		boolean stillActive = processPlayer(player, context.getNowTick());
 		if (stillActive) {
 			requestOxygenProcessing(server, playerId, Math.max(1L, settings.schedulerTickInterval));
 		}
@@ -440,7 +439,7 @@ public final class MadokuOxygen {
 			Math.max(0L, delay),
 			TASK_TYPE_OXYGEN_TICK,
 			new JsonObject(),
-			MadokuScheduler.ClockSource.GAMEPLAY
+			MadokuScheduler.TickDomain.GAMEPLAY
 		);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;

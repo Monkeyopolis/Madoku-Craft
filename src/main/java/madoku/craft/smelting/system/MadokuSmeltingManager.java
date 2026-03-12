@@ -73,8 +73,9 @@ public final class MadokuSmeltingManager {
 	private static final Map<FurnaceKey, String> furnaceSchedulerIds = new HashMap<>();
 	private static final Set<FurnaceKey> scheduledFurnaces = new HashSet<>();
 	private static final Map<FurnaceKey, Long> lastProcessedMadokuTickByFurnace = new HashMap<>();
-	private static long lastSleepTickIncrement = 1L;
-	private static long lastSleepIncrementGameplayTick = Long.MIN_VALUE;
+	private static final Map<FurnaceKey, Long> lastProcessedGameTimeByFurnace = new HashMap<>();
+	private static long previousServerTickIncrement = 1L;
+	private static long currentServerTickIncrement = 1L;
 
 	private MadokuSmeltingManager() {
 	}
@@ -147,9 +148,9 @@ public final class MadokuSmeltingManager {
 		resetRuntimeState();
 	}
 
-	public static void onServerTickIncrement(long gameplayTick, long tickIncrement) {
-		lastSleepIncrementGameplayTick = gameplayTick;
-		lastSleepTickIncrement = Math.max(1L, tickIncrement);
+	public static void onServerTickIncrement(long tickIncrement) {
+		previousServerTickIncrement = Math.max(1L, currentServerTickIncrement);
+		currentServerTickIncrement = Math.max(1L, tickIncrement);
 	}
 
 	public static void onFurnaceServerTick(
@@ -205,26 +206,28 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		long nowMadokuTick = context.getMadokuTick();
+		long nowMadokuTick = context.getNowTick();
 		long lastTick = lastProcessedMadokuTickByFurnace.getOrDefault(key, nowMadokuTick);
 		long tickDelta = nowMadokuTick - lastTick;
 		lastProcessedMadokuTickByFurnace.put(key, nowMadokuTick);
 
-		long extraTicksFromMadoku = Math.max(0L, tickDelta - 1L);
-		long extraTicksFromSleep = 0L;
-		if (context.getGameplayTick() == lastSleepIncrementGameplayTick) {
-			extraTicksFromSleep = Math.max(0L, lastSleepTickIncrement - 1L);
-		}
-		long extraTicks = Math.max(extraTicksFromMadoku, extraTicksFromSleep);
-		if (extraTicks > 0L) {
-			advanceSingleFurnaceTicks(level, blockPos, extraTicks);
+		long gameTime = level.getGameTime();
+		long lastProcessedGameTime = lastProcessedGameTimeByFurnace.getOrDefault(key, Long.MIN_VALUE);
+		if (lastProcessedGameTime != gameTime) {
+			lastProcessedGameTimeByFurnace.put(key, gameTime);
+			long expectedDeltaFromScheduling = Math.max(1L, previousServerTickIncrement);
+			long extraTicksFromClockJump = Math.max(0L, tickDelta - expectedDeltaFromScheduling);
+			long extraTicksFromSleep = Math.max(0L, currentServerTickIncrement - 1L);
+			long extraTicks = extraTicksFromClockJump + extraTicksFromSleep;
+			if (extraTicks > 0L) {
+				advanceSingleFurnaceTicks(level, blockPos, extraTicks);
+			}
 		}
 
 		BlockState currentState = level.getBlockState(blockPos);
-		if (shouldTrackFurnace(furnace, currentState)) {
-			requestFurnaceProcessing(server, key, 0L);
-		} else {
+		if (!shouldTrackFurnace(furnace, currentState)) {
 			lastProcessedMadokuTickByFurnace.remove(key);
+			lastProcessedGameTimeByFurnace.remove(key);
 		}
 	}
 
@@ -268,7 +271,7 @@ public final class MadokuSmeltingManager {
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			MadokuScheduler.ClockSource.MADOKU
+			MadokuScheduler.TickDomain.TIME
 		);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
@@ -329,14 +332,16 @@ public final class MadokuSmeltingManager {
 		scheduledFurnaces.remove(key);
 		furnaceSchedulerIds.remove(key);
 		lastProcessedMadokuTickByFurnace.remove(key);
+		lastProcessedGameTimeByFurnace.remove(key);
 	}
 
 	private static void resetRuntimeState() {
 		furnaceSchedulerIds.clear();
 		scheduledFurnaces.clear();
 		lastProcessedMadokuTickByFurnace.clear();
-		lastSleepTickIncrement = 1L;
-		lastSleepIncrementGameplayTick = Long.MIN_VALUE;
+		lastProcessedGameTimeByFurnace.clear();
+		previousServerTickIncrement = 1L;
+		currentServerTickIncrement = 1L;
 	}
 
 	public static boolean isAdditionalInput(RecipeType<?> recipeType, ItemStack stack) {

@@ -3,7 +3,6 @@ package madoku.craft.time;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuClock;
-import madoku.craft.clock.MadokuGameplayClock;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
@@ -22,8 +21,8 @@ public final class MadokuTime {
 
 	private static final long DEFAULT_REAL_MINUTES_PER_DAY = 16L;
 	private static final long DEFAULT_REAL_MINUTES_PER_NIGHT = 8L;
-	private static final int DEFAULT_CLOCK_DAY_START_MINUTES = 5 * 60 + 30;
-	private static final int DEFAULT_CLOCK_NIGHT_START_MINUTES = 18 * 60 + 30;
+	private static final int DEFAULT_CLOCK_DAY_START_MINUTES = 6 * 60;
+	private static final int DEFAULT_CLOCK_NIGHT_START_MINUTES = 18 * 60;
 	private static final int DEFAULT_CLOCK_MIDNIGHT_MINUTES = 0;
 
 	public static final long MINECRAFT_TICKS_PER_CYCLE = 24000L;
@@ -45,6 +44,7 @@ public final class MadokuTime {
 	private static boolean hasRestoredVanillaGameRules = false;
 	private static long lastAppliedDayTime = 0L;
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static long lastObservedVanillaDayTime = Long.MIN_VALUE;
 
 	private MadokuTime() {
 	}
@@ -59,6 +59,7 @@ public final class MadokuTime {
 		hasRestoredVanillaGameRules = false;
 		lastAppliedDayTime = 0L;
 		lastAutosaveBucket = Long.MIN_VALUE;
+		lastObservedVanillaDayTime = Long.MIN_VALUE;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -78,7 +79,7 @@ public final class MadokuTime {
 
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		if (data == null) {
-			lastAutosaveBucket = Math.floorDiv(MadokuClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+			lastAutosaveBucket = Math.floorDiv(MadokuClock.getTimeTicks(), AUTOSAVE_INTERVAL_TICKS);
 			return;
 		}
 
@@ -89,11 +90,11 @@ public final class MadokuTime {
 			setClockFromAbsoluteDayTime(toAbsoluteDayTime(day, hour, minute));
 		}
 
-		lastAutosaveBucket = Math.floorDiv(MadokuClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuClock.getTimeTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		long currentBucket = Math.floorDiv(MadokuClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long currentBucket = Math.floorDiv(MadokuClock.getTimeTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (currentBucket != lastAutosaveBucket) {
 			lastAutosaveBucket = currentBucket;
 			savePersistedData(server);
@@ -119,10 +120,25 @@ public final class MadokuTime {
 				hasRestoredVanillaGameRules = true;
 				hasAppliedManagedGameRules = false;
 			}
+
+			ServerLevel overworld = server.overworld();
+			if (overworld != null) {
+				long observedDayTime = overworld.getDayTime();
+				if (lastObservedVanillaDayTime != Long.MIN_VALUE) {
+					long vanillaDelta = observedDayTime - lastObservedVanillaDayTime;
+					long extraTimeTicks = vanillaDelta - 1L;
+					if (extraTimeTicks > 0L) {
+						MadokuClock.tickTime(extraTimeTicks);
+					}
+				}
+				lastObservedVanillaDayTime = observedDayTime;
+			}
+
 			hasAppliedDayTime = false;
 			lastAppliedDayTime = 0L;
 			return;
 		}
+		lastObservedVanillaDayTime = Long.MIN_VALUE;
 		if (!hasAppliedManagedGameRules) {
 			for (ServerLevel world : server.getAllLevels()) {
 				world.getGameRules().set(GameRules.ADVANCE_TIME, false, server);
@@ -132,7 +148,7 @@ public final class MadokuTime {
 			hasRestoredVanillaGameRules = false;
 		}
 
-		long sessionTicks = MadokuClock.getTicks();
+		long sessionTicks = MadokuClock.getTimeTicks();
 		long absoluteDayTime = getAbsoluteDayTime(sessionTicks, currentSettings);
 
 		ServerLevel overworld = server.overworld();
@@ -142,7 +158,7 @@ public final class MadokuTime {
 				long remappedObservedDayTime =
 					remapVanillaTimeSetAnchors(observedDayTime, lastAppliedDayTime, currentSettings);
 				sessionTicks = getNearestSessionTicks(remappedObservedDayTime, currentSettings);
-				MadokuClock.setTicks(sessionTicks);
+					MadokuClock.setTimeTicks(sessionTicks);
 				// Preserve the exact command-driven value this tick; clock mapping takes over next tick.
 				absoluteDayTime = remappedObservedDayTime;
 			}
@@ -217,9 +233,9 @@ public final class MadokuTime {
 
 	public static long getCurrentAbsoluteDayTime() {
 		if (!settings.enabled) {
-			return MadokuGameplayClock.getTicks();
+			return MadokuClock.getTimeTicks();
 		}
-		return getAbsoluteDayTime(MadokuClock.getTicks(), settings);
+		return getAbsoluteDayTime(MadokuClock.getTimeTicks(), settings);
 	}
 
 	public static boolean isEnabled() {
@@ -243,7 +259,7 @@ public final class MadokuTime {
 	}
 
 	public static void setClockFromAbsoluteDayTime(long absoluteDayTime) {
-		MadokuClock.setTicks(getSessionTicks(absoluteDayTime, settings));
+		MadokuClock.setTimeTicks(getSessionTicks(absoluteDayTime, settings));
 	}
 
 	public static boolean isDaytime(long absoluteDayTime) {
@@ -482,10 +498,8 @@ public final class MadokuTime {
 			JsonObject cleaned = loaded.toConfigJson();
 			StaticJsonSystem.writeManagedFile(configFile, cleaned, defaults);
 			settings = loaded;
-			MadokuClock.setEnabled(loaded.enabled);
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
-			MadokuClock.setEnabled(fallback.enabled);
 			LOGGER.error("Failed to load MadokuTime static config; using defaults.", exception);
 		}
 	}

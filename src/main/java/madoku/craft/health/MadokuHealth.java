@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
-import madoku.craft.clock.MadokuGameplayClock;
+import madoku.craft.clock.MadokuClock;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
@@ -99,7 +99,7 @@ public final class MadokuHealth {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -107,7 +107,7 @@ public final class MadokuHealth {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -139,12 +139,12 @@ public final class MadokuHealth {
 		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
 		SCHEDULED_PLAYERS.remove(playerId);
 		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && context.getGameplayTick() == lastProcessed) {
+		if (lastProcessed != null && context.getNowTick() == lastProcessed) {
 			return;
 		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getGameplayTick());
+		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
 
-		disableVanillaNaturalRegen(server, context.getGameplayTick());
+		disableVanillaNaturalRegen(server, context.getNowTick());
 		if (!settings.enabled) {
 			return;
 		}
@@ -161,7 +161,7 @@ public final class MadokuHealth {
 			return;
 		}
 
-		boolean stillActive = processPlayer(player, context.getGameplayTick());
+		boolean stillActive = processPlayer(player, context.getNowTick());
 		if (stillActive) {
 			requestHealthProcessing(server, playerId, Math.max(1L, settings.schedulerTickInterval));
 		}
@@ -600,7 +600,7 @@ public final class MadokuHealth {
 			Math.max(0L, delay),
 			TASK_TYPE_HEALTH_TICK,
 			new JsonObject(),
-			MadokuScheduler.ClockSource.GAMEPLAY
+			MadokuScheduler.TickDomain.GAMEPLAY
 		);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
@@ -633,7 +633,7 @@ public final class MadokuHealth {
 		PlayerState state = PLAYER_STATES.computeIfAbsent(newPlayer.getUUID(), ignored -> new PlayerState());
 		state.pendingHealth = 0.0f;
 		state.highHungerDrainActive = newPlayer.getHealth() + EPSILON < newPlayer.getMaxHealth();
-		state.lastPendingActivityTick = MadokuGameplayClock.getTicks();
+		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
 		state.appliedMaxHealthMultiplier = 1.0d;
 		state.appliedHealthBoostAmount = 0.0d;
 		state.appliedAbsorptionAmount = 0.0f;
@@ -643,7 +643,7 @@ public final class MadokuHealth {
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.respawn_half_health")) {
 			MadokuDebug.event("health.respawn_half_health", MadokuDebug.Domain.HEALTH)
 				.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuGameplayClock.getTicks())
+				.tick(MadokuClock.getGameplayTicks())
 				.subject("player:" + newPlayer.getUUID())
 				.field("health", formatFloat(newPlayer.getHealth()))
 				.field("max_health", formatFloat(newPlayer.getMaxHealth()))
@@ -664,12 +664,12 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastPendingActivityTick = MadokuGameplayClock.getTicks();
+		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.damage_detected")) {
 			MadokuDebug.event("health.damage_detected", MadokuDebug.Domain.HEALTH)
 				.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuGameplayClock.getTicks())
+				.tick(MadokuClock.getGameplayTicks())
 				.subject("player:" + player.getUUID())
 				.field("damage_taken", formatFloat(damageTaken))
 				.field("blocked", blocked)
@@ -684,9 +684,9 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastPendingActivityTick = MadokuGameplayClock.getTicks();
+		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
-		applyImmediateEffectOverrides(player, state, MadokuGameplayClock.getTicks());
+		applyImmediateEffectOverrides(player, state, MadokuClock.getGameplayTicks());
 		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 	}
 
@@ -697,7 +697,7 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		long gameplayTick = MadokuGameplayClock.getTicks();
+		long gameplayTick = MadokuClock.getGameplayTicks();
 		state.lastPendingActivityTick = gameplayTick;
 		applyImmediateEffectOverrides(player, state, gameplayTick);
 		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);

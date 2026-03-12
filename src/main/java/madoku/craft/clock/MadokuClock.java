@@ -4,46 +4,45 @@ public final class MadokuClock {
 	public static final long TICKS_PER_SECOND = 20L;
 	public static final long SECONDS_PER_MINUTE = 60L;
 
-	private static long ticks = 0L;
-	private static volatile boolean enabled = true;
+	private static long gameplayTicks = 0L;
+	private static long timeTicks = 0L;
 
 	private MadokuClock() {
 	}
 
-	public static void tick() {
-		tick(1L);
+	public static void tickGameplay() {
+		gameplayTicks++;
 	}
 
-	public static void tick(long amount) {
-		if (!enabled || amount <= 0L) {
+	public static void tickTime() {
+		tickTime(1L);
+	}
+
+	public static void tickTime(long amount) {
+		if (amount <= 0L) {
 			return;
 		}
-		ticks += amount;
+		timeTicks += amount;
 	}
 
 	public static void reset() {
-		ticks = 0L;
+		gameplayTicks = 0L;
+		timeTicks = 0L;
 	}
 
-	public static long getTicks() {
-		if (!enabled) {
-			return MadokuGameplayClock.getTicks();
-		}
-		return ticks;
+	public static long getGameplayTicks() {
+		return gameplayTicks;
 	}
 
-	public static void setTicks(long value) {
-		if (!enabled) {
-			return;
-		}
-		ticks = value;
+	public static long getTimeTicks() {
+		return timeTicks;
 	}
 
-	public static void setEnabled(boolean value) {
-		enabled = value;
+	public static void setGameplayTicks(long value) {
+		gameplayTicks = Math.max(0L, value);
 	}
 
-	public static boolean isEnabled() {
-		return enabled;
+	public static void setTimeTicks(long value) {
+		timeTicks = Math.max(0L, value);
 	}
 }

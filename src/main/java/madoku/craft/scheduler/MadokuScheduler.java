@@ -6,7 +6,6 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.data.MadokuData;
 import madoku.craft.clock.MadokuClock;
-import madoku.craft.clock.MadokuGameplayClock;
 import madoku.craft.debug.MadokuDebug;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -61,8 +60,6 @@ public final class MadokuScheduler {
 	private static boolean dirty = false;
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static boolean ticking = false;
-	private static long lastProcessedGameplayTick = Long.MIN_VALUE;
-	private static long lastProcessedMadokuTick = Long.MIN_VALUE;
 
 	static {
 		registerOwnerResolver("global", (server, owner) -> true);
@@ -85,8 +82,6 @@ public final class MadokuScheduler {
 		ticking = false;
 		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
-		lastProcessedGameplayTick = Long.MIN_VALUE;
-		lastProcessedMadokuTick = Long.MIN_VALUE;
 	}
 
 	public static String createScheduler(SchedulerOwner owner) {
@@ -99,7 +94,7 @@ public final class MadokuScheduler {
 			);
 		}
 
-		long now = MadokuGameplayClock.getTicks();
+		long now = MadokuClock.getGameplayTicks();
 		String schedulerId = UUID.randomUUID().toString();
 		SchedulerState scheduler = new SchedulerState(
 			schedulerId,
@@ -132,7 +127,8 @@ public final class MadokuScheduler {
 			throw new IllegalArgumentException("Scheduler owner must not be null.");
 		}
 		SchedulerOwner normalizedOwner = owner.normalized();
-		SchedulerState existing = findSchedulerByOwner(normalizedOwner);
+		long nowGameplayTick = MadokuClock.getGameplayTicks();
+		SchedulerState existing = findSchedulerByOwner(normalizedOwner, nowGameplayTick);
 		if (existing != null) {
 			return existing.schedulerId;
 		}
@@ -144,21 +140,21 @@ public final class MadokuScheduler {
 		long delayTicks,
 		String taskType,
 		JsonObject payload,
-		ClockSource clockSource
+		TickDomain domain
 	) {
 		SchedulerState scheduler = findScheduler(schedulerId);
-		ClockSource resolvedClockSource = Objects.requireNonNull(clockSource, "Clock source must not be null.");
-		long nowGameplay = MadokuGameplayClock.getTicks();
+		TickDomain resolvedDomain = Objects.requireNonNull(domain, "Tick domain must not be null.");
+		long nowGameplayTick = MadokuClock.getGameplayTicks();
 		if (scheduler == null) {
 			return EnqueueStatus.SCHEDULER_NOT_FOUND;
 		}
 
-		if (nowGameplay >= scheduler.expireAtTick) {
+		if (nowGameplayTick >= scheduler.expireAtTick) {
 			scheduler.accepting = false;
 			markSchedulerDirty(scheduler.schedulerId);
 			return EnqueueStatus.SCHEDULER_EXPIRED;
 		}
-		if (!scheduler.accepting || nowGameplay > scheduler.acceptUntilTick) {
+		if (!scheduler.accepting || nowGameplayTick > scheduler.acceptUntilTick) {
 			scheduler.accepting = false;
 			markSchedulerDirty(scheduler.schedulerId);
 			return EnqueueStatus.SCHEDULER_CLOSED;
@@ -174,36 +170,37 @@ public final class MadokuScheduler {
 			return EnqueueStatus.QUEUE_FULL;
 		}
 
-		long nowClock = getCurrentTickForClockSource(resolvedClockSource);
+		long nowDomainTick = currentTickForDomain(resolvedDomain);
 		long safeDelay = Math.max(0L, delayTicks);
-		long dueTick = safeAdd(nowClock, safeDelay);
+		long dueTick = safeAdd(nowDomainTick, safeDelay);
 		ScheduledRequest request = new ScheduledRequest(
 			scheduler.nextRequestId++,
-			nowClock,
+			nowDomainTick,
 			dueTick,
-			resolvedClockSource,
+			resolvedDomain,
 			normalizedTaskType,
 			payload == null ? new JsonObject() : payload.deepCopy(),
 			0
 		);
-		queueForClock(scheduler, resolvedClockSource).add(request);
-		scheduler.lastActivityTick = nowGameplay;
-		scheduler.nextScanTick = nowGameplay;
-		scheduler.nextOwnerCheckTick = nowGameplay;
+		queueForDomain(scheduler, resolvedDomain).add(request);
+		scheduler.lastActivityTick = nowGameplayTick;
+		scheduler.nextScanTick = nowGameplayTick;
+		scheduler.nextOwnerCheckTick = nowGameplayTick;
 		markSchedulerDirty(scheduler.schedulerId);
 		return EnqueueStatus.ACCEPTED;
 	}
 
-	public static void tick(MinecraftServer server) {
+	public static void tick(MinecraftServer server, boolean gameplaySignal, boolean timeSignal) {
 		if (server == null) {
+			return;
+		}
+		if (!gameplaySignal && !timeSignal) {
 			return;
 		}
 
 		ticking = true;
-		long rawGameplayTick = MadokuGameplayClock.getTicks();
-		long rawMadokuTick = MadokuClock.getTicks();
-		long nowGameplay = toMonotonicGameplayTick(rawGameplayTick);
-		long nowMadoku = toMonotonicMadokuTick(rawMadokuTick);
+		long nowGameplayTick = MadokuClock.getGameplayTicks();
+		long nowTimeTick = MadokuClock.getTimeTicks();
 		try {
 			Iterator<Map.Entry<String, SchedulerState>> iterator = SCHEDULERS.entrySet().iterator();
 			while (iterator.hasNext()) {
@@ -211,34 +208,46 @@ public final class MadokuScheduler {
 
 				long pausedExpireAtTick = safeAdd(scheduler.createdAtTick, MONTH_TIMEOUT_TICKS);
 				long effectiveExpireAtTick = scheduler.paused ? pausedExpireAtTick : scheduler.expireAtTick;
-				if (nowGameplay >= effectiveExpireAtTick) {
+				if (nowGameplayTick >= effectiveExpireAtTick) {
 					iterator.remove();
 					markSchedulerRemoved(scheduler.schedulerId);
-					logSchedulerExpired(nowGameplay, scheduler, "lifecycle_timeout");
+					logSchedulerExpired(nowGameplayTick, scheduler, "lifecycle_timeout");
 					continue;
 				}
 
-				if (!shouldScanSchedulerThisTick(scheduler, nowGameplay, nowMadoku)) {
+				if (!shouldScanSchedulerThisTick(
+					scheduler,
+					nowGameplayTick,
+					nowTimeTick,
+					gameplaySignal,
+					timeSignal
+				)) {
 					continue;
 				}
 
-				if (scheduler.accepting && nowGameplay > scheduler.acceptUntilTick) {
+				if (scheduler.accepting && nowGameplayTick > scheduler.acceptUntilTick) {
 					scheduler.accepting = false;
 					markSchedulerDirty(scheduler.schedulerId);
 				}
 
 				if (queueSize(scheduler) == 0) {
-					long idleTicks = nowGameplay - scheduler.lastActivityTick;
+					long idleTicks = nowGameplayTick - scheduler.lastActivityTick;
 					boolean idleExpired = idleTicks >= IDLE_TIMEOUT_TICKS;
 					if (!scheduler.accepting || idleExpired) {
 						iterator.remove();
 						markSchedulerRemoved(scheduler.schedulerId);
-						logSchedulerExpired(nowGameplay, scheduler, idleExpired ? "idle_timeout" : "closed_no_tasks");
+						logSchedulerExpired(nowGameplayTick, scheduler, idleExpired ? "idle_timeout" : "closed_no_tasks");
 					}
 					continue;
 				}
 
-				ScheduledRequest next = peekDueRequest(scheduler, nowGameplay, nowMadoku);
+				ScheduledRequest next = peekDueRequest(
+					scheduler,
+					nowGameplayTick,
+					nowTimeTick,
+					gameplaySignal,
+					timeSignal
+				);
 				if (next == null) {
 					continue;
 				}
@@ -250,53 +259,59 @@ public final class MadokuScheduler {
 						scheduler.dead = deadNow;
 						markSchedulerDirty(scheduler.schedulerId);
 					}
-					if (!scheduler.paused) {
-						scheduler.paused = true;
-						markSchedulerDirty(scheduler.schedulerId);
-					}
-					if (transientUnavailable) {
-						scheduler.nextOwnerCheckTick = safeAdd(nowGameplay, INACTIVE_SCAN_INTERVAL_TICKS);
-						scheduler.nextScanTick = scheduler.nextOwnerCheckTick;
-					}
-					continue;
-				}
-
-				if (scheduler.dead) {
-					scheduler.dead = false;
-					markSchedulerDirty(scheduler.schedulerId);
-				}
-				if (scheduler.paused) {
-					scheduler.paused = false;
-					markSchedulerDirty(scheduler.schedulerId);
-				}
-				scheduler.nextOwnerCheckTick = nowGameplay;
-				long taskClockNow = nowForClockSource(next.clockSource, nowGameplay, nowMadoku);
-				ExecutionResult result = executeTask(server, scheduler, next, nowGameplay, nowMadoku);
-				switch (result) {
-					case SUCCESS -> {
-						removeScheduledRequest(scheduler, next);
-						scheduler.lastActivityTick = nowGameplay;
-						markSchedulerDirty(scheduler.schedulerId);
-					}
-					case RETRY -> {
-						removeScheduledRequest(scheduler, next);
-						if (next.scheduleRetry(taskClockNow)) {
-							queueForClock(scheduler, next.clockSource).add(next);
-						} else {
-							LOGGER.warn(
-								"Dropping scheduler task after {} failed attempts: scheduler={} request_id={} task_type={}",
-								next.failureCount,
-								scheduler.schedulerId,
-								next.requestId,
-								next.taskType
-							);
+						if (!scheduler.paused) {
+							scheduler.paused = true;
+							markSchedulerDirty(scheduler.schedulerId);
 						}
-						scheduler.lastActivityTick = nowGameplay;
+						if (transientUnavailable) {
+							scheduler.nextOwnerCheckTick = safeAdd(nowGameplayTick, INACTIVE_SCAN_INTERVAL_TICKS);
+							scheduler.nextScanTick = scheduler.nextOwnerCheckTick;
+						}
+						continue;
+					}
+
+					if (scheduler.dead) {
+						scheduler.dead = false;
 						markSchedulerDirty(scheduler.schedulerId);
 					}
+					if (scheduler.paused) {
+						scheduler.paused = false;
+						markSchedulerDirty(scheduler.schedulerId);
+					}
+					scheduler.nextOwnerCheckTick = nowGameplayTick;
+					ExecutionResult result = executeTask(
+						server,
+						scheduler,
+						next,
+						nowGameplayTick,
+						nowTimeTick
+					);
+					switch (result) {
+						case SUCCESS -> {
+							removeScheduledRequest(scheduler, next);
+							scheduler.lastActivityTick = nowGameplayTick;
+							markSchedulerDirty(scheduler.schedulerId);
+						}
+						case RETRY -> {
+							removeScheduledRequest(scheduler, next);
+							long nowDomainTick = currentTickForDomain(next.domain, nowGameplayTick, nowTimeTick);
+							if (next.scheduleRetry(nowDomainTick)) {
+								queueForDomain(scheduler, next.domain).add(next);
+							} else {
+								LOGGER.warn(
+									"Dropping scheduler task after {} failed attempts: scheduler={} request_id={} task_type={}",
+									next.failureCount,
+									scheduler.schedulerId,
+									next.requestId,
+									next.taskType
+								);
+							}
+							scheduler.lastActivityTick = nowGameplayTick;
+							markSchedulerDirty(scheduler.schedulerId);
+						}
+					}
 				}
-			}
-		} finally {
+			} finally {
 			ticking = false;
 			if (!PENDING_SCHEDULERS.isEmpty()) {
 				SCHEDULERS.putAll(PENDING_SCHEDULERS);
@@ -336,18 +351,31 @@ public final class MadokuScheduler {
 		return PENDING_SCHEDULERS.get(schedulerId);
 	}
 
-	private static SchedulerState findSchedulerByOwner(SchedulerOwner owner) {
+	private static SchedulerState findSchedulerByOwner(SchedulerOwner owner, long nowGameplayTick) {
 		for (SchedulerState scheduler : SCHEDULERS.values()) {
-			if (sameOwner(scheduler.owner, owner)) {
+			if (sameOwner(scheduler.owner, owner) && canAcceptEnqueue(scheduler, nowGameplayTick)) {
 				return scheduler;
 			}
 		}
 		for (SchedulerState scheduler : PENDING_SCHEDULERS.values()) {
-			if (sameOwner(scheduler.owner, owner)) {
+			if (sameOwner(scheduler.owner, owner) && canAcceptEnqueue(scheduler, nowGameplayTick)) {
 				return scheduler;
 			}
 		}
 		return null;
+	}
+
+	private static boolean canAcceptEnqueue(SchedulerState scheduler, long nowGameplayTick) {
+		if (scheduler == null) {
+			return false;
+		}
+		if (!scheduler.accepting) {
+			return false;
+		}
+		if (nowGameplayTick > scheduler.acceptUntilTick) {
+			return false;
+		}
+		return nowGameplayTick < scheduler.expireAtTick;
 	}
 
 	private static boolean sameOwner(SchedulerOwner left, SchedulerOwner right) {
@@ -362,66 +390,70 @@ public final class MadokuScheduler {
 			&& Objects.equals(left.levelId, right.levelId);
 	}
 
-	private static boolean shouldScanSchedulerThisTick(SchedulerState scheduler, long nowGameplay, long nowMadoku) {
-		boolean ownerCheckReady = nowGameplay >= scheduler.nextOwnerCheckTick;
-		boolean activeNow = peekDueRequest(scheduler, nowGameplay, nowMadoku) != null
+	private static boolean shouldScanSchedulerThisTick(
+		SchedulerState scheduler,
+		long nowGameplayTick,
+		long nowTimeTick,
+		boolean gameplaySignal,
+		boolean timeSignal
+	) {
+		boolean ownerCheckReady = nowGameplayTick >= scheduler.nextOwnerCheckTick;
+		ScheduledRequest dueRequest = peekDueRequest(
+			scheduler,
+			nowGameplayTick,
+			nowTimeTick,
+			gameplaySignal,
+			timeSignal
+		);
+		boolean activeNow = dueRequest != null
 			&& !scheduler.dead
 			&& ownerCheckReady;
 		if (activeNow) {
-			scheduler.nextScanTick = nowGameplay;
+			scheduler.nextScanTick = nowGameplayTick;
 			return true;
 		}
 
-		if (nowGameplay >= scheduler.nextScanTick) {
-			scheduler.nextScanTick = safeAdd(nowGameplay, INACTIVE_SCAN_INTERVAL_TICKS);
+		if (gameplaySignal && nowGameplayTick >= scheduler.nextScanTick) {
+			scheduler.nextScanTick = safeAdd(nowGameplayTick, INACTIVE_SCAN_INTERVAL_TICKS);
 			return true;
 		}
 		return false;
 	}
 
-	private static long getCurrentTickForClockSource(ClockSource clockSource) {
-		if (clockSource == ClockSource.MADOKU) {
-			return toMonotonicMadokuTick(MadokuClock.getTicks());
-		}
-		return toMonotonicGameplayTick(MadokuGameplayClock.getTicks());
-	}
-
-	private static long nowForClockSource(ClockSource clockSource, long nowGameplay, long nowMadoku) {
-		return clockSource == ClockSource.MADOKU ? nowMadoku : nowGameplay;
-	}
-
-	private static ScheduledRequest peekDueRequest(SchedulerState scheduler, long nowGameplay, long nowMadoku) {
-		ScheduledRequest gameplayHead = scheduler.gameplayRequests.peek();
-		ScheduledRequest madokuHead = scheduler.madokuRequests.peek();
-		boolean gameplayDue = gameplayHead != null && gameplayHead.dueTick <= nowGameplay;
-		boolean madokuDue = madokuHead != null && madokuHead.dueTick <= nowMadoku;
-		if (gameplayDue && madokuDue) {
-			long gameplayLateness = nowGameplay - gameplayHead.dueTick;
-			long madokuLateness = nowMadoku - madokuHead.dueTick;
-			if (gameplayLateness != madokuLateness) {
-				return gameplayLateness >= madokuLateness ? gameplayHead : madokuHead;
+	private static ScheduledRequest peekDueRequest(
+		SchedulerState scheduler,
+		long nowGameplayTick,
+		long nowTimeTick,
+		boolean gameplaySignal,
+		boolean timeSignal
+	) {
+		ScheduledRequest gameplayHead = gameplaySignal ? scheduler.gameplayRequests.peek() : null;
+		ScheduledRequest timeHead = timeSignal ? scheduler.timeRequests.peek() : null;
+		boolean gameplayDue = gameplayHead != null && gameplayHead.dueTick <= nowGameplayTick;
+		boolean timeDue = timeHead != null && timeHead.dueTick <= nowTimeTick;
+		if (gameplayDue && timeDue) {
+			long gameplayLateness = nowGameplayTick - gameplayHead.dueTick;
+			long timeLateness = nowTimeTick - timeHead.dueTick;
+			if (gameplayLateness != timeLateness) {
+				return gameplayLateness >= timeLateness ? gameplayHead : timeHead;
 			}
-			return gameplayHead.requestId <= madokuHead.requestId ? gameplayHead : madokuHead;
+			return gameplayHead.requestId <= timeHead.requestId ? gameplayHead : timeHead;
 		}
 		if (gameplayDue) {
 			return gameplayHead;
 		}
-		if (madokuDue) {
-			return madokuHead;
+		if (timeDue) {
+			return timeHead;
 		}
 		return null;
 	}
 
 	private static int queueSize(SchedulerState scheduler) {
-		return scheduler.gameplayRequests.size() + scheduler.madokuRequests.size();
-	}
-
-	private static PriorityQueue<ScheduledRequest> queueForClock(SchedulerState scheduler, ClockSource clockSource) {
-		return clockSource == ClockSource.MADOKU ? scheduler.madokuRequests : scheduler.gameplayRequests;
+		return scheduler.gameplayRequests.size() + scheduler.timeRequests.size();
 	}
 
 	private static void removeScheduledRequest(SchedulerState scheduler, ScheduledRequest request) {
-		PriorityQueue<ScheduledRequest> queue = queueForClock(scheduler, request.clockSource);
+		PriorityQueue<ScheduledRequest> queue = queueForDomain(scheduler, request.domain);
 		ScheduledRequest head = queue.peek();
 		if (head == request) {
 			queue.poll();
@@ -430,18 +462,16 @@ public final class MadokuScheduler {
 		}
 	}
 
-	private static long toMonotonicGameplayTick(long rawTick) {
-		if (lastProcessedGameplayTick == Long.MIN_VALUE || rawTick >= lastProcessedGameplayTick) {
-			lastProcessedGameplayTick = rawTick;
-		}
-		return lastProcessedGameplayTick;
+	private static PriorityQueue<ScheduledRequest> queueForDomain(SchedulerState scheduler, TickDomain domain) {
+		return domain == TickDomain.TIME ? scheduler.timeRequests : scheduler.gameplayRequests;
 	}
 
-	private static long toMonotonicMadokuTick(long rawTick) {
-		if (lastProcessedMadokuTick == Long.MIN_VALUE || rawTick >= lastProcessedMadokuTick) {
-			lastProcessedMadokuTick = rawTick;
-		}
-		return lastProcessedMadokuTick;
+	private static long currentTickForDomain(TickDomain domain) {
+		return currentTickForDomain(domain, MadokuClock.getGameplayTicks(), MadokuClock.getTimeTicks());
+	}
+
+	private static long currentTickForDomain(TickDomain domain, long nowGameplayTick, long nowTimeTick) {
+		return domain == TickDomain.TIME ? nowTimeTick : nowGameplayTick;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -449,13 +479,18 @@ public final class MadokuScheduler {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME, createDefaultMetadata());
 
 		JsonObject metadata = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME);
-		MadokuGameplayClock.setTicks(getLong(metadata, "gameplay_ticks", 0L));
+		if (metadata != null) {
+			long persistedGameplayTick = getLong(metadata, "gameplay_ticks", 0L);
+			long persistedTimeTick = getLong(metadata, "time_ticks", 0L);
+			MadokuClock.setGameplayTicks(persistedGameplayTick);
+			MadokuClock.setTimeTicks(persistedTimeTick);
+		}
 		loadSchedulersFromMetadata(server, metadata);
 
 		DIRTY_SCHEDULER_IDS.clear();
 		REMOVED_SCHEDULER_IDS.clear();
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -463,7 +498,7 @@ public final class MadokuScheduler {
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		long currentBucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long currentBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (currentBucket == lastAutosaveBucket) {
 			return;
 		}
@@ -519,7 +554,7 @@ public final class MadokuScheduler {
 		DIRTY_SCHEDULER_IDS.clear();
 		REMOVED_SCHEDULER_IDS.clear();
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuGameplayClock.getTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	private static void loadSchedulersFromMetadata(MinecraftServer server, JsonObject metadata) {
@@ -680,13 +715,13 @@ public final class MadokuScheduler {
 		QUEUE_FULL
 	}
 
-	public enum ClockSource {
+	public enum TickDomain {
 		GAMEPLAY("gameplay"),
-		MADOKU("madoku");
+		TIME("time");
 
 		private final String id;
 
-		ClockSource(String id) {
+		TickDomain(String id) {
 			this.id = id;
 		}
 
@@ -694,11 +729,11 @@ public final class MadokuScheduler {
 			return id;
 		}
 
-		public static ClockSource fromId(String value) {
+		public static TickDomain fromId(String value) {
 			String normalized = normalizeKey(value);
 			return switch (normalized) {
-				case "madoku" -> MADOKU;
 				case "gameplay" -> GAMEPLAY;
+				case "time" -> TIME;
 				default -> null;
 			};
 		}
@@ -714,26 +749,20 @@ public final class MadokuScheduler {
 		private final long requestId;
 		private final long nowTick;
 		private final SchedulerOwner owner;
-		private final ClockSource clockSource;
-		private final long gameplayTick;
-		private final long madokuTick;
+		private final TickDomain domain;
 
 		private TaskContext(
 			String schedulerId,
 			long requestId,
 			long nowTick,
 			SchedulerOwner owner,
-			ClockSource clockSource,
-			long gameplayTick,
-			long madokuTick
+			TickDomain domain
 		) {
 			this.schedulerId = schedulerId;
 			this.requestId = requestId;
 			this.nowTick = nowTick;
 			this.owner = owner;
-			this.clockSource = clockSource;
-			this.gameplayTick = gameplayTick;
-			this.madokuTick = madokuTick;
+			this.domain = domain;
 		}
 
 		public String getSchedulerId() {
@@ -752,22 +781,15 @@ public final class MadokuScheduler {
 			return owner;
 		}
 
-		public ClockSource getClockSource() {
-			return clockSource;
-		}
-
-		public long getGameplayTick() {
-			return gameplayTick;
-		}
-
-		public long getMadokuTick() {
-			return madokuTick;
+		public TickDomain getDomain() {
+			return domain;
 		}
 	}
 
 	private static JsonObject toMetadataJson() {
 		JsonObject root = new JsonObject();
-		root.addProperty("gameplay_ticks", MadokuGameplayClock.getTicks());
+		root.addProperty("gameplay_ticks", MadokuClock.getGameplayTicks());
+		root.addProperty("time_ticks", MadokuClock.getTimeTicks());
 		JsonArray schedulerIds = new JsonArray();
 		for (SchedulerState scheduler : SCHEDULERS.values()) {
 			schedulerIds.add(scheduler.schedulerId);
@@ -779,6 +801,7 @@ public final class MadokuScheduler {
 	private static JsonObject createDefaultMetadata() {
 		JsonObject root = new JsonObject();
 		root.addProperty("gameplay_ticks", 0L);
+		root.addProperty("time_ticks", 0L);
 		root.add("scheduler_ids", new JsonArray());
 		return root;
 	}
@@ -871,8 +894,8 @@ public final class MadokuScheduler {
 		MinecraftServer server,
 		SchedulerState scheduler,
 		ScheduledRequest request,
-		long nowGameplay,
-		long nowMadoku
+		long nowGameplayTick,
+		long nowTimeTick
 	) {
 		TaskHandler handler = TASK_HANDLERS.get(request.taskType);
 		if (handler == null) {
@@ -886,17 +909,15 @@ public final class MadokuScheduler {
 		}
 
 		try {
-			long taskNow = nowForClockSource(request.clockSource, nowGameplay, nowMadoku);
+			long nowDomainTick = currentTickForDomain(request.domain, nowGameplayTick, nowTimeTick);
 			handler.execute(
 				server,
 				new TaskContext(
 					scheduler.schedulerId,
 					request.requestId,
-					taskNow,
+					nowDomainTick,
 					scheduler.owner,
-					request.clockSource,
-					nowGameplay,
-					nowMadoku
+					request.domain
 				),
 				request.payload.deepCopy()
 			);
@@ -1142,7 +1163,7 @@ public final class MadokuScheduler {
 		private final String schedulerId;
 		private final SchedulerOwner owner;
 		private final PriorityQueue<ScheduledRequest> gameplayRequests;
-		private final PriorityQueue<ScheduledRequest> madokuRequests;
+		private final PriorityQueue<ScheduledRequest> timeRequests;
 		private long nextRequestId;
 		private final long createdAtTick;
 		private final long acceptUntilTick;
@@ -1174,7 +1195,7 @@ public final class MadokuScheduler {
 			this.paused = false;
 			this.nextRequestId = 1L;
 			this.gameplayRequests = new PriorityQueue<>(REQUEST_COMPARATOR);
-			this.madokuRequests = new PriorityQueue<>(REQUEST_COMPARATOR);
+			this.timeRequests = new PriorityQueue<>(REQUEST_COMPARATOR);
 		}
 
 		private JsonObject toJson() {
@@ -1190,9 +1211,10 @@ public final class MadokuScheduler {
 			root.addProperty("dead", dead);
 			root.addProperty("paused", paused);
 			JsonArray queue = new JsonArray();
-			List<ScheduledRequest> allRequests = new ArrayList<>(gameplayRequests.size() + madokuRequests.size());
+			List<ScheduledRequest> allRequests =
+				new ArrayList<>(gameplayRequests.size() + timeRequests.size());
 			allRequests.addAll(gameplayRequests);
-			allRequests.addAll(madokuRequests);
+			allRequests.addAll(timeRequests);
 			allRequests.sort(Comparator.comparingLong((ScheduledRequest request) -> request.requestId));
 			for (ScheduledRequest request : allRequests) {
 				queue.add(request.toJson());
@@ -1248,7 +1270,7 @@ public final class MadokuScheduler {
 					if (request == null) {
 						continue;
 					}
-					queueForClock(scheduler, request.clockSource).add(request);
+					queueForDomain(scheduler, request.domain).add(request);
 					scheduler.nextRequestId = Math.max(scheduler.nextRequestId, request.requestId + 1L);
 				}
 			}
@@ -1261,7 +1283,7 @@ public final class MadokuScheduler {
 		private final long requestId;
 		private final long enqueuedTick;
 		private long dueTick;
-		private final ClockSource clockSource;
+		private final TickDomain domain;
 		private final String taskType;
 		private final JsonObject payload;
 		private int failureCount;
@@ -1270,7 +1292,7 @@ public final class MadokuScheduler {
 			long requestId,
 			long enqueuedTick,
 			long dueTick,
-			ClockSource clockSource,
+			TickDomain domain,
 			String taskType,
 			JsonObject payload,
 			int failureCount
@@ -1278,7 +1300,7 @@ public final class MadokuScheduler {
 			this.requestId = requestId;
 			this.enqueuedTick = enqueuedTick;
 			this.dueTick = dueTick;
-			this.clockSource = Objects.requireNonNull(clockSource, "Clock source must not be null.");
+			this.domain = Objects.requireNonNull(domain, "Tick domain must not be null.");
 			this.taskType = taskType;
 			this.payload = payload;
 			this.failureCount = Math.max(0, failureCount);
@@ -1289,7 +1311,7 @@ public final class MadokuScheduler {
 			root.addProperty("request_id", requestId);
 			root.addProperty("enqueued_tick", enqueuedTick);
 			root.addProperty("due_tick", dueTick);
-			root.addProperty("clock_source", clockSource.id());
+			root.addProperty("domain", domain.id());
 			root.addProperty("task_type", taskType);
 			root.addProperty("failure_count", failureCount);
 			root.add("payload", payload == null ? new JsonObject() : payload.deepCopy());
@@ -1321,8 +1343,8 @@ public final class MadokuScheduler {
 			long requestId = Math.max(1L, getLong(source, "request_id", 1L));
 			long enqueuedTick = Math.max(0L, getLong(source, "enqueued_tick", 0L));
 			long dueTick = Math.max(0L, getLong(source, "due_tick", enqueuedTick));
-			ClockSource clockSource = ClockSource.fromId(getString(source, "clock_source", ""));
-			if (clockSource == null) {
+			TickDomain domain = TickDomain.fromId(getString(source, "domain", ""));
+			if (domain == null) {
 				return null;
 			}
 			String taskType = normalizeKey(getString(source, "task_type", ""));
@@ -1337,7 +1359,7 @@ public final class MadokuScheduler {
 				payload = payloadElement.getAsJsonObject().deepCopy();
 			}
 
-			return new ScheduledRequest(requestId, enqueuedTick, dueTick, clockSource, taskType, payload, failureCount);
+			return new ScheduledRequest(requestId, enqueuedTick, dueTick, domain, taskType, payload, failureCount);
 		}
 	}
 
