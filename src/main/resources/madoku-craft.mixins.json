@@ -1,0 +1,49 @@
+{
+  "required": true,
+  "package": "madoku.craft.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AbstractFurnaceBlockEntityMixin",
+    "AbstractFurnaceServerTickInvoker",
+    "AbstractFurnaceServerTickMixin",
+    "CraftingMenuRarityMixin",
+    "ContainerStackLimitMixin",
+    "EffectCommandsSaturationDurationMixin",
+    "ExtraCodecsIntRangeMixin",
+    "FoodDataStarvationDamageMixin",
+    "FurnaceCookTimeMixin",
+    "FurnaceMenuMixin",
+    "FuelValuesMixin",
+    "GameRuleCommandLockMixin",
+    "ItemInputRarityMixin",
+    "ItemComponentsAccessor",
+    "ItemStackDurabilityLoreMixin",
+    "ItemFoodGateMixin",
+    "ItemStackMaxSizeMixin",
+    "InventoryMenuRarityMixin",
+    "LivingEntityArmorDamageMixin",
+    "LivingEntityEffectAttributeOverrideMixin",
+    "LivingEntityEffectMixin",
+    "MobEffectTickOverrideMixin",
+    "LootTableRarityMixin",
+    "ResultSlotRarityMixin",
+    "PlayerEatGateMixin",
+    "PlayerInventoryDeathDropMixin",
+    "PlayerSprintGateMixin",
+    "PlayerSleepTickMixin",
+    "SaturationMobEffectMixin",
+    "SmithingTransformRecipeRarityMixin",
+    "ServerPlayerDrowningDamageMixin",
+    "ServerPlayerSleepTimeMixin"
+  ],
+  "client": [
+    "client.GuiGraphicsRarityOverlayMixin",
+    "client.GuiGraphicsStackCountMixin",
+    "client.GuiAccessor",
+    "client.ItemFoodClientGateMixin",
+    "client.PlayerEatClientGateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
