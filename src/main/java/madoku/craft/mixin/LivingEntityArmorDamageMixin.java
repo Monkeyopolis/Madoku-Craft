@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.armor.MadokuArmor;
+import madoku.craft.mob.system.MadokuMob;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,6 +14,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class LivingEntityArmorDamageMixin {
 	@Inject(method = "getDamageAfterArmorAbsorb", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyMadokuArmor(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
+		if (MadokuMob.shouldSkeletonMeleeIgnoreArmor(source)) {
+			cir.setReturnValue(amount);
+			return;
+		}
 		if (!MadokuArmor.isEnabled()) {
 			return;
 		}

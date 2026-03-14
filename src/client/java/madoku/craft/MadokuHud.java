@@ -107,6 +107,8 @@ public final class MadokuHud {
 	private static volatile int serverHour = 6;
 	private static volatile int serverMinute = 0;
 	private static volatile boolean hasServerTime = false;
+	private static volatile int serverDifficulty = 1;
+	private static volatile boolean hasServerDifficulty = false;
 	private static volatile int serverHungerCurrent = 0;
 	private static volatile int serverHungerPending = 0;
 	private static volatile int serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
@@ -181,6 +183,8 @@ public final class MadokuHud {
 		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, secondLineY, COLOR);
 		int thirdLineY = lineOffset(client, 2);
 		drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, thirdLineY, COLOR);
+		int fourthLineY = lineOffset(client, 3);
+		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, fourthLineY, COLOR);
 	}
 
 	private static void renderHealthHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
@@ -525,6 +529,13 @@ public final class MadokuHud {
 		return rawDay + 1L;
 	}
 
+	private static String getDifficultyDisplayText() {
+		if (!hasServerDifficulty) {
+			return "1";
+		}
+		return Integer.toString(Math.max(1, serverDifficulty));
+	}
+
 	private static boolean isBlinking(Gui gui, int ticks) {
 		long healthBlinkTime = ((GuiAccessor) gui).madokuCraft$getHealthBlinkTime();
 		long currentTicks = ticks;
@@ -769,6 +780,16 @@ public final class MadokuHud {
 
 	public static void clearServerTime() {
 		hasServerTime = false;
+	}
+
+	public static void setServerDifficulty(int level) {
+		serverDifficulty = Math.max(1, level);
+		hasServerDifficulty = true;
+	}
+
+	public static void clearServerDifficulty() {
+		serverDifficulty = 1;
+		hasServerDifficulty = false;
 	}
 
 	public static void setServerHunger(int current, int pending, int max) {

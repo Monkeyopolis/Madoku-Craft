@@ -188,6 +188,9 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 		if (player == null || amount <= 0) {
 			return 0;
 		}
+		if (isExemptFromHungerDrain(player)) {
+			return 0;
+		}
 
 		if (!settings.enabled) {
 			return drainVanillaFood(player, amount);
@@ -297,6 +300,9 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 		if (!settings.enabled || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
+		if (isExemptFromHungerDrain(serverPlayer)) {
+			return;
+		}
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(serverPlayer.getUUID(), ignored -> new PlayerState());
 		initializeHungerFromPlayer(serverPlayer, state, settings.maximumHungerPoints);
@@ -376,6 +382,16 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 			state.clearPosition();
 			state.lastObservedAbsoluteDayTime = currentAbsoluteDayTime;
 			return false;
+		}
+		if (isExemptFromHungerDrain(player)) {
+			state.blockBreakProgress = 0;
+			state.travelProgress = 0.0d;
+			state.timeProgressTicks = 0;
+			state.lastObservedAbsoluteDayTime = currentAbsoluteDayTime;
+			state.markPosition(player.getX(), player.getZ());
+			applyFoodState(player, state.hungerPoints);
+			syncHudState(player, state, maxHungerPoints);
+			return true;
 		}
 		enforceSprintThreshold(player, state, maxHungerPoints, gameplayTick);
 		processFoodChanges(player, state, gameplayTick, maxHungerPoints);
@@ -468,6 +484,10 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	}
 
 	private static void processTravelGoal(ServerPlayer player, PlayerState state, long gameplayTick) {
+		if (isExemptFromHungerDrain(player)) {
+			state.markPosition(player.getX(), player.getZ());
+			return;
+		}
 		double x = player.getX();
 		double z = player.getZ();
 		if (!state.hasPosition()) {
@@ -510,6 +530,11 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	}
 
 	private static void processTimeGoal(ServerPlayer player, PlayerState state, long currentAbsoluteDayTime, long gameplayTick) {
+		if (isExemptFromHungerDrain(player)) {
+			state.lastObservedAbsoluteDayTime = currentAbsoluteDayTime;
+			state.timeProgressTicks = 0;
+			return;
+		}
 		if (state.lastObservedAbsoluteDayTime < 0L) {
 			state.lastObservedAbsoluteDayTime = currentAbsoluteDayTime;
 			return;
@@ -720,6 +745,10 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 		}
 		state.hungerPoints -= drained;
 		return drained;
+	}
+
+	private static boolean isExemptFromHungerDrain(ServerPlayer player) {
+		return player != null && (player.isCreative() || player.isSpectator());
 	}
 
 	private static boolean isAtOrBelowSprintThreshold(int hungerPoints, int maxHungerPoints) {

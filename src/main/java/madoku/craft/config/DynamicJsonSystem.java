@@ -120,7 +120,7 @@ public final class DynamicJsonSystem {
 			String key = entry.getKey();
 			JsonElement defaultValue = entry.getValue();
 			JsonElement sourceValue = source == null ? null : source.get(key);
-			normalized.add(key, normalizeElement(sourceValue, defaultValue));
+			normalized.add(key, normalizeElement(sourceValue, defaultValue, dynamicEntryNormalizer));
 		}
 
 		if (source != null && dynamicEntryNormalizer != null) {
@@ -141,14 +141,14 @@ public final class DynamicJsonSystem {
 		return normalized;
 	}
 
-	private static JsonElement normalizeElement(JsonElement source, JsonElement defaults) {
+	private static JsonElement normalizeElement(JsonElement source, JsonElement defaults, DynamicEntryNormalizer dynamicEntryNormalizer) {
 		if (defaults == null || defaults.isJsonNull()) {
 			return JsonNull.INSTANCE;
 		}
 
 		if (defaults.isJsonObject()) {
 			if (source != null && source.isJsonObject()) {
-				return normalizeObject(source.getAsJsonObject(), defaults.getAsJsonObject(), null);
+				return normalizeObject(source.getAsJsonObject(), defaults.getAsJsonObject(), dynamicEntryNormalizer);
 			}
 			return defaults.deepCopy();
 		}

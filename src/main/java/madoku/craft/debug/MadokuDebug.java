@@ -230,13 +230,14 @@ public final class MadokuDebug {
 			}
 		}
 
-		if (!anyEnabled) {
-			setDomainEnabled(Domain.SCHEDULER, true);
-			setDomainEnabled(Domain.SLEEP, true);
-			setDomainEnabled(Domain.HEALTH, true);
-			setDomainEnabled(Domain.HUNGER, true);
+			if (!anyEnabled) {
+				setDomainEnabled(Domain.SCHEDULER, true);
+				setDomainEnabled(Domain.SLEEP, true);
+				setDomainEnabled(Domain.HEALTH, true);
+				setDomainEnabled(Domain.HUNGER, true);
+				setDomainEnabled(Domain.MOB, true);
+			}
 		}
-	}
 
 	private static void applyDisabledMetrics(JsonArray patterns) {
 		DISABLED_METRIC_PATTERNS.clear();
@@ -263,6 +264,7 @@ public final class MadokuDebug {
 		activeDomains.add(Domain.SLEEP.id());
 		activeDomains.add(Domain.HEALTH.id());
 		activeDomains.add(Domain.HUNGER.id());
+		activeDomains.add(Domain.MOB.id());
 		root.add("active_domains", activeDomains);
 		root.add("disabled_metrics", new JsonArray());
 		return root;
