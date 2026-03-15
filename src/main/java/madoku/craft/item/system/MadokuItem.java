@@ -301,11 +301,11 @@ public final class MadokuItem {
 			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
 		}
 
-		for (Map.Entry<String, JsonObject> entry : normalizedToolFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
+			for (Map.Entry<String, JsonObject> entry : normalizedToolFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
 
 			String itemId = resolveItemId(entry.getKey(), root);
 			Item item = resolveItem(itemId);
@@ -316,10 +316,10 @@ public final class MadokuItem {
 				resolvedToolCategoryItems.add(item);
 				resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
 
-				MadokuToolProfile profile = parseDefaultToolProfile(entry.getKey(), defaultToolProfilesByFile);
-				if (profile == null) {
-					profile = parseToolProfile(root);
-				}
+				MadokuToolProfile profile = mergeToolProfile(
+					parseToolProfile(root),
+					parseDefaultToolProfile(entry.getKey(), defaultToolProfilesByFile)
+				);
 				if (isConfiguredToolProfile(profile)) {
 					resolvedTools.put(item, profile);
 				}
@@ -340,10 +340,10 @@ public final class MadokuItem {
 				resolvedArmorCategoryItems.add(item);
 				resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
 
-				MadokuArmorProfile profile = parseDefaultArmorProfile(entry.getKey(), defaultArmorProfilesByFile);
-				if (profile == null) {
-					profile = parseArmorProfile(root);
-				}
+				MadokuArmorProfile profile = mergeArmorProfile(
+					parseArmorProfile(root),
+					parseDefaultArmorProfile(entry.getKey(), defaultArmorProfilesByFile)
+				);
 				if (isConfiguredArmorProfile(profile)) {
 					resolvedArmor.put(item, profile);
 				}
@@ -372,6 +372,22 @@ public final class MadokuItem {
 		return isConfiguredToolProfile(defaultProfile) ? defaultProfile : null;
 	}
 
+	private static MadokuToolProfile mergeToolProfile(MadokuToolProfile configured, MadokuToolProfile fallback) {
+		if (configured == null) {
+			return fallback;
+		}
+		if (fallback == null) {
+			return configured;
+		}
+		return new MadokuToolProfile(
+			choose(configured.durability(), fallback.durability()),
+			choose(configured.attackDamage(), fallback.attackDamage()),
+			choose(configured.attackSpeed(), fallback.attackSpeed()),
+			choose(configured.miningSpeed(), fallback.miningSpeed()),
+			choose(configured.materialLevel(), fallback.materialLevel())
+		);
+	}
+
 	private static MadokuArmorProfile parseDefaultArmorProfile(String fileKey, Map<String, JsonObject> defaultProfilesByFile) {
 		if (defaultProfilesByFile == null || fileKey == null) {
 			return null;
@@ -382,6 +398,24 @@ public final class MadokuItem {
 		}
 		MadokuArmorProfile defaultProfile = parseArmorProfile(defaultRoot);
 		return isConfiguredArmorProfile(defaultProfile) ? defaultProfile : null;
+	}
+
+	private static MadokuArmorProfile mergeArmorProfile(MadokuArmorProfile configured, MadokuArmorProfile fallback) {
+		if (configured == null) {
+			return fallback;
+		}
+		if (fallback == null) {
+			return configured;
+		}
+		return new MadokuArmorProfile(
+			choose(configured.durability(), fallback.durability()),
+			choose(configured.armor(), fallback.armor()),
+			choose(configured.armorToughness(), fallback.armorToughness())
+		);
+	}
+
+	private static <T> T choose(T configured, T fallback) {
+		return configured != null ? configured : fallback;
 	}
 
 	private static JsonObject buildDynamicFuelDefaultsForFile(String fileKey) {
