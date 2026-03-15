@@ -2,24 +2,18 @@ package madoku.craft;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.mixin.client.GuiAccessor;
 import madoku.craft.oxygen.MadokuOxygen;
 import madoku.craft.time.MadokuTime;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudStatusBarHeightRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.client.DeltaTracker;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -34,35 +28,30 @@ import java.util.Locale;
 
 public final class MadokuHud {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHud.class);
-	private static final Identifier MADOKU_HUD_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_hud");
-	private static final RenderPipeline HEART_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final Identifier HEART_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container");
-	private static final Identifier HEART_EMPTY_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_blinking");
-	private static final Identifier HEART_EMPTY_HARDCORE_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_hardcore");
-	private static final Identifier HEART_EMPTY_HARDCORE_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_hardcore_blinking");
-	private static final Identifier ABSORBING_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_full");
-	private static final Identifier ABSORBING_FULL_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_full_blinking");
-	private static final Identifier ABSORBING_HALF_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_half");
-	private static final Identifier ABSORBING_HALF_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_half_blinking");
-	private static final Identifier ABSORBING_HARDCORE_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_full");
-	private static final Identifier ABSORBING_HARDCORE_FULL_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_full_blinking");
-	private static final Identifier ABSORBING_HARDCORE_HALF_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_half");
-	private static final Identifier ABSORBING_HARDCORE_HALF_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_half_blinking");
-	private static final RenderPipeline FOOD_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final Identifier FOOD_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/food_empty");
-	private static final Identifier FOOD_HALF_TEXTURE = Identifier.withDefaultNamespace("hud/food_half");
-	private static final Identifier FOOD_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/food_full");
-	private static final Identifier FOOD_EMPTY_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_empty_hunger");
-	private static final Identifier FOOD_HALF_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_half_hunger");
-	private static final Identifier FOOD_FULL_HUNGER_TEXTURE = Identifier.withDefaultNamespace("hud/food_full_hunger");
-	private static final RenderPipeline ARMOR_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final Identifier ARMOR_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/armor_empty");
-	private static final Identifier ARMOR_HALF_TEXTURE = Identifier.withDefaultNamespace("hud/armor_half");
-	private static final Identifier ARMOR_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/armor_full");
-	private static final RenderPipeline OXYGEN_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final Identifier OXYGEN_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/air_empty");
-	private static final Identifier OXYGEN_POPPING_TEXTURE = Identifier.withDefaultNamespace("hud/air_bursting");
-	private static final Identifier OXYGEN_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/air");
+	private static final ResourceLocation HEART_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container");
+	private static final ResourceLocation HEART_EMPTY_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container_blinking");
+	private static final ResourceLocation HEART_EMPTY_HARDCORE_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container_hardcore");
+	private static final ResourceLocation HEART_EMPTY_HARDCORE_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container_hardcore_blinking");
+	private static final ResourceLocation ABSORBING_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_full");
+	private static final ResourceLocation ABSORBING_FULL_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_full_blinking");
+	private static final ResourceLocation ABSORBING_HALF_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_half");
+	private static final ResourceLocation ABSORBING_HALF_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_half_blinking");
+	private static final ResourceLocation ABSORBING_HARDCORE_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_hardcore_full");
+	private static final ResourceLocation ABSORBING_HARDCORE_FULL_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_hardcore_full_blinking");
+	private static final ResourceLocation ABSORBING_HARDCORE_HALF_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_hardcore_half");
+	private static final ResourceLocation ABSORBING_HARDCORE_HALF_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/absorbing_hardcore_half_blinking");
+	private static final ResourceLocation FOOD_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_empty");
+	private static final ResourceLocation FOOD_HALF_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_half");
+	private static final ResourceLocation FOOD_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_full");
+	private static final ResourceLocation FOOD_EMPTY_HUNGER_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_empty_hunger");
+	private static final ResourceLocation FOOD_HALF_HUNGER_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_half_hunger");
+	private static final ResourceLocation FOOD_FULL_HUNGER_TEXTURE = ResourceLocation.withDefaultNamespace("hud/food_full_hunger");
+	private static final ResourceLocation ARMOR_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_empty");
+	private static final ResourceLocation ARMOR_HALF_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_half");
+	private static final ResourceLocation ARMOR_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_full");
+	private static final ResourceLocation OXYGEN_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air_empty");
+	private static final ResourceLocation OXYGEN_POPPING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air_bursting");
+	private static final ResourceLocation OXYGEN_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air");
 	private static final int WORLD_X = 4;
 	private static final int WORLD_Y = 4;
 	private static final int HEART_SIZE = 9;
@@ -74,6 +63,8 @@ public final class MadokuHud {
 	private static final int ARMOR_ROW_SPACING = 10;
 	private static final int OXYGEN_SIZE = 9;
 	private static final int OXYGEN_TEXT_SPACING = 2;
+	private static final int STATUS_BAR_BOTTOM_OFFSET = 39;
+	private static final int OXYGEN_BAR_ROW_OFFSET = 10;
 	private static final int OXYGEN_X_OFFSET_RIGHT = 4;
 	private static final int OXYGEN_RIGHT_EDGE = 91;
 	private static final int SECOND_LEFT_VANILLA_AIR_SLOT_INDEX = 8;
@@ -135,22 +126,23 @@ public final class MadokuHud {
 		}
 		loadClientConfig();
 		initialized = true;
-		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, MADOKU_HUD_ID, MadokuHud::renderWorldHud);
-		HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, oldElement -> (context, tickCounter) ->
-			renderHealthHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, oldElement -> (context, tickCounter) ->
-			renderHungerHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.ARMOR_BAR, oldElement -> (context, tickCounter) ->
-			renderArmorHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, oldElement -> (context, tickCounter) ->
-			renderOxygenHud(context, tickCounter, oldElement)
-		);
+		HudRenderCallback.EVENT.register((context, tickCounter) -> renderHud(context));
 	}
 
-	private static void renderWorldHud(GuiGraphics context, DeltaTracker tickCounter) {
+	private static void renderHud(GuiGraphics context) {
+		Minecraft client = Minecraft.getInstance();
+		if (client.player == null || client.level == null) {
+			return;
+		}
+
+		renderWorldHud(context);
+		renderHealthHud(context);
+		renderHungerHud(context);
+		renderArmorHud(context);
+		renderOxygenHud(context);
+	}
+
+	private static void renderWorldHud(GuiGraphics context) {
 		if (!settings.worldHudEnabled) {
 			return;
 		}
@@ -187,31 +179,14 @@ public final class MadokuHud {
 		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, fourthLineY, COLOR);
 	}
 
-	private static void renderHealthHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderHealthHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
-		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+		if (player == null || level == null || player.isSpectator() || player.isCreative() || !settings.healthHudEnabled) {
 			return;
 		}
-
-		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (!settings.healthHudEnabled) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		// Keep vanilla health timers progressing while hiding its rendered location.
-		context.pose().pushMatrix();
-		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
-		context.pose().popMatrix();
 
 		float health = roundToStep(player.getHealth(), HEALTH_STEP);
 		float effectiveHealth = roundToStep(player.getHealth() + player.getAbsorptionAmount(), HEALTH_STEP);
@@ -222,8 +197,7 @@ public final class MadokuHud {
 		boolean blinking = isBlinking(gui, ticks);
 
 		int heartX = context.guiWidth() / 2 - 91;
-		int vanillaHealthY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.HEALTH_BAR);
-		int heartY = vanillaHealthY;
+		int heartY = statusBarRowY(context);
 
 		if (player.hasEffect(MobEffects.REGENERATION)) {
 			int regenIndex = ticks % Math.max(1, (int) Math.ceil(maxHealth + 5.0F));
@@ -236,18 +210,18 @@ public final class MadokuHud {
 			heartY += player.getRandom().nextInt(2);
 		}
 
-		Identifier containerTexture = selectContainerTexture(hardcore, blinking);
-		Identifier fillTexture = selectHeartTexture(player, health, maxHealth, hardcore, blinking);
-		context.blitSprite(HEART_PIPELINE, containerTexture, heartX, heartY, HEART_SIZE, HEART_SIZE);
+		ResourceLocation containerTexture = selectContainerTexture(hardcore, blinking);
+		ResourceLocation fillTexture = selectHeartTexture(player, health, maxHealth, hardcore, blinking);
+		context.blitSprite(containerTexture, heartX, heartY, HEART_SIZE, HEART_SIZE);
 		if (fillTexture != null) {
-			context.blitSprite(HEART_PIPELINE, fillTexture, heartX, heartY, HEART_SIZE, HEART_SIZE);
+			context.blitSprite(fillTexture, heartX, heartY, HEART_SIZE, HEART_SIZE);
 		}
 
 		String healthText = "Health: " + formatHealth(effectiveHealth) + "/" + formatHealth(maxHealth);
 		int textX = heartX + HEART_SIZE + HEART_TEXT_SPACING;
 		int textY = heartY + 1;
-		context.pose().pushMatrix();
-		context.pose().scale(HEALTH_TEXT_SCALE, HEALTH_TEXT_SCALE);
+		context.pose().pushPose();
+		context.pose().scale(HEALTH_TEXT_SCALE, HEALTH_TEXT_SCALE, 1.0F);
 		context.drawString(
 			client.font,
 			healthText,
@@ -256,34 +230,17 @@ public final class MadokuHud {
 			COLOR,
 			true
 		);
-		context.pose().popMatrix();
+		context.pose().popPose();
 	}
 
-	private static void renderHungerHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderHungerHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
-		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+		if (player == null || level == null || player.isSpectator() || player.isCreative() || !settings.hungerHudEnabled) {
 			return;
 		}
-
-		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (!settings.hungerHudEnabled) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		// Keep vanilla food timers progressing while hiding the rendered location.
-		context.pose().pushMatrix();
-		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
-		context.pose().popMatrix();
 
 		int fallbackMax = Math.max(1, MadokuHunger.getConfiguredMaximumHungerPoints());
 		int currentHunger;
@@ -354,19 +311,19 @@ public final class MadokuHud {
 
 		String hungerText = "Hunger: " + displayedHunger + "/" + maxHunger;
 		int foodX = computeFoodX(context, client, hungerText);
-		int foodY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.FOOD_BAR);
+		int foodY = statusBarRowY(context);
 		boolean hasHungerEffect = player.hasEffect(MobEffects.HUNGER);
 
-		context.blitSprite(FOOD_PIPELINE, selectFoodContainerTexture(hasHungerEffect), foodX, foodY, FOOD_SIZE, FOOD_SIZE);
-		Identifier fillTexture = selectFoodFillTexture(hasHungerEffect, hungerPercent);
+		context.blitSprite(selectFoodContainerTexture(hasHungerEffect), foodX, foodY, FOOD_SIZE, FOOD_SIZE);
+		ResourceLocation fillTexture = selectFoodFillTexture(hasHungerEffect, hungerPercent);
 		if (fillTexture != null) {
-			context.blitSprite(FOOD_PIPELINE, fillTexture, foodX, foodY, FOOD_SIZE, FOOD_SIZE);
+			context.blitSprite(fillTexture, foodX, foodY, FOOD_SIZE, FOOD_SIZE);
 		}
 
 		int textX = foodX + FOOD_SIZE + FOOD_TEXT_SPACING;
 		int textY = foodY + 1;
-		context.pose().pushMatrix();
-		context.pose().scale(HUNGER_TEXT_SCALE, HUNGER_TEXT_SCALE);
+		context.pose().pushPose();
+		context.pose().scale(HUNGER_TEXT_SCALE, HUNGER_TEXT_SCALE, 1.0F);
 		context.drawString(
 			client.font,
 			hungerText,
@@ -375,26 +332,13 @@ public final class MadokuHud {
 			COLOR,
 			true
 			);
-			context.pose().popMatrix();
+			context.pose().popPose();
 		}
 
-	private static void renderArmorHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderArmorHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
-		ClientLevel level = client.level;
-
-		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (!settings.armorHudEnabled) {
-			oldElement.render(context, tickCounter);
+		if (player == null || player.isSpectator() || player.isCreative() || !settings.armorHudEnabled) {
 			return;
 		}
 
@@ -403,27 +347,21 @@ public final class MadokuHud {
 			return;
 		}
 
-		// Keep vanilla armor bar state updates while hiding vanilla visuals.
-		context.pose().pushMatrix();
-		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
-		context.pose().popMatrix();
-
 		int armorX = context.guiWidth() / 2 - 91;
 		int armorY = computeArmorY(context);
 
-		context.blitSprite(ARMOR_PIPELINE, ARMOR_EMPTY_TEXTURE, armorX, armorY, ARMOR_SIZE, ARMOR_SIZE);
-		Identifier fillTexture = selectArmorFillTexture(armorPieces);
+		context.blitSprite(ARMOR_EMPTY_TEXTURE, armorX, armorY, ARMOR_SIZE, ARMOR_SIZE);
+		ResourceLocation fillTexture = selectArmorFillTexture(armorPieces);
 		if (fillTexture != null) {
-			context.blitSprite(ARMOR_PIPELINE, fillTexture, armorX, armorY, ARMOR_SIZE, ARMOR_SIZE);
+			context.blitSprite(fillTexture, armorX, armorY, ARMOR_SIZE, ARMOR_SIZE);
 		}
 
 		float armorPoints = roundToStep((float) Math.max(0.0d, player.getAttributeValue(Attributes.ARMOR)), ARMOR_STEP);
 		String armorText = "Armor: " + formatHealth(armorPoints);
 		int textX = armorX + ARMOR_SIZE + ARMOR_TEXT_SPACING;
 		int textY = armorY + 1;
-		context.pose().pushMatrix();
-		context.pose().scale(ARMOR_TEXT_SCALE, ARMOR_TEXT_SCALE);
+		context.pose().pushPose();
+		context.pose().scale(ARMOR_TEXT_SCALE, ARMOR_TEXT_SCALE, 1.0F);
 		context.drawString(
 			client.font,
 			armorText,
@@ -432,26 +370,15 @@ public final class MadokuHud {
 			COLOR,
 			true
 		);
-			context.pose().popMatrix();
+			context.pose().popPose();
 		}
 
-	private static void renderOxygenHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderOxygenHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
-		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
-			return;
-		}
-
-		if (!settings.oxygenHudEnabled) {
-			oldElement.render(context, tickCounter);
+		if (player == null || level == null || player.isSpectator() || player.isCreative() || !settings.oxygenHudEnabled) {
 			return;
 		}
 
@@ -464,13 +391,13 @@ public final class MadokuHud {
 
 		String oxygenText = buildOxygenTextFromSeconds(cachedAirSupply, cachedMaxAirSupply);
 		int oxygenX = computeOxygenX(context, client, oxygenText);
-		int oxygenY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.AIR_BAR);
-		context.blitSprite(OXYGEN_PIPELINE, selectOxygenTexture(cachedOxygenPoints), oxygenX, oxygenY, OXYGEN_SIZE, OXYGEN_SIZE);
+		int oxygenY = computeOxygenY(context);
+		context.blitSprite(selectOxygenTexture(cachedOxygenPoints), oxygenX, oxygenY, OXYGEN_SIZE, OXYGEN_SIZE);
 
 		int textX = oxygenX + OXYGEN_SIZE + OXYGEN_TEXT_SPACING;
 		int textY = oxygenY + 1;
-		context.pose().pushMatrix();
-		context.pose().scale(OXYGEN_TEXT_SCALE, OXYGEN_TEXT_SCALE);
+		context.pose().pushPose();
+		context.pose().scale(OXYGEN_TEXT_SCALE, OXYGEN_TEXT_SCALE, 1.0F);
 		context.drawString(
 			client.font,
 			oxygenText,
@@ -479,7 +406,7 @@ public final class MadokuHud {
 			COLOR,
 			true
 		);
-		context.pose().popMatrix();
+		context.pose().popPose();
 	}
 
 	private static int lineOffset(Minecraft client, int lines) {
@@ -488,11 +415,11 @@ public final class MadokuHud {
 	}
 
 	private static void drawScaledString(GuiGraphics context, Minecraft client, String text, int x, int y, int color) {
-		context.pose().pushMatrix();
-		context.pose().translate(x, y);
-		context.pose().scale(WORLD_HUD_SCALE, WORLD_HUD_SCALE);
+		context.pose().pushPose();
+		context.pose().translate(x, y, 0.0F);
+		context.pose().scale(WORLD_HUD_SCALE, WORLD_HUD_SCALE, 1.0F);
 		context.drawString(client.font, text, 0, 0, color, true);
-		context.pose().popMatrix();
+		context.pose().popPose();
 	}
 
 	private static String twoDigits(int value) {
@@ -502,11 +429,11 @@ public final class MadokuHud {
 	private static String getBiomeDisplayName(LocalPlayer player, ClientLevel level) {
 		return level.getBiome(player.blockPosition())
 			.unwrapKey()
-			.map(key -> biomeIdentifierToName(key.identifier()))
+			.map(key -> biomeIdentifierToName(key.location()))
 			.orElse("Unknown");
 	}
 
-	private static String biomeIdentifierToName(Identifier biomeIdentifier) {
+	private static String biomeIdentifierToName(ResourceLocation biomeIdentifier) {
 		String normalized = biomeIdentifier.getPath().replace('_', ' ').replace('/', ' ');
 		String[] words = normalized.split(" ");
 		StringBuilder builder = new StringBuilder();
@@ -542,18 +469,18 @@ public final class MadokuHud {
 		return healthBlinkTime > currentTicks && ((healthBlinkTime - currentTicks) / 3L) % 2L == 1L;
 	}
 
-	private static Identifier selectContainerTexture(boolean hardcore, boolean blinking) {
+	private static ResourceLocation selectContainerTexture(boolean hardcore, boolean blinking) {
 		if (!hardcore) {
 			return blinking ? HEART_EMPTY_BLINKING_TEXTURE : HEART_EMPTY_TEXTURE;
 		}
 		return blinking ? HEART_EMPTY_HARDCORE_BLINKING_TEXTURE : HEART_EMPTY_HARDCORE_TEXTURE;
 	}
 
-	private static Identifier selectFoodContainerTexture(boolean hasHungerEffect) {
+	private static ResourceLocation selectFoodContainerTexture(boolean hasHungerEffect) {
 		return hasHungerEffect ? FOOD_EMPTY_HUNGER_TEXTURE : FOOD_EMPTY_TEXTURE;
 	}
 
-	private static Identifier selectFoodFillTexture(boolean hasHungerEffect, float hungerPercent) {
+	private static ResourceLocation selectFoodFillTexture(boolean hasHungerEffect, float hungerPercent) {
 		if (hungerPercent <= 0.1F) {
 			return null;
 		}
@@ -585,12 +512,19 @@ public final class MadokuHud {
 		return Math.round(client.font.width(text) * scale);
 	}
 
-	private static int computeArmorY(GuiGraphics context) {
-		int healthY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.HEALTH_BAR);
-		return healthY - ARMOR_ROW_SPACING;
+	private static int statusBarRowY(GuiGraphics context) {
+		return context.guiHeight() - STATUS_BAR_BOTTOM_OFFSET;
 	}
 
-	private static Identifier selectHeartTexture(LocalPlayer player, float health, float maxHealth, boolean hardcore, boolean blinking) {
+	private static int computeOxygenY(GuiGraphics context) {
+		return statusBarRowY(context) - OXYGEN_BAR_ROW_OFFSET;
+	}
+
+	private static int computeArmorY(GuiGraphics context) {
+		return statusBarRowY(context) - ARMOR_ROW_SPACING;
+	}
+
+	private static ResourceLocation selectHeartTexture(LocalPlayer player, float health, float maxHealth, boolean hardcore, boolean blinking) {
 		if (health <= 0.0F) {
 			return null;
 		}
@@ -606,7 +540,7 @@ public final class MadokuHud {
 		String blinkingSuffix = blinking ? "_blinking" : "";
 
 		if (player.hasEffect(MobEffects.WITHER)) {
-			return Identifier.withDefaultNamespace("hud/heart/withered_" + hardcorePrefix + fill + blinkingSuffix);
+			return ResourceLocation.withDefaultNamespace("hud/heart/withered_" + hardcorePrefix + fill + blinkingSuffix);
 		}
 
 		if (player.getAbsorptionAmount() > 0.0F) {
@@ -614,17 +548,17 @@ public final class MadokuHud {
 		}
 
 		if (player.hasEffect(MobEffects.POISON)) {
-			return Identifier.withDefaultNamespace("hud/heart/poisoned_" + hardcorePrefix + fill + blinkingSuffix);
+			return ResourceLocation.withDefaultNamespace("hud/heart/poisoned_" + hardcorePrefix + fill + blinkingSuffix);
 		}
 
 		if (player.isFullyFrozen()) {
-			return Identifier.withDefaultNamespace("hud/heart/frozen_" + hardcorePrefix + fill + blinkingSuffix);
+			return ResourceLocation.withDefaultNamespace("hud/heart/frozen_" + hardcorePrefix + fill + blinkingSuffix);
 		}
 
-		return Identifier.withDefaultNamespace("hud/heart/" + hardcorePrefix + fill + blinkingSuffix);
+		return ResourceLocation.withDefaultNamespace("hud/heart/" + hardcorePrefix + fill + blinkingSuffix);
 	}
 
-	private static Identifier selectAbsorbingTexture(boolean hardcore, boolean half, boolean blinking) {
+	private static ResourceLocation selectAbsorbingTexture(boolean hardcore, boolean half, boolean blinking) {
 		if (hardcore) {
 			if (half) {
 				return blinking ? ABSORBING_HARDCORE_HALF_BLINKING_TEXTURE : ABSORBING_HARDCORE_HALF_TEXTURE;
@@ -637,7 +571,7 @@ public final class MadokuHud {
 		return blinking ? ABSORBING_FULL_BLINKING_TEXTURE : ABSORBING_FULL_TEXTURE;
 	}
 
-	private static Identifier selectArmorFillTexture(int armorPieces) {
+	private static ResourceLocation selectArmorFillTexture(int armorPieces) {
 		if (armorPieces >= 4) {
 			return ARMOR_FULL_TEXTURE;
 		}
@@ -647,7 +581,7 @@ public final class MadokuHud {
 		return null;
 	}
 
-	private static Identifier selectOxygenTexture(int oxygenPoints) {
+	private static ResourceLocation selectOxygenTexture(int oxygenPoints) {
 		if (oxygenPoints <= 0) {
 			return OXYGEN_EMPTY_TEXTURE;
 		}
@@ -844,6 +778,22 @@ public final class MadokuHud {
 		return total < Math.max(1, serverHungerMax);
 	}
 
+	public static boolean isHealthHudEnabled() {
+		return settings.healthHudEnabled;
+	}
+
+	public static boolean isHungerHudEnabled() {
+		return settings.hungerHudEnabled;
+	}
+
+	public static boolean isArmorHudEnabled() {
+		return settings.armorHudEnabled;
+	}
+
+	public static boolean isOxygenHudEnabled() {
+		return settings.oxygenHudEnabled;
+	}
+
 	private static final class Settings {
 		private final boolean worldHudEnabled;
 		private final boolean healthHudEnabled;
@@ -897,3 +847,5 @@ public final class MadokuHud {
 		}
 	}
 }
+
+

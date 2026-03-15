@@ -2,9 +2,7 @@ package madoku.craft.time;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 
 public final class MadokuSleep {
 	private static final double SLEEP_SPEED_MULTIPLIER = 100.0D;
@@ -62,16 +60,6 @@ public final class MadokuSleep {
 			return true;
 		}
 		return MadokuTime.isSleepTime(player.level().getDayTime());
-	}
-
-	public static boolean shouldAllowBedSleepByTime(BedRule bedRule, Level level, Player player) {
-		if (!MadokuTime.isEnabled()) {
-			return bedRule.canSleep(level);
-		}
-		if (!bedRule.canSetSpawn(level)) {
-			return bedRule.canSleep(level);
-		}
-		return canStartSleeping(player);
 	}
 
 	private static void wakeSleepingPlayers(MinecraftServer server) {

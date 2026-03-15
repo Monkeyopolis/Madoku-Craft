@@ -1,7 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.time.MadokuSleep;
-import net.minecraft.world.attribute.BedRule;
+import madoku.craft.time.MadokuTime;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,14 +13,14 @@ public abstract class PlayerSleepTickMixin {
 		method = "tick",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/attribute/BedRule;canSleep(Lnet/minecraft/world/level/Level;)Z"
+			target = "Lnet/minecraft/world/level/Level;isDay()Z"
 		)
 	)
-	private boolean madoku$keepSleepingUntilConfiguredDayStart(BedRule bedRule, Level level) {
-		// In multiplayer, only the server should decide bed sleep timing.
-		if (level.isClientSide()) {
-			return bedRule.canSleep(level);
+	private boolean madokuCraft$keepSleepingUntilConfiguredDayStart(Level level) {
+		if (level == null || level.isClientSide() || !MadokuTime.isEnabled()) {
+			return level != null && level.isDay();
 		}
-		return MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, (Player) (Object) this);
+
+		return MadokuTime.isDaytime(level.getDayTime());
 	}
 }

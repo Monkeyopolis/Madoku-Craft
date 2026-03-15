@@ -10,7 +10,7 @@ import madoku.craft.debug.MadokuDebug;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -999,9 +999,9 @@ public final class MadokuScheduler {
 			return null;
 		}
 
-		Identifier location = Identifier.tryParse(levelId);
+		ResourceLocation location = ResourceLocation.tryParse(levelId);
 		if (location == null) {
-			location = Identifier.tryParse(normalizeLevelId(levelId));
+			location = ResourceLocation.tryParse(normalizeLevelId(levelId));
 		}
 		if (location == null) {
 			return null;
@@ -1043,7 +1043,7 @@ public final class MadokuScheduler {
 		if (trimmed.isEmpty()) {
 			return "";
 		}
-		if (Identifier.tryParse(trimmed) != null) {
+		if (ResourceLocation.tryParse(trimmed) != null) {
 			return trimmed;
 		}
 
@@ -1051,7 +1051,7 @@ public final class MadokuScheduler {
 		int closeBracketIndex = trimmed.lastIndexOf(']');
 		if (slashIndex >= 0 && closeBracketIndex > slashIndex) {
 			String candidate = trimmed.substring(slashIndex + 1, closeBracketIndex).trim();
-			if (Identifier.tryParse(candidate) != null) {
+			if (ResourceLocation.tryParse(candidate) != null) {
 				return candidate;
 			}
 		}

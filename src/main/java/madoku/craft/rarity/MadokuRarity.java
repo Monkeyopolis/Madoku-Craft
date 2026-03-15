@@ -316,7 +316,7 @@ public final class MadokuRarity {
 					);
 					changed = true;
 				}
-				builder.add(entry.attribute(), updatedModifier, entry.slot(), entry.display());
+				builder.add(entry.attribute(), updatedModifier, entry.slot());
 			}
 
 		if (changed) {
@@ -352,7 +352,7 @@ public final class MadokuRarity {
 					);
 					changed = true;
 				}
-				builder.add(entry.attribute(), updatedModifier, entry.slot(), entry.display());
+				builder.add(entry.attribute(), updatedModifier, entry.slot());
 			}
 
 		if (changed) {
@@ -426,8 +426,7 @@ public final class MadokuRarity {
 			stack.set(DataComponents.TOOL, new Tool(
 				updatedRules,
 				updatedDefaultSpeed,
-				current.damagePerBlock(),
-				current.canDestroyBlocksInCreative()
+				current.damagePerBlock()
 			));
 		}
 	}

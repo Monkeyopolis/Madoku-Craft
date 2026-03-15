@@ -91,7 +91,7 @@ public final class WorldDifficultySync {
 			return null;
 		}
 		int timeAdjustment = MadokuDifficulty.resolveCurrentTimeAdjustment(level);
-		String levelId = level.dimension().identifier().toString();
+		String levelId = level.dimension().location().toString();
 		long blockPos = player.blockPosition().asLong();
 		return new PlayerDifficultyState(levelId, blockPos, timeAdjustment, 1);
 	}

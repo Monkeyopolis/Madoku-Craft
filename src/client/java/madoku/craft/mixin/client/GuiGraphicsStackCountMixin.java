@@ -1,8 +1,8 @@
 package madoku.craft.mixin.client;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import org.joml.Matrix3x2fStack;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -15,19 +15,19 @@ public abstract class GuiGraphicsStackCountMixin {
 
 	@Shadow
 	@Final
-	private Matrix3x2fStack pose;
+	private PoseStack pose;
 
 	@Shadow
-	public abstract void drawString(Font font, String text, int x, int y, int color, boolean shadow);
+	public abstract int drawString(Font font, String text, int x, int y, int color, boolean shadow);
 
 	@Redirect(
-		method = "renderItemCount(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
+		method = "renderItemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Ljava/lang/String;IIIZ)V"
+			target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Ljava/lang/String;IIIZ)I"
 		)
 	)
-	private void madokuCraft$scaleLargeStackCounts(
+	private int madokuCraft$scaleLargeStackCounts(
 		GuiGraphics guiGraphics,
 		Font font,
 		String text,
@@ -37,17 +37,17 @@ public abstract class GuiGraphicsStackCountMixin {
 		boolean shadow
 	) {
 		if (!shouldScale(text)) {
-			this.drawString(font, text, x, y, color, shadow);
-			return;
+			return this.drawString(font, text, x, y, color, shadow);
 		}
 
 		int width = font.width(text);
-		this.pose.pushMatrix();
-		this.pose.translate((float) (x + width), (float) y);
-		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE);
-		this.pose.translate((float) (-x - width), (float) (-y));
-		this.drawString(font, text, x, y, color, shadow);
-		this.pose.popMatrix();
+		this.pose.pushPose();
+		this.pose.translate((float) (x + width), (float) y, 0.0f);
+		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE, 1.0f);
+		this.pose.translate((float) (-x - width), (float) (-y), 0.0f);
+		int drawResult = this.drawString(font, text, x, y, color, shadow);
+		this.pose.popPose();
+		return drawResult;
 	}
 
 	private static boolean shouldScale(String text) {

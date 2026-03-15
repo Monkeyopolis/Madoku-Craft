@@ -9,7 +9,7 @@ import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,7 +115,7 @@ public final class MadokuTime {
 		if (!currentSettings.enabled) {
 			if (!hasRestoredVanillaGameRules || hasAppliedManagedGameRules || hasAppliedDayTime) {
 				for (ServerLevel world : server.getAllLevels()) {
-					world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
+					world.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(true, server);
 				}
 				hasRestoredVanillaGameRules = true;
 				hasAppliedManagedGameRules = false;
@@ -141,8 +141,8 @@ public final class MadokuTime {
 		lastObservedVanillaDayTime = Long.MIN_VALUE;
 		if (!hasAppliedManagedGameRules) {
 			for (ServerLevel world : server.getAllLevels()) {
-				world.getGameRules().set(GameRules.ADVANCE_TIME, false, server);
-				world.getGameRules().set(GameRules.PLAYERS_SLEEPING_PERCENTAGE, 100, server);
+				world.getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(false, server);
+				world.getGameRules().getRule(GameRules.RULE_PLAYERS_SLEEPING_PERCENTAGE).set(100, server);
 			}
 			hasAppliedManagedGameRules = true;
 			hasRestoredVanillaGameRules = false;

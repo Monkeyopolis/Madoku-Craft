@@ -18,7 +18,7 @@ public abstract class PlayerSprintGateMixin {
 		}
 	}
 
-	@Inject(method = "hasEnoughFoodToDoExhaustiveManoeuvres", at = @At("HEAD"), cancellable = true)
+	@Inject(method = "canSprint", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$gateExhaustiveManoeuvresByMadokuHunger(CallbackInfoReturnable<Boolean> cir) {
 		Player player = (Player) (Object) this;
 		cir.setReturnValue(MadokuHunger.hasEnoughFoodToDoExhaustiveManoeuvres(player));

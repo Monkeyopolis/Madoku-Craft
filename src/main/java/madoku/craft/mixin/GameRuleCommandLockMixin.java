@@ -5,8 +5,7 @@ import madoku.craft.time.MadokuTime;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.commands.GameRuleCommand;
-import net.minecraft.world.level.gamerules.GameRule;
-import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.GameRules;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -15,20 +14,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(GameRuleCommand.class)
 public abstract class GameRuleCommandLockMixin {
 	@Inject(method = "setRule", at = @At("HEAD"), cancellable = true)
-	private static <T> void madokuCraft$lockManagedGameRules(
+	private static void madokuCraft$lockManagedGameRules(
 		CommandContext<CommandSourceStack> context,
-		GameRule<T> rule,
+		GameRules.Key<?> rule,
 		CallbackInfoReturnable<Integer> cir
 	) {
-		if (rule == GameRules.ADVANCE_TIME && !MadokuTime.isEnabled()) {
+		if (rule == GameRules.RULE_DAYLIGHT && !MadokuTime.isEnabled()) {
 			return;
 		}
-		if (rule == GameRules.PLAYERS_SLEEPING_PERCENTAGE && !MadokuTime.isEnabled()) {
+		if (rule == GameRules.RULE_PLAYERS_SLEEPING_PERCENTAGE && !MadokuTime.isEnabled()) {
 			return;
 		}
-		if (rule != GameRules.ADVANCE_TIME
-			&& rule != GameRules.NATURAL_HEALTH_REGENERATION
-			&& rule != GameRules.PLAYERS_SLEEPING_PERCENTAGE) {
+		if (rule != GameRules.RULE_DAYLIGHT
+			&& rule != GameRules.RULE_NATURAL_REGENERATION
+			&& rule != GameRules.RULE_PLAYERS_SLEEPING_PERCENTAGE) {
 			return;
 		}
 

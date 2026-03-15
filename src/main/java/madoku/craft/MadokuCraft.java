@@ -4,6 +4,7 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.world.InteractionResult;
 
 import madoku.craft.difficulty.system.MadokuDifficulty;
 import madoku.craft.debug.MadokuDebug;
@@ -38,14 +39,23 @@ public class MadokuCraft implements ModInitializer {
 		MadokuTime.initialize();
 			MadokuItem.initialize();
 			MadokuMob.initialize();
-			MadokuRarity.initialize();
-			MadokuItemStack.initialize();
-		MadokuArmor.initialize();
-		MadokuHealth.initialize();
-		MadokuHunger.initialize();
-			MadokuOxygen.initialize();
-				EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
-			WorldTimeSync.initialize();
+				MadokuRarity.initialize();
+				MadokuItemStack.initialize();
+			MadokuArmor.initialize();
+			MadokuHealth.initialize();
+			MadokuHunger.initialize();
+				MadokuOxygen.initialize();
+					EntitySleepEvents.ALLOW_SLEEP_TIME.register((player, sleepingPos, vanillaResult) -> {
+						if (!MadokuTime.isEnabled()) {
+							return InteractionResult.PASS;
+						}
+
+						return MadokuSleep.canStartSleeping(player)
+							? InteractionResult.SUCCESS
+							: InteractionResult.FAIL;
+					});
+					EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
+				WorldTimeSync.initialize();
 			WorldDifficultySync.initialize();
 			HungerHudSync.initialize();
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
