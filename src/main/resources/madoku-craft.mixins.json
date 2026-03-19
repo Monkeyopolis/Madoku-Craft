@@ -60,6 +60,7 @@
     "SmithingTransformRecipeRarityMixin",
     "SkeletonSpawnOverridesMixin",
     "SpiderSpawnOverridesMixin",
+    "StemBlockFarmingMixin",
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerSleepTimeMixin",
     "ZombieSpawnOverridesMixin"

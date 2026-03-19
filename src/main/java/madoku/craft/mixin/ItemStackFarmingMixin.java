@@ -9,7 +9,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.server.level.ServerLevel;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,17 +35,17 @@ public abstract class ItemStackFarmingMixin {
 		}
 
 		BlockState state = level.getBlockState(pos);
-		if (stack.is(Items.BONE_MEAL) && state.getBlock() instanceof CropBlock) {
+		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isManagedCrop(state)) {
 			cir.setReturnValue(InteractionResult.FAIL);
 			return;
 		}
 
-		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
-			BlockState aboveState = level.getBlockState(pos.above());
-			if (aboveState.getBlock() instanceof CropBlock) {
-				cir.setReturnValue(InteractionResult.FAIL);
-				return;
-			}
+			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
+				BlockState aboveState = level.getBlockState(pos.above());
+				if (MadokuFarming.isManagedCrop(aboveState)) {
+					cir.setReturnValue(InteractionResult.FAIL);
+					return;
+				}
 
 			if (level instanceof ServerLevel serverLevel && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {

@@ -238,6 +238,13 @@ public final class MadokuTime {
 		return getAbsoluteDayTime(MadokuClock.getTimeTicks(), settings);
 	}
 
+	public static long getCurrentAbsoluteDayTime(ServerLevel world) {
+		if (settings.enabled) {
+			return getCurrentAbsoluteDayTime();
+		}
+		return world == null ? MadokuClock.getTimeTicks() : world.getDayTime();
+	}
+
 	public static boolean isEnabled() {
 		return settings.enabled;
 	}

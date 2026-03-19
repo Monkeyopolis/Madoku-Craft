@@ -107,10 +107,10 @@ public final class MadokuSeason {
 			MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 			JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 			SeasonState persistedState = parsePersistedState(data);
-			if (persistedState != null) {
-				lastProcessedState = persistedState;
-			} else {
-				lastProcessedState = resolveCurrentState();
+				if (persistedState != null) {
+					lastProcessedState = persistedState;
+				} else {
+					lastProcessedState = resolveCurrentState(server.overworld());
 				}
 
 				loadPendingWaterWork(data);
@@ -145,6 +145,10 @@ public final class MadokuSeason {
 		return resolveCurrentState();
 	}
 
+	public static SeasonState getCurrentState(ServerLevel world) {
+		return resolveCurrentState(world);
+	}
+
 	public static Season getCurrentSeason() {
 		return getCurrentState().season();
 	}
@@ -161,8 +165,16 @@ public final class MadokuSeason {
 		return getCurrentState().seasonDay();
 	}
 
+	public static int getCurrentSeasonDay(ServerLevel world) {
+		return getCurrentState(world).seasonDay();
+	}
+
 	public static int getCurrentSeasonWeek() {
 		return getCurrentState().week();
+	}
+
+	public static int getCurrentSeasonWeek(ServerLevel world) {
+		return getCurrentState(world).week();
 	}
 
 	public static BiomeClimate resolveBiomeClimate(ServerLevel world, net.minecraft.core.BlockPos pos) {
@@ -861,7 +873,11 @@ public final class MadokuSeason {
 	}
 
 	private static SeasonState resolveCurrentState() {
-		long absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime();
+		return resolveCurrentState(null);
+	}
+
+	private static SeasonState resolveCurrentState(ServerLevel world) {
+		long absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(world);
 		long absoluteDay = Math.max(0L, MadokuTime.getDay(absoluteDayTime));
 		return resolveStateForAbsoluteDay(absoluteDay);
 	}

@@ -4,9 +4,12 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.farming.system.MadokuFarming;
+import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -33,18 +36,20 @@ public abstract class LootTableFarmingMixin {
 			return;
 		}
 
+		ServerLevel level = lootContext.getLevel();
 		BlockState state = resolveBlockStateParameter(lootContext);
-		if (!MadokuFarming.isManagedCrop(state) || !MadokuFarming.isMaxAge(state)) {
+		BlockPos pos = resolveBlockPosParameter(lootContext);
+		if (!MadokuFarming.isManagedCrop(level, pos, state) || !MadokuFarming.isCropHarvestReady(level, pos, state)) {
 			return;
 		}
 
 		RandomSource random = lootContext.getRandom();
-		int count = MadokuFarming.calculateCropHarvestCount(null, null, state, random);
+		int count = MadokuFarming.calculateCropHarvestCount(level, pos, state, random);
 		if (count <= 0) {
 			return;
 		}
 
-		Item harvestItem = MadokuFarming.getCropHarvestItem(state);
+		Item harvestItem = MadokuFarming.getCropHarvestItem(level, pos, state);
 		if (harvestItem == null) {
 			return;
 		}
@@ -57,7 +62,7 @@ public abstract class LootTableFarmingMixin {
 					.tick(MadokuClock.getGameplayTicks())
 					.subject("loot_table")
 					.field("count", Integer.toString(count))
-				.field("state", state == null ? "unknown" : state.getBlock().toString())
+					.field("state", state == null ? "unknown" : state.getBlock().toString())
 				.log();
 		}
 		cir.setReturnValue(drops);
@@ -94,6 +99,37 @@ public abstract class LootTableFarmingMixin {
 		}
 
 		return null;
+	}
+
+	private static BlockPos resolveBlockPosParameter(LootContext lootContext) {
+		Object parameter = LootContextParams.ORIGIN;
+		if (lootContext == null || parameter == null) {
+			return null;
+		}
+
+		try {
+			Method getParameter = findLootContextMethod(lootContext.getClass(), "getParameter", parameter.getClass());
+			if (getParameter == null) {
+				getParameter = findLootContextMethod(lootContext.getClass(), "getParam", parameter.getClass());
+			}
+			if (getParameter == null) {
+				getParameter = findLootContextMethod(lootContext.getClass(), "getOptionalParameter", parameter.getClass());
+			}
+			if (getParameter == null) {
+				getParameter = findLootContextMethod(lootContext.getClass(), "getParamOrNull", parameter.getClass());
+			}
+			if (getParameter == null) {
+				return null;
+			}
+
+			Object origin = getParameter.invoke(lootContext, parameter);
+			if (!(origin instanceof Vec3 vec3)) {
+				return null;
+			}
+			return BlockPos.containing(vec3);
+		} catch (ReflectiveOperationException | RuntimeException exception) {
+			return null;
+		}
 	}
 
 	private static Method findLootContextMethod(Class<?> type, String name, Class<?> parameterType) {

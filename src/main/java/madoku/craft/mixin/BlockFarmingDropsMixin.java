@@ -35,7 +35,7 @@ public abstract class BlockFarmingDropsMixin {
 		ItemStack tool,
 		CallbackInfoReturnable<List<ItemStack>> cir
 	) {
-		if (!MadokuFarming.isEnabled() || !MadokuFarming.isManagedCrop(state) || !MadokuFarming.isMaxAge(state)) {
+		if (!MadokuFarming.isEnabled() || !MadokuFarming.isManagedCrop(level, pos, state) || !MadokuFarming.isCropHarvestReady(level, pos, state)) {
 			return;
 		}
 
@@ -45,7 +45,7 @@ public abstract class BlockFarmingDropsMixin {
 			return;
 		}
 
-		Item harvestItem = MadokuFarming.getCropHarvestItem(state);
+		Item harvestItem = MadokuFarming.getCropHarvestItem(level, pos, state);
 		if (harvestItem == null) {
 			return;
 		}
@@ -60,7 +60,7 @@ public abstract class BlockFarmingDropsMixin {
 				.subject(pos == null ? "crop" : "crop:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
 				.field("count", Integer.toString(count))
 				.field("state", state.getBlock().toString())
-				.field("max_age", Boolean.toString(MadokuFarming.isMaxAge(state)))
+				.field("max_age", Boolean.toString(MadokuFarming.isCropHarvestReady(level, pos, state)))
 				.log();
 		}
 		cir.setReturnValue(drops);
