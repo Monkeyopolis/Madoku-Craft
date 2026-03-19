@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.item.system.MadokuItem;
+import madoku.craft.composter.system.MadokuComposter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -42,14 +43,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		if (!(state.getBlock() instanceof ComposterBlock)) {
 			return;
 		}
-		if (!MadokuItem.isEnabled()) {
+		if (!MadokuItem.isEnabled() || !MadokuComposter.isEnabled()) {
 			return;
 		}
 		if (stack == null || stack.isEmpty()) {
 			return;
 		}
-		if (!MadokuItem.isComposterCategoryItem(stack)) {
-			cir.setReturnValue(InteractionResult.FAIL);
+		if (!MadokuComposter.isComposterItem(stack)) {
 			return;
 		}
 
@@ -68,7 +68,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		}
 
 		int currentLevel = madokuCraft$getComposterLevel(state);
-		int adjustment = Math.max(1, MadokuItem.getComposterAdjustment(stack));
+		int adjustment = Math.max(1, MadokuComposter.getComposterAdjustment(stack));
 		int nextLevel = currentLevel + adjustment;
 
 		madokuCraft$consumeOneItem(player, stack);

@@ -14,7 +14,12 @@ Difficulty is determined by the biome, structure, and in-game time.
 Items:
 
 The Item system modifies item properities based on their category.
-This allows you to modify tools, and stacking limit.
+This allows you to modify tools and stacking limit.
+
+Composter:
+
+The Composter system is separate from the Item system.
+It stores its settings under `madoku-composter/madoku-composter.json` and its item files under `madoku-craft-items/madoku-items/farming-items`.
 
 Attributes:
 
