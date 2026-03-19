@@ -118,6 +118,8 @@ public final class MadokuMob {
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
+		runtimeSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+		MadokuScheduler.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, 1L);
 	}
 

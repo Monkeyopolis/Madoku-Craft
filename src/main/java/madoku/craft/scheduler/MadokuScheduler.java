@@ -84,6 +84,31 @@ public final class MadokuScheduler {
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
 
+	public static void clearQueuedRequests(String schedulerId) {
+		if (schedulerId == null || schedulerId.isBlank()) {
+			return;
+		}
+
+		SchedulerState scheduler = SCHEDULERS.get(schedulerId);
+		if (scheduler == null) {
+			scheduler = PENDING_SCHEDULERS.get(schedulerId);
+		}
+		if (scheduler == null) {
+			return;
+		}
+
+		if (scheduler.gameplayRequests.isEmpty() && scheduler.timeRequests.isEmpty()) {
+			return;
+		}
+
+		scheduler.gameplayRequests.clear();
+		scheduler.timeRequests.clear();
+		scheduler.lastActivityTick = MadokuClock.getGameplayTicks();
+		scheduler.nextScanTick = scheduler.lastActivityTick;
+		scheduler.nextOwnerCheckTick = scheduler.lastActivityTick;
+		markSchedulerDirty(scheduler.schedulerId);
+	}
+
 	public static String createScheduler(SchedulerOwner owner) {
 		if (owner == null) {
 			throw new IllegalArgumentException("Scheduler owner must not be null.");

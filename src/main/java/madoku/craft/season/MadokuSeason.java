@@ -87,6 +87,8 @@ public final class MadokuSeason {
 		seasonSchedulerId = "";
 		seasonScanTaskScheduled = false;
 		seasonProcessTaskScheduled = false;
+		seasonSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
+		MadokuScheduler.clearQueuedRequests(seasonSchedulerId);
 		requestSeasonScanProcessing(server, 1L);
 		requestSeasonProcessProcessing(server, 1L);
 	}

@@ -99,6 +99,7 @@ public final class MadokuHud {
 	private static final boolean DEFAULT_HUNGER_HUD_ENABLED = true;
 	private static final boolean DEFAULT_ARMOR_HUD_ENABLED = true;
 	private static final boolean DEFAULT_OXYGEN_HUD_ENABLED = true;
+	private static final boolean DEFAULT_SEASON_HUD_ENABLED = true;
 	private static final String HUD_CONFIG_FOLDER_NAME = "madoku-craft-hud";
 	private static final String HUD_CONFIG_FILE_NAME = "madoku-hud";
 	private static volatile boolean initialized = false;
@@ -181,15 +182,14 @@ public final class MadokuHud {
 		}
 
 		drawScaledString(context, client, "Day: " + displayDay(day), WORLD_X, WORLD_Y, COLOR);
-		int secondLineY = lineOffset(client, 1);
-		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, secondLineY, COLOR);
-		int thirdLineY = lineOffset(client, 2);
-			drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, thirdLineY, COLOR);
-			int fourthLineY = lineOffset(client, 3);
-			drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, fourthLineY, COLOR);
-			int fifthLineY = lineOffset(client, 4);
-			drawScaledString(context, client, "Season: " + getSeasonDisplayText(), WORLD_X, fifthLineY, COLOR);
+		int lineIndex = 1;
+		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, lineOffset(client, lineIndex++), COLOR);
+		drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, lineOffset(client, lineIndex++), COLOR);
+		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, lineOffset(client, lineIndex++), COLOR);
+		if (settings.seasonHudEnabled) {
+			drawScaledString(context, client, "Season: " + getSeasonDisplayText(), WORLD_X, lineOffset(client, lineIndex), COLOR);
 		}
+	}
 
 	private static void renderHealthHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
@@ -875,54 +875,60 @@ public final class MadokuHud {
 
 	private static final class Settings {
 		private final boolean worldHudEnabled;
-		private final boolean healthHudEnabled;
-		private final boolean hungerHudEnabled;
-		private final boolean armorHudEnabled;
-		private final boolean oxygenHudEnabled;
+			private final boolean healthHudEnabled;
+			private final boolean hungerHudEnabled;
+			private final boolean armorHudEnabled;
+			private final boolean oxygenHudEnabled;
+			private final boolean seasonHudEnabled;
 
-		private Settings(
-			boolean worldHudEnabled,
-			boolean healthHudEnabled,
-			boolean hungerHudEnabled,
-			boolean armorHudEnabled,
-			boolean oxygenHudEnabled
-		) {
-			this.worldHudEnabled = worldHudEnabled;
-			this.healthHudEnabled = healthHudEnabled;
-			this.hungerHudEnabled = hungerHudEnabled;
-			this.armorHudEnabled = armorHudEnabled;
-			this.oxygenHudEnabled = oxygenHudEnabled;
-		}
+			private Settings(
+				boolean worldHudEnabled,
+				boolean healthHudEnabled,
+				boolean hungerHudEnabled,
+				boolean armorHudEnabled,
+				boolean oxygenHudEnabled,
+				boolean seasonHudEnabled
+			) {
+				this.worldHudEnabled = worldHudEnabled;
+				this.healthHudEnabled = healthHudEnabled;
+				this.hungerHudEnabled = hungerHudEnabled;
+				this.armorHudEnabled = armorHudEnabled;
+				this.oxygenHudEnabled = oxygenHudEnabled;
+				this.seasonHudEnabled = seasonHudEnabled;
+			}
 
 		private static Settings defaults() {
 			return new Settings(
 				DEFAULT_WORLD_HUD_ENABLED,
-				DEFAULT_HEALTH_HUD_ENABLED,
-				DEFAULT_HUNGER_HUD_ENABLED,
-				DEFAULT_ARMOR_HUD_ENABLED,
-				DEFAULT_OXYGEN_HUD_ENABLED
-			);
-		}
+					DEFAULT_HEALTH_HUD_ENABLED,
+					DEFAULT_HUNGER_HUD_ENABLED,
+					DEFAULT_ARMOR_HUD_ENABLED,
+					DEFAULT_OXYGEN_HUD_ENABLED,
+					DEFAULT_SEASON_HUD_ENABLED
+				);
+			}
 
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			return new Settings(
 				getBoolean(source, "world_hud_enabled", defaults.worldHudEnabled),
-				getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled),
-				getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled),
-				getBoolean(source, "armor_hud_enabled", defaults.armorHudEnabled),
-				getBoolean(source, "oxygen_hud_enabled", defaults.oxygenHudEnabled)
-			);
-		}
+					getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled),
+					getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled),
+					getBoolean(source, "armor_hud_enabled", defaults.armorHudEnabled),
+					getBoolean(source, "oxygen_hud_enabled", defaults.oxygenHudEnabled),
+					getBoolean(source, "season_hud_enabled", defaults.seasonHudEnabled)
+				);
+			}
 
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("world_hud_enabled", worldHudEnabled);
 			root.addProperty("health_hud_enabled", healthHudEnabled);
-			root.addProperty("hunger_hud_enabled", hungerHudEnabled);
-			root.addProperty("armor_hud_enabled", armorHudEnabled);
-			root.addProperty("oxygen_hud_enabled", oxygenHudEnabled);
-			return root;
-		}
+				root.addProperty("hunger_hud_enabled", hungerHudEnabled);
+				root.addProperty("armor_hud_enabled", armorHudEnabled);
+				root.addProperty("oxygen_hud_enabled", oxygenHudEnabled);
+				root.addProperty("season_hud_enabled", seasonHudEnabled);
+				return root;
+			}
 	}
 }

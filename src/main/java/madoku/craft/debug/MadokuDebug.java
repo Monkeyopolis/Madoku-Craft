@@ -230,14 +230,15 @@ public final class MadokuDebug {
 			}
 		}
 
-			if (!anyEnabled) {
-				setDomainEnabled(Domain.SCHEDULER, true);
-				setDomainEnabled(Domain.SLEEP, true);
-				setDomainEnabled(Domain.HEALTH, true);
-				setDomainEnabled(Domain.HUNGER, true);
-				setDomainEnabled(Domain.MOB, true);
+				if (!anyEnabled) {
+					setDomainEnabled(Domain.SCHEDULER, true);
+					setDomainEnabled(Domain.SLEEP, true);
+					setDomainEnabled(Domain.HEALTH, true);
+					setDomainEnabled(Domain.HUNGER, true);
+					setDomainEnabled(Domain.MOB, true);
+					setDomainEnabled(Domain.FARMING, true);
+				}
 			}
-		}
 
 	private static void applyDisabledMetrics(JsonArray patterns) {
 		DISABLED_METRIC_PATTERNS.clear();
@@ -261,14 +262,15 @@ public final class MadokuDebug {
 		root.addProperty("enabled", false);
 		JsonArray activeDomains = new JsonArray();
 		activeDomains.add(Domain.SCHEDULER.id());
-		activeDomains.add(Domain.SLEEP.id());
-		activeDomains.add(Domain.HEALTH.id());
-			activeDomains.add(Domain.HUNGER.id());
-			activeDomains.add(Domain.MOB.id());
-			activeDomains.add(Domain.SEASON.id());
-			root.add("active_domains", activeDomains);
-			root.add("disabled_metrics", new JsonArray());
-			return root;
+			activeDomains.add(Domain.SLEEP.id());
+			activeDomains.add(Domain.HEALTH.id());
+				activeDomains.add(Domain.HUNGER.id());
+				activeDomains.add(Domain.MOB.id());
+				activeDomains.add(Domain.FARMING.id());
+				activeDomains.add(Domain.SEASON.id());
+				root.add("active_domains", activeDomains);
+				root.add("disabled_metrics", new JsonArray());
+				return root;
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -349,6 +351,7 @@ public final class MadokuDebug {
 			NETWORK("network"),
 			CLOCK("clock"),
 			SLEEP("sleep"),
+			FARMING("farming"),
 			SEASON("season"),
 			WORLD("world"),
 			OTHER("other");
@@ -384,12 +387,13 @@ public final class MadokuDebug {
 				case "spawn", "spawning", "mob_spawning" -> SPAWNING;
 				case "scheduler", "schedulers" -> SCHEDULER;
 				case "health", "hp" -> HEALTH;
-					case "hunger", "food" -> HUNGER;
-					case "network", "net" -> NETWORK;
-					case "clock", "time_clock" -> CLOCK;
-					case "sleep", "sleeping" -> SLEEP;
-					case "season", "seasons" -> SEASON;
-					case "world" -> WORLD;
+						case "hunger", "food" -> HUNGER;
+						case "network", "net" -> NETWORK;
+						case "clock", "time_clock" -> CLOCK;
+						case "sleep", "sleeping" -> SLEEP;
+						case "farming", "farm", "farmland" -> FARMING;
+						case "season", "seasons" -> SEASON;
+						case "world" -> WORLD;
 					case "other", "*" -> OTHER;
 				default -> null;
 			};
