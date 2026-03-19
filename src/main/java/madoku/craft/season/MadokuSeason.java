@@ -586,9 +586,9 @@ public final class MadokuSeason {
 		for (int worldY = columnTopY; worldY >= columnBottomY; worldY--) {
 			mutablePos.set(worldX, worldY, worldZ);
 			BlockState blockState = world.getBlockState(mutablePos);
-			if (!isSeasonalWaterCandidate(blockState)) {
-				continue;
-			}
+				if (!isSeasonalWaterCandidate(blockState)) {
+					continue;
+				}
 
 				BiomeClimate climate = resolveBiomeClimate(world, mutablePos);
 				if (!isTransitionScanWindow(state, climate)) {
@@ -627,6 +627,9 @@ public final class MadokuSeason {
 		}
 		if (blockState.is(Blocks.ICE)) {
 			return shouldFreeze ? null : SeasonWaterAction.TO_WATER;
+		}
+		if (blockState.is(Blocks.SNOW)) {
+			return shouldFreeze ? null : SeasonWaterAction.TO_AIR;
 		}
 		return null;
 	}
@@ -675,6 +678,10 @@ public final class MadokuSeason {
 		}
 		if (work.action() == SeasonWaterAction.TO_WATER && currentState.is(Blocks.ICE)) {
 			world.setBlockAndUpdate(blockPos, Blocks.WATER.defaultBlockState());
+			return true;
+		}
+		if (work.action() == SeasonWaterAction.TO_AIR && currentState.is(Blocks.SNOW)) {
+			world.setBlockAndUpdate(blockPos, Blocks.AIR.defaultBlockState());
 			return true;
 		}
 		return false;
@@ -729,7 +736,10 @@ public final class MadokuSeason {
 	}
 
 	private static boolean isSeasonalWaterCandidate(BlockState blockState) {
-		return blockState != null && (blockState.is(Blocks.WATER) || blockState.is(Blocks.ICE));
+		return blockState != null
+			&& (blockState.is(Blocks.WATER)
+			|| blockState.is(Blocks.ICE)
+			|| blockState.is(Blocks.SNOW));
 	}
 
 	private record SeasonWaterWork(
@@ -746,7 +756,8 @@ public final class MadokuSeason {
 
 	private enum SeasonWaterAction {
 		TO_ICE("ice"),
-		TO_WATER("water");
+		TO_WATER("water"),
+		TO_AIR("air");
 
 		private final String id;
 
@@ -837,12 +848,12 @@ public final class MadokuSeason {
 		}
 
 		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
-			schedulerId,
-			Math.max(0L, delay),
-			taskType,
-			new JsonObject(),
-			MadokuScheduler.TickDomain.TIME
-		);
+				schedulerId,
+				Math.max(0L, delay),
+				taskType,
+				new JsonObject(),
+				MadokuScheduler.TickDomain.GAMEPLAY
+			);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
 	}

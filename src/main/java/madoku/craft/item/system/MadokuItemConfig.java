@@ -542,14 +542,15 @@ public final class MadokuItemConfig {
 			"minecraft:pink_tulip",
 			"minecraft:oxeye_daisy",
 			"minecraft:cornflower",
-			"minecraft:lily_of_the_valley",
-			"minecraft:sunflower",
-			"minecraft:lilac",
-			"minecraft:rose_bush",
-			"minecraft:peony",
-			"minecraft:torchflower",
-			"minecraft:pitcher_plant"
-		);
+				"minecraft:lily_of_the_valley",
+				"minecraft:sunflower",
+				"minecraft:lilac",
+				"minecraft:rose_bush",
+				"minecraft:peony",
+				"minecraft:torchflower",
+				"minecraft:pitcher_plant",
+				"minecraft:wildflowers"
+			);
 
 			registerComposterItems(defaults, 2,
 				"minecraft:glow_berries",
@@ -569,8 +570,9 @@ public final class MadokuItemConfig {
 				"minecraft:potato",
 				"minecraft:spore_blossom",
 				"minecraft:sea_pickle",
-				"minecraft:leaf_litter"
-		);
+				"minecraft:leaf_litter",
+				"minecraft:firefly_bush"
+			);
 
 		registerComposterItems(defaults, 4,
 			"minecraft:mangrove_roots",
