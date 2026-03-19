@@ -1,5 +1,6 @@
 package madoku.craft.item.system;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.LinkedHashMap;
@@ -9,9 +10,18 @@ import java.util.Map;
 public final class MadokuItemConfig {
 	public static final String FIELD_ITEM_SYSTEM_ENABLED = "itemSystemEnabled";
 	public static final String FIELD_ITEM_ID = "item_id";
+	public static final String FIELD_PRIMARY_CATEGORY = "primary_category";
+	public static final String FIELD_SECONDARY_CATEGORIES = "secondary_categories";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
+
+	public static final String PRIMARY_CATEGORY_FUEL = "fuel";
+	public static final String PRIMARY_CATEGORY_MISC = "misc";
+	public static final String PRIMARY_CATEGORY_TOOL = "tool";
+	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
+	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
 
 	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
 	public static final String FIELD_DURABILITY = "durability";
@@ -107,18 +117,31 @@ public final class MadokuItemConfig {
 		return defaults;
 	}
 
+	public static Map<String, JsonObject> buildDefaultComposterFileDefaults() {
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		for (Map.Entry<String, Integer> entry : buildDefaultComposterItems().entrySet()) {
+			String itemId = entry.getKey();
+			String fileKey = fileKeyFromItemId(itemId);
+			if (fileKey.isBlank()) {
+				continue;
+			}
+			defaults.put(fileKey, buildComposterItemDefaults(itemId, entry.getValue(), STACK_MULTI));
+		}
+		return defaults;
+	}
+
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks) {
 		return buildFuelItemDefaults(itemId, fuelTicks, defaultStackForItem(itemId));
 	}
 
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks, String stackValue) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_FUEL);
 		defaults.addProperty(FIELD_FUEL_TICKS, fuelTicks);
 		return defaults;
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
-		return buildBaseDefaults(itemId, stackValue);
+		return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC);
 	}
 
 	public static JsonObject buildToolItemDefaults(String itemId) {
@@ -142,7 +165,7 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_TOOL);
 		defaults.addProperty(FIELD_DURABILITY, durability);
 		defaults.addProperty(FIELD_ATTACK_DAMAGE, attackDamage);
 		defaults.addProperty(FIELD_ATTACK_SPEED, attackSpeed);
@@ -182,7 +205,7 @@ public final class MadokuItemConfig {
 		double reachMobFactor,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_TOOL);
 		defaults.addProperty(FIELD_DURABILITY, durability);
 		defaults.addProperty(FIELD_ATTACK_DAMAGE, attackDamage);
 		defaults.addProperty(FIELD_ATTACK_SPEED, attackSpeed);
@@ -213,18 +236,35 @@ public final class MadokuItemConfig {
 		double armorToughness,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_ARMOR);
 		defaults.addProperty(FIELD_DURABILITY, durability);
 		defaults.addProperty(FIELD_ARMOR, armor);
 		defaults.addProperty(FIELD_ARMOR_TOUGHNESS, armorToughness);
 		return defaults;
 	}
 
-	private static JsonObject buildBaseDefaults(String itemId, String stackValue) {
+	public static JsonObject buildComposterItemDefaults(String itemId, int adjustment, String stackValue) {
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC);
+		JsonArray secondaryCategories = new JsonArray();
+		secondaryCategories.add(SECONDARY_CATEGORY_COMPOSTER);
+		defaults.add(FIELD_SECONDARY_CATEGORIES, secondaryCategories);
+		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment));
+		return defaults;
+	}
+
+	private static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory) {
 		JsonObject defaults = new JsonObject();
 		defaults.addProperty(FIELD_ITEM_ID, itemId == null ? "" : itemId);
+		defaults.addProperty(FIELD_PRIMARY_CATEGORY, normalizeCategoryValue(primaryCategory));
+		defaults.add(FIELD_SECONDARY_CATEGORIES, new JsonArray());
+		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, 1);
 		defaults.addProperty(FIELD_STACK, normalizeStackValue(stackValue));
 		return defaults;
+	}
+
+	private static String normalizeCategoryValue(String rawCategoryValue) {
+		String normalized = rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
+		return normalized.isEmpty() ? PRIMARY_CATEGORY_MISC : normalized;
 	}
 
 	private static String defaultStackForItem(String itemId) {
@@ -459,5 +499,112 @@ public final class MadokuItemConfig {
 		defaults.put("minecraft:milk_bucket", true);
 		defaults.put("minecraft:powder_snow_bucket", true);
 		return defaults;
+	}
+
+	public static Map<String, Integer> buildDefaultComposterItems() {
+		Map<String, Integer> defaults = new LinkedHashMap<>();
+
+		registerComposterItems(defaults, 1,
+			"minecraft:beetroot_seeds",
+			"minecraft:moss_carpet",
+			"minecraft:pink_petals",
+			"minecraft:pitcher_pod",
+			"minecraft:pumpkin_seeds",
+			"minecraft:oak_sapling",
+			"minecraft:spruce_sapling",
+			"minecraft:birch_sapling",
+			"minecraft:jungle_sapling",
+			"minecraft:acacia_sapling",
+			"minecraft:dark_oak_sapling",
+			"minecraft:cherry_sapling",
+			"minecraft:mangrove_propagule",
+			"minecraft:pale_oak_sapling",
+			"minecraft:kelp",
+			"minecraft:torchflower_seeds",
+			"minecraft:wheat_seeds",
+			"minecraft:twisting_vines",
+			"minecraft:weeping_vines",
+			"minecraft:big_dripleaf",
+			"minecraft:lily_pad",
+			"minecraft:pale_moss_carpet",
+			"minecraft:hanging_roots",
+			"minecraft:nether_sprouts",
+			"minecraft:warped_roots",
+			"minecraft:crimson_roots",
+			"minecraft:dandelion",
+			"minecraft:poppy",
+			"minecraft:blue_orchid",
+			"minecraft:allium",
+			"minecraft:azure_bluet",
+			"minecraft:red_tulip",
+			"minecraft:orange_tulip",
+			"minecraft:white_tulip",
+			"minecraft:pink_tulip",
+			"minecraft:oxeye_daisy",
+			"minecraft:cornflower",
+			"minecraft:lily_of_the_valley",
+			"minecraft:sunflower",
+			"minecraft:lilac",
+			"minecraft:rose_bush",
+			"minecraft:peony",
+			"minecraft:torchflower",
+			"minecraft:pitcher_plant"
+		);
+
+			registerComposterItems(defaults, 2,
+				"minecraft:glow_berries",
+				"minecraft:sweet_berries",
+				"minecraft:cactus",
+				"minecraft:sugar_cane",
+				"minecraft:azalea",
+				"minecraft:flowering_azalea",
+				"minecraft:carrot",
+				"minecraft:cocoa_beans",
+				"minecraft:crimson_fungus",
+				"minecraft:warped_fungus",
+				"minecraft:red_mushroom",
+				"minecraft:brown_mushroom",
+				"minecraft:chorus_fruit",
+				"minecraft:nether_wart",
+				"minecraft:potato",
+				"minecraft:spore_blossom",
+				"minecraft:sea_pickle",
+				"minecraft:leaf_litter"
+		);
+
+		registerComposterItems(defaults, 4,
+			"minecraft:mangrove_roots",
+			"minecraft:apple",
+			"minecraft:beetroot",
+			"minecraft:melon_slice",
+			"minecraft:moss_block",
+			"minecraft:rotten_flesh",
+			"minecraft:spider_eye",
+			"minecraft:bone",
+			"minecraft:rabbit_foot",
+			"minecraft:poisonous_potato",
+			"minecraft:pufferfish",
+			"minecraft:pale_moss_block"
+		);
+
+		registerComposterItems(defaults, 8,
+			"minecraft:pumpkin",
+			"minecraft:hay_block",
+			"minecraft:shroomlight"
+		);
+
+		return defaults;
+	}
+
+	private static void registerComposterItems(Map<String, Integer> defaults, int adjustment, String... itemIds) {
+		if (defaults == null || itemIds == null) {
+			return;
+		}
+		for (String itemId : itemIds) {
+			if (itemId == null || itemId.isBlank()) {
+				continue;
+			}
+			defaults.put(itemId, Math.max(1, adjustment));
+		}
 	}
 }

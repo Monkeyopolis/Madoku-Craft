@@ -10,6 +10,8 @@
     "AbstractSkeletonArrowInvoker",
     "AbstractSkeletonRangedAttackMixin",
     "BiomeSeasonalPrecipitationMixin",
+    "ComposterBlockMixin",
+    "RecipeManagerBoneMealRemovalMixin",
     "CraftingMenuRarityMixin",
     "ContainerStackLimitMixin",
     "CreeperAccessor",
