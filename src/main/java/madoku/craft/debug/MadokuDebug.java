@@ -263,11 +263,12 @@ public final class MadokuDebug {
 		activeDomains.add(Domain.SCHEDULER.id());
 		activeDomains.add(Domain.SLEEP.id());
 		activeDomains.add(Domain.HEALTH.id());
-		activeDomains.add(Domain.HUNGER.id());
-		activeDomains.add(Domain.MOB.id());
-		root.add("active_domains", activeDomains);
-		root.add("disabled_metrics", new JsonArray());
-		return root;
+			activeDomains.add(Domain.HUNGER.id());
+			activeDomains.add(Domain.MOB.id());
+			activeDomains.add(Domain.SEASON.id());
+			root.add("active_domains", activeDomains);
+			root.add("disabled_metrics", new JsonArray());
+			return root;
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -344,12 +345,13 @@ public final class MadokuDebug {
 		SPAWNING("spawning"),
 		SCHEDULER("scheduler"),
 		HEALTH("health"),
-		HUNGER("hunger"),
-		NETWORK("network"),
-		CLOCK("clock"),
-		SLEEP("sleep"),
-		WORLD("world"),
-		OTHER("other");
+			HUNGER("hunger"),
+			NETWORK("network"),
+			CLOCK("clock"),
+			SLEEP("sleep"),
+			SEASON("season"),
+			WORLD("world"),
+			OTHER("other");
 
 		private final String id;
 
@@ -382,12 +384,13 @@ public final class MadokuDebug {
 				case "spawn", "spawning", "mob_spawning" -> SPAWNING;
 				case "scheduler", "schedulers" -> SCHEDULER;
 				case "health", "hp" -> HEALTH;
-				case "hunger", "food" -> HUNGER;
-				case "network", "net" -> NETWORK;
-				case "clock", "time_clock" -> CLOCK;
-				case "sleep", "sleeping" -> SLEEP;
-				case "world" -> WORLD;
-				case "other", "*" -> OTHER;
+					case "hunger", "food" -> HUNGER;
+					case "network", "net" -> NETWORK;
+					case "clock", "time_clock" -> CLOCK;
+					case "sleep", "sleeping" -> SLEEP;
+					case "season", "seasons" -> SEASON;
+					case "world" -> WORLD;
+					case "other", "*" -> OTHER;
 				default -> null;
 			};
 		}

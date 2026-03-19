@@ -109,6 +109,8 @@ public final class MadokuHud {
 	private static volatile boolean hasServerTime = false;
 	private static volatile int serverDifficulty = 1;
 	private static volatile boolean hasServerDifficulty = false;
+	private static volatile String serverSeason = "spring";
+	private static volatile boolean hasServerSeason = false;
 	private static volatile int serverHungerCurrent = 0;
 	private static volatile int serverHungerPending = 0;
 	private static volatile int serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
@@ -182,10 +184,12 @@ public final class MadokuHud {
 		int secondLineY = lineOffset(client, 1);
 		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, secondLineY, COLOR);
 		int thirdLineY = lineOffset(client, 2);
-		drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, thirdLineY, COLOR);
-		int fourthLineY = lineOffset(client, 3);
-		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, fourthLineY, COLOR);
-	}
+			drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, thirdLineY, COLOR);
+			int fourthLineY = lineOffset(client, 3);
+			drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, fourthLineY, COLOR);
+			int fifthLineY = lineOffset(client, 4);
+			drawScaledString(context, client, "Season: " + getSeasonDisplayText(), WORLD_X, fifthLineY, COLOR);
+		}
 
 	private static void renderHealthHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
@@ -536,6 +540,21 @@ public final class MadokuHud {
 		return Integer.toString(Math.max(1, serverDifficulty));
 	}
 
+	private static String getSeasonDisplayText() {
+		if (!hasServerSeason) {
+			return "Unknown";
+		}
+		return capitalizeWord(serverSeason);
+	}
+
+	private static String capitalizeWord(String value) {
+		if (value == null || value.isBlank()) {
+			return "Unknown";
+		}
+		String normalized = value.trim().toLowerCase(Locale.ROOT);
+		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
+	}
+
 	private static boolean isBlinking(Gui gui, int ticks) {
 		long healthBlinkTime = ((GuiAccessor) gui).madokuCraft$getHealthBlinkTime();
 		long currentTicks = ticks;
@@ -790,6 +809,16 @@ public final class MadokuHud {
 	public static void clearServerDifficulty() {
 		serverDifficulty = 1;
 		hasServerDifficulty = false;
+	}
+
+	public static void setServerSeason(String season) {
+		serverSeason = season == null ? "unknown" : season;
+		hasServerSeason = true;
+	}
+
+	public static void clearServerSeason() {
+		serverSeason = "spring";
+		hasServerSeason = false;
 	}
 
 	public static void setServerHunger(int current, int pending, int max) {
