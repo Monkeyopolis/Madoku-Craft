@@ -14,6 +14,9 @@ public final class MadokuCropConfig {
 	public static final String FIELD_MATURE_BLOCK_ID = "matureBlockId";
 	public static final String FIELD_PLANTING_ITEM_ID = "plantingItemId";
 	public static final String FIELD_HARVEST_ITEM_ID = "harvestItemId";
+	public static final String FIELD_SECONDARY_HARVEST_ITEM_ID = "secondaryHarvestItemId";
+	public static final String FIELD_SECONDARY_MIN_HARVEST_COUNT = "secondaryMinHarvestCount";
+	public static final String FIELD_SECONDARY_MAX_HARVEST_COUNT = "secondaryMaxHarvestCount";
 	public static final String FIELD_GROWTH_MINECRAFT_DAYS = "growthMinecraftDays";
 	public static final String FIELD_MIN_HARVEST_COUNT = "minHarvestCount";
 	public static final String FIELD_MAX_HARVEST_COUNT = "maxHarvestCount";
@@ -49,6 +52,9 @@ public final class MadokuCropConfig {
 			"minecraft:beetroots",
 			"minecraft:beetroot_seeds",
 			"minecraft:beetroot",
+			"minecraft:beetroot_seeds",
+			1,
+			3,
 			3.0d,
 			7,
 			9,
@@ -70,6 +76,9 @@ public final class MadokuCropConfig {
 			"minecraft:wheat",
 			"minecraft:wheat_seeds",
 			"minecraft:wheat",
+			"minecraft:wheat_seeds",
+			1,
+			3,
 			7.0d,
 			11,
 			13,
@@ -88,26 +97,20 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CROP_ID, normalizeRegistryId(cropId));
-		root.addProperty(FIELD_CROP_BLOCK_ID, normalizeRegistryId(cropBlockId));
-		root.addProperty(FIELD_PLANTING_ITEM_ID, normalizeRegistryId(plantingItemId));
-		root.addProperty(FIELD_HARVEST_ITEM_ID, normalizeRegistryId(harvestItemId));
-		root.addProperty(FIELD_GROWTH_MINECRAFT_DAYS, growthMinecraftDays);
-		root.addProperty(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount));
-		root.addProperty(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
-		JsonArray seasons = new JsonArray();
-		if (blockedSeasons != null) {
-			for (String season : blockedSeasons) {
-				String normalized = normalizeSeasonId(season);
-				if (!normalized.isEmpty()) {
-					seasons.add(normalized);
-				}
-				}
-			}
-			root.add(FIELD_PLANTING_BLOCKED_SEASONS, seasons);
-			return root;
-		}
+		return buildCropDefaults(
+			cropId,
+			cropBlockId,
+			plantingItemId,
+			harvestItemId,
+			"",
+			0,
+			0,
+			growthMinecraftDays,
+			minHarvestCount,
+			maxHarvestCount,
+			blockedSeasons
+		);
+	}
 
 	public static JsonObject buildCropDefaults(
 		String cropId,
@@ -120,21 +123,93 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
-		JsonObject root = buildCropDefaults(
+		return buildCropDefaults(
 			cropId,
 			cropBlockId,
+			matureBlockId,
 			plantingItemId,
 			harvestItemId,
+			"",
+			0,
+			0,
 			growthMinecraftDays,
 			minHarvestCount,
 			maxHarvestCount,
 			blockedSeasons
 		);
+	}
+
+	public static JsonObject buildCropDefaults(
+		String cropId,
+		String cropBlockId,
+		String plantingItemId,
+		String harvestItemId,
+		String secondaryHarvestItemId,
+		int secondaryMinHarvestCount,
+		int secondaryMaxHarvestCount,
+		double growthMinecraftDays,
+		int minHarvestCount,
+		int maxHarvestCount,
+		List<String> blockedSeasons
+	) {
+		return buildCropDefaults(
+			cropId,
+			cropBlockId,
+			"",
+			plantingItemId,
+			harvestItemId,
+			secondaryHarvestItemId,
+			secondaryMinHarvestCount,
+			secondaryMaxHarvestCount,
+			growthMinecraftDays,
+			minHarvestCount,
+			maxHarvestCount,
+			blockedSeasons
+		);
+	}
+
+	public static JsonObject buildCropDefaults(
+		String cropId,
+		String cropBlockId,
+		String matureBlockId,
+		String plantingItemId,
+		String harvestItemId,
+		String secondaryHarvestItemId,
+		int secondaryMinHarvestCount,
+		int secondaryMaxHarvestCount,
+		double growthMinecraftDays,
+		int minHarvestCount,
+		int maxHarvestCount,
+		List<String> blockedSeasons
+	) {
+		JsonObject root = new JsonObject();
+		root.addProperty(FIELD_CROP_ID, normalizeRegistryId(cropId));
+		root.addProperty(FIELD_CROP_BLOCK_ID, normalizeRegistryId(cropBlockId));
 		String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
-		String normalizedCropBlockId = root.get(FIELD_CROP_BLOCK_ID).getAsString();
-		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizedCropBlockId)) {
+		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizeRegistryId(cropBlockId))) {
 			root.addProperty(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
 		}
+		root.addProperty(FIELD_PLANTING_ITEM_ID, normalizeRegistryId(plantingItemId));
+		root.addProperty(FIELD_HARVEST_ITEM_ID, normalizeRegistryId(harvestItemId));
+		String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
+		if (!normalizedSecondaryHarvestItemId.isEmpty()) {
+			root.addProperty(FIELD_SECONDARY_HARVEST_ITEM_ID, normalizedSecondaryHarvestItemId);
+			root.addProperty(FIELD_SECONDARY_MIN_HARVEST_COUNT, Math.max(0, secondaryMinHarvestCount));
+			root.addProperty(FIELD_SECONDARY_MAX_HARVEST_COUNT, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
+		}
+		root.addProperty(FIELD_GROWTH_MINECRAFT_DAYS, growthMinecraftDays);
+		root.addProperty(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount));
+		root.addProperty(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
+		JsonArray seasons = new JsonArray();
+		if (blockedSeasons != null) {
+			for (String season : blockedSeasons) {
+				String normalized = normalizeSeasonId(season);
+					if (!normalized.isEmpty()) {
+						seasons.add(normalized);
+					}
+				}
+			}
+		root.add(FIELD_PLANTING_BLOCKED_SEASONS, seasons);
 		return root;
 	}
 

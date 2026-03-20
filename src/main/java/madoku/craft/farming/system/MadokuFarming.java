@@ -197,6 +197,16 @@ public final class MadokuFarming {
 		return rule == null ? null : rule.harvestItem();
 	}
 
+	public static Item getCropSecondaryHarvestItem(BlockState state) {
+		CropRule rule = resolveCropRuleByCropState(state);
+		return rule == null ? null : rule.secondaryHarvestItem();
+	}
+
+	public static Item getCropSecondaryHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		return rule == null ? null : rule.secondaryHarvestItem();
+	}
+
 	public static boolean isFertilized(ServerLevel world, BlockPos soilPos) {
 		PlotState plot = findPlot(world, soilPos);
 		return plot != null && plot.fertilized;
@@ -1347,8 +1357,20 @@ public final class MadokuFarming {
 					"distinct_mature", Boolean.toString(rule.usesDistinctMatureBlock())
 				)
 			);
+			}
+			return result;
 		}
-		return result;
+
+	public static int calculateCropSecondaryHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
+		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		if (!settings.enabled || rule == null || !isCropBlock(state, rule) || !isCropHarvestReady(world, cropPos, state) || !rule.hasSecondaryHarvestDrop()) {
+			return 0;
+		}
+
+		RandomSource safeRandom = random == null ? RandomSource.create() : random;
+		int minCount = Math.max(1, rule.secondaryMinHarvestCount());
+		int maxCount = Math.max(minCount, rule.secondaryMaxHarvestCount());
+		return minCount + safeRandom.nextInt(maxCount - minCount + 1);
 	}
 
 	public static void prepareCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -1640,6 +1662,9 @@ public final class MadokuFarming {
 		String matureBlockId,
 		String plantingItemId,
 		String harvestItemId,
+		String secondaryHarvestItemId,
+		int secondaryMinHarvestCount,
+		int secondaryMaxHarvestCount,
 		String displayName,
 		double growthMinecraftDays,
 		int minHarvestCount,
@@ -1648,7 +1673,8 @@ public final class MadokuFarming {
 		Block cropBlock,
 		Block matureBlock,
 		Item plantingItem,
-		Item harvestItem
+		Item harvestItem,
+		Item secondaryHarvestItem
 	) {
 		private static List<CropRule> defaultRules() {
 			return List.of(defaultPotato(), defaultCarrot(), defaultBeetroot(), defaultMelon(), defaultWheat());
@@ -1673,6 +1699,9 @@ public final class MadokuFarming {
 				"minecraft:potatoes",
 				"minecraft:potato",
 				"minecraft:potato",
+				"",
+				0,
+				0,
 				3.0d,
 				7,
 				9,
@@ -1687,6 +1716,9 @@ public final class MadokuFarming {
 				"minecraft:carrots",
 				"minecraft:carrot",
 				"minecraft:carrot",
+				"",
+				0,
+				0,
 				5.0d,
 				5,
 				7,
@@ -1701,6 +1733,9 @@ public final class MadokuFarming {
 				"minecraft:beetroots",
 				"minecraft:beetroot_seeds",
 				"minecraft:beetroot",
+				"minecraft:beetroot_seeds",
+				1,
+				3,
 				3.0d,
 				7,
 				9,
@@ -1715,6 +1750,9 @@ public final class MadokuFarming {
 				"minecraft:melon",
 				"minecraft:melon_seeds",
 				"minecraft:melon_slice",
+				"",
+				0,
+				0,
 				11.0d,
 				15,
 				17,
@@ -1729,6 +1767,9 @@ public final class MadokuFarming {
 				"minecraft:wheat",
 				"minecraft:wheat_seeds",
 				"minecraft:wheat",
+				"minecraft:wheat_seeds",
+				1,
+				3,
 				7.0d,
 				11,
 				13,
@@ -1767,6 +1808,11 @@ public final class MadokuFarming {
 				harvestItemId = fallback.harvestItemId;
 			}
 
+			String secondaryHarvestItemId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_SECONDARY_HARVEST_ITEM_ID, fallback.secondaryHarvestItemId));
+			if (secondaryHarvestItemId.isEmpty()) {
+				secondaryHarvestItemId = fallback.secondaryHarvestItemId;
+			}
+
 			double growthDays = clampDouble(
 				readDouble(source, MadokuCropConfig.FIELD_GROWTH_MINECRAFT_DAYS, fallback.growthMinecraftDays),
 				fallback.growthMinecraftDays,
@@ -1785,6 +1831,18 @@ public final class MadokuFarming {
 				minHarvestCount,
 				1024
 			);
+			int secondaryMinHarvestCount = clampInt(
+				readInt(source, MadokuCropConfig.FIELD_SECONDARY_MIN_HARVEST_COUNT, fallback.secondaryMinHarvestCount),
+				fallback.secondaryMinHarvestCount,
+				0,
+				1024
+			);
+			int secondaryMaxHarvestCount = clampInt(
+				readInt(source, MadokuCropConfig.FIELD_SECONDARY_MAX_HARVEST_COUNT, fallback.secondaryMaxHarvestCount),
+				fallback.secondaryMaxHarvestCount,
+				secondaryMinHarvestCount,
+				1024
+			);
 			Set<String> blockedSeasonIds = parseBlockedSeasonIds(source, fallback.blockedSeasonIds);
 			if (blockedSeasonIds.isEmpty()) {
 				blockedSeasonIds = fallback.blockedSeasonIds;
@@ -1794,6 +1852,7 @@ public final class MadokuFarming {
 			Identifier matureBlockIdentifier = Identifier.tryParse(matureBlockId);
 			Identifier plantingIdentifier = Identifier.tryParse(plantingItemId);
 			Identifier harvestIdentifier = Identifier.tryParse(harvestItemId);
+			Identifier secondaryHarvestIdentifier = secondaryHarvestItemId.isBlank() ? null : Identifier.tryParse(secondaryHarvestItemId);
 			if (cropBlockIdentifier == null || matureBlockIdentifier == null || plantingIdentifier == null || harvestIdentifier == null) {
 				return fallback;
 			}
@@ -1803,6 +1862,9 @@ public final class MadokuFarming {
 				|| !BuiltInRegistries.ITEM.containsKey(harvestIdentifier)) {
 				return fallback;
 			}
+			if (secondaryHarvestIdentifier != null && !BuiltInRegistries.ITEM.containsKey(secondaryHarvestIdentifier)) {
+				return fallback;
+			}
 
 			return fromValues(
 				cropId,
@@ -1810,6 +1872,9 @@ public final class MadokuFarming {
 				matureBlockId,
 				plantingItemId,
 				harvestItemId,
+				secondaryHarvestItemId,
+				secondaryMinHarvestCount,
+				secondaryMaxHarvestCount,
 				growthDays,
 				minHarvestCount,
 				maxHarvestCount,
@@ -1823,6 +1888,9 @@ public final class MadokuFarming {
 			String matureBlockId,
 			String plantingItemId,
 			String harvestItemId,
+			String secondaryHarvestItemId,
+			int secondaryMinHarvestCount,
+			int secondaryMaxHarvestCount,
 			double growthMinecraftDays,
 			int minHarvestCount,
 			int maxHarvestCount,
@@ -1833,14 +1901,17 @@ public final class MadokuFarming {
 			String normalizedMatureBlockId = MadokuCropConfig.normalizeRegistryId(matureBlockId);
 			String normalizedPlantingItemId = MadokuCropConfig.normalizeRegistryId(plantingItemId);
 			String normalizedHarvestItemId = MadokuCropConfig.normalizeRegistryId(harvestItemId);
+			String normalizedSecondaryHarvestItemId = MadokuCropConfig.normalizeRegistryId(secondaryHarvestItemId);
 			Identifier cropBlockIdentifier = Identifier.tryParse(normalizedCropBlockId);
 			Identifier matureBlockIdentifier = Identifier.tryParse(normalizedMatureBlockId);
 			Identifier plantingIdentifier = Identifier.tryParse(normalizedPlantingItemId);
 			Identifier harvestIdentifier = Identifier.tryParse(normalizedHarvestItemId);
+			Identifier secondaryHarvestIdentifier = normalizedSecondaryHarvestItemId.isBlank() ? null : Identifier.tryParse(normalizedSecondaryHarvestItemId);
 			Block cropBlock = cropBlockIdentifier == null ? null : BuiltInRegistries.BLOCK.getValue(cropBlockIdentifier);
 			Block matureBlock = matureBlockIdentifier == null ? null : BuiltInRegistries.BLOCK.getValue(matureBlockIdentifier);
 			Item plantingItem = plantingIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(plantingIdentifier);
 			Item harvestItem = harvestIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(harvestIdentifier);
+			Item secondaryHarvestItem = secondaryHarvestIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(secondaryHarvestIdentifier);
 			Set<String> normalizedBlockedSeasons = blockedSeasonIds == null || blockedSeasonIds.isEmpty()
 				? Set.of()
 				: blockedSeasonIds.stream()
@@ -1854,6 +1925,9 @@ public final class MadokuFarming {
 				normalizedMatureBlockId,
 				normalizedPlantingItemId,
 				normalizedHarvestItemId,
+				normalizedSecondaryHarvestItemId,
+				Math.max(0, secondaryMinHarvestCount),
+				Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount),
 				displayName,
 				growthMinecraftDays,
 				minHarvestCount,
@@ -1862,7 +1936,8 @@ public final class MadokuFarming {
 				cropBlock,
 				matureBlock,
 				plantingItem,
-				harvestItem
+				harvestItem,
+				secondaryHarvestItem
 			);
 		}
 
@@ -1893,6 +1968,10 @@ public final class MadokuFarming {
 			return matureBlockId != null && !matureBlockId.isBlank() && !matureBlockId.equals(cropBlockId);
 		}
 
+		private boolean hasSecondaryHarvestDrop() {
+			return secondaryHarvestItem != null && secondaryMinHarvestCount > 0 && secondaryMaxHarvestCount >= secondaryMinHarvestCount;
+		}
+
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty(MadokuCropConfig.FIELD_CROP_ID, cropId);
@@ -1902,6 +1981,11 @@ public final class MadokuFarming {
 			}
 			root.addProperty(MadokuCropConfig.FIELD_PLANTING_ITEM_ID, plantingItemId);
 			root.addProperty(MadokuCropConfig.FIELD_HARVEST_ITEM_ID, harvestItemId);
+			if (secondaryHarvestItemId != null && !secondaryHarvestItemId.isBlank() && secondaryHarvestItem != null) {
+				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_HARVEST_ITEM_ID, secondaryHarvestItemId);
+				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_MIN_HARVEST_COUNT, secondaryMinHarvestCount);
+				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_MAX_HARVEST_COUNT, secondaryMaxHarvestCount);
+			}
 			root.addProperty(MadokuCropConfig.FIELD_GROWTH_MINECRAFT_DAYS, growthMinecraftDays);
 			root.addProperty(MadokuCropConfig.FIELD_MIN_HARVEST_COUNT, minHarvestCount);
 			root.addProperty(MadokuCropConfig.FIELD_MAX_HARVEST_COUNT, maxHarvestCount);

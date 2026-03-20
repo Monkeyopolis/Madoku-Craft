@@ -1,7 +1,5 @@
 package madoku.craft.mixin;
 
-import madoku.craft.clock.MadokuClock;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.farming.system.MadokuFarming;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
@@ -37,57 +35,8 @@ public abstract class FarmlandBlockFarmingMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (!MadokuFarming.isEnabled() || level == null || pos == null || !Boolean.FALSE.equals(cir.getReturnValue())) {
-			return;
-		}
-
-		BlockPos abovePos = pos.above();
-		BlockState aboveState = level.getBlockState(abovePos);
-
-		if (MadokuFarming.isManagedCrop(aboveState)) {
-			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
-				MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(MadokuClock.getGameplayTicks())
-					.world(level.toString())
-					.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
-					.field("reason", "managed_crop_state_only")
-					.field("above_state", aboveState.getBlock().toString())
-					.log();
-			}
+		if (Boolean.FALSE.equals(cir.getReturnValue()) && shouldHoldManagedFarmland(level, pos)) {
 			cir.setReturnValue(true);
-			return;
-		}
-
-		ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
-		if (serverLevel != null && MadokuFarming.isManagedPlot(serverLevel, pos)) {
-			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
-				MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(MadokuClock.getGameplayTicks())
-					.world(level.toString())
-					.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
-					.field("reason", "managed_plot")
-					.log();
-			}
-			cir.setReturnValue(true);
-			return;
-		}
-
-		if (serverLevel != null) {
-			if (MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState)) {
-				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
-					MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
-						.side(MadokuDebug.Side.SERVER)
-						.tick(MadokuClock.getGameplayTicks())
-						.world(level.toString())
-						.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
-						.field("reason", "managed_crop_world_aware")
-						.field("above_state", aboveState.getBlock().toString())
-						.log();
-				}
-				cir.setReturnValue(true);
-			}
 		}
 	}
 

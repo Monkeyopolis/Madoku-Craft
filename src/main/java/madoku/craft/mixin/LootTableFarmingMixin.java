@@ -55,8 +55,13 @@ public abstract class LootTableFarmingMixin {
 			return;
 		}
 
-		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(1);
+		Item secondaryHarvestItem = MadokuFarming.getCropSecondaryHarvestItem(level, pos, state);
+		int secondaryCount = MadokuFarming.calculateCropSecondaryHarvestCount(level, pos, state, random);
+		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(secondaryHarvestItem != null && secondaryCount > 0 ? 2 : 1);
 		drops.add(new ItemStack(harvestItem, count));
+		if (secondaryHarvestItem != null && secondaryCount > 0) {
+			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
+		}
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_drops_loot")) {
 			MadokuDebug.event("farming.crop_drops_loot", MadokuDebug.Domain.FARMING)
 					.side(MadokuDebug.Side.SERVER)
