@@ -65,6 +65,7 @@ public final class MadokuFarming {
 
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long FERTILIZATION_DECAY_TICKS = 3L * 24000L;
+	private static final long CROP_MISSING_GRACE_TICKS = 20L;
 	private static final int CROP_MAX_AGE = 7;
 
 	private static volatile Settings settings = Settings.defaults();
@@ -524,13 +525,59 @@ public final class MadokuFarming {
 						continue;
 				}
 
-					BlockPos cropPos = BlockPos.of(plot.cropPos);
-					BlockState cropState = world.getBlockState(cropPos);
-					if (!isCropBlock(cropState, rule)) {
-						if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
-							emitFarmingDebug(
-								"farming.plot_removed",
-								world,
+						BlockPos cropPos = BlockPos.of(plot.cropPos);
+						BlockState cropState = world.getBlockState(cropPos);
+						if (!isCropBlock(cropState, rule)) {
+							boolean cropIsMissing = cropState == null || cropState.isAir();
+							if (cropIsMissing) {
+								long gameplayTicks = MadokuClock.getGameplayTicks();
+								if (plot.missingCropSinceGameplayTicks == Long.MIN_VALUE) {
+									plot.missingCropSinceGameplayTicks = gameplayTicks;
+									if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_missing")) {
+										emitFarmingDebug(
+											"farming.crop_missing",
+											world,
+											soilPos,
+											"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+											Map.of(
+												"reason", "crop_missing_start",
+												"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
+												"crop_pos", cropPos.toShortString(),
+												"crop_id", plot.cropId,
+												"fertilized", Boolean.toString(plot.fertilized),
+												"gameplay_ticks", Long.toString(gameplayTicks)
+											)
+										);
+									}
+								}
+								if (gameplayTicks - plot.missingCropSinceGameplayTicks < CROP_MISSING_GRACE_TICKS) {
+									refreshPlotActivity(world, soilPos, plot);
+									continue;
+								}
+								if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_missing")) {
+									emitFarmingDebug(
+										"farming.crop_missing",
+										world,
+										soilPos,
+										"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+										Map.of(
+											"reason", "crop_missing_grace_expired",
+											"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
+											"crop_pos", cropPos.toShortString(),
+											"crop_id", plot.cropId,
+											"fertilized", Boolean.toString(plot.fertilized),
+											"missing_for_ticks", Long.toString(gameplayTicks - plot.missingCropSinceGameplayTicks)
+										)
+									);
+								}
+							} else {
+								plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+							}
+
+							if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
+								emitFarmingDebug(
+									"farming.plot_removed",
+									world,
 								soilPos,
 								"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
 								Map.of(
@@ -540,13 +587,14 @@ public final class MadokuFarming {
 									"crop_pos", cropPos.toShortString(),
 									"crop_id", plot.cropId,
 									"fertilized", Boolean.toString(plot.fertilized)
-								)
-							);
-						}
-						plot.clearCrop();
-						if (plot.fertilized) {
-							plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
-						}
+									)
+								);
+							}
+							plot.clearCrop();
+						plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+							if (plot.fertilized) {
+								plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
+							}
 					if (!plot.fertilized) {
 						removedKeys.add(key);
 						activePlotsByKey.remove(key);
@@ -2035,8 +2083,9 @@ public final class MadokuFarming {
 		private String cropId;
 		private boolean fertilized;
 		private long fertilizedAtAbsoluteDayTime;
-		private double growthProgress;
-		private transient long lastParticleEmissionTimeTicks;
+			private double growthProgress;
+			private transient long lastParticleEmissionTimeTicks;
+			private transient long missingCropSinceGameplayTicks;
 
 		private PlotState(String levelId, long soilPos) {
 			this.levelId = levelId == null ? "" : levelId;
@@ -2044,10 +2093,11 @@ public final class MadokuFarming {
 			this.cropPos = -1L;
 			this.cropId = "";
 			this.fertilized = false;
-			this.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
-			this.growthProgress = 0.0d;
-			this.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
-		}
+				this.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
+				this.growthProgress = 0.0d;
+				this.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
+				this.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+			}
 
 		private String key() {
 			return levelId + "|" + soilPos;
@@ -2057,11 +2107,12 @@ public final class MadokuFarming {
 			return cropPos >= 0L && resolveCropRuleByPlantingItemId(cropId) != null;
 		}
 
-		private void clearCrop() {
-			cropPos = -1L;
-			cropId = "";
-			growthProgress = 0.0d;
-		}
+			private void clearCrop() {
+				cropPos = -1L;
+				cropId = "";
+				growthProgress = 0.0d;
+				missingCropSinceGameplayTicks = Long.MIN_VALUE;
+			}
 
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
