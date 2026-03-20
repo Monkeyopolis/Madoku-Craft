@@ -43,6 +43,7 @@
     "MobSpawnOverridesMixin",
     "MobEffectTickOverrideMixin",
     "LootTableRarityMixin",
+    "LootTableFarmingMixin",
     "BlockFarmingDropsMixin",
     "PillagerRangedAttackMixin",
     "RangedBowAttackGoalChargeUpMixin",

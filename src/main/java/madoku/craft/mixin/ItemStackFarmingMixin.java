@@ -40,13 +40,7 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
-				BlockState aboveState = level.getBlockState(pos.above());
-				if (MadokuFarming.isManagedCrop(aboveState)) {
-					cir.setReturnValue(InteractionResult.FAIL);
-					return;
-				}
-
+		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
 			if (level instanceof ServerLevel serverLevel && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
 					context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);

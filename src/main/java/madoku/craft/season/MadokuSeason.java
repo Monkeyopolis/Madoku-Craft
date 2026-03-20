@@ -145,10 +145,6 @@ public final class MadokuSeason {
 		return resolveCurrentState();
 	}
 
-	public static SeasonState getCurrentState(ServerLevel world) {
-		return resolveCurrentState(world);
-	}
-
 	public static Season getCurrentSeason() {
 		return getCurrentState().season();
 	}
@@ -165,16 +161,8 @@ public final class MadokuSeason {
 		return getCurrentState().seasonDay();
 	}
 
-	public static int getCurrentSeasonDay(ServerLevel world) {
-		return getCurrentState(world).seasonDay();
-	}
-
 	public static int getCurrentSeasonWeek() {
 		return getCurrentState().week();
-	}
-
-	public static int getCurrentSeasonWeek(ServerLevel world) {
-		return getCurrentState(world).week();
 	}
 
 	public static BiomeClimate resolveBiomeClimate(ServerLevel world, net.minecraft.core.BlockPos pos) {

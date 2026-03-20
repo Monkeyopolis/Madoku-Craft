@@ -43,6 +43,7 @@ public abstract class LootTableFarmingMixin {
 			return;
 		}
 
+		MadokuFarming.prepareCropHarvest(level, pos, state);
 		RandomSource random = lootContext.getRandom();
 		int count = MadokuFarming.calculateCropHarvestCount(level, pos, state, random);
 		if (count <= 0) {
