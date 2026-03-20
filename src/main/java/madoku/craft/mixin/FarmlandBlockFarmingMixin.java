@@ -1,0 +1,111 @@
+package madoku.craft.mixin;
+
+import madoku.craft.clock.MadokuClock;
+import madoku.craft.debug.MadokuDebug;
+import madoku.craft.farming.system.MadokuFarming;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(FarmBlock.class)
+public abstract class FarmlandBlockFarmingMixin {
+	@Inject(method = "turnToDirt", at = @At("HEAD"), cancellable = true)
+	private static void madokuCraft$preventManagedFarmlandDirt(
+		Entity entity,
+		BlockState state,
+		Level level,
+		BlockPos pos,
+		CallbackInfo ci
+	) {
+		if (shouldHoldManagedFarmland(level, pos)) {
+			ci.cancel();
+		}
+	}
+
+	@Inject(method = "shouldMaintainFarmland", at = @At("RETURN"), cancellable = true)
+	private static void madokuCraft$holdManagedFarmland(
+		BlockGetter level,
+		BlockPos pos,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		if (!MadokuFarming.isEnabled() || level == null || pos == null || !Boolean.FALSE.equals(cir.getReturnValue())) {
+			return;
+		}
+
+		BlockPos abovePos = pos.above();
+		BlockState aboveState = level.getBlockState(abovePos);
+
+		if (MadokuFarming.isManagedCrop(aboveState)) {
+			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
+				MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
+					.side(MadokuDebug.Side.SERVER)
+					.tick(MadokuClock.getGameplayTicks())
+					.world(level.toString())
+					.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
+					.field("reason", "managed_crop_state_only")
+					.field("above_state", aboveState.getBlock().toString())
+					.log();
+			}
+			cir.setReturnValue(true);
+			return;
+		}
+
+		ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
+		if (serverLevel != null && MadokuFarming.isManagedPlot(serverLevel, pos)) {
+			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
+				MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
+					.side(MadokuDebug.Side.SERVER)
+					.tick(MadokuClock.getGameplayTicks())
+					.world(level.toString())
+					.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
+					.field("reason", "managed_plot")
+					.log();
+			}
+			cir.setReturnValue(true);
+			return;
+		}
+
+		if (serverLevel != null) {
+			if (MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState)) {
+				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.farmland_hold")) {
+					MadokuDebug.event("farming.farmland_hold", MadokuDebug.Domain.FARMING)
+						.side(MadokuDebug.Side.SERVER)
+						.tick(MadokuClock.getGameplayTicks())
+						.world(level.toString())
+						.subject("soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
+						.field("reason", "managed_crop_world_aware")
+						.field("above_state", aboveState.getBlock().toString())
+						.log();
+				}
+				cir.setReturnValue(true);
+			}
+		}
+	}
+
+	private static boolean shouldHoldManagedFarmland(BlockGetter level, BlockPos pos) {
+		if (!MadokuFarming.isEnabled() || level == null || pos == null) {
+			return false;
+		}
+
+		BlockPos abovePos = pos.above();
+		BlockState aboveState = level.getBlockState(abovePos);
+		if (MadokuFarming.isManagedCrop(aboveState)) {
+			return true;
+		}
+
+		if (level instanceof ServerLevel serverLevel) {
+			return MadokuFarming.isManagedPlot(serverLevel, pos) || MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState);
+		}
+
+		return false;
+	}
+}

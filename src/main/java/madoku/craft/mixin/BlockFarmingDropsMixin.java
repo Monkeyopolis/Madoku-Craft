@@ -93,7 +93,7 @@ public abstract class BlockFarmingDropsMixin {
 		BlockPos pos,
 		CallbackInfo ci
 	) {
-		if (!MadokuFarming.isEnabled() || !MadokuFarming.isManagedCrop(level, pos, state) || !MadokuFarming.isCropHarvestReady(level, pos, state)) {
+		if (!MadokuFarming.isEnabled() || !MadokuFarming.isManagedHarvestState(level, pos, state) || !MadokuFarming.hasPendingHarvest(level, pos, state)) {
 			return;
 		}
 
@@ -110,6 +110,7 @@ public abstract class BlockFarmingDropsMixin {
 		}
 
 		Block.popResource(level, pos, new ItemStack(harvestItem, count));
+		MadokuFarming.completeCropHarvest(level, pos, state);
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_drops")) {
 			MadokuDebug.event("farming.crop_drops", MadokuDebug.Domain.FARMING)
 				.side(MadokuDebug.Side.SERVER)
