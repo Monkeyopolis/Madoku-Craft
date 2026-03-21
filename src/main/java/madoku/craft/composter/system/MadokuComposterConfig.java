@@ -1,6 +1,7 @@
 package madoku.craft.composter.system;
 
 import com.google.gson.JsonObject;
+import madoku.craft.item.system.MadokuItemConfig;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -37,10 +38,13 @@ public final class MadokuComposterConfig {
 	}
 
 	public static JsonObject buildComposterItemDefaults(String itemId, int adjustment, String stackValue) {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ITEM_ID, itemId == null ? "" : itemId);
+		JsonObject defaults = MadokuItemConfig.buildBaseDefaults(
+			itemId,
+			stackValue,
+			MadokuItemConfig.PRIMARY_CATEGORY_MISC,
+			MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER
+		);
 		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment));
-		defaults.addProperty(FIELD_STACK, normalizeStackValue(stackValue));
 		return defaults;
 	}
 
@@ -160,14 +164,6 @@ public final class MadokuComposterConfig {
 			}
 			defaults.put(itemId, Math.max(1, adjustment));
 		}
-	}
-
-	private static String normalizeStackValue(String rawStackValue) {
-		String normalized = rawStackValue == null ? "" : rawStackValue.trim().toLowerCase(Locale.ROOT);
-		if (STACK_SINGLE.equals(normalized)) {
-			return STACK_SINGLE;
-		}
-		return STACK_MULTI;
 	}
 
 	private static String fileKeyFromItemId(String itemId) {

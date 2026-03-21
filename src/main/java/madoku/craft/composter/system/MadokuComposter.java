@@ -6,6 +6,7 @@ import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
+import madoku.craft.item.system.MadokuItemConfig;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
@@ -28,6 +29,7 @@ public final class MadokuComposter {
 	private static final String COMPOSTER_ITEM_SYSTEM_ROOT_FOLDER_NAME = "madoku-craft-items";
 	private static final String COMPOSTER_ITEM_SYSTEM_ITEMS_FOLDER_NAME = "madoku-items";
 	private static final String COMPOSTER_ITEMS_FOLDER_NAME = "composting-items";
+	private static final String COMPOSTER_SECONDARY_CATEGORY = MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER;
 
 	private static volatile boolean enabled = true;
 	private static volatile Set<Item> composterItems = Set.of();
@@ -48,7 +50,7 @@ public final class MadokuComposter {
 		if (!enabled || item == null) {
 			return false;
 		}
-		return composterItems.contains(item);
+		return composterItems.contains(item) || MadokuItem.hasSecondaryCategory(item, COMPOSTER_SECONDARY_CATEGORY);
 	}
 
 	public static boolean isComposterItem(ItemStack stack) {
@@ -72,6 +74,7 @@ public final class MadokuComposter {
 				enabled = false;
 				composterItems = Set.of();
 				composterAdjustmentsByItem = Map.of();
+				MadokuItem.setSecondaryCategoryItems(COMPOSTER_SECONDARY_CATEGORY, Set.of());
 				return;
 			}
 
@@ -102,6 +105,7 @@ public final class MadokuComposter {
 				enabled = false;
 				composterItems = Set.of();
 				composterAdjustmentsByItem = Map.of();
+				MadokuItem.setSecondaryCategoryItems(COMPOSTER_SECONDARY_CATEGORY, Set.of());
 				emitConfigLoaded();
 				return;
 			}
@@ -112,6 +116,7 @@ public final class MadokuComposter {
 			enabled = false;
 			composterItems = Set.of();
 			composterAdjustmentsByItem = Map.of();
+			MadokuItem.setSecondaryCategoryItems(COMPOSTER_SECONDARY_CATEGORY, Set.of());
 			LOGGER.error("Failed to load MadokuComposter folder config; disabling custom composter rules.", exception);
 		}
 	}
@@ -139,6 +144,7 @@ public final class MadokuComposter {
 		enabled = true;
 		composterItems = Set.copyOf(resolvedItems);
 		composterAdjustmentsByItem = Map.copyOf(resolvedAdjustments);
+		MadokuItem.setSecondaryCategoryItems(COMPOSTER_SECONDARY_CATEGORY, resolvedItems);
 	}
 
 	private static boolean isSupportedComposterItemFile(String fileKey, JsonObject sourceRoot) {

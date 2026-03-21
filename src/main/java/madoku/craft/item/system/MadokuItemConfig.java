@@ -4,8 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class MadokuItemConfig {
 	public static final String FIELD_ITEM_SYSTEM_ENABLED = "itemSystemEnabled";
@@ -20,6 +22,7 @@ public final class MadokuItemConfig {
 	public static final String PRIMARY_CATEGORY_MISC = "misc";
 	public static final String PRIMARY_CATEGORY_TOOL = "tool";
 	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
+	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
 
 	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
 	public static final String FIELD_DURABILITY = "durability";
@@ -46,6 +49,10 @@ public final class MadokuItemConfig {
 		JsonObject defaults = new JsonObject();
 		defaults.addProperty(FIELD_ITEM_SYSTEM_ENABLED, true);
 		return defaults;
+	}
+
+	public static JsonArray buildSecondaryCategoriesArray(String... secondaryCategories) {
+		return buildSecondaryCategoriesArray(null, secondaryCategories);
 	}
 
 	public static Map<String, JsonObject> buildDefaultFuelFileDefaults() {
@@ -228,18 +235,49 @@ public final class MadokuItemConfig {
 		return defaults;
 	}
 
-	private static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory) {
+	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory) {
+		return buildBaseDefaults(itemId, stackValue, primaryCategory, new String[0]);
+	}
+
+	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory, String... secondaryCategories) {
 		JsonObject defaults = new JsonObject();
 		defaults.addProperty(FIELD_ITEM_ID, itemId == null ? "" : itemId);
 		defaults.addProperty(FIELD_PRIMARY_CATEGORY, normalizeCategoryValue(primaryCategory));
-		defaults.add(FIELD_SECONDARY_CATEGORIES, new JsonArray());
+		defaults.add(FIELD_SECONDARY_CATEGORIES, buildSecondaryCategoriesArray(primaryCategory, secondaryCategories));
 		defaults.addProperty(FIELD_STACK, normalizeStackValue(stackValue));
 		return defaults;
 	}
 
 	private static String normalizeCategoryValue(String rawCategoryValue) {
-		String normalized = rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
+		String normalized = normalizeCategoryKey(rawCategoryValue);
 		return normalized.isEmpty() ? PRIMARY_CATEGORY_MISC : normalized;
+	}
+
+	private static JsonArray buildSecondaryCategoriesArray(String primaryCategory, String... secondaryCategories) {
+		JsonArray categories = new JsonArray();
+		if (secondaryCategories == null || secondaryCategories.length == 0) {
+			return categories;
+		}
+
+		String normalizedPrimaryCategory = normalizeCategoryKey(primaryCategory);
+		Set<String> normalizedCategories = new LinkedHashSet<>();
+		for (String secondaryCategory : secondaryCategories) {
+			String normalizedCategory = normalizeCategoryKey(secondaryCategory);
+			if (normalizedCategory.isEmpty() || normalizedCategory.equals(normalizedPrimaryCategory)) {
+				continue;
+			}
+			normalizedCategories.add(normalizedCategory);
+		}
+
+		for (String secondaryCategory : normalizedCategories) {
+			categories.add(secondaryCategory);
+		}
+
+		return categories;
+	}
+
+	private static String normalizeCategoryKey(String rawCategoryValue) {
+		return rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private static String defaultStackForItem(String itemId) {

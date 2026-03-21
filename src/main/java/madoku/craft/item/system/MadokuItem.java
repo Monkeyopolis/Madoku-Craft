@@ -1,6 +1,7 @@
 package madoku.craft.item.system;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
@@ -59,6 +60,8 @@ public final class MadokuItem {
 	private static volatile Map<Item, StackMode> stackModesByItem = Map.of();
 	private static volatile Map<Item, MadokuToolProfile> toolProfilesByItem = Map.of();
 	private static volatile Map<Item, MadokuArmorProfile> armorProfilesByItem = Map.of();
+	private static volatile Map<Item, Set<String>> secondaryCategoriesByItem = Map.of();
+	private static volatile Map<String, Set<Item>> registeredSecondaryCategoryItemsByCategory = Map.of();
 	private static volatile Set<Item> toolCategoryItems = Set.of();
 	private static volatile Set<Item> armorCategoryItems = Set.of();
 
@@ -121,7 +124,7 @@ public final class MadokuItem {
 		if (!enabled || item == null) {
 			return false;
 		}
-		return toolCategoryItems.contains(item);
+		return toolCategoryItems.contains(item) || hasSecondaryCategory(item, MadokuItemConfig.PRIMARY_CATEGORY_TOOL);
 	}
 
 	public static boolean isToolCategoryItem(ItemStack stack) {
@@ -135,7 +138,7 @@ public final class MadokuItem {
 		if (!enabled || item == null) {
 			return false;
 		}
-		return armorCategoryItems.contains(item);
+		return armorCategoryItems.contains(item) || hasSecondaryCategory(item, MadokuItemConfig.PRIMARY_CATEGORY_ARMOR);
 	}
 
 	public static boolean isArmorCategoryItem(ItemStack stack) {
@@ -154,6 +157,51 @@ public final class MadokuItem {
 			return false;
 		}
 		return isRarityCategoryItem(stack.getItem());
+	}
+
+	public static Set<String> getSecondaryCategories(Item item) {
+		if (!enabled || item == null) {
+			return Set.of();
+		}
+		Set<String> categories = new LinkedHashSet<>(secondaryCategoriesByItem.getOrDefault(item, Set.of()));
+		categories.addAll(getRegisteredSecondaryCategories(item));
+		return categories.isEmpty() ? Set.of() : Set.copyOf(categories);
+	}
+
+	public static boolean hasSecondaryCategory(Item item, String category) {
+		if (!enabled || item == null) {
+			return false;
+		}
+		String normalizedCategory = normalizeCategoryValue(category);
+		if (normalizedCategory.isEmpty()) {
+			return false;
+		}
+		return getSecondaryCategories(item).contains(normalizedCategory);
+	}
+
+	public static boolean hasSecondaryCategory(ItemStack stack, String category) {
+		if (stack == null || stack.isEmpty()) {
+			return false;
+		}
+		return hasSecondaryCategory(stack.getItem(), category);
+	}
+
+	public static void setSecondaryCategoryItems(String category, Set<Item> items) {
+		String normalizedCategory = normalizeCategoryValue(category);
+		if (normalizedCategory.isEmpty()) {
+			return;
+		}
+
+		Set<Item> normalizedItems = items == null ? Set.of() : Set.copyOf(items);
+		synchronized (MadokuItem.class) {
+			Map<String, Set<Item>> updated = new LinkedHashMap<>(registeredSecondaryCategoryItemsByCategory);
+			if (normalizedItems.isEmpty()) {
+				updated.remove(normalizedCategory);
+			} else {
+				updated.put(normalizedCategory, normalizedItems);
+			}
+			registeredSecondaryCategoryItemsByCategory = updated.isEmpty() ? Map.of() : Map.copyOf(updated);
+		}
 	}
 
 
@@ -215,6 +263,8 @@ public final class MadokuItem {
 				stackModesByItem = Map.of();
 				toolProfilesByItem = Map.of();
 				armorProfilesByItem = Map.of();
+				secondaryCategoriesByItem = Map.of();
+				registeredSecondaryCategoryItemsByCategory = Map.of();
 				toolCategoryItems = Set.of();
 				armorCategoryItems = Set.of();
 				emitConfigLoaded();
@@ -229,6 +279,8 @@ public final class MadokuItem {
 			stackModesByItem = Map.of();
 			toolProfilesByItem = Map.of();
 			armorProfilesByItem = Map.of();
+			secondaryCategoriesByItem = Map.of();
+			registeredSecondaryCategoryItemsByCategory = Map.of();
 			toolCategoryItems = Set.of();
 			armorCategoryItems = Set.of();
 			LOGGER.error("Failed to load MadokuItem folder config; disabling custom item rules.", exception);
@@ -245,6 +297,7 @@ public final class MadokuItem {
 		Map<Item, StackMode> resolvedStackModes = new LinkedHashMap<>();
 		Map<Item, MadokuToolProfile> resolvedTools = new LinkedHashMap<>();
 		Map<Item, MadokuArmorProfile> resolvedArmor = new LinkedHashMap<>();
+		Map<Item, Set<String>> resolvedSecondaryCategories = new LinkedHashMap<>();
 		Set<Item> resolvedToolCategoryItems = new LinkedHashSet<>();
 		Set<Item> resolvedArmorCategoryItems = new LinkedHashSet<>();
 
@@ -265,6 +318,7 @@ public final class MadokuItem {
 				resolvedFuel.put(item, fuelTicks);
 			}
 			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
 		}
 
 		for (Map.Entry<String, JsonObject> entry : normalizedMiscFiles.entrySet()) {
@@ -280,6 +334,7 @@ public final class MadokuItem {
 			}
 
 			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
 		}
 
 		for (Map.Entry<String, JsonObject> entry : normalizedToolFiles.entrySet()) {
@@ -296,6 +351,7 @@ public final class MadokuItem {
 
 			resolvedToolCategoryItems.add(item);
 			resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
+			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
 
 			MadokuToolProfile profile = parseToolProfile(root);
 			if (isConfiguredToolProfile(profile)) {
@@ -317,6 +373,7 @@ public final class MadokuItem {
 
 			resolvedArmorCategoryItems.add(item);
 			resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
+			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
 
 			MadokuArmorProfile profile = parseArmorProfile(root);
 			if (isConfiguredArmorProfile(profile)) {
@@ -329,6 +386,7 @@ public final class MadokuItem {
 		stackModesByItem = Map.copyOf(resolvedStackModes);
 		toolProfilesByItem = Map.copyOf(resolvedTools);
 		armorProfilesByItem = Map.copyOf(resolvedArmor);
+		secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
 		toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
 		armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
 		applyToolProfiles(toolProfilesByItem);
@@ -474,21 +532,50 @@ public final class MadokuItem {
 		return value == null ? fallback : value;
 	}
 
+	private static Set<String> readSecondaryCategories(JsonObject root) {
+		if (root == null) {
+			return Set.of();
+		}
+
+		JsonElement element = root.get(MadokuItemConfig.FIELD_SECONDARY_CATEGORIES);
+		if (element == null || !element.isJsonArray()) {
+			return Set.of();
+		}
+
+		JsonArray array = element.getAsJsonArray();
+		Set<String> categories = new LinkedHashSet<>();
+		for (JsonElement categoryElement : array) {
+			if (categoryElement == null || !categoryElement.isJsonPrimitive() || !categoryElement.getAsJsonPrimitive().isString()) {
+				continue;
+			}
+
+			String normalizedCategory = normalizeCategoryValue(categoryElement.getAsString());
+			if (normalizedCategory.isEmpty()) {
+				continue;
+			}
+			categories.add(normalizedCategory);
+		}
+
+		return categories.isEmpty() ? Set.of() : Set.copyOf(categories);
+	}
+
 	private static void emitConfigLoaded() {
 		String metricId = "item.config_loaded";
 		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
 			return;
 		}
-			MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
-				.side(MadokuDebug.Side.SERVER)
-				.subject("item:global")
-					.field("enabled", enabled)
-					.field("fuel_items", fuelTicksByItem.size())
-					.field("single_stack_items", countSingleStackItems())
-					.field("tool_items", toolProfilesByItem.size())
-					.field("armor_items", armorProfilesByItem.size())
-					.log();
-		}
+
+		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+			.side(MadokuDebug.Side.SERVER)
+			.subject("item:global")
+			.field("enabled", enabled)
+			.field("fuel_items", fuelTicksByItem.size())
+			.field("single_stack_items", countSingleStackItems())
+			.field("secondary_category_items", countSecondaryCategoryItems())
+			.field("tool_items", toolProfilesByItem.size())
+			.field("armor_items", armorProfilesByItem.size())
+			.log();
+	}
 
 	private static MadokuToolProfile parseToolProfile(JsonObject root) {
 		Integer durability = readOptionalInt(root, MadokuItemConfig.FIELD_DURABILITY, MadokuItemConfig.TOOL_INT_UNSET);
@@ -556,6 +643,19 @@ public final class MadokuItem {
 		return stackModesByItem.values().stream().filter(mode -> mode == StackMode.SINGLE).count();
 	}
 
+	private static long countSecondaryCategoryItems() {
+		Set<Item> countedItems = new LinkedHashSet<>(secondaryCategoriesByItem.keySet());
+		for (Set<Item> registeredItems : registeredSecondaryCategoryItemsByCategory.values()) {
+			if (registeredItems != null && !registeredItems.isEmpty()) {
+				countedItems.addAll(registeredItems);
+			}
+		}
+
+		return countedItems.stream()
+			.filter(item -> item != null && !getSecondaryCategories(item).isEmpty())
+			.count();
+	}
+
 	private static boolean isSpearItemId(String itemId) {
 		return itemId != null && itemId.endsWith("_spear");
 	}
@@ -576,6 +676,25 @@ public final class MadokuItem {
 				MadokuItemConfig.FIELD_REACH_MOB_FACTOR -> sourceValue.deepCopy();
 			default -> null;
 		};
+	}
+
+	private static String normalizeCategoryValue(String rawCategoryValue) {
+		return rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
+	}
+
+	private static Set<String> getRegisteredSecondaryCategories(Item item) {
+		if (item == null) {
+			return Set.of();
+		}
+
+		Set<String> categories = new LinkedHashSet<>();
+		for (Map.Entry<String, Set<Item>> entry : registeredSecondaryCategoryItemsByCategory.entrySet()) {
+			Set<Item> registeredItems = entry.getValue();
+			if (registeredItems != null && registeredItems.contains(item)) {
+				categories.add(entry.getKey());
+			}
+		}
+		return categories.isEmpty() ? Set.of() : Set.copyOf(categories);
 	}
 
 	private static Integer readOptionalInt(JsonObject root, String key, int sentinelValue) {
