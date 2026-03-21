@@ -24,6 +24,7 @@ public final class MadokuItemConfig {
 	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
 	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
 	public static final String SECONDARY_CATEGORY_FARMING = "farming";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
 
 	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
 	public static final String FIELD_DURABILITY = "durability";
@@ -52,10 +53,6 @@ public final class MadokuItemConfig {
 		return defaults;
 	}
 
-	public static JsonArray buildSecondaryCategoriesArray(String... secondaryCategories) {
-		return buildSecondaryCategoriesArray(null, secondaryCategories);
-	}
-
 	public static Map<String, JsonObject> buildDefaultFuelFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		for (Map.Entry<String, Double> entry : buildDefaultFuelTicks().entrySet()) {
@@ -77,6 +74,18 @@ public final class MadokuItemConfig {
 				continue;
 			}
 			defaults.put(fileKey, buildMiscItemDefaults(itemId, defaultStackForItem(itemId)));
+		}
+		return defaults;
+	}
+
+	public static Map<String, JsonObject> buildDefaultFarmingFileDefaults() {
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		for (String itemId : buildDefaultFarmingItems().keySet()) {
+			String fileKey = fileKeyFromItemId(itemId);
+			if (fileKey.isBlank()) {
+				continue;
+			}
+			defaults.put(fileKey, buildFarmingItemDefaults(itemId, defaultStackForItem(itemId)));
 		}
 		return defaults;
 	}
@@ -134,7 +143,17 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
+		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+		if ("minecraft:bone_meal".equals(normalizedItemId)) {
+			return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC, SECONDARY_CATEGORY_FARMING);
+		}
 		return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC);
+	}
+
+	public static JsonObject buildFarmingItemDefaults(String itemId, String stackValue) {
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC, SECONDARY_CATEGORY_FARMING, SECONDARY_CATEGORY_COMPOSTER);
+		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, defaultComposterAdjustmentForFarmingItem(itemId));
+		return defaults;
 	}
 
 	public static JsonObject buildToolItemDefaults(String itemId) {
@@ -509,10 +528,34 @@ public final class MadokuItemConfig {
 
 	public static Map<String, Boolean> buildDefaultMiscItems() {
 		Map<String, Boolean> defaults = new LinkedHashMap<>();
+		defaults.put("minecraft:bone_meal", true);
 		defaults.put("minecraft:water_bucket", true);
 		defaults.put("minecraft:milk_bucket", true);
 		defaults.put("minecraft:powder_snow_bucket", true);
 		return defaults;
+	}
+
+	public static Map<String, Boolean> buildDefaultFarmingItems() {
+		Map<String, Boolean> defaults = new LinkedHashMap<>();
+		defaults.put("minecraft:carrot", true);
+		defaults.put("minecraft:potato", true);
+		defaults.put("minecraft:beetroot_seeds", true);
+		defaults.put("minecraft:wheat_seeds", true);
+		defaults.put("minecraft:melon_seeds", true);
+		defaults.put("minecraft:pumpkin_seeds", true);
+		return defaults;
+	}
+
+	private static int defaultComposterAdjustmentForFarmingItem(String itemId) {
+		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+		return switch (normalizedItemId) {
+			case "minecraft:carrot", "minecraft:potato" -> 2;
+			case "minecraft:beetroot_seeds",
+				"minecraft:wheat_seeds",
+				"minecraft:melon_seeds",
+				"minecraft:pumpkin_seeds" -> 1;
+			default -> 1;
+		};
 	}
 
 }

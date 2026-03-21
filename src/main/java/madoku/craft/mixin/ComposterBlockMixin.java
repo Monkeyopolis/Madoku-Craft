@@ -50,6 +50,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 			return;
 		}
 		if (!MadokuComposter.isComposterItem(stack)) {
+			cir.setReturnValue(InteractionResult.FAIL);
 			return;
 		}
 

@@ -8,7 +8,6 @@ import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
-import madoku.craft.item.system.MadokuItemConfig;
 import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.season.MadokuSeasonConfig;
@@ -47,7 +46,6 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,9 +54,10 @@ import java.util.Set;
 
 public final class MadokuFarming {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuFarming.class);
-	private static final String FARMING_SECONDARY_CATEGORY = MadokuItemConfig.SECONDARY_CATEGORY_FARMING;
 	private static final String LORE_SEASON_PREFIX = "Season:";
 	private static final String LORE_GROWING_TIME_PREFIX = "Growing Time:";
+	private static final String LORE_FERTILIZER_PREFIX = "Farmland fertilizer.";
+	private static final String LORE_FERTILIZER_EFFECT_PREFIX = "Increases crop growth speed and yield.";
 	private static final String[] SEASON_ORDER = {"spring", "summer", "fall", "winter"};
 
 	private static final String FARMING_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-farming";
@@ -83,7 +82,7 @@ public final class MadokuFarming {
 	private static final long FERTILIZATION_DECAY_TICKS = 3L * 24000L;
 	private static final long CROP_MISSING_GRACE_TICKS = 20L;
 	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
-	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 300L;
+	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 180L;
 	private static final int CROP_MAX_AGE = 7;
 
 	private static volatile Settings settings = Settings.defaults();
@@ -1082,20 +1081,20 @@ public final class MadokuFarming {
 
 	private static void updateCropItemMetadata() {
 		if (!MadokuItem.isEnabled() || !settings.enabled) {
-			MadokuItem.setSecondaryCategoryItems(FARMING_SECONDARY_CATEGORY, Set.of());
 			return;
 		}
 
-		Set<Item> farmingItems = new LinkedHashSet<>();
 		for (CropRule rule : cropRulesByPlantingItemId.values()) {
 			if (rule == null || rule.plantingItem() == null) {
 				continue;
 			}
-			farmingItems.add(rule.plantingItem());
 			applyFarmingLore(rule);
 		}
 
-		MadokuItem.setSecondaryCategoryItems(FARMING_SECONDARY_CATEGORY, farmingItems);
+		Item boneMeal = BuiltInRegistries.ITEM.getValue(Identifier.tryParse("minecraft:bone_meal"));
+		if (boneMeal != null) {
+			applyFertilizerLore(boneMeal);
+		}
 	}
 
 	private static void applyFarmingLore(CropRule rule) {
@@ -1129,6 +1128,41 @@ public final class MadokuFarming {
 			updatedLines.add(Component.literal(formatSeasonLoreLine(rule.blockedSeasonIds())).withStyle(ChatFormatting.DARK_GREEN));
 		}
 		updatedLines.add(Component.literal(formatGrowthTimeLoreLine(rule.growthMinecraftDays())).withStyle(ChatFormatting.GOLD));
+
+		ItemLore updatedLore = new ItemLore(updatedLines);
+		if (Objects.equals(currentLore, updatedLore)) {
+			return;
+		}
+
+		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
+		builder.set(DataComponents.LORE, updatedLore);
+		accessor.madokuCraft$setComponents(builder.build());
+	}
+
+	private static void applyFertilizerLore(Item item) {
+		if (item == null || !(item instanceof ItemComponentsAccessor accessor)) {
+			return;
+		}
+
+		DataComponentMap base = accessor.madokuCraft$getComponents();
+		if (base == null) {
+			return;
+		}
+
+		List<Component> updatedLines = new ArrayList<>();
+		ItemLore currentLore = base.get(DataComponents.LORE);
+		if (currentLore != null) {
+			for (Component line : currentLore.lines()) {
+				String text = line == null ? "" : line.getString();
+				if (text.startsWith(LORE_FERTILIZER_PREFIX) || text.startsWith(LORE_FERTILIZER_EFFECT_PREFIX)) {
+					continue;
+				}
+				updatedLines.add(line);
+			}
+		}
+
+		updatedLines.add(Component.literal(LORE_FERTILIZER_PREFIX).withStyle(ChatFormatting.GOLD));
+		updatedLines.add(Component.literal(LORE_FERTILIZER_EFFECT_PREFIX).withStyle(ChatFormatting.GOLD));
 
 		ItemLore updatedLore = new ItemLore(updatedLines);
 		if (Objects.equals(currentLore, updatedLore)) {
@@ -1873,14 +1907,10 @@ public final class MadokuFarming {
 		return safeValue;
 	}
 
-	private static long sanitizePositiveLong(long value, long fallback) {
-		return value > 0L ? value : fallback;
-	}
-
-	private static int clampInt(int value, int fallback, int minimum, int maximum) {
-		if (minimum > maximum) {
-			return fallback;
-		}
+		private static int clampInt(int value, int fallback, int minimum, int maximum) {
+			if (minimum > maximum) {
+				return fallback;
+			}
 		if (value < minimum || value > maximum) {
 			return fallback;
 		}
@@ -2438,21 +2468,19 @@ public final class MadokuFarming {
 			double rainGrowthBonus,
 			double fertilizedGrowthBonus,
 			double outOfSeasonGrowthMultiplier,
-			long particleCooldownTimeTicks,
 			int particleCount,
 			double particleSpread,
 			double particleYOffset
 		) {
 			private static Settings defaults() {
-				return new Settings(
-					true,
-					MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BONUS,
-					MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS,
-					MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_GROWTH_MULTIPLIER,
-					MadokuFarmingConfig.DEFAULT_PARTICLE_COOLDOWN_TIME_TICKS,
-					MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT,
-					MadokuFarmingConfig.DEFAULT_PARTICLE_SPREAD,
-					MadokuFarmingConfig.DEFAULT_PARTICLE_Y_OFFSET
+					return new Settings(
+						true,
+						MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BONUS,
+						MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS,
+						MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_GROWTH_MULTIPLIER,
+						MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT,
+						MadokuFarmingConfig.DEFAULT_PARTICLE_SPREAD,
+						MadokuFarmingConfig.DEFAULT_PARTICLE_Y_OFFSET
 				);
 			}
 
@@ -2464,24 +2492,20 @@ public final class MadokuFarming {
 					0.0d,
 					1.0d
 				);
-				double fertilizedBonus = clampDouble(
-					readDouble(source, MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BONUS, MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS),
-					MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS,
-					0.0d,
-					1.0d
-				);
+					double fertilizedBonus = clampDouble(
+						readDouble(source, MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BONUS, MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS),
+						MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BONUS,
+						0.0d,
+						1.0d
+					);
 					double outOfSeasonGrowthMultiplier = clampDouble(
 						readDouble(source, MadokuFarmingConfig.FIELD_OUT_OF_SEASON_GROWTH_MULTIPLIER, MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_GROWTH_MULTIPLIER),
 						MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_GROWTH_MULTIPLIER,
 						0.0d,
 						1000.0d
 					);
-				long particleCooldownTimeTicks = sanitizePositiveLong(
-					readLong(source, MadokuFarmingConfig.FIELD_PARTICLE_COOLDOWN_TIME_TICKS, MadokuFarmingConfig.DEFAULT_PARTICLE_COOLDOWN_TIME_TICKS),
-					MadokuFarmingConfig.DEFAULT_PARTICLE_COOLDOWN_TIME_TICKS
-				);
-				int particleCount = clampInt(
-					readInt(source, MadokuFarmingConfig.FIELD_PARTICLE_COUNT, MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT),
+					int particleCount = clampInt(
+						readInt(source, MadokuFarmingConfig.FIELD_PARTICLE_COUNT, MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT),
 					MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT,
 					1,
 					MadokuFarmingConfig.MAX_PARTICLE_COUNT
@@ -2499,16 +2523,15 @@ public final class MadokuFarming {
 					3.0d
 				);
 
-				return new Settings(
-					enabled,
-					rainBonus,
-					fertilizedBonus,
-					outOfSeasonGrowthMultiplier,
-					particleCooldownTimeTicks,
-					particleCount,
-					particleSpread,
-					particleYOffset
-				);
+					return new Settings(
+						enabled,
+						rainBonus,
+						fertilizedBonus,
+						outOfSeasonGrowthMultiplier,
+						particleCount,
+						particleSpread,
+						particleYOffset
+					);
 			}
 
 			private JsonObject toConfigJson() {

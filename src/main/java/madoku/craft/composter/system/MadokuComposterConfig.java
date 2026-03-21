@@ -24,10 +24,13 @@ public final class MadokuComposterConfig {
 		return defaults;
 	}
 
-	public static Map<String, JsonObject> buildDefaultComposterFileDefaults() {
+	public static Map<String, JsonObject> buildDefaultComposterFileDefaults(boolean farmingSystemEnabled) {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		for (Map.Entry<String, Integer> entry : buildDefaultComposterItems().entrySet()) {
 			String itemId = entry.getKey();
+			if (farmingSystemEnabled && MadokuItemConfig.buildDefaultFarmingItems().containsKey(itemId)) {
+				continue;
+			}
 			String fileKey = fileKeyFromItemId(itemId);
 			if (fileKey.isBlank()) {
 				continue;
@@ -78,6 +81,7 @@ public final class MadokuComposterConfig {
 			"minecraft:kelp",
 			"minecraft:torchflower_seeds",
 			"minecraft:wheat_seeds",
+			"minecraft:melon_seeds",
 			"minecraft:twisting_vines",
 			"minecraft:weeping_vines",
 			"minecraft:big_dripleaf",

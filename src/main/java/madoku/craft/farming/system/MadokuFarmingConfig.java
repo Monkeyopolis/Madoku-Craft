@@ -7,7 +7,6 @@ public final class MadokuFarmingConfig {
 	public static final String FIELD_RAIN_GROWTH_BONUS = "rainGrowthBonus";
 	public static final String FIELD_FERTILIZED_GROWTH_BONUS = "fertilizedGrowthBonus";
 	public static final String FIELD_OUT_OF_SEASON_GROWTH_MULTIPLIER = "outOfSeasonGrowthMultiplier";
-	public static final String FIELD_PARTICLE_COOLDOWN_TIME_TICKS = "particleCooldownTimeTicks";
 	public static final String FIELD_PARTICLE_COUNT = "particleCount";
 	public static final String FIELD_PARTICLE_SPREAD = "particleSpread";
 	public static final String FIELD_PARTICLE_Y_OFFSET = "particleYOffset";
@@ -15,7 +14,6 @@ public final class MadokuFarmingConfig {
 	public static final double DEFAULT_RAIN_GROWTH_BONUS = 0.25d;
 	public static final double DEFAULT_FERTILIZED_GROWTH_BONUS = 0.5d;
 	public static final double DEFAULT_OUT_OF_SEASON_GROWTH_MULTIPLIER = 0.5d;
-	public static final long DEFAULT_PARTICLE_COOLDOWN_TIME_TICKS = 200L;
 	public static final int MAX_PARTICLE_COUNT = 4;
 	public static final int DEFAULT_PARTICLE_COUNT = 2;
 	public static final double DEFAULT_PARTICLE_SPREAD = 0.12d;
