@@ -7,16 +7,23 @@ import madoku.craft.clock.MadokuClock;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
+import madoku.craft.item.system.MadokuItem;
+import madoku.craft.item.system.MadokuItemConfig;
 import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.season.MadokuSeasonConfig;
 import madoku.craft.time.MadokuTime;
+import madoku.craft.mixin.ItemComponentsAccessor;
+import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.Identifier;
@@ -31,19 +38,27 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.item.component.ItemLore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class MadokuFarming {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuFarming.class);
+	private static final String FARMING_SECONDARY_CATEGORY = MadokuItemConfig.SECONDARY_CATEGORY_FARMING;
+	private static final String LORE_SEASON_PREFIX = "Season:";
+	private static final String LORE_GROWING_TIME_PREFIX = "Growing Time:";
+	private static final String[] SEASON_ORDER = {"spring", "summer", "fall", "winter"};
 
 	private static final String FARMING_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-farming";
 	private static final String FARMING_CONFIG_FILE_NAME = "madoku-farming";
@@ -194,7 +209,7 @@ public final class MadokuFarming {
 	}
 
 	public static Item getCropHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		return rule == null ? null : rule.harvestItem();
 	}
 
@@ -204,7 +219,7 @@ public final class MadokuFarming {
 	}
 
 	public static Item getCropSecondaryHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		return rule == null ? null : rule.secondaryHarvestItem();
 	}
 
@@ -278,26 +293,26 @@ public final class MadokuFarming {
 			return;
 		}
 
-		plot.cropPos = cropPos.asLong();
-		plot.cropId = rule.plantingItemId();
-		plot.growthProgress = 0.0d;
-		plot.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
-		pendingHarvestRulesByKey.remove(cropKey(world, cropPos));
-		refreshPlotActivity(world, soilPos, plot);
-		dirty = true;
-		requestFarmingProcessing(world.getServer(), FARMING_SCHEDULER_INTERVAL_TICKS);
-		emitFarmingDebug(
-			"farming.plant_" + (rule.displayName() == null ? "crop" : rule.displayName().toLowerCase(java.util.Locale.ROOT).replace(' ', '_')),
-			world,
-			soilPos,
-			"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-			Map.of(
-				"crop_pos", cropPos.toShortString(),
-				"fertilized", Boolean.toString(plot.fertilized),
-				"growth_progress", "0.0"
-			)
-		);
-	}
+			plot.cropPos = cropPos.asLong();
+			plot.cropId = rule.plantingItemId();
+			plot.growthProgress = 0.0d;
+			plot.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
+			pendingHarvestRulesByKey.remove(cropKey(world, cropPos));
+			refreshPlotActivity(world, soilPos, plot);
+			dirty = true;
+			requestFarmingProcessing(world.getServer(), FARMING_SCHEDULER_INTERVAL_TICKS);
+			emitFarmingDebug(
+				"farming.plant_" + (rule.displayName() == null ? "crop" : rule.displayName().toLowerCase(java.util.Locale.ROOT).replace(' ', '_')),
+				world,
+				soilPos,
+				"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+				Map.of(
+					"crop_pos", cropPos.toShortString(),
+					"fertilized", Boolean.toString(plot.fertilized),
+					"growth_progress", "0.0"
+				)
+			);
+		}
 
 	public static void trackCrop(ServerLevel world, BlockPos cropPos, BlockState cropState) {
 		CropRule rule = resolveCropRuleByCropState(cropState);
@@ -347,10 +362,10 @@ public final class MadokuFarming {
 			return;
 		}
 
-		if (isFarmland(state)) {
-			emitFarmingDebug(
-				"farming.farmland_break",
-				serverLevel,
+			if (isFarmland(state)) {
+				emitFarmingDebug(
+					"farming.farmland_break",
+					serverLevel,
 				pos,
 				"soil:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
 				Map.of("action", "remove_plot")
@@ -373,9 +388,25 @@ public final class MadokuFarming {
 			return true;
 		}
 
-		CropRule rule = resolveManagedCropRule(serverLevel, pos, state);
-		if (rule != null && isManagedHarvestState(serverLevel, pos, state)) {
-			markPendingHarvest(serverLevel, pos, rule, isFertilized(serverLevel, pos.below()));
+			CropRule rule = resolveManagedCropRule(serverLevel, pos, state);
+			if (rule != null) {
+				BlockPos soilPos = pos.below();
+				PlotState plot = findPlot(serverLevel, soilPos);
+				if (isManagedHarvestState(serverLevel, pos, state)) {
+					markPendingHarvest(serverLevel, pos, rule, isFertilized(serverLevel, soilPos));
+				} else if (plot != null) {
+				plot.clearCrop();
+				plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+				if (plot.fertilized) {
+					plot.fertilizedAtAbsoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(serverLevel);
+				}
+				if (plot.fertilized) {
+					refreshPlotActivity(serverLevel, soilPos, plot);
+				} else {
+					removePlot(serverLevel, soilPos);
+				}
+				dirty = true;
+			}
 		}
 		return true;
 	}
@@ -437,15 +468,15 @@ public final class MadokuFarming {
 
 				ServerLevel world = resolveLevel(server, plot.levelId);
 				BlockPos soilPos = BlockPos.of(plot.soilPos);
-				if (world == null) {
-					CropRule rule = plot.hasCrop() ? resolveCropRuleByPlantingItemId(plot.cropId) : null;
-					if (plot.hasCrop() && rule == null) {
-						removedKeys.add(key);
-						activePlotsByKey.remove(key);
-						plotsByKey.remove(key);
-						changed = true;
-						continue;
-					}
+						if (world == null) {
+							CropRule rule = plot.hasCrop() ? resolveCropRuleByPlantingItemId(plot.cropId) : null;
+							if (plot.hasCrop() && rule == null) {
+								removedKeys.add(key);
+								activePlotsByKey.remove(key);
+								plotsByKey.remove(key);
+							changed = true;
+							continue;
+						}
 
 					changed |= advancePlotWithoutWorld(plot, currentAbsoluteDayTime, deltaAbsoluteDayTime, rule);
 					if (!isActivePlot(plot)) {
@@ -456,23 +487,23 @@ public final class MadokuFarming {
 					continue;
 				}
 
-					BlockState soilState = world.getBlockState(soilPos);
-					if (!isFarmland(soilState)) {
-						if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
-							emitFarmingDebug(
-								"farming.plot_removed",
-								world,
-								soilPos,
-								"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-								Map.of(
-									"reason", "soil_not_farmland",
-									"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
-									"crop_pos", BlockPos.of(plot.cropPos).toShortString(),
-									"crop_id", plot.cropId,
-									"fertilized", Boolean.toString(plot.fertilized)
-								)
-							);
-						}
+						BlockState soilState = world.getBlockState(soilPos);
+						if (!isFarmland(soilState)) {
+							if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
+								emitFarmingDebug(
+									"farming.plot_removed",
+									world,
+									soilPos,
+									"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+									Map.of(
+										"reason", "soil_not_farmland",
+										"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
+										"crop_pos", BlockPos.of(plot.cropPos).toShortString(),
+										"crop_id", plot.cropId,
+										"fertilized", Boolean.toString(plot.fertilized)
+									)
+								);
+							}
 						removedKeys.add(key);
 						activePlotsByKey.remove(key);
 						plotsByKey.remove(key);
@@ -480,16 +511,24 @@ public final class MadokuFarming {
 						continue;
 				}
 
-				if (plot.fertilized) {
-					emitFertilizedParticles(world, soilPos, plot);
-				}
-
-				if (!plot.hasCrop()) {
-					if (plot.fertilized && shouldDecayFertilization(plot, world, soilPos, currentAbsoluteDayTime)) {
-						plot.fertilized = false;
-						plot.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
-						changed = true;
+					if (plot.fertilized) {
+						emitFertilizedParticles(world, soilPos, plot);
 					}
+
+					if (!plot.hasCrop()) {
+						BlockPos cropPos = soilPos.above();
+						BlockState cropState = world.getBlockState(cropPos);
+						CropRule discoveredRule = resolveCropRuleByCropState(cropState);
+						if (discoveredRule != null && isCropBlock(cropState, discoveredRule)) {
+							trackCrop(world, cropPos, cropState);
+							changed = true;
+							continue;
+						}
+						if (plot.fertilized && shouldDecayFertilization(plot, world, soilPos, currentAbsoluteDayTime)) {
+							plot.fertilized = false;
+							plot.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
+							changed = true;
+						}
 					if (!plot.fertilized) {
 						removedKeys.add(key);
 						activePlotsByKey.remove(key);
@@ -501,23 +540,23 @@ public final class MadokuFarming {
 					continue;
 				}
 
-					CropRule rule = resolveCropRuleByPlantingItemId(plot.cropId);
-					if (rule == null) {
-						if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
-							emitFarmingDebug(
-								"farming.plot_removed",
-								world,
-								soilPos,
-								"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-								Map.of(
-									"reason", "missing_crop_rule",
-									"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
-									"crop_pos", BlockPos.of(plot.cropPos).toShortString(),
-									"crop_id", plot.cropId,
-									"fertilized", Boolean.toString(plot.fertilized)
-								)
-							);
-						}
+						CropRule rule = resolveCropRuleByPlantingItemId(plot.cropId);
+						if (rule == null) {
+							if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
+								emitFarmingDebug(
+									"farming.plot_removed",
+									world,
+									soilPos,
+									"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+									Map.of(
+										"reason", "missing_crop_rule",
+										"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
+										"crop_pos", BlockPos.of(plot.cropPos).toShortString(),
+										"crop_id", plot.cropId,
+										"fertilized", Boolean.toString(plot.fertilized)
+									)
+								);
+							}
 						removedKeys.add(key);
 						activePlotsByKey.remove(key);
 						plotsByKey.remove(key);
@@ -529,82 +568,79 @@ public final class MadokuFarming {
 						BlockState cropState = world.getBlockState(cropPos);
 						if (!isCropBlock(cropState, rule)) {
 							boolean cropIsMissing = cropState == null || cropState.isAir();
+							boolean harvestPending = resolvePendingHarvestRule(world, cropPos) != null;
 							if (cropIsMissing) {
 								long gameplayTicks = MadokuClock.getGameplayTicks();
 								if (plot.missingCropSinceGameplayTicks == Long.MIN_VALUE) {
 									plot.missingCropSinceGameplayTicks = gameplayTicks;
-									if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_missing")) {
-										emitFarmingDebug(
-											"farming.crop_missing",
-											world,
-											soilPos,
-											"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-											Map.of(
-												"reason", "crop_missing_start",
-												"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
-												"crop_pos", cropPos.toShortString(),
-												"crop_id", plot.cropId,
-												"fertilized", Boolean.toString(plot.fertilized),
-												"gameplay_ticks", Long.toString(gameplayTicks)
-											)
-										);
-									}
 								}
-								if (gameplayTicks - plot.missingCropSinceGameplayTicks < CROP_MISSING_GRACE_TICKS) {
-									refreshPlotActivity(world, soilPos, plot);
+								if (harvestPending || gameplayTicks - plot.missingCropSinceGameplayTicks < CROP_MISSING_GRACE_TICKS) {
+									if (harvestPending) {
+										plot.clearCrop();
+										plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+										if (plot.fertilized) {
+											plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
+										}
+										if (!plot.fertilized) {
+											removedKeys.add(key);
+											activePlotsByKey.remove(key);
+											plotsByKey.remove(key);
+										} else {
+											refreshPlotActivity(world, soilPos, plot);
+										}
+										changed = true;
+									} else {
+										refreshPlotActivity(world, soilPos, plot);
+									}
 									continue;
 								}
-								if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_missing")) {
-									emitFarmingDebug(
-										"farming.crop_missing",
-										world,
-										soilPos,
-										"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-										Map.of(
-											"reason", "crop_missing_grace_expired",
-											"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
-											"crop_pos", cropPos.toShortString(),
-											"crop_id", plot.cropId,
-											"fertilized", Boolean.toString(plot.fertilized),
-											"missing_for_ticks", Long.toString(gameplayTicks - plot.missingCropSinceGameplayTicks)
-										)
-									);
-								}
-							} else {
+								plot.clearCrop();
 								plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+								if (plot.fertilized) {
+									plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
+								}
+								if (!plot.fertilized) {
+									removedKeys.add(key);
+									activePlotsByKey.remove(key);
+									plotsByKey.remove(key);
+								} else {
+									refreshPlotActivity(world, soilPos, plot);
+								}
+								changed = true;
+								continue;
 							}
 
+							plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
 							if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.plot_removed")) {
 								emitFarmingDebug(
 									"farming.plot_removed",
 									world,
-								soilPos,
-								"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
-								Map.of(
-									"reason", "crop_state_mismatch",
-									"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
-									"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
-									"crop_pos", cropPos.toShortString(),
-									"crop_id", plot.cropId,
-									"fertilized", Boolean.toString(plot.fertilized)
+									soilPos,
+									"soil:" + soilPos.getX() + "," + soilPos.getY() + "," + soilPos.getZ(),
+									Map.of(
+										"reason", "crop_state_mismatch",
+										"soil_state", soilState == null ? "unknown" : soilState.getBlock().toString(),
+										"crop_state", cropState == null ? "unknown" : cropState.getBlock().toString(),
+										"crop_pos", cropPos.toShortString(),
+										"crop_id", plot.cropId,
+										"fertilized", Boolean.toString(plot.fertilized)
 									)
 								);
 							}
 							plot.clearCrop();
-						plot.missingCropSinceGameplayTicks = Long.MIN_VALUE;
 							if (plot.fertilized) {
 								plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
 							}
-					if (!plot.fertilized) {
-						removedKeys.add(key);
-						activePlotsByKey.remove(key);
-						plotsByKey.remove(key);
-					} else {
-						refreshPlotActivity(world, soilPos, plot);
-					}
-					changed = true;
-					continue;
-				}
+							if (!plot.fertilized) {
+								removedKeys.add(key);
+								activePlotsByKey.remove(key);
+								plotsByKey.remove(key);
+							} else {
+								refreshPlotActivity(world, soilPos, plot);
+							}
+							changed = true;
+							continue;
+						}
 
 				boolean cropIsMatureBlock = isCropMatureBlock(cropState, rule);
 				int ageLimit = getCropAgeLimit(cropState);
@@ -615,16 +651,16 @@ public final class MadokuFarming {
 					changed = true;
 				}
 
-				double growthTicks = getGrowthTicks(rule);
-				if (growthTicks <= 0.0d) {
-					continue;
-				}
+					double growthTicks = getGrowthTicks(rule);
+					if (growthTicks <= 0.0d) {
+						continue;
+					}
 
-				double growthMultiplier = resolveGrowthMultiplier(world, cropPos, rule, plot.fertilized);
-				double addedProgress = (deltaAbsoluteDayTime * growthMultiplier) / growthTicks;
-				if (addedProgress > 0.0d) {
-					double updatedProgress = Math.min(1.0d, plot.growthProgress + addedProgress);
-					if (updatedProgress > plot.growthProgress) {
+					double growthMultiplier = resolveGrowthMultiplier(world, cropPos, rule, plot.fertilized);
+					double addedProgress = (deltaAbsoluteDayTime * growthMultiplier) / growthTicks;
+					if (addedProgress > 0.0d) {
+						double updatedProgress = Math.min(1.0d, plot.growthProgress + addedProgress);
+						if (updatedProgress > plot.growthProgress) {
 						plot.growthProgress = updatedProgress;
 						changed = true;
 					}
@@ -1011,9 +1047,9 @@ public final class MadokuFarming {
 				if (rule == null) {
 					rule = CropRule.defaultRule(fileKey);
 				}
-				if (rule == null) {
-					continue;
-				}
+					if (rule == null) {
+						continue;
+					}
 
 					JsonObject cleaned = rule.toJson();
 					StaticJsonSystem.writeManagedFile(file, cleaned, defaults);
@@ -1026,13 +1062,149 @@ public final class MadokuFarming {
 				cropRulesByPlantingItemId = Map.copyOf(plantingRules);
 				cropRulesByCropBlockId = Map.copyOf(blockRules);
 				cropRulesByMatureBlockId = Map.copyOf(matureBlockRules);
-			} catch (IOException | RuntimeException exception) {
-				LOGGER.error("Failed to load MadokuFarming crop config; using defaults.", exception);
-				cropRulesByPlantingItemId = Map.copyOf(defaultCropRulesByPlantingItemId());
-				cropRulesByCropBlockId = Map.copyOf(defaultCropRulesByCropBlockId());
-				cropRulesByMatureBlockId = Map.copyOf(defaultCropRulesByMatureBlockId());
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.error("Failed to load MadokuFarming crop config; using defaults.", exception);
+			cropRulesByPlantingItemId = Map.copyOf(defaultCropRulesByPlantingItemId());
+			cropRulesByCropBlockId = Map.copyOf(defaultCropRulesByCropBlockId());
+			cropRulesByMatureBlockId = Map.copyOf(defaultCropRulesByMatureBlockId());
+		}
+
+		updateCropItemMetadata();
+	}
+
+	private static void updateCropItemMetadata() {
+		if (!MadokuItem.isEnabled() || !settings.enabled) {
+			MadokuItem.setSecondaryCategoryItems(FARMING_SECONDARY_CATEGORY, Set.of());
+			return;
+		}
+
+		Set<Item> farmingItems = new LinkedHashSet<>();
+		for (CropRule rule : cropRulesByPlantingItemId.values()) {
+			if (rule == null || rule.plantingItem() == null) {
+				continue;
+			}
+			farmingItems.add(rule.plantingItem());
+			applyFarmingLore(rule);
+		}
+
+		MadokuItem.setSecondaryCategoryItems(FARMING_SECONDARY_CATEGORY, farmingItems);
+	}
+
+	private static void applyFarmingLore(CropRule rule) {
+		if (rule == null || rule.plantingItem() == null) {
+			return;
+		}
+
+		Item plantingItem = rule.plantingItem();
+		if (!(plantingItem instanceof ItemComponentsAccessor accessor)) {
+			return;
+		}
+
+		DataComponentMap base = accessor.madokuCraft$getComponents();
+		if (base == null) {
+			return;
+		}
+
+		List<Component> updatedLines = new ArrayList<>();
+		ItemLore currentLore = base.get(DataComponents.LORE);
+		if (currentLore != null) {
+			for (Component line : currentLore.lines()) {
+				String text = line == null ? "" : line.getString();
+				if (text.startsWith(LORE_SEASON_PREFIX) || text.startsWith(LORE_GROWING_TIME_PREFIX)) {
+					continue;
+				}
+				updatedLines.add(line);
 			}
 		}
+
+		if (MadokuSeason.isEnabled()) {
+			updatedLines.add(Component.literal(formatSeasonLoreLine(rule.blockedSeasonIds())).withStyle(ChatFormatting.DARK_GREEN));
+		}
+		updatedLines.add(Component.literal(formatGrowthTimeLoreLine(rule.growthMinecraftDays())).withStyle(ChatFormatting.GOLD));
+
+		ItemLore updatedLore = new ItemLore(updatedLines);
+		if (Objects.equals(currentLore, updatedLore)) {
+			return;
+		}
+
+		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
+		builder.set(DataComponents.LORE, updatedLore);
+		accessor.madokuCraft$setComponents(builder.build());
+	}
+
+	private static String formatSeasonLoreLine(Set<String> blockedSeasonIds) {
+		return LORE_SEASON_PREFIX + " " + formatSeasonSummary(blockedSeasonIds);
+	}
+
+	private static String formatGrowthTimeLoreLine(double growthMinecraftDays) {
+		return LORE_GROWING_TIME_PREFIX + " " + formatGrowthDays(growthMinecraftDays) + " Days";
+	}
+
+	private static String formatSeasonSummary(Set<String> blockedSeasonIds) {
+		boolean[] allowed = new boolean[SEASON_ORDER.length];
+		int allowedCount = 0;
+		Set<String> blocked = blockedSeasonIds == null ? Set.of() : blockedSeasonIds;
+
+		for (int index = 0; index < SEASON_ORDER.length; index++) {
+			allowed[index] = !blocked.contains(SEASON_ORDER[index]);
+			if (allowed[index]) {
+				allowedCount++;
+			}
+		}
+
+		if (allowedCount <= 0) {
+			return "None";
+		}
+		if (allowedCount == SEASON_ORDER.length) {
+			return "All Year";
+		}
+
+		for (int start = 0; start < SEASON_ORDER.length; start++) {
+			int previous = (start - 1 + SEASON_ORDER.length) % SEASON_ORDER.length;
+			if (!allowed[start] || allowed[previous]) {
+				continue;
+			}
+
+			int end = start;
+			int visited = 1;
+			while (visited < allowedCount) {
+				int next = (end + 1) % SEASON_ORDER.length;
+				if (!allowed[next]) {
+					break;
+				}
+				end = next;
+				visited++;
+			}
+
+			if (visited == allowedCount) {
+				return start == end
+					? capitalizeSeasonId(SEASON_ORDER[start])
+					: capitalizeSeasonId(SEASON_ORDER[start]) + " - " + capitalizeSeasonId(SEASON_ORDER[end]);
+			}
+		}
+
+		List<String> seasonNames = new ArrayList<>();
+		for (int index = 0; index < SEASON_ORDER.length; index++) {
+			if (allowed[index]) {
+				seasonNames.add(capitalizeSeasonId(SEASON_ORDER[index]));
+			}
+		}
+		return String.join(", ", seasonNames);
+	}
+
+	private static String formatGrowthDays(double growthMinecraftDays) {
+		BigDecimal value = BigDecimal.valueOf(Math.max(0.0d, growthMinecraftDays)).stripTrailingZeros();
+		String formatted = value.toPlainString();
+		return formatted.isEmpty() ? "0" : formatted;
+	}
+
+	private static String capitalizeSeasonId(String value) {
+		if (value == null || value.isBlank()) {
+			return "";
+		}
+		String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
+	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
@@ -1104,48 +1276,50 @@ public final class MadokuFarming {
 		return cropRulesByMatureBlockId.get(normalized);
 	}
 
-	private static CropRule resolveManagedCropRule(ServerLevel world, BlockPos cropPos, BlockState state) {
-		CropRule growthRule = resolveCropRuleByCropState(state);
-		if (growthRule != null) {
-			return growthRule;
+	public static CropRule resolveHarvestRule(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule managedRule = resolveManagedCropRule(world, cropPos, state);
+		if (managedRule != null) {
+			return managedRule;
 		}
-		if (world == null || cropPos == null || state == null) {
-			return null;
-		}
+		return resolvePendingHarvestRule(world, cropPos);
+	}
 
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-		if (id == null) {
+	private static CropRule resolveManagedCropRule(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule stateRule = resolveCropRuleByCropState(state);
+		if (stateRule == null || world == null || cropPos == null || state == null) {
 			return null;
 		}
 
 		PlotState plot = findPlot(world, cropPos.below());
-		if (plot != null && plot.hasCrop()) {
-			CropRule plotRule = resolveCropRuleByPlantingItemId(plot.cropId);
-			if (plotRule != null) {
-				if (plotRule.usesDistinctMatureBlock() && isCropMatureBlock(state, plotRule)) {
-					return plotRule;
-				}
-				if (isCropBlock(state, plotRule) && plot.cropPos == cropPos.asLong()) {
-					return plotRule;
+			if (plot != null && plot.hasCrop()) {
+				CropRule plotRule = resolveCropRuleByPlantingItemId(plot.cropId);
+				if (plotRule != null) {
+					if (!plotRule.usesDistinctMatureBlock()) {
+						if (isCropBlock(state, plotRule) && plot.cropPos == cropPos.asLong()) {
+							return plotRule;
+						}
+					} else if (plot.cropPos == cropPos.asLong() && (isCropGrowthBlock(state, plotRule) || isCropMatureBlock(state, plotRule))) {
+						return plotRule;
+					}
 				}
 			}
+
+		if (resolvePendingHarvestRule(world, cropPos, state) != null) {
+			return stateRule;
 		}
 
-		CropRule matureRule = cropRulesByMatureBlockId.get(normalizeRegistryId(id.toString()));
-		if (matureRule == null || !matureRule.usesDistinctMatureBlock()) {
+		if (!stateRule.usesDistinctMatureBlock()) {
 			return null;
 		}
 
-		if (plot != null && plot.hasCrop() && matureRule.plantingItemId().equals(plot.cropId) && plot.cropPos == cropPos.asLong()) {
-			return matureRule;
+		if (isCropMatureBlock(state, stateRule)) {
+			CropRule adjacentRule = resolveAdjacentDistinctMatureRule(world, cropPos, stateRule);
+			if (adjacentRule != null) {
+				return adjacentRule;
+			}
 		}
 
-		CropRule adjacentRule = resolveAdjacentDistinctMatureRule(world, cropPos, matureRule);
-		if (adjacentRule != null) {
-			return adjacentRule;
-		}
-
-		return resolvePendingHarvestRule(world, cropPos, state);
+		return null;
 	}
 
 	private static CropRule resolveAdjacentDistinctMatureRule(ServerLevel world, BlockPos maturePos, CropRule matureRule) {
@@ -1174,8 +1348,8 @@ public final class MadokuFarming {
 		return null;
 	}
 
-	private static CropRule resolvePendingHarvestRule(ServerLevel world, BlockPos cropPos, BlockState state) {
-		if (world == null || cropPos == null || state == null) {
+	private static CropRule resolvePendingHarvestRule(ServerLevel world, BlockPos cropPos) {
+		if (world == null || cropPos == null) {
 			return null;
 		}
 
@@ -1191,13 +1365,22 @@ public final class MadokuFarming {
 			return null;
 		}
 
+		return pending.rule;
+	}
+
+	private static CropRule resolvePendingHarvestRule(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule pendingRule = resolvePendingHarvestRule(world, cropPos);
+		if (pendingRule == null || state == null) {
+			return null;
+		}
+
 		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
 		if (id == null) {
 			return null;
 		}
 
 		String normalized = normalizeRegistryId(id.toString());
-		return normalized.equals(pending.rule.matureBlockId()) ? pending.rule : null;
+		return normalized.equals(pendingRule.matureBlockId()) ? pendingRule : null;
 	}
 
 	private static boolean isCropBlock(BlockState state, CropRule rule) {
@@ -1235,9 +1418,17 @@ public final class MadokuFarming {
 	}
 
 	public static boolean isCropHarvestReady(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule pendingRule = resolvePendingHarvestRule(world, cropPos);
+		if (pendingRule != null) {
+			return true;
+		}
+
 		CropRule rule = resolveManagedCropRule(world, cropPos, state);
 		if (rule == null) {
 			return false;
+		}
+		if (state == null) {
+			return true;
 		}
 		if (isCropMatureBlock(state, rule)) {
 			return true;
@@ -1246,6 +1437,11 @@ public final class MadokuFarming {
 	}
 
 	public static boolean isManagedHarvestState(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule pendingRule = resolvePendingHarvestRule(world, cropPos);
+		if (pendingRule != null) {
+			return true;
+		}
+
 		CropRule rule = resolveManagedCropRule(world, cropPos, state);
 		if (rule == null || !isCropHarvestReady(world, cropPos, state)) {
 			return false;
@@ -1254,7 +1450,7 @@ public final class MadokuFarming {
 	}
 
 	public static boolean hasPendingHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
-		return resolvePendingHarvestRule(world, cropPos, state) != null;
+		return resolvePendingHarvestRule(world, cropPos) != null || resolvePendingHarvestRule(world, cropPos, state) != null;
 	}
 
 	private static String normalizeSeasonId(String value) {
@@ -1361,8 +1557,9 @@ public final class MadokuFarming {
 	}
 
 	public static int calculateCropHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
-		if (!settings.enabled || rule == null || !isCropBlock(state, rule) || !isCropHarvestReady(world, cropPos, state)) {
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
+		boolean pendingHarvest = resolvePendingHarvestRule(world, cropPos) != null;
+		if (!settings.enabled || rule == null || (!pendingHarvest && !isCropBlock(state, rule)) || !isCropHarvestReady(world, cropPos, state)) {
 			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.harvest_count")) {
 				emitFarmingDebug(
 					"farming.harvest_count",
@@ -1410,8 +1607,9 @@ public final class MadokuFarming {
 		}
 
 	public static int calculateCropSecondaryHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
-		if (!settings.enabled || rule == null || !isCropBlock(state, rule) || !isCropHarvestReady(world, cropPos, state) || !rule.hasSecondaryHarvestDrop()) {
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
+		boolean pendingHarvest = resolvePendingHarvestRule(world, cropPos) != null;
+		if (!settings.enabled || rule == null || (!pendingHarvest && !isCropBlock(state, rule)) || !isCropHarvestReady(world, cropPos, state) || !rule.hasSecondaryHarvestDrop()) {
 			return 0;
 		}
 
@@ -1426,7 +1624,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		if (rule == null || !isManagedHarvestState(world, cropPos, state)) {
 			return;
 		}
@@ -1460,7 +1658,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		CropRule rule = resolveManagedCropRule(world, cropPos, state);
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		if (rule == null || !isManagedHarvestState(world, cropPos, state)) {
 			return;
 		}
@@ -1702,6 +1900,31 @@ public final class MadokuFarming {
 		}
 
 		builder.log();
+	}
+
+	public static void emitPendingHarvestUsedDebug(ServerLevel world, BlockPos cropPos, BlockState state, String source) {
+		if (world == null || cropPos == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.pending_harvest_used")) {
+			return;
+		}
+
+		boolean pendingHarvest = resolvePendingHarvestRule(world, cropPos) != null;
+		boolean managedCrop = isManagedCrop(world, cropPos, state);
+		if (!pendingHarvest || managedCrop) {
+			return;
+		}
+
+		emitFarmingDebug(
+			"farming.pending_harvest_used",
+			world,
+			cropPos,
+			"crop:" + cropPos.getX() + "," + cropPos.getY() + "," + cropPos.getZ(),
+			Map.of(
+				"source", source == null || source.isBlank() ? "unknown" : source,
+				"state", state == null ? "unknown" : state.getBlock().toString(),
+				"pending", Boolean.toString(pendingHarvest),
+				"managed", Boolean.toString(managedCrop)
+			)
+		);
 	}
 
 	private record CropRule(

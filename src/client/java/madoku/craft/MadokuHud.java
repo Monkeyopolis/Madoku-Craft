@@ -7,6 +7,7 @@ import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.mixin.client.GuiAccessor;
 import madoku.craft.oxygen.MadokuOxygen;
+import madoku.craft.season.MadokuSeason;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -186,7 +187,7 @@ public final class MadokuHud {
 		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, lineOffset(client, lineIndex++), COLOR);
 		drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, lineOffset(client, lineIndex++), COLOR);
 		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, lineOffset(client, lineIndex++), COLOR);
-		if (settings.seasonHudEnabled) {
+		if (settings.seasonHudEnabled && MadokuSeason.isEnabled() && hasServerSeason) {
 			drawScaledString(context, client, "Season: " + getSeasonDisplayText(), WORLD_X, lineOffset(client, lineIndex), COLOR);
 		}
 	}
@@ -812,6 +813,10 @@ public final class MadokuHud {
 	}
 
 	public static void setServerSeason(String season) {
+		if (season == null || season.isBlank()) {
+			clearServerSeason();
+			return;
+		}
 		serverSeason = season == null ? "unknown" : season;
 		hasServerSeason = true;
 	}

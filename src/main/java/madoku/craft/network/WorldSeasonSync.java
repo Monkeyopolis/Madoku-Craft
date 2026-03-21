@@ -43,8 +43,17 @@ public final class WorldSeasonSync {
 	}
 
 	private static void broadcast(MinecraftServer server, boolean force) {
+		if (server == null) {
+			return;
+		}
+
+		if (!MadokuSeason.isEnabled()) {
+			broadcastSeasonCleared(server, force);
+			return;
+		}
+
 		WorldSeasonPayload payload = currentPayload();
-		if (server == null || payload == null) {
+		if (payload == null) {
 			return;
 		}
 
@@ -62,7 +71,29 @@ public final class WorldSeasonSync {
 		lastBroadcastSeason = season;
 	}
 
+	private static void broadcastSeasonCleared(MinecraftServer server, boolean force) {
+		if (server == null) {
+			return;
+		}
+
+		if (!force && lastBroadcastSeason.isEmpty()) {
+			return;
+		}
+
+		WorldSeasonPayload payload = new WorldSeasonPayload("");
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
+				ServerPlayNetworking.send(player, payload);
+			}
+		}
+
+		lastBroadcastSeason = "";
+	}
+
 	private static WorldSeasonPayload currentPayload() {
+		if (!MadokuSeason.isEnabled()) {
+			return null;
+		}
 		String season = MadokuSeason.getCurrentSeasonId();
 		if (season == null || season.isBlank()) {
 			return null;

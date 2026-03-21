@@ -1,8 +1,6 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.clock.MadokuClock;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.farming.system.MadokuFarming;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -62,15 +60,7 @@ public abstract class LootTableFarmingMixin {
 		if (secondaryHarvestItem != null && secondaryCount > 0) {
 			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
 		}
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, "farming.crop_drops_loot")) {
-			MadokuDebug.event("farming.crop_drops_loot", MadokuDebug.Domain.FARMING)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(MadokuClock.getGameplayTicks())
-					.subject("loot_table")
-					.field("count", Integer.toString(count))
-					.field("state", state == null ? "unknown" : state.getBlock().toString())
-				.log();
-		}
+		MadokuFarming.emitPendingHarvestUsedDebug(level, pos, state, "loot_table");
 		cir.setReturnValue(drops);
 	}
 

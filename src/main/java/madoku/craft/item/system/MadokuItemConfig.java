@@ -23,6 +23,7 @@ public final class MadokuItemConfig {
 	public static final String PRIMARY_CATEGORY_TOOL = "tool";
 	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
 	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
+	public static final String SECONDARY_CATEGORY_FARMING = "farming";
 
 	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
 	public static final String FIELD_DURABILITY = "durability";
