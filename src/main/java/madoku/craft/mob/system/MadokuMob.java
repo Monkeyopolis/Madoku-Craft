@@ -99,8 +99,8 @@ public final class MadokuMob {
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
 			if (entity instanceof LivingEntity livingEntity) {
-				applyLoadedEntityRules(livingEntity);
-				applyDifficultyScalingAfterMobOverrides(livingEntity, world);
+				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
+				applyDifficultyScalingAfterMobOverrides(livingEntity, world, reappliedMobOverrides);
 			}
 		});
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
@@ -585,59 +585,46 @@ public final class MadokuMob {
 		return resolveBowHand(skeleton) == null;
 	}
 
-	private static void applyLoadedEntityRules(LivingEntity entity) {
+	private static boolean applyLoadedEntityRules(LivingEntity entity) {
 		if (entity == null || entity.level().isClientSide() || !snapshot.enabled) {
-			return;
+			return false;
 		}
 		if (entity instanceof Zombie zombie) {
 			JsonObject root = zombieRoot(zombie.getType());
 			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
 				JsonObject variant = zombie.isBaby() ? zombieBabyRoot(zombie.getType(), root) : zombieAdultRoot(zombie.getType(), root);
-				applyUniversalStats(zombie, variant);
+				return applyUniversalStats(zombie, variant);
 			}
-			return;
+			return false;
 		}
 		if (entity instanceof Spider spider) {
 			if (spider.getType() == EntityType.CAVE_SPIDER) {
 				JsonObject root = root(MadokuMobConfig.FILE_CAVE_SPIDER);
-				if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
-					applyUniversalStats(spider, root);
-				}
-				return;
+				return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(spider, root);
 			}
 			JsonObject root = root(MadokuMobConfig.FILE_SPIDER);
-			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
-				applyUniversalStats(spider, root);
-			}
-			return;
+			return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(spider, root);
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
 			JsonObject root = skeletonRoot(skeleton.getType());
-			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
-				applyUniversalStats(skeleton, root);
-			}
-			return;
+			return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(skeleton, root);
 		}
 		if (entity instanceof Pillager pillager) {
 			JsonObject root = root(MadokuMobConfig.FILE_PILLAGER);
-			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
-				applyUniversalStats(pillager, root);
-			}
-			return;
+			return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(pillager, root);
 		}
 		if (entity instanceof Creeper creeper) {
 			JsonObject root = root(MadokuMobConfig.FILE_CREEPER);
-			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
-				applyCreeperRuntimeStats(creeper, root);
-			}
+			return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyCreeperRuntimeStats(creeper, root);
 		}
+		return false;
 	}
 
-	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level) {
+	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
 		if (!snapshot.enabled || entity == null || !(entity instanceof Mob mob) || level == null || !MadokuDifficulty.isEnabled()) {
 			return;
 		}
-		if (mob instanceof DifficultyScaledMob scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
+		if (loadedMobOverridesApplied && mob instanceof DifficultyScaledMob scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
 			MadokuDifficulty.reapplySpawnScalingFromStoredAdjustment(mob);
 			return;
 		}
@@ -669,13 +656,14 @@ public final class MadokuMob {
 		}
 	}
 
-	private static void applyUniversalStats(LivingEntity entity, JsonObject root) {
+	private static boolean applyUniversalStats(LivingEntity entity, JsonObject root) {
 		if (entity == null || root == null) {
-			return;
+			return false;
 		}
+		boolean modified = false;
 		double oldMaxHealth = entity.getMaxHealth();
 		boolean hardcore = isHardcoreWorld(entity.level());
-		setBaseValueIfPresent(
+		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.MAX_HEALTH,
 			resolveUniversalBaseStat(
@@ -686,7 +674,7 @@ public final class MadokuMob {
 				0.0D
 			)
 		);
-		setBaseValueIfPresent(
+		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.ARMOR,
 			resolveUniversalBaseStat(
@@ -697,7 +685,7 @@ public final class MadokuMob {
 				0.0D
 			)
 		);
-		setBaseValueIfPresent(
+		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.ATTACK_DAMAGE,
 			resolveUniversalBaseStat(
@@ -708,7 +696,7 @@ public final class MadokuMob {
 				0.0D
 			)
 		);
-		setBaseValueIfPresent(
+		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.MOVEMENT_SPEED,
 			resolveUniversalBaseStat(
@@ -719,7 +707,7 @@ public final class MadokuMob {
 				0.0D
 			)
 		);
-		setBaseValueIfPresent(
+		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.KNOCKBACK_RESISTANCE,
 			resolveUniversalBaseStat(
@@ -744,14 +732,16 @@ public final class MadokuMob {
 				);
 			}
 		}
-		setBaseValueIfPresent(entity, Attributes.SCALE, resolvedScale);
+		modified |= setBaseValueIfPresent(entity, Attributes.SCALE, resolvedScale);
 		applyExperienceDrop(entity, readOptionalIntNonNegative(root, MadokuMobConfig.FIELD_EXPERIENCE_DROP));
 		rescaleCurrentHealth(entity, oldMaxHealth);
+		return modified;
 	}
 
-	private static void applyCreeperRuntimeStats(Creeper creeper, JsonObject root) {
+	private static boolean applyCreeperRuntimeStats(Creeper creeper, JsonObject root) {
+		boolean modified = false;
 		JsonObject variant = creeper.isPowered() ? readObject(root, MadokuMobConfig.FIELD_CHARGED_CREEPER) : readObject(root, MadokuMobConfig.FIELD_CREEPER);
-		applyUniversalStats(creeper, variant);
+		modified |= applyUniversalStats(creeper, variant);
 		CreeperAccessor accessor = (CreeperAccessor) creeper;
 		Double fuseLength = readOptionalPositive(variant, MadokuMobConfig.FIELD_FUSE_LENGTH);
 		if (fuseLength != null) {
@@ -776,6 +766,7 @@ public final class MadokuMob {
 			int radius = Math.max(0, (int) Math.round(resolvedPower));
 			accessor.madokuCraft$setExplosionRadius(radius);
 		}
+		return modified;
 	}
 
 	private static void disableZombieReinforcements(Zombie zombie) {
@@ -801,17 +792,20 @@ public final class MadokuMob {
 		}
 	}
 
-	private static void setBaseValue(LivingEntity entity, Holder<Attribute> attribute, double value) {
+	private static boolean setBaseValue(LivingEntity entity, Holder<Attribute> attribute, double value) {
 		AttributeInstance instance = entity.getAttribute(attribute);
-		if (instance != null && Double.compare(instance.getBaseValue(), value) != 0) {
-			instance.setBaseValue(value);
+		if (instance == null || Double.compare(instance.getBaseValue(), value) == 0) {
+			return false;
 		}
+		instance.setBaseValue(value);
+		return true;
 	}
 
-	private static void setBaseValueIfPresent(LivingEntity entity, Holder<Attribute> attribute, Double value) {
+	private static boolean setBaseValueIfPresent(LivingEntity entity, Holder<Attribute> attribute, Double value) {
 		if (value != null) {
-			setBaseValue(entity, attribute, value);
+			return setBaseValue(entity, attribute, value);
 		}
+		return false;
 	}
 
 	private static void rescaleCurrentHealth(LivingEntity entity, double oldMaxHealth) {
