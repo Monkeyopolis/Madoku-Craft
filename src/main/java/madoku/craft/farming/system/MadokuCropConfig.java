@@ -66,10 +66,27 @@ public final class MadokuCropConfig {
 			"minecraft:melon",
 			"minecraft:melon_seeds",
 			"minecraft:melon_slice",
+			"minecraft:melon_seeds",
+			1,
+			3,
 			11.0d,
 			15,
 			17,
 			List.of("fall", "winter")
+		));
+		defaults.put("pumpkin", buildCropDefaults(
+			"pumpkin",
+			"minecraft:pumpkin_stem",
+			"minecraft:pumpkin",
+			"minecraft:pumpkin_seeds",
+			"minecraft:pumpkin",
+			"minecraft:pumpkin_seeds",
+			1,
+			3,
+			9.0d,
+			3,
+			5,
+			List.of("spring", "winter")
 		));
 		defaults.put("wheat", buildCropDefaults(
 			"wheat",

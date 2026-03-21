@@ -1725,7 +1725,7 @@ public final class MadokuFarming {
 		Item secondaryHarvestItem
 	) {
 		private static List<CropRule> defaultRules() {
-			return List.of(defaultPotato(), defaultCarrot(), defaultBeetroot(), defaultMelon(), defaultWheat());
+			return List.of(defaultPotato(), defaultCarrot(), defaultBeetroot(), defaultMelon(), defaultPumpkin(), defaultWheat());
 		}
 
 		private static CropRule defaultRule(String fileKey) {
@@ -1735,6 +1735,7 @@ public final class MadokuFarming {
 				case "minecraft:carrot", "carrot", "minecraft:carrots" -> defaultCarrot();
 				case "minecraft:beetroot", "beetroot", "minecraft:beetroots" -> defaultBeetroot();
 				case "minecraft:melon", "melon" -> defaultMelon();
+				case "minecraft:pumpkin", "pumpkin" -> defaultPumpkin();
 				case "minecraft:wheat", "wheat" -> defaultWheat();
 				default -> null;
 			};
@@ -1798,13 +1799,30 @@ public final class MadokuFarming {
 				"minecraft:melon",
 				"minecraft:melon_seeds",
 				"minecraft:melon_slice",
-				"",
-				0,
-				0,
+				"minecraft:melon_seeds",
+				1,
+				3,
 				11.0d,
 				15,
 				17,
 				Set.of("fall", "winter")
+			);
+		}
+
+		private static CropRule defaultPumpkin() {
+			return fromValues(
+				"pumpkin",
+				"minecraft:pumpkin_stem",
+				"minecraft:pumpkin",
+				"minecraft:pumpkin_seeds",
+				"minecraft:pumpkin",
+				"minecraft:pumpkin_seeds",
+				1,
+				3,
+				9.0d,
+				3,
+				5,
+				Set.of("spring", "winter")
 			);
 		}
 
