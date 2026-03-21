@@ -51,6 +51,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
 
 public final class MadokuFarming {
@@ -81,6 +82,8 @@ public final class MadokuFarming {
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long FERTILIZATION_DECAY_TICKS = 3L * 24000L;
 	private static final long CROP_MISSING_GRACE_TICKS = 20L;
+	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
+	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 300L;
 	private static final int CROP_MAX_AGE = 7;
 
 	private static volatile Settings settings = Settings.defaults();
@@ -858,7 +861,9 @@ public final class MadokuFarming {
 			settings.particleSpread,
 			0.0d
 		);
-		plot.lastParticleEmissionTimeTicks = MadokuClock.getGameplayTicks();
+		long gameplayTicks = MadokuClock.getGameplayTicks();
+		plot.lastParticleEmissionTimeTicks = gameplayTicks;
+		plot.nextParticleEmissionTimeTicks = gameplayTicks + getRandomParticleCooldownTicks();
 	}
 
 	private static boolean canEmitFertilizedParticles(PlotState plot) {
@@ -866,17 +871,20 @@ public final class MadokuFarming {
 			return false;
 		}
 
-		long cooldownTicks = Math.max(0L, settings.particleCooldownTimeTicks);
-		if (cooldownTicks <= 0L) {
-			return true;
+		long gameplayTicks = MadokuClock.getGameplayTicks();
+		if (plot.nextParticleEmissionTimeTicks == Long.MIN_VALUE) {
+			long lastEmission = plot.lastParticleEmissionTimeTicks;
+			if (lastEmission == Long.MIN_VALUE) {
+				return true;
+			}
+			plot.nextParticleEmissionTimeTicks = lastEmission + getRandomParticleCooldownTicks();
 		}
 
-		long lastEmission = plot.lastParticleEmissionTimeTicks;
-		if (lastEmission == Long.MIN_VALUE) {
-			return true;
-		}
+		return gameplayTicks >= plot.nextParticleEmissionTimeTicks;
+	}
 
-		return MadokuClock.getGameplayTicks() - lastEmission >= cooldownTicks;
+	private static long getRandomParticleCooldownTicks() {
+		return ThreadLocalRandom.current().nextLong(PARTICLE_COOLDOWN_MIN_TICKS, PARTICLE_COOLDOWN_MAX_TICKS + 1L);
 	}
 
 	private static PlotState getOrCreatePlot(ServerLevel world, BlockPos soilPos) {
@@ -2323,10 +2331,11 @@ public final class MadokuFarming {
 		private long cropPos;
 		private String cropId;
 		private boolean fertilized;
-		private long fertilizedAtAbsoluteDayTime;
-			private double growthProgress;
-			private transient long lastParticleEmissionTimeTicks;
-			private transient long missingCropSinceGameplayTicks;
+			private long fertilizedAtAbsoluteDayTime;
+				private double growthProgress;
+				private transient long lastParticleEmissionTimeTicks;
+				private transient long nextParticleEmissionTimeTicks;
+				private transient long missingCropSinceGameplayTicks;
 
 		private PlotState(String levelId, long soilPos) {
 			this.levelId = levelId == null ? "" : levelId;
@@ -2335,10 +2344,11 @@ public final class MadokuFarming {
 			this.cropId = "";
 			this.fertilized = false;
 				this.fertilizedAtAbsoluteDayTime = Long.MIN_VALUE;
-				this.growthProgress = 0.0d;
-				this.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
-				this.missingCropSinceGameplayTicks = Long.MIN_VALUE;
-			}
+					this.growthProgress = 0.0d;
+					this.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
+					this.nextParticleEmissionTimeTicks = Long.MIN_VALUE;
+					this.missingCropSinceGameplayTicks = Long.MIN_VALUE;
+				}
 
 		private String key() {
 			return levelId + "|" + soilPos;
