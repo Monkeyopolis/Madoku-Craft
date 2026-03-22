@@ -48,10 +48,16 @@ public abstract class FarmlandBlockFarmingMixin {
 		BlockPos abovePos = pos.above();
 		BlockState aboveState = level.getBlockState(abovePos);
 		if (MadokuFarming.isManagedCrop(aboveState)) {
+			if (level instanceof ServerLevel serverLevel && !MadokuFarming.isManagedPlot(serverLevel, pos)) {
+				MadokuFarming.syncPlotFromSoil(serverLevel, pos, MadokuFarming.isFertilized(serverLevel, pos));
+			}
 			return true;
 		}
 
 		if (level instanceof ServerLevel serverLevel) {
+			if (!MadokuFarming.isManagedPlot(serverLevel, pos) && MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState)) {
+				MadokuFarming.syncPlotFromSoil(serverLevel, pos, MadokuFarming.isFertilized(serverLevel, pos));
+			}
 			return MadokuFarming.isManagedPlot(serverLevel, pos) || MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState);
 		}
 

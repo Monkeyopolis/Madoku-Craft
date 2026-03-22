@@ -116,26 +116,26 @@ public class MadokuCraft implements ModInitializer {
 					WorldDifficultySync.reset();
 					WorldSeasonSync.reset();
 				});
-			ServerTickEvents.END_SERVER_TICK.register(server -> {
-				long tickIncrement = MadokuSleep.getTickIncrement(server);
-				MadokuSmeltingManager.onServerTickIncrement(tickIncrement);
-				MadokuFarming.onServerTickIncrement(tickIncrement);
-				MadokuTicks.advance(server, tickIncrement);
-				MadokuScheduler.autosavePersistedData(server);
-				MadokuTime.autosavePersistedData(server);
+				ServerTickEvents.END_SERVER_TICK.register(server -> {
+					long tickIncrement = MadokuSleep.getTickIncrement(server);
+					MadokuSmeltingManager.onServerTickIncrement(tickIncrement);
+					MadokuFarming.onServerTickIncrement(tickIncrement);
+					MadokuTicks.advance(server, tickIncrement);
+					MadokuScheduler.autosavePersistedData(server);
+					MadokuTime.autosavePersistedData(server);
 					MadokuHealth.autosavePersistedData(server);
 					MadokuHunger.autosavePersistedData(server);
 					MadokuSeason.autosavePersistedData(server);
-						MadokuFarming.autosavePersistedData(server);
-						MadokuOxygen.autosavePersistedData(server);
-							MadokuItemStack.autosavePersistedData(server);
-								MadokuTime.update(server);
-								MadokuSeason.onServerTick(server);
-								MadokuDifficulty.onServerTick(server);
-								MadokuMob.onServerTick(server);
-								WorldTimeSync.broadcastIfChanged(server);
-							WorldDifficultySync.broadcastIfChanged(server);
-							WorldSeasonSync.broadcastIfChanged(server);
-					});
+					MadokuFarming.autosavePersistedData(server);
+					MadokuOxygen.autosavePersistedData(server);
+					MadokuItemStack.autosavePersistedData(server);
+					MadokuTime.update(server);
+					MadokuSeason.onServerTick(server);
+					MadokuDifficulty.onServerTick(server);
+					MadokuMob.onServerTick(server);
+					WorldTimeSync.broadcastIfChanged(server);
+					WorldDifficultySync.broadcastIfChanged(server);
+					WorldSeasonSync.broadcastIfChanged(server);
+				});
 		}
 	}

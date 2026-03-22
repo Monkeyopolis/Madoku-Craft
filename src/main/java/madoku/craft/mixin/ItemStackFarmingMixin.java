@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -12,12 +13,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.server.level.ServerLevel;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(ItemStack.class)
 public abstract class ItemStackFarmingMixin {
@@ -53,17 +53,18 @@ public abstract class ItemStackFarmingMixin {
 				return;
 			}
 
-				if (level.isClientSide()) {
-					cir.setReturnValue(InteractionResult.SUCCESS);
-					return;
-				}
-
-				madokuCraft$consumeOneItem(context.getPlayer(), stack);
-				MadokuFarming.fertilizeSoil((ServerLevel) level, pos);
-				level.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
+			if (level.isClientSide()) {
 				cir.setReturnValue(InteractionResult.SUCCESS);
 				return;
 			}
+
+			madokuCraft$consumeOneItem(context.getPlayer(), stack);
+			MadokuFarming.fertilizeSoil((ServerLevel) level, pos);
+			MadokuFarming.syncPlotFromSoil((ServerLevel) level, pos, true);
+			level.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
+			cir.setReturnValue(InteractionResult.SUCCESS);
+			return;
+		}
 
 		if (MadokuFarming.isCropPlantItem(stack) && MadokuFarming.isFarmland(state) && !MadokuFarming.canPlantCrop(stack)) {
 			if (level instanceof ServerLevel && context.getPlayer() != null) {
@@ -116,6 +117,6 @@ public abstract class ItemStackFarmingMixin {
 		}
 
 		MadokuFarming.registerCropPlanting(serverLevel, soilPos, stack);
-		MadokuFarming.trackCrop(serverLevel, soilPos.above(), cropState);
+		MadokuFarming.syncPlotFromSoil(serverLevel, soilPos, MadokuFarming.isFertilized(serverLevel, soilPos));
 	}
 }
