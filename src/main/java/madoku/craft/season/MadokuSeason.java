@@ -63,6 +63,7 @@ public final class MadokuSeason {
 	private static volatile boolean seasonProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static final LinkedHashMap<Long, SeasonWaterWork> PENDING_WATER_WORK = new LinkedHashMap<>();
+	private static final ArrayList<Long> PENDING_WATER_WORK_ORDER = new ArrayList<>();
 
 	private MadokuSeason() {
 	}
@@ -81,6 +82,7 @@ public final class MadokuSeason {
 		seasonProcessTaskScheduled = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 		PENDING_WATER_WORK.clear();
+		PENDING_WATER_WORK_ORDER.clear();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -645,25 +647,23 @@ public final class MadokuSeason {
 		}
 
 		PENDING_WATER_WORK.put(work.blockPosLong(), work);
+		PENDING_WATER_WORK_ORDER.add(work.blockPosLong());
 		return true;
 	}
 
 	private static SeasonWaterWork pollNextSeasonWaterWork() {
-		if (PENDING_WATER_WORK.isEmpty()) {
+		if (PENDING_WATER_WORK_ORDER.isEmpty()) {
 			return null;
 		}
 
-		int selectedIndex = ThreadLocalRandom.current().nextInt(PENDING_WATER_WORK.size());
-		Long selectedKey = null;
-		int index = 0;
-		for (Long key : PENDING_WATER_WORK.keySet()) {
-			if (index == selectedIndex) {
-				selectedKey = key;
-				break;
-			}
-			index++;
+		int selectedIndex = ThreadLocalRandom.current().nextInt(PENDING_WATER_WORK_ORDER.size());
+		int lastIndex = PENDING_WATER_WORK_ORDER.size() - 1;
+		Long selectedKey = PENDING_WATER_WORK_ORDER.get(selectedIndex);
+		Long lastKey = PENDING_WATER_WORK_ORDER.get(lastIndex);
+		if (selectedIndex != lastIndex) {
+			PENDING_WATER_WORK_ORDER.set(selectedIndex, lastKey);
 		}
-
+		PENDING_WATER_WORK_ORDER.remove(lastIndex);
 		return selectedKey == null ? null : PENDING_WATER_WORK.remove(selectedKey);
 	}
 
@@ -1065,6 +1065,7 @@ public final class MadokuSeason {
 
 	private static void loadPendingWaterWork(JsonObject source) {
 		PENDING_WATER_WORK.clear();
+		PENDING_WATER_WORK_ORDER.clear();
 		if (source == null) {
 			return;
 		}
@@ -1086,16 +1087,18 @@ public final class MadokuSeason {
 			int queuedSeasonDay = getInt(queueObject, "queued_season_day", 0);
 			long queuedAtTick = getLong(queueObject, "queued_at_tick", 0L);
 			SeasonWaterAction action = SeasonWaterAction.fromId(actionId);
-			if (blockPosLong == null || action == null) {
-				continue;
-			}
+				if (blockPosLong == null || action == null) {
+					continue;
+				}
 
-			PENDING_WATER_WORK.putIfAbsent(
-				blockPosLong,
-				new SeasonWaterWork(blockPosLong, action, queuedSeasonId, queuedSeasonDay, queuedAtTick)
-			);
+				if (PENDING_WATER_WORK.putIfAbsent(
+					blockPosLong,
+					new SeasonWaterWork(blockPosLong, action, queuedSeasonId, queuedSeasonDay, queuedAtTick)
+				) == null) {
+					PENDING_WATER_WORK_ORDER.add(blockPosLong);
+				}
+			}
 		}
-	}
 
 	private static com.google.gson.JsonArray serializePendingWaterWork() {
 		com.google.gson.JsonArray queue = new com.google.gson.JsonArray();

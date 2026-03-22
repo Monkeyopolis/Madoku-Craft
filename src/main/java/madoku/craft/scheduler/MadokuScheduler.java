@@ -52,6 +52,7 @@ public final class MadokuScheduler {
 
 	private static final Map<String, SchedulerState> SCHEDULERS = new LinkedHashMap<>();
 	private static final Map<String, SchedulerState> PENDING_SCHEDULERS = new LinkedHashMap<>();
+	private static final Map<String, String> SCHEDULER_IDS_BY_OWNER = new HashMap<>();
 	private static final Map<String, TaskHandler> TASK_HANDLERS = new HashMap<>();
 	private static final Map<String, OwnerExistenceResolver> OWNER_RESOLVERS = new HashMap<>();
 	private static final Set<String> DIRTY_SCHEDULER_IDS = new HashSet<>();
@@ -77,6 +78,7 @@ public final class MadokuScheduler {
 	public static void reset() {
 		SCHEDULERS.clear();
 		PENDING_SCHEDULERS.clear();
+		SCHEDULER_IDS_BY_OWNER.clear();
 		DIRTY_SCHEDULER_IDS.clear();
 		REMOVED_SCHEDULER_IDS.clear();
 		ticking = false;
@@ -133,6 +135,7 @@ public final class MadokuScheduler {
 		} else {
 			SCHEDULERS.put(schedulerId, scheduler);
 		}
+		indexSchedulerOwner(scheduler);
 		markSchedulerDirty(schedulerId);
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SCHEDULER, "scheduler.created")) {
 			MadokuDebug.event("scheduler.created", MadokuDebug.Domain.SCHEDULER)
@@ -233,12 +236,12 @@ public final class MadokuScheduler {
 
 				long pausedExpireAtTick = safeAdd(scheduler.createdAtTick, MONTH_TIMEOUT_TICKS);
 				long effectiveExpireAtTick = scheduler.paused ? pausedExpireAtTick : scheduler.expireAtTick;
-				if (nowGameplayTick >= effectiveExpireAtTick) {
-					iterator.remove();
-					markSchedulerRemoved(scheduler.schedulerId);
-					logSchedulerExpired(nowGameplayTick, scheduler, "lifecycle_timeout");
-					continue;
-				}
+					if (nowGameplayTick >= effectiveExpireAtTick) {
+						iterator.remove();
+						markSchedulerRemoved(scheduler.schedulerId, scheduler.owner);
+						logSchedulerExpired(nowGameplayTick, scheduler, "lifecycle_timeout");
+						continue;
+					}
 
 				if (!shouldScanSchedulerThisTick(
 					scheduler,
@@ -258,12 +261,12 @@ public final class MadokuScheduler {
 				if (queueSize(scheduler) == 0) {
 					long idleTicks = nowGameplayTick - scheduler.lastActivityTick;
 					boolean idleExpired = idleTicks >= IDLE_TIMEOUT_TICKS;
-					if (!scheduler.accepting || idleExpired) {
-						iterator.remove();
-						markSchedulerRemoved(scheduler.schedulerId);
-						logSchedulerExpired(nowGameplayTick, scheduler, idleExpired ? "idle_timeout" : "closed_no_tasks");
-					}
-					continue;
+						if (!scheduler.accepting || idleExpired) {
+							iterator.remove();
+							markSchedulerRemoved(scheduler.schedulerId, scheduler.owner);
+							logSchedulerExpired(nowGameplayTick, scheduler, idleExpired ? "idle_timeout" : "closed_no_tasks");
+						}
+						continue;
 				}
 
 				ScheduledRequest next = peekDueRequest(
@@ -377,13 +380,27 @@ public final class MadokuScheduler {
 	}
 
 	private static SchedulerState findSchedulerByOwner(SchedulerOwner owner, long nowGameplayTick) {
+		String ownerKey = ownerKey(owner);
+		if (!ownerKey.isEmpty()) {
+			String schedulerId = SCHEDULER_IDS_BY_OWNER.get(ownerKey);
+			if (schedulerId != null) {
+				SchedulerState indexed = findScheduler(schedulerId);
+				if (indexed != null && sameOwner(indexed.owner, owner) && canAcceptEnqueue(indexed, nowGameplayTick)) {
+					return indexed;
+				}
+				SCHEDULER_IDS_BY_OWNER.remove(ownerKey, schedulerId);
+			}
+		}
+
 		for (SchedulerState scheduler : SCHEDULERS.values()) {
 			if (sameOwner(scheduler.owner, owner) && canAcceptEnqueue(scheduler, nowGameplayTick)) {
+				indexSchedulerOwner(scheduler);
 				return scheduler;
 			}
 		}
 		for (SchedulerState scheduler : PENDING_SCHEDULERS.values()) {
 			if (sameOwner(scheduler.owner, owner) && canAcceptEnqueue(scheduler, nowGameplayTick)) {
+				indexSchedulerOwner(scheduler);
 				return scheduler;
 			}
 		}
@@ -479,12 +496,11 @@ public final class MadokuScheduler {
 
 	private static void removeScheduledRequest(SchedulerState scheduler, ScheduledRequest request) {
 		PriorityQueue<ScheduledRequest> queue = queueForDomain(scheduler, request.domain);
-		ScheduledRequest head = queue.peek();
-		if (head == request) {
+		if (queue.peek() == request) {
 			queue.poll();
-		} else {
-			queue.remove(request);
+			return;
 		}
+		queue.remove(request);
 	}
 
 	private static PriorityQueue<ScheduledRequest> queueForDomain(SchedulerState scheduler, TickDomain domain) {
@@ -598,22 +614,23 @@ public final class MadokuScheduler {
 				continue;
 			}
 
-			SchedulerState scheduler = SchedulerState.fromJson(source);
-			if (scheduler == null) {
-				LOGGER.warn("Skipping invalid scheduler file for id={}", schedulerId);
-				continue;
+				SchedulerState scheduler = SchedulerState.fromJson(source);
+				if (scheduler == null) {
+					LOGGER.warn("Skipping invalid scheduler file for id={}", schedulerId);
+					continue;
+				}
+				if (!OWNER_RESOLVERS.containsKey(scheduler.owner.kind)) {
+					LOGGER.warn(
+						"Skipping scheduler with unknown owner kind during load: scheduler={} kind={}",
+						scheduler.schedulerId,
+						scheduler.owner.kind
+					);
+					continue;
+				}
+				SCHEDULERS.put(scheduler.schedulerId, scheduler);
+				indexSchedulerOwner(scheduler);
 			}
-			if (!OWNER_RESOLVERS.containsKey(scheduler.owner.kind)) {
-				LOGGER.warn(
-					"Skipping scheduler with unknown owner kind during load: scheduler={} kind={}",
-					scheduler.schedulerId,
-					scheduler.owner.kind
-				);
-				continue;
-			}
-			SCHEDULERS.put(scheduler.schedulerId, scheduler);
 		}
-	}
 
 	private static List<String> loadSchedulerIdsFromMetadata(JsonArray schedulerIds) {
 		List<String> ids = new ArrayList<>();
@@ -844,13 +861,43 @@ public final class MadokuScheduler {
 		dirty = true;
 	}
 
-	private static void markSchedulerRemoved(String schedulerId) {
+	private static void markSchedulerRemoved(String schedulerId, SchedulerOwner owner) {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return;
+		}
+		if (owner != null) {
+			SCHEDULER_IDS_BY_OWNER.remove(ownerKey(owner), schedulerId);
 		}
 		DIRTY_SCHEDULER_IDS.remove(schedulerId);
 		REMOVED_SCHEDULER_IDS.add(schedulerId);
 		dirty = true;
+	}
+
+	private static void indexSchedulerOwner(SchedulerState scheduler) {
+		if (scheduler == null || scheduler.owner == null || scheduler.schedulerId == null || scheduler.schedulerId.isBlank()) {
+			return;
+		}
+		String key = ownerKey(scheduler.owner);
+		if (!key.isEmpty()) {
+			SCHEDULER_IDS_BY_OWNER.put(key, scheduler.schedulerId);
+		}
+	}
+
+	private static String ownerKey(SchedulerOwner owner) {
+		if (owner == null) {
+			return "";
+		}
+		return ownerKey(owner.kind, owner.ownerId, owner.levelId);
+	}
+
+	private static String ownerKey(String kind, String ownerId, String levelId) {
+		String safeKind = kind == null ? "" : kind.trim();
+		String safeOwnerId = ownerId == null ? "" : ownerId.trim();
+		String safeLevelId = levelId == null ? "" : levelId.trim();
+		if (safeKind.isEmpty() || safeOwnerId.isEmpty()) {
+			return "";
+		}
+		return safeKind + '\u0000' + safeOwnerId + '\u0000' + safeLevelId;
 	}
 
 	private static boolean ownerExists(MinecraftServer server, SchedulerOwner owner) {

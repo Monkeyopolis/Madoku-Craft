@@ -794,23 +794,23 @@ public final class MadokuDifficulty {
 		if (mob == null || resolvedIncrements == null || totalAdjustment <= 0) {
 			return null;
 		}
-		StatIncrements increments = resolvedIncrements.increments();
-		double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
-		double healthAddition = resolveHealthScalingAmount(mob, increments, totalAdjustment);
-		double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, totalAdjustment) : 0.0D;
-		double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(increments, totalAdjustment) : 0.0D;
-		double armorAddition = fullStatScaling ? resolveArmorScalingAmount(increments, totalAdjustment) : 0.0D;
-		double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, totalAdjustment) : 0.0D;
-		double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(increments, totalAdjustment) : 0.0D;
-		int experienceBaseBefore = resolveMobExperienceDrop(mob);
-		int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, totalAdjustment);
+			StatIncrements increments = resolvedIncrements.increments();
+			double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
+			double healthAddition = resolveHealthScalingAmount(mob, increments, totalAdjustment);
+			double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, totalAdjustment) : 0.0D;
+			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(increments, totalAdjustment) : 0.0D;
+			double armorAddition = fullStatScaling ? resolveArmorScalingAmount(increments, totalAdjustment) : 0.0D;
+			double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, totalAdjustment) : 0.0D;
+			double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(increments, totalAdjustment) : 0.0D;
+			int experienceBaseBefore = resolveMobExperienceDrop(mob);
+			int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, totalAdjustment);
 
-		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
-		if (fullStatScaling) {
-			addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
-			addAttribute(mob, Attributes.SCALE, scaleAddition);
-			addAttribute(mob, Attributes.ARMOR, armorAddition);
-			addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
+			boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
+			if (fullStatScaling) {
+				addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
+				addAttribute(mob, Attributes.SCALE, scaleAddition);
+				addAttribute(mob, Attributes.ARMOR, armorAddition);
+				addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
 			addAttribute(mob, Attributes.KNOCKBACK_RESISTANCE, knockbackResistanceAddition);
 		}
 		int experienceBaseAfter = applyExperienceDropScaling(mob, experienceBaseBefore, experienceDropAddition);
@@ -1174,10 +1174,10 @@ public final class MadokuDifficulty {
 			);
 		}
 
-		private ResolvedIncrements resolveIncrements(Mob mob) {
-			if (!MadokuMob.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
-				return new ResolvedIncrements(increments, "global");
-			}
+			private ResolvedIncrements resolveIncrements(Mob mob) {
+				if (!MadokuMob.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
+					return new ResolvedIncrements(increments, "global");
+				}
 			for (String key : resolveMobScalingFileKeys(mob.getType())) {
 				StatIncrements specific = mobScalingIncrements.get(key);
 				if (specific != null) {
@@ -1265,7 +1265,7 @@ public final class MadokuDifficulty {
 		}
 	}
 
-	private record StructureContext(Identifier structureId, int adjustment) {
-		private static final StructureContext NONE = new StructureContext(null, 0);
+		private record StructureContext(Identifier structureId, int adjustment) {
+			private static final StructureContext NONE = new StructureContext(null, 0);
+		}
 	}
-}
