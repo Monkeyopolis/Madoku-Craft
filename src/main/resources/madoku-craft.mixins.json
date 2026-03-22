@@ -56,8 +56,6 @@
     "PlayerSleepTickMixin",
     "SaturationMobEffectMixin",
     "FarmlandBlockFarmingMixin",
-    "BlockItemFarmingMixin",
-    "ServerLevelCropPlacementMixin",
     "ServerLevelSeasonalPrecipitationMixin",
     "ServerExplosionBlockRadiusMixin",
     "ServerExplosionPlayerDamageMixin",
