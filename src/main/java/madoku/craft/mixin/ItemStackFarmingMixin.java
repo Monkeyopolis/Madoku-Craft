@@ -2,6 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.farming.system.MadokuFarming;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -44,6 +45,15 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
+		BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
+		if (MadokuFarming.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarming.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarming.canPlantCrop(stack)) {
+			if (level instanceof ServerLevel && context.getPlayer() != null) {
+				context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack)), true);
+			}
+			cir.setReturnValue(InteractionResult.FAIL);
+			return;
+		}
+
 		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
 			if (level instanceof ServerLevel serverLevel && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
@@ -66,12 +76,6 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-		if (MadokuFarming.isCropPlantItem(stack) && MadokuFarming.isFarmland(state) && !MadokuFarming.canPlantCrop(stack)) {
-			if (level instanceof ServerLevel && context.getPlayer() != null) {
-				context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack)), true);
-			}
-			cir.setReturnValue(InteractionResult.FAIL);
-		}
 	}
 
 	@Unique
@@ -83,6 +87,19 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 		stack.shrink(1);
+	}
+
+	@Unique
+	private static BlockPos madokuCraft$getCropPlantingSoilPos(UseOnContext context) {
+		if (context == null) {
+			return null;
+		}
+		BlockPos clickedPos = context.getClickedPos();
+		Direction face = context.getClickedFace();
+		if (clickedPos == null || face == null) {
+			return null;
+		}
+		return clickedPos.relative(face).below();
 	}
 
 	@Inject(method = "useOn", at = @At("RETURN"))
@@ -102,7 +119,7 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-		BlockPos soilPos = context.getClickedPos();
+		BlockPos soilPos = madokuCraft$getCropPlantingSoilPos(context);
 		if (soilPos == null || !MadokuFarming.isFarmland(level.getBlockState(soilPos))) {
 			return;
 		}
