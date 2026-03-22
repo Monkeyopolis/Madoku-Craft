@@ -26,15 +26,6 @@ public final class MadokuSeasonConfig {
 	private MadokuSeasonConfig() {
 	}
 
-	public static JsonObject buildSeasonSettingsDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_BIOME_OVERRIDES_ENABLED, true);
-		root.addProperty(FIELD_COLD_TEMPERATURE_THRESHOLD, DEFAULT_COLD_TEMPERATURE_THRESHOLD);
-		root.addProperty(FIELD_HOT_TEMPERATURE_THRESHOLD, DEFAULT_HOT_TEMPERATURE_THRESHOLD);
-		return root;
-	}
-
 	public static JsonObject buildBiomeDefaults(
 		String biomeId,
 		String defaultClassification,

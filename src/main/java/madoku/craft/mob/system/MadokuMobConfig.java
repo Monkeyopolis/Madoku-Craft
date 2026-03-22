@@ -30,6 +30,7 @@ public final class MadokuMobConfig {
 	public static final String FILE_ZOMBIE_VILLAGER = "zombie-villager";
 	public static final String FILE_PIGLIN = "piglin";
 	public static final String FILE_PILLAGER = "pillager";
+	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
 
 	public static final String FIELD_USE_CUSTOM_BABY_SPAWN_CHANCE = "use_custom_baby_spawn_chance";
 	public static final String FIELD_CAN_BREAK_DOORS = "can_break_doors";
@@ -69,6 +70,8 @@ public final class MadokuMobConfig {
 
 	public static final String FIELD_WITH_BOW_SPAWN_WEIGHT = "with_bow_spawn_weight";
 	public static final String FIELD_WITHOUT_BOW_SPAWN_WEIGHT = "without_bow_spawn_weight";
+	public static final String FIELD_WITHER_SWORD_SPAWN_WEIGHT = "wither_sword_spawn_weight";
+	public static final String FIELD_WITHER_BOW_SPAWN_WEIGHT = "wither_bow_spawn_weight";
 	public static final String FIELD_REGULAR_SPAWN_WEIGHT = "regular_spawn_weight";
 	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
 	public static final String FIELD_ATTACK_INTERVAL = "attack_interval";
@@ -131,10 +134,11 @@ public final class MadokuMobConfig {
 			FILE_ZOMBIE_VILLAGER,
 			buildZombieTypeDefaults(FIELD_ADULT_ZOMBIE_VILLAGER, FIELD_BABY_ZOMBIE_VILLAGER, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7)
 		);
-		defaults.put(FILE_PIGLIN, buildPiglinDefaults());
-		defaults.put(FILE_PILLAGER, buildPillagerDefaults());
-		return defaults;
-	}
+			defaults.put(FILE_PIGLIN, buildPiglinDefaults());
+			defaults.put(FILE_PILLAGER, buildPillagerDefaults());
+			defaults.put(FILE_WITHER_SKELETON, buildWitherSkeletonDefaults());
+			return defaults;
+		}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
 		JsonObject root = new JsonObject();
@@ -330,13 +334,29 @@ public final class MadokuMobConfig {
 		return root;
 	}
 
+	private static JsonObject buildWitherSkeletonDefaults() {
+		JsonObject root = new JsonObject();
+		root.addProperty(FIELD_ENABLED, true);
+		addArmorSpawnDefaults(root);
+		root.addProperty(FIELD_WITHER_SWORD_SPAWN_WEIGHT, 90.0d);
+		root.addProperty(FIELD_WITHER_BOW_SPAWN_WEIGHT, 10.0d);
+		root.addProperty(FIELD_RANGED_DAMAGE, 6.0d);
+		root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
+		root.addProperty(FIELD_ATTACK_ACCURACY, 0.7d);
+		root.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
+		for (Map.Entry<String, com.google.gson.JsonElement> entry : buildUniversalDefaults(20.0d, 0.0d, 7.0d, 0.25d, 0.0d, 1.0d, 11).entrySet()) {
+			root.add(entry.getKey(), entry.getValue());
+		}
+		return root;
+	}
+
 	private static JsonObject buildPiglinDefaults() {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
 		addArmorSpawnDefaults(root);
 		root.addProperty(FIELD_ADULT_PIGLIN_SPAWN_WEIGHT, 90.0d);
 		root.addProperty(FIELD_BABY_PIGLIN_SPAWN_WEIGHT, 10.0d);
-		root.addProperty(FIELD_RANGED_DAMAGE, 4.0d);
+		root.addProperty(FIELD_RANGED_DAMAGE, 5.0d);
 		root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
 		root.addProperty(FIELD_ATTACK_ACCURACY, 0.7d);
 		root.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
@@ -346,7 +366,7 @@ public final class MadokuMobConfig {
 	}
 
 	private static JsonObject buildPiglinAdultVariant() {
-		JsonObject root = buildUniversalDefaults(24.0d, 0.0d, 6.0d, 0.25d, 0.0d, 1.0d, 11);
+		JsonObject root = buildUniversalDefaults(24.0d, 1.0d, 6.0d, 0.25d, 0.1d, 1.0d, 11);
 		root.addProperty(FIELD_CROSSBOW_SPAWN_WEIGHT, 50.0d);
 		root.addProperty(FIELD_GOLDEN_SWORD_SPAWN_WEIGHT, 50.0d);
 		return root;

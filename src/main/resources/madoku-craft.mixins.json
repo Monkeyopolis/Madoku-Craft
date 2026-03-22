@@ -65,6 +65,7 @@
     "StemBlockFarmingMixin",
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerSleepTimeMixin",
+    "WitherSkeletonWitherEffectMixin",
     "ZombieSpawnOverridesMixin"
   ],
   "client": [
