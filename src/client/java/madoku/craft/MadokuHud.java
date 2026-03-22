@@ -49,7 +49,7 @@ public final class MadokuHud {
 	private static final ResourceLocation ARMOR_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_empty");
 	private static final ResourceLocation ARMOR_HALF_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_half");
 	private static final ResourceLocation ARMOR_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/armor_full");
-	private static final ResourceLocation OXYGEN_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air_empty");
+	private static final ResourceLocation OXYGEN_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air_bursting");
 	private static final ResourceLocation OXYGEN_POPPING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air_bursting");
 	private static final ResourceLocation OXYGEN_FULL_TEXTURE = ResourceLocation.withDefaultNamespace("hud/air");
 	private static final int WORLD_X = 4;

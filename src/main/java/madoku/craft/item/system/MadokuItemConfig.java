@@ -284,7 +284,7 @@ public final class MadokuItemConfig {
 		int[] durability = {32, 64, 256, 512, 2048, 4096};
 		int[] materialLevel = {0, 1, 2, 3, 3, 4};
 		int[] materialProgress = {0, 1, 3, 4, 5, 6};
-		double[] pickAndShovelDamage = {1.0, 1.5, 2.5, 3.0, 4.0, 4.5};
+		double[] pickAndShovelDamage = {1.0, 1.5, 2.5, 3.0, 3.5, 4.0};
 
 		for (int index = 0; index < materials.length; index++) {
 			String prefix = "minecraft:" + materials[index] + "_";
