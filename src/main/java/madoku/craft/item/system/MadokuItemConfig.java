@@ -1,5 +1,6 @@
 package madoku.craft.item.system;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.LinkedHashMap;
@@ -9,9 +10,19 @@ import java.util.Map;
 public final class MadokuItemConfig {
 	public static final String FIELD_ITEM_SYSTEM_ENABLED = "itemSystemEnabled";
 	public static final String FIELD_ITEM_ID = "item_id";
+	public static final String FIELD_PRIMARY_CATEGORY = "primary_category";
+	public static final String FIELD_SECONDARY_CATEGORIES = "secondary_categories";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
+
+	public static final String PRIMARY_CATEGORY_FUEL = "fuel";
+	public static final String PRIMARY_CATEGORY_MISC = "misc";
+	public static final String PRIMARY_CATEGORY_TOOL = "tool";
+	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
+	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
+	public static final String SECONDARY_CATEGORY_FARMING = "farming";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
 
 	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
 	public static final String FIELD_DURABILITY = "durability";
@@ -59,6 +70,18 @@ public final class MadokuItemConfig {
 		return defaults;
 	}
 
+	public static Map<String, JsonObject> buildDefaultFarmingFileDefaults() {
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		for (String itemId : buildDefaultFarmingItems().keySet()) {
+			String fileKey = fileKeyFromItemId(itemId);
+			if (fileKey.isBlank()) {
+				continue;
+			}
+			defaults.put(fileKey, buildFarmingItemDefaults(itemId, defaultStackForItem(itemId)));
+		}
+		return defaults;
+	}
+
 	public static Map<String, JsonObject> buildDefaultToolFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		for (Map.Entry<String, JsonObject> entry : buildDefaultToolItemProfiles().entrySet()) {
@@ -92,13 +115,29 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks, String stackValue) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_FUEL);
 		defaults.addProperty(FIELD_FUEL_TICKS, fuelTicks);
 		return defaults;
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
-		return buildBaseDefaults(itemId, stackValue);
+		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+		if ("minecraft:bone_meal".equals(normalizedItemId)) {
+			return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC, SECONDARY_CATEGORY_FARMING);
+		}
+		return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC);
+	}
+
+	public static JsonObject buildFarmingItemDefaults(String itemId, String stackValue) {
+		JsonObject defaults = buildBaseDefaults(
+			itemId,
+			stackValue,
+			PRIMARY_CATEGORY_MISC,
+			SECONDARY_CATEGORY_FARMING,
+			SECONDARY_CATEGORY_COMPOSTER
+		);
+		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, defaultComposterAdjustmentForFarmingItem(itemId));
+		return defaults;
 	}
 
 	public static JsonObject buildToolItemDefaults(String itemId) {
@@ -122,7 +161,7 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_TOOL);
 		defaults.addProperty(FIELD_DURABILITY, durability);
 		defaults.addProperty(FIELD_ATTACK_DAMAGE, attackDamage);
 		defaults.addProperty(FIELD_ATTACK_SPEED, attackSpeed);
@@ -148,16 +187,22 @@ public final class MadokuItemConfig {
 		double armorToughness,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue);
+		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_ARMOR);
 		defaults.addProperty(FIELD_DURABILITY, durability);
 		defaults.addProperty(FIELD_ARMOR, armor);
 		defaults.addProperty(FIELD_ARMOR_TOUGHNESS, armorToughness);
 		return defaults;
 	}
 
-	private static JsonObject buildBaseDefaults(String itemId, String stackValue) {
+	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory) {
+		return buildBaseDefaults(itemId, stackValue, primaryCategory, new String[0]);
+	}
+
+	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory, String... secondaryCategories) {
 		JsonObject defaults = new JsonObject();
 		defaults.addProperty(FIELD_ITEM_ID, itemId == null ? "" : itemId);
+		defaults.addProperty(FIELD_PRIMARY_CATEGORY, normalizeCategoryValue(primaryCategory));
+		defaults.add(FIELD_SECONDARY_CATEGORIES, buildSecondaryCategoriesArray(primaryCategory, secondaryCategories));
 		defaults.addProperty(FIELD_STACK, normalizeStackValue(stackValue));
 		return defaults;
 	}
@@ -361,9 +406,62 @@ public final class MadokuItemConfig {
 
 	public static Map<String, Boolean> buildDefaultMiscItems() {
 		Map<String, Boolean> defaults = new LinkedHashMap<>();
+		defaults.put("minecraft:bone_meal", true);
 		defaults.put("minecraft:water_bucket", true);
 		defaults.put("minecraft:milk_bucket", true);
 		defaults.put("minecraft:powder_snow_bucket", true);
 		return defaults;
+	}
+
+	public static Map<String, Boolean> buildDefaultFarmingItems() {
+		Map<String, Boolean> defaults = new LinkedHashMap<>();
+		defaults.put("minecraft:carrot", true);
+		defaults.put("minecraft:potato", true);
+		defaults.put("minecraft:beetroot_seeds", true);
+		defaults.put("minecraft:wheat_seeds", true);
+		defaults.put("minecraft:melon_seeds", true);
+		defaults.put("minecraft:pumpkin_seeds", true);
+		return defaults;
+	}
+
+	private static JsonArray buildSecondaryCategoriesArray(String primaryCategory, String... secondaryCategories) {
+		JsonArray categories = new JsonArray();
+		if (secondaryCategories == null || secondaryCategories.length == 0) {
+			return categories;
+		}
+		for (String secondaryCategory : secondaryCategories) {
+			String normalized = normalizeCategoryValue(secondaryCategory);
+			if (normalized.isBlank()) {
+				continue;
+			}
+			if (normalized.equals(normalizeCategoryValue(primaryCategory))) {
+				continue;
+			}
+			boolean alreadyPresent = false;
+			for (int index = 0; index < categories.size(); index++) {
+				if (normalized.equals(categories.get(index).getAsString())) {
+					alreadyPresent = true;
+					break;
+				}
+			}
+			if (!alreadyPresent) {
+				categories.add(normalized);
+			}
+		}
+		return categories;
+	}
+
+	private static String normalizeCategoryValue(String rawCategoryValue) {
+		String normalized = rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
+		return normalized.isEmpty() ? PRIMARY_CATEGORY_MISC : normalized;
+	}
+
+	private static int defaultComposterAdjustmentForFarmingItem(String itemId) {
+		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+		return switch (normalizedItemId) {
+			case "minecraft:carrot", "minecraft:potato" -> 2;
+			case "minecraft:beetroot_seeds", "minecraft:wheat_seeds", "minecraft:melon_seeds", "minecraft:pumpkin_seeds" -> 1;
+			default -> 1;
+		};
 	}
 }

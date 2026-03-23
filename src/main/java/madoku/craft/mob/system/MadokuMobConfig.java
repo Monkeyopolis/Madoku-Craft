@@ -28,12 +28,32 @@ public final class MadokuMobConfig {
 	public static final String FILE_HUSK = "husk";
 	public static final String FILE_DROWNED = "drowned";
 	public static final String FILE_ZOMBIE_VILLAGER = "zombie-villager";
+	public static final String FILE_PIGLIN = "piglin";
 	public static final String FILE_PILLAGER = "pillager";
+	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
 
 	public static final String FIELD_USE_CUSTOM_BABY_SPAWN_CHANCE = "use_custom_baby_spawn_chance";
 	public static final String FIELD_CAN_BREAK_DOORS = "can_break_doors";
 	public static final String FIELD_CAN_PICK_UP_LOOT = "can_pick_up_loot";
 	public static final String FIELD_SPAWN_WEIGHT = "spawn_weight";
+	public static final String FIELD_ARMOR_SPAWN_WEIGHT = "armor_spawn_weight";
+	public static final String FIELD_NO_ARMOR_SPAWN_WEIGHT = "no_armor_spawn_weight";
+	public static final String FIELD_ARMOR_NETHERITE_WEIGHT = "armor_netherite_weight";
+	public static final String FIELD_ARMOR_DIAMOND_WEIGHT = "armor_diamond_weight";
+	public static final String FIELD_ARMOR_GOLD_WEIGHT = "armor_gold_weight";
+	public static final String FIELD_ARMOR_IRON_WEIGHT = "armor_iron_weight";
+	public static final String FIELD_ARMOR_LEATHER_WEIGHT = "armor_leather_weight";
+	public static final String FIELD_ARMOR_HELMET_ONLY_WEIGHT = "armor_helmet_only_weight";
+	public static final String FIELD_ARMOR_HELMET_BOOTS_WEIGHT = "armor_helmet_boots_weight";
+	public static final String FIELD_ARMOR_FULL_SET_WEIGHT = "armor_full_set_weight";
+	public static final String FIELD_CROSSBOW_SPAWN_WEIGHT = "crossbow_spawn_weight";
+	public static final String FIELD_GOLDEN_SWORD_SPAWN_WEIGHT = "golden_sword_spawn_weight";
+	public static final String FIELD_WITHER_SWORD_SPAWN_WEIGHT = "wither_sword_spawn_weight";
+	public static final String FIELD_WITHER_BOW_SPAWN_WEIGHT = "wither_bow_spawn_weight";
+	public static final String FIELD_ADULT_PIGLIN_SPAWN_WEIGHT = "adult_spawn_weight";
+	public static final String FIELD_BABY_PIGLIN_SPAWN_WEIGHT = "baby_spawn_weight";
+	public static final String FIELD_ADULT_PIGLIN = "adult_piglin";
+	public static final String FIELD_BABY_PIGLIN = "baby_piglin";
 
 	public static final String FIELD_ADULT_ZOMBIE = "adult_zombie";
 	public static final String FIELD_BABY_ZOMBIE = "baby_zombie";
@@ -108,14 +128,16 @@ public final class MadokuMobConfig {
 		defaults.put(FILE_CAVE_SPIDER, buildCaveSpiderDefaults());
 		defaults.put(FILE_ZOMBIE, buildZombieTypeDefaults(FIELD_ADULT_ZOMBIE, FIELD_BABY_ZOMBIE, 24.0d, 12.0d, 1.0d, 6.0d, 3.0d, 0.2d, 0.2d, 1.0d, 7));
 		defaults.put(FILE_HUSK, buildZombieTypeDefaults(FIELD_ADULT_HUSK, FIELD_BABY_HUSK, 20.0d, 10.0d, 1.0d, 5.0d, 2.5d, 0.2d, 0.25d, 1.0d, 7));
-		defaults.put(FILE_DROWNED, buildZombieTypeDefaults(FIELD_ADULT_DROWNED, FIELD_BABY_DROWNED, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7));
-		defaults.put(
-			FILE_ZOMBIE_VILLAGER,
-			buildZombieTypeDefaults(FIELD_ADULT_ZOMBIE_VILLAGER, FIELD_BABY_ZOMBIE_VILLAGER, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7)
-		);
-		defaults.put(FILE_PILLAGER, buildPillagerDefaults());
-		return defaults;
-	}
+			defaults.put(FILE_DROWNED, buildZombieTypeDefaults(FIELD_ADULT_DROWNED, FIELD_BABY_DROWNED, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7));
+			defaults.put(
+				FILE_ZOMBIE_VILLAGER,
+				buildZombieTypeDefaults(FIELD_ADULT_ZOMBIE_VILLAGER, FIELD_BABY_ZOMBIE_VILLAGER, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7)
+			);
+			defaults.put(FILE_PIGLIN, buildPiglinDefaults());
+			defaults.put(FILE_PILLAGER, buildPillagerDefaults());
+			defaults.put(FILE_WITHER_SKELETON, buildWitherSkeletonDefaults());
+			return defaults;
+		}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
 		JsonObject root = new JsonObject();
@@ -241,9 +263,9 @@ public final class MadokuMobConfig {
 		return root;
 	}
 
-	private static JsonObject buildZombieTypeDefaults(
-		String adultKey,
-		String babyKey,
+		private static JsonObject buildZombieTypeDefaults(
+			String adultKey,
+			String babyKey,
 		double adultHealth,
 		double babyHealth,
 		double armor,
@@ -253,14 +275,15 @@ public final class MadokuMobConfig {
 		double babySpeed,
 		double scale,
 		int experience
-	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_USE_CUSTOM_BABY_SPAWN_CHANCE, true);
-		root.add(adultKey, buildZombieVariant(adultHealth, armor, adultDamage, adultSpeed, scale, experience, false, false, 95.0d));
+		) {
+			JsonObject root = new JsonObject();
+			root.addProperty(FIELD_ENABLED, true);
+			root.addProperty(FIELD_USE_CUSTOM_BABY_SPAWN_CHANCE, true);
+			addArmorSpawnDefaults(root);
+			root.add(adultKey, buildZombieVariant(adultHealth, armor, adultDamage, adultSpeed, scale, experience, false, false, 95.0d));
 			root.add(babyKey, buildZombieBabyVariant(babyHealth, babyDamage, babySpeed, 5, false, false, 5.0d));
-		return root;
-	}
+			return root;
+		}
 
 	private static JsonObject buildZombieVariant(
 		double health,
@@ -296,16 +319,74 @@ public final class MadokuMobConfig {
 		return root;
 	}
 
-	private static JsonObject buildPillagerDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_RANGED_DAMAGE, 6.0d);
-		root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
+		private static JsonObject buildPillagerDefaults() {
+			JsonObject root = new JsonObject();
+			root.addProperty(FIELD_ENABLED, true);
+			root.addProperty(FIELD_RANGED_DAMAGE, 6.0d);
+			root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
 		root.addProperty(FIELD_ATTACK_ACCURACY, 0.7d);
 		root.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
 		for (Map.Entry<String, com.google.gson.JsonElement> entry : buildUniversalDefaults(20.0d, 1.0d, 5.0d, 0.25d, 0.1d, 1.0d, 11).entrySet()) {
 			root.add(entry.getKey(), entry.getValue());
+			}
+			return root;
 		}
-		return root;
+
+		private static JsonObject buildWitherSkeletonDefaults() {
+			JsonObject root = new JsonObject();
+			root.addProperty(FIELD_ENABLED, true);
+			addArmorSpawnDefaults(root);
+			root.addProperty(FIELD_WITHER_SWORD_SPAWN_WEIGHT, 90.0d);
+			root.addProperty(FIELD_WITHER_BOW_SPAWN_WEIGHT, 10.0d);
+			root.addProperty(FIELD_RANGED_DAMAGE, 6.0d);
+			root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
+			root.addProperty(FIELD_ATTACK_ACCURACY, 0.7d);
+			root.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
+			for (Map.Entry<String, com.google.gson.JsonElement> entry : buildUniversalDefaults(20.0d, 0.0d, 7.0d, 0.25d, 0.0d, 1.0d, 11).entrySet()) {
+				root.add(entry.getKey(), entry.getValue());
+			}
+			return root;
+		}
+
+		private static JsonObject buildPiglinDefaults() {
+			JsonObject root = new JsonObject();
+			root.addProperty(FIELD_ENABLED, true);
+			addArmorSpawnDefaults(root);
+			root.addProperty(FIELD_ADULT_PIGLIN_SPAWN_WEIGHT, 90.0d);
+			root.addProperty(FIELD_BABY_PIGLIN_SPAWN_WEIGHT, 10.0d);
+			root.addProperty(FIELD_RANGED_DAMAGE, 5.0d);
+			root.addProperty(FIELD_ATTACK_INTERVAL, 20.0d);
+			root.addProperty(FIELD_ATTACK_ACCURACY, 0.7d);
+			root.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
+			root.add(FIELD_ADULT_PIGLIN, buildPiglinAdultVariant());
+			root.add(FIELD_BABY_PIGLIN, buildPiglinBabyVariant());
+			return root;
+		}
+
+		private static JsonObject buildPiglinAdultVariant() {
+			JsonObject root = buildUniversalDefaults(24.0d, 1.0d, 6.0d, 0.25d, 0.1d, 1.0d, 11);
+			root.addProperty(FIELD_CROSSBOW_SPAWN_WEIGHT, 50.0d);
+			root.addProperty(FIELD_GOLDEN_SWORD_SPAWN_WEIGHT, 50.0d);
+			return root;
+		}
+
+		private static JsonObject buildPiglinBabyVariant() {
+			return buildUniversalDefaults(12.0d, 0.0d, 3.5d, 0.25d, 0.0d, 1.0d, 3);
+		}
+
+		private static void addArmorSpawnDefaults(JsonObject root) {
+			if (root == null) {
+				return;
+			}
+			root.addProperty(FIELD_ARMOR_SPAWN_WEIGHT, 10.0d);
+			root.addProperty(FIELD_NO_ARMOR_SPAWN_WEIGHT, 90.0d);
+			root.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 1);
+			root.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 6);
+			root.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 19);
+			root.addProperty(FIELD_ARMOR_IRON_WEIGHT, 31);
+			root.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 43);
+			root.addProperty(FIELD_ARMOR_HELMET_ONLY_WEIGHT, 60.0d);
+			root.addProperty(FIELD_ARMOR_HELMET_BOOTS_WEIGHT, 30.0d);
+			root.addProperty(FIELD_ARMOR_FULL_SET_WEIGHT, 10.0d);
+		}
 	}
-}

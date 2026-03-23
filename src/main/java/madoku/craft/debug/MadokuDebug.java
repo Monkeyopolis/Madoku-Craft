@@ -346,10 +346,12 @@ public final class MadokuDebug {
 		HEALTH("health"),
 		HUNGER("hunger"),
 		NETWORK("network"),
-		CLOCK("clock"),
-		SLEEP("sleep"),
-		WORLD("world"),
-		OTHER("other");
+			CLOCK("clock"),
+			SLEEP("sleep"),
+			FARMING("farming"),
+			SEASON("season"),
+			WORLD("world"),
+			OTHER("other");
 
 		private final String id;
 
@@ -384,10 +386,12 @@ public final class MadokuDebug {
 				case "health", "hp" -> HEALTH;
 				case "hunger", "food" -> HUNGER;
 				case "network", "net" -> NETWORK;
-				case "clock", "time_clock" -> CLOCK;
-				case "sleep", "sleeping" -> SLEEP;
-				case "world" -> WORLD;
-				case "other", "*" -> OTHER;
+					case "clock", "time_clock" -> CLOCK;
+					case "sleep", "sleeping" -> SLEEP;
+					case "farming", "farm", "farmland" -> FARMING;
+					case "season", "seasons" -> SEASON;
+					case "world" -> WORLD;
+					case "other", "*" -> OTHER;
 				default -> null;
 			};
 		}
