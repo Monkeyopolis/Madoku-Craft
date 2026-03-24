@@ -22,6 +22,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ItemStack.class)
 public abstract class ItemStackFarmingMixin {
+	@Unique
+	private int madokuCraft$preUseOnCount = -1;
+
 	@Inject(method = "useOn", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleFarmingItemUse(UseOnContext context, CallbackInfoReturnable<InteractionResult> cir) {
 		ItemStack stack = (ItemStack) (Object) this;
@@ -39,23 +42,29 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-		BlockState state = level.getBlockState(pos);
-		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isManagedCrop(state)) {
-			cir.setReturnValue(InteractionResult.FAIL);
-			return;
+		if (MadokuFarming.isCropPlantItem(stack)) {
+			madokuCraft$preUseOnCount = stack.getCount();
 		}
 
-		BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
-		if (MadokuFarming.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarming.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarming.canPlantCrop(stack)) {
-			if (level instanceof ServerLevel && context.getPlayer() != null) {
-				context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack)), true);
+			BlockState state = level.getBlockState(pos);
+			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isManagedCrop(state)) {
+				cir.setReturnValue(InteractionResult.FAIL);
+				return;
 			}
-			cir.setReturnValue(InteractionResult.FAIL);
-			return;
-		}
 
-		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
-			if (level instanceof ServerLevel serverLevel && MadokuFarming.isFertilized(serverLevel, pos)) {
+			BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
+			ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
+			if (MadokuFarming.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarming.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarming.canPlantCrop(stack, serverLevel)) {
+				if (serverLevel != null && context.getPlayer() != null) {
+					context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)), true);
+				}
+				madokuCraft$restoreUseOnCount(stack);
+				cir.setReturnValue(InteractionResult.FAIL);
+				return;
+			}
+
+			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
+				if (serverLevel != null && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
 					context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);
 				}
@@ -106,11 +115,14 @@ public abstract class ItemStackFarmingMixin {
 	private void madokuCraft$trackCropPlanting(UseOnContext context, CallbackInfoReturnable<InteractionResult> cir) {
 		ItemStack stack = (ItemStack) (Object) this;
 		if (!MadokuFarming.isEnabled() || context == null || stack.isEmpty() || !MadokuFarming.isCropPlantItem(stack)) {
+			madokuCraft$preUseOnCount = -1;
 			return;
 		}
 
 		InteractionResult result = cir.getReturnValue();
 		if (result != InteractionResult.SUCCESS && result != InteractionResult.CONSUME) {
+			madokuCraft$restoreUseOnCount(stack);
+			madokuCraft$preUseOnCount = -1;
 			return;
 		}
 
@@ -124,7 +136,7 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-		if (!MadokuFarming.canPlantCrop(stack)) {
+		if (!MadokuFarming.canPlantCrop(stack, serverLevel)) {
 			return;
 		}
 
@@ -135,5 +147,13 @@ public abstract class ItemStackFarmingMixin {
 
 		MadokuFarming.registerCropPlanting(serverLevel, soilPos, stack);
 		MadokuFarming.syncPlotFromSoil(serverLevel, soilPos, MadokuFarming.isFertilized(serverLevel, soilPos));
+		madokuCraft$preUseOnCount = -1;
+	}
+
+	@Unique
+	private void madokuCraft$restoreUseOnCount(ItemStack stack) {
+		if (stack != null && madokuCraft$preUseOnCount >= 0) {
+			stack.setCount(madokuCraft$preUseOnCount);
+		}
 	}
 }

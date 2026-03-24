@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class WorldSeasonSync {
@@ -20,13 +21,13 @@ public final class WorldSeasonSync {
 		}
 
 		PayloadTypeRegistry.playS2C().register(WorldSeasonPayload.TYPE, WorldSeasonPayload.CODEC);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-			WorldSeasonPayload payload = currentPayload();
-			if (payload == null || !ServerPlayNetworking.canSend(handler, WorldSeasonPayload.TYPE)) {
-				return;
-			}
-			sender.sendPacket(payload);
-		});
+			ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+				WorldSeasonPayload payload = currentPayload(server);
+				if (payload == null || !ServerPlayNetworking.canSend(handler, WorldSeasonPayload.TYPE)) {
+					return;
+				}
+				sender.sendPacket(payload);
+			});
 		initialized = true;
 	}
 
@@ -52,7 +53,7 @@ public final class WorldSeasonSync {
 			return;
 		}
 
-		WorldSeasonPayload payload = currentPayload();
+		WorldSeasonPayload payload = currentPayload(server);
 		if (payload == null) {
 			return;
 		}
@@ -90,11 +91,12 @@ public final class WorldSeasonSync {
 		lastBroadcastSeason = "";
 	}
 
-	private static WorldSeasonPayload currentPayload() {
+	private static WorldSeasonPayload currentPayload(MinecraftServer server) {
 		if (!MadokuSeason.isEnabled()) {
 			return null;
 		}
-		String season = MadokuSeason.getCurrentSeasonId();
+		ServerLevel world = server == null ? null : server.overworld();
+		String season = MadokuSeason.getCurrentSeasonId(world);
 		if (season == null || season.isBlank()) {
 			return null;
 		}

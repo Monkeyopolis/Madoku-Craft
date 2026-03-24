@@ -188,9 +188,29 @@ public final class MadokuFarming {
 		return rule == null || !settings.enabled || isCropGrowingSeason(rule);
 	}
 
+	public static boolean canPlantCrop(ItemStack stack, ServerLevel world) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return rule == null || !settings.enabled || isCropGrowingSeason(rule, world);
+	}
+
+	public static boolean canPlantCrop(ItemStack stack, String seasonId) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return rule == null || !settings.enabled || isCropGrowingSeason(rule, seasonId);
+	}
+
 	public static String getCropSeasonBlockedMessage(ItemStack stack) {
 		CropRule rule = resolveCropRuleByPlantingItem(stack);
 		return getCropSeasonBlockedMessage(rule);
+	}
+
+	public static String getCropSeasonBlockedMessage(ItemStack stack, ServerLevel world) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return getCropSeasonBlockedMessage(rule, world);
+	}
+
+	public static String getCropSeasonBlockedMessage(ItemStack stack, String seasonId) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return getCropSeasonBlockedMessage(rule, seasonId);
 	}
 
 	public static boolean isFarmland(BlockState state) {
@@ -1310,11 +1330,25 @@ public final class MadokuFarming {
 	}
 
 	private static boolean isCropGrowingSeason(CropRule rule) {
+		return isCropGrowingSeason(rule, (ServerLevel) null);
+	}
+
+	private static boolean isCropGrowingSeason(CropRule rule, ServerLevel world) {
 		if (rule == null || !MadokuSeason.isEnabled()) {
 			return true;
 		}
 
-		String seasonId = MadokuSeason.getCurrentSeasonId();
+		String seasonId = world == null ? MadokuSeason.getCurrentSeasonId() : MadokuSeason.getCurrentSeasonId(world);
+		if (seasonId == null || seasonId.isBlank()) {
+			return true;
+		}
+			return !rule.blockedSeasonIds().contains(normalizeSeasonId(seasonId));
+	}
+
+	private static boolean isCropGrowingSeason(CropRule rule, String seasonId) {
+		if (rule == null || !MadokuSeason.isEnabled()) {
+			return true;
+		}
 		if (seasonId == null || seasonId.isBlank()) {
 			return true;
 		}
@@ -1322,14 +1356,36 @@ public final class MadokuFarming {
 	}
 
 	private static String getCropSeasonBlockedMessage(CropRule rule) {
-		String seasonName = MadokuSeason.getCurrentSeasonDisplayName();
+		return getCropSeasonBlockedMessage(rule, (ServerLevel) null);
+	}
+
+	private static String getCropSeasonBlockedMessage(CropRule rule, ServerLevel world) {
+		String seasonName = world == null ? MadokuSeason.getCurrentSeasonDisplayName() : MadokuSeason.getCurrentSeasonDisplayName(world);
 		if (seasonName == null || seasonName.isBlank()) {
 			seasonName = "this season";
 		}
 		String cropName = rule == null || rule.displayName() == null || rule.displayName().isBlank()
 			? "Crop"
 			: rule.displayName();
+			return cropName + " can't grow during " + seasonName + ".";
+	}
+
+	private static String getCropSeasonBlockedMessage(CropRule rule, String seasonId) {
+		String seasonName = seasonId == null || seasonId.isBlank()
+			? "this season"
+			: capitalizeSeasonLabel(seasonId);
+		String cropName = rule == null || rule.displayName() == null || rule.displayName().isBlank()
+			? "Crop"
+			: rule.displayName();
 		return cropName + " can't grow during " + seasonName + ".";
+	}
+
+	private static String capitalizeSeasonLabel(String value) {
+		if (value == null || value.isBlank()) {
+			return "this season";
+		}
+		String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
 	private static CropRule resolveCropRuleByPlantingItem(ItemStack stack) {
@@ -1642,7 +1698,7 @@ public final class MadokuFarming {
 			multiplier += settings.fertilizedGrowthBonus;
 		}
 		multiplier = Math.min(1.5d, multiplier);
-		if (rule != null && !isCropGrowingSeason(rule)) {
+		if (rule != null && !isCropGrowingSeason(rule, world)) {
 			multiplier *= Math.max(0.0d, settings.outOfSeasonGrowthMultiplier);
 		}
 		return multiplier;
@@ -1788,7 +1844,7 @@ public final class MadokuFarming {
 				multiplier += settings.fertilizedGrowthBonus;
 			}
 		}
-		if (rule != null && !isCropGrowingSeason(rule)) {
+		if (rule != null && !isCropGrowingSeason(rule, world)) {
 			multiplier *= Math.max(0.0d, settings.outOfSeasonGrowthMultiplier);
 		}
 		return multiplier;

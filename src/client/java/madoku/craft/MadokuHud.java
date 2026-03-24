@@ -821,6 +821,14 @@ public final class MadokuHud {
 		hasServerSeason = true;
 	}
 
+	public static boolean hasServerSeason() {
+		return hasServerSeason;
+	}
+
+	public static String getServerSeason() {
+		return serverSeason;
+	}
+
 	public static void clearServerSeason() {
 		serverSeason = "spring";
 		hasServerSeason = false;

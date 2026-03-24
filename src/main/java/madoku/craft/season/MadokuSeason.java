@@ -147,24 +147,48 @@ public final class MadokuSeason {
 		return resolveCurrentState();
 	}
 
+	public static SeasonState getCurrentState(ServerLevel world) {
+		return resolveCurrentState(world);
+	}
+
 	public static Season getCurrentSeason() {
 		return getCurrentState().season();
+	}
+
+	public static Season getCurrentSeason(ServerLevel world) {
+		return getCurrentState(world).season();
 	}
 
 	public static String getCurrentSeasonId() {
 		return getCurrentSeason().id;
 	}
 
+	public static String getCurrentSeasonId(ServerLevel world) {
+		return getCurrentSeason(world).id;
+	}
+
 	public static String getCurrentSeasonDisplayName() {
 		return capitalizeSeasonId(getCurrentSeasonId());
+	}
+
+	public static String getCurrentSeasonDisplayName(ServerLevel world) {
+		return capitalizeSeasonId(getCurrentSeasonId(world));
 	}
 
 	public static int getCurrentSeasonDay() {
 		return getCurrentState().seasonDay();
 	}
 
+	public static int getCurrentSeasonDay(ServerLevel world) {
+		return getCurrentState(world).seasonDay();
+	}
+
 	public static int getCurrentSeasonWeek() {
 		return getCurrentState().week();
+	}
+
+	public static int getCurrentSeasonWeek(ServerLevel world) {
+		return getCurrentState(world).week();
 	}
 
 	public static BiomeClimate resolveBiomeClimate(ServerLevel world, net.minecraft.core.BlockPos pos) {
@@ -349,11 +373,12 @@ public final class MadokuSeason {
 			return;
 		}
 
-		SeasonState currentState = refreshSeasonState();
 		ServerLevel world = server.overworld();
 		if (world == null) {
 			return;
 		}
+
+		SeasonState currentState = refreshSeasonState(world);
 
 		List<Long> candidateChunks = collectCandidateChunks(server, world);
 		if (candidateChunks.isEmpty()) {
@@ -382,12 +407,13 @@ public final class MadokuSeason {
 			return;
 		}
 
-		SeasonState currentState = refreshSeasonState();
 		ServerLevel world = server.overworld();
 		if (world == null) {
 			requestSeasonProcessProcessing(server, MadokuSeasonConfig.DEFAULT_SEASON_PROCESS_INTERVAL_TICKS);
 			return;
 		}
+
+		SeasonState currentState = refreshSeasonState(world);
 
 		SeasonWaterWork work = pollNextSeasonWaterWork();
 		if (work == null) {
@@ -400,9 +426,9 @@ public final class MadokuSeason {
 		requestSeasonProcessProcessing(server, MadokuSeasonConfig.DEFAULT_SEASON_PROCESS_INTERVAL_TICKS);
 	}
 
-	private static SeasonState refreshSeasonState() {
+	private static SeasonState refreshSeasonState(ServerLevel world) {
 		SeasonState previousState = lastProcessedState;
-		SeasonState currentState = resolveCurrentState();
+		SeasonState currentState = resolveCurrentState(world);
 		boolean seasonTransition = previousState.absoluteDay() >= 0L && previousState.season() != currentState.season();
 		if (seasonTransition) {
 			emitSeasonTransitionDebug(previousState, currentState);
@@ -410,7 +436,30 @@ public final class MadokuSeason {
 		if (!currentState.equals(previousState)) {
 			lastProcessedState = currentState;
 		}
+		if (seasonTransition) {
+			refreshSeasonQueue(world == null ? null : world.getServer());
+		}
 		return currentState;
+	}
+
+	private static void refreshSeasonQueue(MinecraftServer server) {
+		PENDING_WATER_WORK.clear();
+		PENDING_WATER_WORK_ORDER.clear();
+		seasonScanTaskScheduled = false;
+		seasonProcessTaskScheduled = false;
+
+		if (server == null) {
+			return;
+		}
+
+		String schedulerId = ensureSeasonSchedulerExists();
+		if (schedulerId != null && !schedulerId.isBlank()) {
+			MadokuScheduler.clearQueuedRequests(schedulerId);
+		}
+
+		savePersistedData(server);
+		requestSeasonScanProcessing(server, 1L);
+		requestSeasonProcessProcessing(server, 1L);
 	}
 
 	private static void emitSeasonTransitionDebug(SeasonState previousState, SeasonState currentState) {

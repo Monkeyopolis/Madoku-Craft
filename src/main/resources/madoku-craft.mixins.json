@@ -56,6 +56,7 @@
     "PlayerSleepTickMixin",
     "SaturationMobEffectMixin",
     "FarmlandBlockFarmingMixin",
+    "ServerPlayerGameModeFarmingMixin",
     "ServerLevelSeasonalPrecipitationMixin",
     "ServerExplosionBlockRadiusMixin",
     "ServerExplosionPlayerDamageMixin",
@@ -73,6 +74,7 @@
     "client.GuiGraphicsStackCountMixin",
     "client.GuiAccessor",
     "client.ItemFoodClientGateMixin",
+    "client.MultiPlayerGameModeFarmingMixin",
     "client.PlayerEatClientGateMixin"
   ],
   "injectors": {
