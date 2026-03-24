@@ -144,7 +144,7 @@ public final class MadokuSeason {
 	}
 
 	public static SeasonState getCurrentState() {
-		return resolveCurrentState();
+		return resolveDisplayState();
 	}
 
 	public static SeasonState getCurrentState(ServerLevel world) {
@@ -907,6 +907,14 @@ public final class MadokuSeason {
 			);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+	}
+
+	private static SeasonState resolveDisplayState() {
+		SeasonState snapshot = lastProcessedState;
+		if (!MadokuTime.isEnabled() && snapshot.absoluteDay() >= 0L) {
+			return snapshot;
+		}
+		return resolveCurrentState();
 	}
 
 	private static SeasonState resolveCurrentState() {
