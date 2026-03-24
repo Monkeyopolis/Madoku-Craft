@@ -1,48 +1,43 @@
 package madoku.craft.clock;
 
-public final class MadokuClock {
-	public static final long TICKS_PER_SECOND = 20L;
-	public static final long SECONDS_PER_MINUTE = 60L;
+import net.minecraft.server.level.ServerLevel;
 
-	private static long gameplayTicks = 0L;
-	private static long timeTicks = 0L;
+public final class MadokuClock {
+	private static boolean hasObservedWorldTime = false;
+	private static long lastObservedWorldDayTime = 0L;
+	private static long lastWorldTimeDelta = 0L;
 
 	private MadokuClock() {
 	}
 
-	public static void tickGameplay() {
-		gameplayTicks++;
+	public static void reset() {
+		hasObservedWorldTime = false;
+		lastObservedWorldDayTime = 0L;
+		lastWorldTimeDelta = 0L;
 	}
 
-	public static void tickTime() {
-		tickTime(1L);
-	}
-
-	public static void tickTime(long amount) {
-		if (amount <= 0L) {
+	public static void observeWorldTime(ServerLevel world) {
+		if (world == null) {
 			return;
 		}
-		timeTicks += amount;
+		observeWorldTime(world.getDayTime());
 	}
 
-	public static void reset() {
-		gameplayTicks = 0L;
-		timeTicks = 0L;
+	public static void observeWorldTime(long observedWorldDayTime) {
+		if (hasObservedWorldTime) {
+			lastWorldTimeDelta = observedWorldDayTime - lastObservedWorldDayTime;
+		} else {
+			lastWorldTimeDelta = 0L;
+			hasObservedWorldTime = true;
+		}
+		lastObservedWorldDayTime = observedWorldDayTime;
 	}
 
-	public static long getGameplayTicks() {
-		return gameplayTicks;
+	public static long getLastObservedWorldDayTime() {
+		return hasObservedWorldTime ? lastObservedWorldDayTime : 0L;
 	}
 
-	public static long getTimeTicks() {
-		return timeTicks;
-	}
-
-	public static void setGameplayTicks(long value) {
-		gameplayTicks = Math.max(0L, value);
-	}
-
-	public static void setTimeTicks(long value) {
-		timeTicks = Math.max(0L, value);
+	public static long getLastWorldTimeDelta() {
+		return lastWorldTimeDelta;
 	}
 }

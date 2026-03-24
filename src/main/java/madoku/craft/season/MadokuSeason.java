@@ -2,7 +2,7 @@ package madoku.craft.season;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.clock.MadokuClock;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
@@ -116,7 +116,7 @@ public final class MadokuSeason {
 				}
 
 				loadPendingWaterWork(data);
-				lastAutosaveBucket = Math.floorDiv(MadokuClock.getTimeTicks(), AUTOSAVE_INTERVAL_TICKS);
+				lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 			}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -124,7 +124,7 @@ public final class MadokuSeason {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuClock.getTimeTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -420,7 +420,7 @@ public final class MadokuSeason {
 
 		MadokuDebug.event("season.transition", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuClock.getTimeTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.subject("season")
 			.field("from", previousState.season().id)
 			.field("to", currentState.season().id)
@@ -447,7 +447,7 @@ public final class MadokuSeason {
 
 		MadokuDebug.event("season.queue_scan", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuClock.getTimeTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject("season_water_scan")
 			.field("season", state == null ? "unknown" : state.season().id)
@@ -474,7 +474,7 @@ public final class MadokuSeason {
 		BlockPos pos = BlockPos.of(work.blockPosLong());
 		MadokuDebug.event("season.queue_process", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuClock.getTimeTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject("block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
 			.field("season", state == null ? "unknown" : state.season().id)
@@ -615,7 +615,7 @@ public final class MadokuSeason {
 				action,
 				state.season().id,
 				state.seasonDay(),
-				MadokuClock.getTimeTicks()
+				MadokuTicks.getGameplayTicks()
 			);
 		}
 

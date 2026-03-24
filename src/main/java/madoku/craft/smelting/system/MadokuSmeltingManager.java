@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.clock.MadokuClock;
 import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
@@ -74,8 +75,6 @@ public final class MadokuSmeltingManager {
 	private static final Set<FurnaceKey> scheduledFurnaces = new HashSet<>();
 	private static final Map<FurnaceKey, Long> lastProcessedMadokuTickByFurnace = new HashMap<>();
 	private static final Map<FurnaceKey, Long> lastProcessedGameTimeByFurnace = new HashMap<>();
-	private static long previousServerTickIncrement = 1L;
-	private static long currentServerTickIncrement = 1L;
 
 	private MadokuSmeltingManager() {
 	}
@@ -148,11 +147,6 @@ public final class MadokuSmeltingManager {
 		resetRuntimeState();
 	}
 
-	public static void onServerTickIncrement(long tickIncrement) {
-		previousServerTickIncrement = Math.max(1L, currentServerTickIncrement);
-		currentServerTickIncrement = Math.max(1L, tickIncrement);
-	}
-
 	public static void onFurnaceServerTick(
 		ServerLevel level,
 		BlockPos blockPos,
@@ -211,18 +205,17 @@ public final class MadokuSmeltingManager {
 		long tickDelta = nowMadokuTick - lastTick;
 		lastProcessedMadokuTickByFurnace.put(key, nowMadokuTick);
 
-		long gameTime = level.getGameTime();
-		long lastProcessedGameTime = lastProcessedGameTimeByFurnace.getOrDefault(key, Long.MIN_VALUE);
-		if (lastProcessedGameTime != gameTime) {
-			lastProcessedGameTimeByFurnace.put(key, gameTime);
-			long expectedDeltaFromScheduling = Math.max(1L, previousServerTickIncrement);
-			long extraTicksFromClockJump = Math.max(0L, tickDelta - expectedDeltaFromScheduling);
-			long extraTicksFromSleep = Math.max(0L, currentServerTickIncrement - 1L);
-			long extraTicks = extraTicksFromClockJump + extraTicksFromSleep;
-			if (extraTicks > 0L) {
-				advanceSingleFurnaceTicks(level, blockPos, extraTicks);
+			long gameTime = level.getGameTime();
+			long lastProcessedGameTime = lastProcessedGameTimeByFurnace.getOrDefault(key, Long.MIN_VALUE);
+			if (lastProcessedGameTime != gameTime) {
+				lastProcessedGameTimeByFurnace.put(key, gameTime);
+				long extraTicksFromScheduling = Math.max(0L, tickDelta - 1L);
+				long extraTicksFromWorldTimeJump = Math.max(0L, MadokuClock.getLastWorldTimeDelta());
+				long extraTicks = extraTicksFromScheduling + extraTicksFromWorldTimeJump;
+				if (extraTicks > 0L) {
+					advanceSingleFurnaceTicks(level, blockPos, extraTicks);
+				}
 			}
-		}
 
 		BlockState currentState = level.getBlockState(blockPos);
 		if (!shouldTrackFurnace(furnace, currentState)) {
@@ -271,7 +264,7 @@ public final class MadokuSmeltingManager {
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.TIME
+			MadokuScheduler.TickDomain.GAMEPLAY
 		);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
@@ -340,8 +333,6 @@ public final class MadokuSmeltingManager {
 		scheduledFurnaces.clear();
 		lastProcessedMadokuTickByFurnace.clear();
 		lastProcessedGameTimeByFurnace.clear();
-		previousServerTickIncrement = 1L;
-		currentServerTickIncrement = 1L;
 	}
 
 	public static boolean isAdditionalInput(RecipeType<?> recipeType, ItemStack stack) {

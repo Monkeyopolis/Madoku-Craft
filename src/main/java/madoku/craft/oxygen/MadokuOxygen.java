@@ -3,7 +3,7 @@ package madoku.craft.oxygen;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.clock.MadokuClock;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -39,7 +39,7 @@ public final class MadokuOxygen {
 	private static final String TASK_TYPE_OXYGEN_TICK = "oxygen_tick";
 	private static final String VANILLA_BREATH_OF_THE_NAUTILUS_DESCRIPTION_ID = "effect.minecraft.breath_of_the_nautilus";
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
-	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuClock.TICKS_PER_SECOND);
+	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuTicks.TICKS_PER_SECOND);
 	private static final double MIN_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 0.1d;
 	private static final double MAX_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 100.0d;
 	private static final double DEFAULT_MAXIMUM_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 2.0d;
@@ -83,7 +83,7 @@ public final class MadokuOxygen {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -91,7 +91,7 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);

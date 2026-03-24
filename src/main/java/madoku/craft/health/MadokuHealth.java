@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
-import madoku.craft.clock.MadokuClock;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
@@ -99,7 +99,7 @@ public final class MadokuHealth {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -107,7 +107,7 @@ public final class MadokuHealth {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -633,7 +633,7 @@ public final class MadokuHealth {
 		PlayerState state = PLAYER_STATES.computeIfAbsent(newPlayer.getUUID(), ignored -> new PlayerState());
 		state.pendingHealth = 0.0f;
 		state.highHungerDrainActive = newPlayer.getHealth() + EPSILON < newPlayer.getMaxHealth();
-		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
+		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.appliedMaxHealthMultiplier = 1.0d;
 		state.appliedHealthBoostAmount = 0.0d;
 		state.appliedAbsorptionAmount = 0.0f;
@@ -643,7 +643,7 @@ public final class MadokuHealth {
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.respawn_half_health")) {
 			MadokuDebug.event("health.respawn_half_health", MadokuDebug.Domain.HEALTH)
 				.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuClock.getGameplayTicks())
+				.tick(MadokuTicks.getGameplayTicks())
 				.subject("player:" + newPlayer.getUUID())
 				.field("health", formatFloat(newPlayer.getHealth()))
 				.field("max_health", formatFloat(newPlayer.getMaxHealth()))
@@ -664,12 +664,12 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
+		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.damage_detected")) {
 			MadokuDebug.event("health.damage_detected", MadokuDebug.Domain.HEALTH)
 				.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuClock.getGameplayTicks())
+				.tick(MadokuTicks.getGameplayTicks())
 				.subject("player:" + player.getUUID())
 				.field("damage_taken", formatFloat(damageTaken))
 				.field("blocked", blocked)
@@ -684,9 +684,9 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastPendingActivityTick = MadokuClock.getGameplayTicks();
+		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
-		applyImmediateEffectOverrides(player, state, MadokuClock.getGameplayTicks());
+		applyImmediateEffectOverrides(player, state, MadokuTicks.getGameplayTicks());
 		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 	}
 
@@ -697,7 +697,7 @@ public final class MadokuHealth {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		long gameplayTick = MadokuClock.getGameplayTicks();
+		long gameplayTick = MadokuTicks.getGameplayTicks();
 		state.lastPendingActivityTick = gameplayTick;
 		applyImmediateEffectOverrides(player, state, gameplayTick);
 		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
