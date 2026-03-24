@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.clock.MadokuClock;
 import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
@@ -219,6 +220,9 @@ public final class MadokuSmeltingManager {
 			long extraTicksFromClockJump = Math.max(0L, tickDelta - expectedDeltaFromScheduling);
 			long extraTicksFromSleep = Math.max(0L, currentServerTickIncrement - 1L);
 			long extraTicks = extraTicksFromClockJump + extraTicksFromSleep;
+			if (extraTicks <= 0L) {
+				extraTicks = Math.max(0L, MadokuClock.getLastWorldTimeDelta());
+			}
 			if (extraTicks > 0L) {
 				advanceSingleFurnaceTicks(level, blockPos, extraTicks);
 			}

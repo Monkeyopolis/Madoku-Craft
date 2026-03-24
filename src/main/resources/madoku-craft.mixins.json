@@ -56,9 +56,10 @@
     "SaturationMobEffectMixin",
     "ExplosionBlockRadiusMixin",
     "ExplosionPlayerDamageMixin",
-    "ServerLevelSeasonalPrecipitationMixin",
-    "ServerPlayerDrowningDamageMixin",
-    "SkeletonSpawnOverridesMixin",
+	    "ServerLevelSeasonalPrecipitationMixin",
+	    "ServerPlayerDrowningDamageMixin",
+	    "ServerPlayerGameModeFarmingMixin",
+	    "SkeletonSpawnOverridesMixin",
     "SmithingTransformRecipeRarityMixin",
     "SpiderSpawnOverridesMixin",
     "StemBlockFarmingMixin",
@@ -69,9 +70,10 @@
     "client.GuiHideVanillaHudMixin",
     "client.GuiGraphicsRarityOverlayMixin",
     "client.GuiGraphicsStackCountMixin",
-    "client.GuiAccessor",
-    "client.ItemFoodClientGateMixin",
-    "client.PlayerEatClientGateMixin"
+	    "client.GuiAccessor",
+	    "client.ItemFoodClientGateMixin",
+	    "client.MultiPlayerGameModeFarmingMixin",
+	    "client.PlayerEatClientGateMixin"
   ],
   "injectors": {
     "defaultRequire": 1

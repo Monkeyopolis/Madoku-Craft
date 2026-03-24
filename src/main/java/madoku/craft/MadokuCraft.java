@@ -66,10 +66,11 @@ public class MadokuCraft implements ModInitializer {
 		WorldDifficultySync.initialize();
 		WorldSeasonSync.initialize();
 		HungerHudSync.initialize();
-		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			MadokuDebug.resetSession();
-			MadokuClock.reset();
-			MadokuSleep.reset();
+			ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+				MadokuDebug.resetSession();
+				MadokuClock.reset();
+				MadokuTicks.reset();
+				MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
 			MadokuFarming.reset();
@@ -100,7 +101,7 @@ public class MadokuCraft implements ModInitializer {
 			WorldDifficultySync.broadcastNow(server);
 			WorldSeasonSync.broadcastNow(server);
 		});
-		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			MadokuSeason.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
 			MadokuTime.savePersistedData(server);
@@ -108,9 +109,10 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHealth.savePersistedData(server);
 			MadokuHunger.savePersistedData(server);
 			MadokuOxygen.savePersistedData(server);
-			MadokuItemStack.savePersistedData(server);
-			MadokuClock.reset();
-			MadokuSleep.reset();
+				MadokuItemStack.savePersistedData(server);
+				MadokuClock.reset();
+				MadokuTicks.reset();
+				MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
 			MadokuFarming.reset();
@@ -131,7 +133,7 @@ public class MadokuCraft implements ModInitializer {
 				// Remap sleep / time-command jumps before any time-based tasks consume this tick.
 				MadokuTime.update(server);
 				MadokuSmeltingManager.onServerTickIncrement(tickIncrement);
-				MadokuFarming.onServerTickIncrement(tickIncrement);
+				MadokuFarming.onServerTickIncrement(server, tickIncrement);
 				MadokuTicks.advance(server, tickIncrement);
 				MadokuScheduler.autosavePersistedData(server);
 				MadokuTime.autosavePersistedData(server);

@@ -760,6 +760,14 @@ public final class MadokuHud {
 		hasServerSeason = false;
 	}
 
+	public static boolean hasServerSeason() {
+		return hasServerSeason;
+	}
+
+	public static String getServerSeason() {
+		return serverSeason;
+	}
+
 	public static void setServerHunger(int current, int pending, int max) {
 		int normalizedCurrent = Math.max(0, current);
 		int normalizedPending = Math.max(0, pending);

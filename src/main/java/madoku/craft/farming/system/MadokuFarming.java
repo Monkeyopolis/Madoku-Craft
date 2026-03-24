@@ -131,7 +131,7 @@ public final class MadokuFarming {
 		requestFarmingProcessing(server, FARMING_SCHEDULER_INTERVAL_TICKS);
 	}
 
-	public static void onServerTickIncrement(long tickIncrement) {
+	public static void onServerTickIncrement(MinecraftServer server, long tickIncrement) {
 		// Gameplay cadence is handled by the scheduler; growth catch-up is based on absolute time.
 	}
 
@@ -188,9 +188,29 @@ public final class MadokuFarming {
 		return rule == null || !settings.enabled || isCropGrowingSeason(rule);
 	}
 
+	public static boolean canPlantCrop(ItemStack stack, ServerLevel world) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return rule == null || !settings.enabled || isCropGrowingSeason(rule, world);
+	}
+
+	public static boolean canPlantCrop(ItemStack stack, String seasonId) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return rule == null || !settings.enabled || isCropGrowingSeason(rule, seasonId);
+	}
+
 	public static String getCropSeasonBlockedMessage(ItemStack stack) {
 		CropRule rule = resolveCropRuleByPlantingItem(stack);
 		return getCropSeasonBlockedMessage(rule);
+	}
+
+	public static String getCropSeasonBlockedMessage(ItemStack stack, ServerLevel world) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return getCropSeasonBlockedMessage(rule, world);
+	}
+
+	public static String getCropSeasonBlockedMessage(ItemStack stack, String seasonId) {
+		CropRule rule = resolveCropRuleByPlantingItem(stack);
+		return getCropSeasonBlockedMessage(rule, seasonId);
 	}
 
 	public static boolean isFarmland(BlockState state) {
@@ -1321,8 +1341,56 @@ public final class MadokuFarming {
 		return !rule.blockedSeasonIds().contains(normalizeSeasonId(seasonId));
 	}
 
+	private static boolean isCropGrowingSeason(CropRule rule, ServerLevel world) {
+		if (rule == null || !MadokuSeason.isEnabled()) {
+			return true;
+		}
+
+		String seasonId = MadokuSeason.getCurrentSeasonId(world);
+		if (seasonId == null || seasonId.isBlank()) {
+			return true;
+		}
+		return !rule.blockedSeasonIds().contains(normalizeSeasonId(seasonId));
+	}
+
+	private static boolean isCropGrowingSeason(CropRule rule, String seasonId) {
+		if (rule == null || !MadokuSeason.isEnabled()) {
+			return true;
+		}
+
+		String normalizedSeasonId = normalizeSeasonId(seasonId);
+		if (normalizedSeasonId.isBlank()) {
+			return true;
+		}
+		return !rule.blockedSeasonIds().contains(normalizedSeasonId);
+	}
+
 	private static String getCropSeasonBlockedMessage(CropRule rule) {
 		String seasonName = MadokuSeason.getCurrentSeasonDisplayName();
+		if (seasonName == null || seasonName.isBlank()) {
+			seasonName = "this season";
+		}
+		String cropName = rule == null || rule.displayName() == null || rule.displayName().isBlank()
+			? "Crop"
+			: rule.displayName();
+		return cropName + " can't grow during " + seasonName + ".";
+	}
+
+	private static String getCropSeasonBlockedMessage(CropRule rule, ServerLevel world) {
+		String seasonName = MadokuSeason.getCurrentSeasonDisplayName(world);
+		if (seasonName == null || seasonName.isBlank()) {
+			seasonName = "this season";
+		}
+		String cropName = rule == null || rule.displayName() == null || rule.displayName().isBlank()
+			? "Crop"
+			: rule.displayName();
+		return cropName + " can't grow during " + seasonName + ".";
+	}
+
+	private static String getCropSeasonBlockedMessage(CropRule rule, String seasonId) {
+		String seasonName = seasonId == null || seasonId.isBlank()
+			? "this season"
+			: capitalizeSeasonId(normalizeSeasonId(seasonId));
 		if (seasonName == null || seasonName.isBlank()) {
 			seasonName = "this season";
 		}
