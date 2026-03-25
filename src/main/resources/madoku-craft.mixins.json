@@ -35,7 +35,6 @@
 	    "ItemStackDurabilityLoreMixin",
 	    "ItemStackFarmingMixin",
 	    "ItemStackMaxSizeMixin",
-	    "LevelSeasonalPrecipitationMixin",
 	    "LivingEntityArmorDamageMixin",
 	    "LivingEntityEffectAttributeOverrideMixin",
 	    "LivingEntityEffectMixin",

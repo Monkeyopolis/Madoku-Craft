@@ -41,10 +41,6 @@ public final class WorldSeasonSync {
 			initialized = true;
 	}
 
-	public static void initializeClient() {
-		PayloadTypeRegistry.playS2C().register(WorldSeasonPayload.TYPE, WorldSeasonPayload.CODEC);
-	}
-
 	public static void reset() {
 		lastBroadcastSeason = "";
 	}

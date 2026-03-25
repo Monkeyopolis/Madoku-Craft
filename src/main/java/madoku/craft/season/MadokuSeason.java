@@ -1009,16 +1009,6 @@ public final class MadokuSeason {
 		return resolveCurrentState(null);
 	}
 
-	private static SeasonState resolveCurrentState(Level level) {
-		if (level instanceof ServerLevel serverLevel) {
-			return resolveCurrentState(serverLevel);
-		}
-
-		long absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime();
-		long absoluteDay = Math.max(0L, MadokuTime.getDay(absoluteDayTime));
-		return resolveStateForAbsoluteDay(absoluteDay);
-	}
-
 	private static SeasonState resolveCurrentState(ServerLevel world) {
 		long absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(world);
 		long absoluteDay = Math.max(0L, MadokuTime.getDay(absoluteDayTime));

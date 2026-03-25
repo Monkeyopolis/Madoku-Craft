@@ -4,35 +4,40 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.season.MadokuSeason;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.biome.Biome;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biome.Precipitation;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(targets = "net.minecraft.client.renderer.WeatherEffectRenderer")
+@Mixin(LevelRenderer.class)
 public abstract class WeatherEffectRendererMixin {
 	@Unique
 	private static volatile boolean loggedWeatherRendererHook = false;
 
-	@Inject(
-		method = "getPrecipitationAt(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/biome/Biome$Precipitation;",
-		at = @At("HEAD"),
-		cancellable = true
+	@Shadow
+	@Final
+	private Minecraft minecraft;
+
+	@Redirect(
+		method = "renderSnowAndRain(Lnet/minecraft/client/renderer/LightTexture;FDDD)V",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/level/biome/Biome;getPrecipitationAt(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/biome/Biome$Precipitation;"
+		)
 	)
-	private void madokuCraft$seasonalClientPrecipitation(
-		Level level,
-		BlockPos pos,
-		CallbackInfoReturnable<Biome.Precipitation> cir
-	) {
-		if (level == null || pos == null || !MadokuSeason.isEnabled()) {
-			return;
+	private Precipitation madokuCraft$seasonalClientPrecipitation(Biome biome, BlockPos pos) {
+		Level level = this.minecraft == null ? null : this.minecraft.level;
+		if (biome == null || level == null || pos == null || !MadokuSeason.isEnabled()) {
+			return biome == null ? Precipitation.NONE : biome.getPrecipitationAt(pos);
 		}
 
-		Biome biome = level.getBiome(pos).value();
 		Precipitation precipitation = MadokuSeason.resolveSeasonalPrecipitation(level, biome).vanilla();
 		if (!loggedWeatherRendererHook && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_renderer_client")) {
 			loggedWeatherRendererHook = true;
@@ -42,9 +47,9 @@ public abstract class WeatherEffectRendererMixin {
 				.subject("weather_renderer")
 				.field("biome", biome.getClass().getName())
 				.field("season", MadokuSeason.getCurrentSeasonId())
-					.field("precipitation", precipitation.name())
-					.log();
+				.field("precipitation", precipitation.name())
+				.log();
 		}
-		cir.setReturnValue(precipitation);
+		return precipitation;
 	}
 }
