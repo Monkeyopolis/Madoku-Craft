@@ -10,6 +10,7 @@ import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mixin.ItemComponentsAccessor;
+import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
@@ -79,6 +80,10 @@ public final class MadokuItem {
 	}
 
 	public static void onServerStarted() {
+		applyConfiguredItemMetadata();
+	}
+
+	public static void applyConfiguredItemMetadata() {
 		if (!enabled) {
 			return;
 		}
@@ -432,18 +437,16 @@ public final class MadokuItem {
 			}
 		}
 
-		enabled = true;
-		fuelTicksByItem = Map.copyOf(resolvedFuel);
-		stackModesByItem = Map.copyOf(resolvedStackModes);
-		toolProfilesByItem = Map.copyOf(resolvedTools);
-		armorProfilesByItem = Map.copyOf(resolvedArmor);
-		composterAdjustmentsByItem = Map.copyOf(resolvedComposterAdjustments);
-		secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
-		toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
-		armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
-		applyToolProfiles(toolProfilesByItem);
-		applyArmorProfiles(armorProfilesByItem);
-	}
+			enabled = true;
+			fuelTicksByItem = Map.copyOf(resolvedFuel);
+			stackModesByItem = Map.copyOf(resolvedStackModes);
+			toolProfilesByItem = Map.copyOf(resolvedTools);
+			armorProfilesByItem = Map.copyOf(resolvedArmor);
+			composterAdjustmentsByItem = Map.copyOf(resolvedComposterAdjustments);
+			secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
+			toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
+			armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
+		}
 
 	private static JsonObject buildDynamicFuelDefaultsForFile(String fileKey) {
 		String itemId = resolveItemId(fileKey, null);
@@ -829,14 +832,11 @@ public final class MadokuItem {
 	}
 
 	private static void applyToolProfile(Item item, MadokuToolProfile profile) {
-		if (!(item instanceof ItemComponentsAccessor accessor)) {
+		if (item == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = item.components();
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		boolean changed = false;
@@ -868,7 +868,8 @@ public final class MadokuItem {
 		}
 
 		if (changed) {
-			accessor.madokuCraft$setComponents(builder.build());
+			((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) item).madokuCraft$getBuiltInRegistryHolder())
+				.madokuCraft$bindComponents(builder.build());
 		}
 	}
 
@@ -914,14 +915,11 @@ public final class MadokuItem {
 	}
 
 	private static void applyArmorProfile(Item item, MadokuArmorProfile profile) {
-		if (!(item instanceof ItemComponentsAccessor accessor)) {
+		if (item == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = item.components();
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		boolean changed = false;
@@ -939,7 +937,8 @@ public final class MadokuItem {
 		}
 
 		if (changed) {
-			accessor.madokuCraft$setComponents(builder.build());
+			((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) item).madokuCraft$getBuiltInRegistryHolder())
+				.madokuCraft$bindComponents(builder.build());
 		}
 	}
 
@@ -1105,10 +1104,10 @@ public final class MadokuItem {
 		AttackRange baseline = current != null ? current : DEFAULT_REACH;
 		MadokuToolProfile.ReachProfile reach = profile.reach();
 		return new AttackRange(
-			valueOrDefault(reach.minRange(), baseline.minRange()),
-			valueOrDefault(reach.maxRange(), baseline.maxRange()),
-			valueOrDefault(reach.minCreativeRange(), baseline.minCreativeRange()),
-			valueOrDefault(reach.maxCreativeRange(), baseline.maxCreativeRange()),
+			valueOrDefault(reach.minRange(), baseline.minReach()),
+			valueOrDefault(reach.maxRange(), baseline.maxReach()),
+			valueOrDefault(reach.minCreativeRange(), baseline.minCreativeReach()),
+			valueOrDefault(reach.maxCreativeRange(), baseline.maxCreativeReach()),
 			valueOrDefault(reach.hitboxMargin(), baseline.hitboxMargin()),
 			valueOrDefault(reach.mobFactor(), baseline.mobFactor())
 		);

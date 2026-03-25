@@ -12,6 +12,7 @@ import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.season.MadokuSeasonConfig;
 import madoku.craft.time.MadokuTime;
+import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -125,6 +126,7 @@ public final class MadokuFarming {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		applyCropItemMetadata();
 		lastProcessedAbsoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(server.overworld());
 		farmingSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
 		MadokuScheduler.clearQueuedRequests(farmingSchedulerId);
@@ -1136,20 +1138,18 @@ public final class MadokuFarming {
 						matureBlockRules.put(rule.matureBlockId(), rule);
 					}
 				}
-				cropRulesByPlantingItemId = Map.copyOf(plantingRules);
-				cropRulesByCropBlockId = Map.copyOf(blockRules);
-				cropRulesByMatureBlockId = Map.copyOf(matureBlockRules);
+			cropRulesByPlantingItemId = Map.copyOf(plantingRules);
+			cropRulesByCropBlockId = Map.copyOf(blockRules);
+			cropRulesByMatureBlockId = Map.copyOf(matureBlockRules);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuFarming crop config; using defaults.", exception);
 			cropRulesByPlantingItemId = Map.copyOf(defaultCropRulesByPlantingItemId());
 			cropRulesByCropBlockId = Map.copyOf(defaultCropRulesByCropBlockId());
 			cropRulesByMatureBlockId = Map.copyOf(defaultCropRulesByMatureBlockId());
 		}
-
-		updateCropItemMetadata();
 	}
 
-	private static void updateCropItemMetadata() {
+	public static void applyCropItemMetadata() {
 		if (!MadokuItem.isEnabled() || !settings.enabled) {
 			return;
 		}
@@ -1173,14 +1173,11 @@ public final class MadokuFarming {
 		}
 
 		Item plantingItem = rule.plantingItem();
-		if (!(plantingItem instanceof ItemComponentsAccessor accessor)) {
+		if (plantingItem == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = plantingItem.components();
 
 		List<Component> updatedLines = new ArrayList<>();
 		ItemLore currentLore = base.get(DataComponents.LORE);
@@ -1206,18 +1203,16 @@ public final class MadokuFarming {
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		builder.set(DataComponents.LORE, updatedLore);
-		accessor.madokuCraft$setComponents(builder.build());
+		((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) plantingItem).madokuCraft$getBuiltInRegistryHolder())
+			.madokuCraft$bindComponents(builder.build());
 	}
 
 	private static void applyFertilizerLore(Item item) {
-		if (item == null || !(item instanceof ItemComponentsAccessor accessor)) {
+		if (item == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = item.components();
 
 		List<Component> updatedLines = new ArrayList<>();
 		ItemLore currentLore = base.get(DataComponents.LORE);
@@ -1241,7 +1236,8 @@ public final class MadokuFarming {
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		builder.set(DataComponents.LORE, updatedLore);
-		accessor.madokuCraft$setComponents(builder.build());
+		((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) item).madokuCraft$getBuiltInRegistryHolder())
+			.madokuCraft$bindComponents(builder.build());
 	}
 
 	private static String formatSeasonLoreLine(Set<String> blockedSeasonIds) {

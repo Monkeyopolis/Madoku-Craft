@@ -20,7 +20,7 @@ public final class MadokuClock {
 		if (world == null) {
 			return;
 		}
-		observeWorldTime(world.getDayTime());
+		observeWorldTime(world.getOverworldClockTime());
 	}
 
 	public static void observeWorldTime(long observedWorldDayTime) {

@@ -61,7 +61,7 @@ public final class MadokuSleep {
 		if (!MadokuTime.isEnabled()) {
 			return true;
 		}
-		return MadokuTime.isSleepTime(player.level().getDayTime());
+		return MadokuTime.isSleepTime(player.level().getOverworldClockTime());
 	}
 
 	public static boolean shouldAllowBedSleepByTime(BedRule bedRule, Level level, Player player) {
@@ -75,7 +75,7 @@ public final class MadokuSleep {
 	}
 
 	private static void wakeSleepingPlayers(MinecraftServer server) {
-		if (!MadokuTime.isDaytime(server.overworld().getDayTime())) {
+		if (!MadokuTime.isDaytime(server.overworld().getOverworldClockTime())) {
 			return;
 		}
 

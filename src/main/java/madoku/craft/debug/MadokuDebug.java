@@ -230,14 +230,15 @@ public final class MadokuDebug {
 			}
 		}
 
-				if (!anyEnabled) {
-					setDomainEnabled(Domain.SCHEDULER, true);
-					setDomainEnabled(Domain.SLEEP, true);
-					setDomainEnabled(Domain.HEALTH, true);
-					setDomainEnabled(Domain.HUNGER, true);
-					setDomainEnabled(Domain.MOB, true);
-					setDomainEnabled(Domain.FARMING, true);
-				}
+					if (!anyEnabled) {
+						setDomainEnabled(Domain.SCHEDULER, true);
+						setDomainEnabled(Domain.SLEEP, true);
+						setDomainEnabled(Domain.SMELTING, true);
+						setDomainEnabled(Domain.HEALTH, true);
+						setDomainEnabled(Domain.HUNGER, true);
+						setDomainEnabled(Domain.MOB, true);
+						setDomainEnabled(Domain.FARMING, true);
+					}
 			}
 
 	private static void applyDisabledMetrics(JsonArray patterns) {
@@ -261,11 +262,12 @@ public final class MadokuDebug {
 		JsonObject root = new JsonObject();
 		root.addProperty("enabled", false);
 		JsonArray activeDomains = new JsonArray();
-		activeDomains.add(Domain.SCHEDULER.id());
-			activeDomains.add(Domain.SLEEP.id());
-			activeDomains.add(Domain.HEALTH.id());
-				activeDomains.add(Domain.HUNGER.id());
-				activeDomains.add(Domain.MOB.id());
+			activeDomains.add(Domain.SCHEDULER.id());
+				activeDomains.add(Domain.SLEEP.id());
+				activeDomains.add(Domain.SMELTING.id());
+				activeDomains.add(Domain.HEALTH.id());
+					activeDomains.add(Domain.HUNGER.id());
+					activeDomains.add(Domain.MOB.id());
 				activeDomains.add(Domain.FARMING.id());
 				activeDomains.add(Domain.SEASON.id());
 				root.add("active_domains", activeDomains);
@@ -346,8 +348,9 @@ public final class MadokuDebug {
 		UI("ui"),
 		SPAWNING("spawning"),
 		SCHEDULER("scheduler"),
+		SMELTING("smelting"),
 		HEALTH("health"),
-			HUNGER("hunger"),
+				HUNGER("hunger"),
 			NETWORK("network"),
 			CLOCK("clock"),
 			SLEEP("sleep"),
@@ -385,8 +388,9 @@ public final class MadokuDebug {
 				case "item", "items" -> ITEM;
 				case "ui" -> UI;
 				case "spawn", "spawning", "mob_spawning" -> SPAWNING;
-				case "scheduler", "schedulers" -> SCHEDULER;
-				case "health", "hp" -> HEALTH;
+					case "scheduler", "schedulers" -> SCHEDULER;
+					case "smelting", "smelt" -> SMELTING;
+					case "health", "hp" -> HEALTH;
 						case "hunger", "food" -> HUNGER;
 						case "network", "net" -> NETWORK;
 						case "clock", "time_clock" -> CLOCK;

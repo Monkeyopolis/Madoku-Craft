@@ -25,7 +25,7 @@ public final class WorldDifficultySync {
 		if (initialized) {
 			return;
 		}
-		PayloadTypeRegistry.playS2C().register(WorldDifficultyPayload.TYPE, WorldDifficultyPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(WorldDifficultyPayload.TYPE, WorldDifficultyPayload.CODEC);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
 			syncSinglePlayer(server, handler.player, true)
 		);

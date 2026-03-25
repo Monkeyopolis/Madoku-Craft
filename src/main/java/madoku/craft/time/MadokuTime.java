@@ -7,9 +7,11 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.clock.WorldClocks;
 import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,22 +145,23 @@ public final class MadokuTime {
 		long sessionTicks = getSessionTicks();
 		long absoluteDayTime = getAbsoluteDayTime(sessionTicks, currentSettings);
 
-		ServerLevel overworld = server.overworld();
-		if (overworld != null) {
-			long observedDayTime = overworld.getDayTime();
-			MadokuClock.observeWorldTime(observedDayTime);
-			if (hasAppliedDayTime && observedDayTime != lastAppliedDayTime) {
-				long remappedObservedDayTime =
+			ServerLevel overworld = server.overworld();
+			if (overworld != null) {
+				long observedDayTime = overworld.getOverworldClockTime();
+				MadokuClock.observeWorldTime(observedDayTime);
+				if (hasAppliedDayTime && observedDayTime != lastAppliedDayTime) {
+					long remappedObservedDayTime =
 					remapVanillaTimeSetAnchors(observedDayTime, lastAppliedDayTime, currentSettings);
 				sessionTickOffset = getNearestSessionTicks(remappedObservedDayTime, currentSettings) - MadokuTicks.getGameplayTicks();
 				// Preserve the exact command-driven value this tick; clock mapping takes over next tick.
 				absoluteDayTime = remappedObservedDayTime;
 			}
-		}
+			}
 
-		for (ServerLevel world : server.getAllLevels()) {
-			world.setDayTime(absoluteDayTime);
-		}
+			for (ServerLevel world : server.getAllLevels()) {
+				var overworldClock = world.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).getOrThrow(WorldClocks.OVERWORLD);
+				world.clockManager().setTotalTicks(overworldClock, absoluteDayTime);
+			}
 
 		lastAppliedDayTime = absoluteDayTime;
 		hasAppliedDayTime = true;
@@ -171,10 +174,7 @@ public final class MadokuTime {
 			return;
 		}
 
-		long gameTime = overworld.getLevelData().getGameTime();
-		long dayTime = overworld.getDayTime();
-		boolean tickDayTime = false;
-		ClientboundSetTimePacket packet = new ClientboundSetTimePacket(gameTime, dayTime, tickDayTime);
+		ClientboundSetTimePacket packet = overworld.clockManager().createFullSyncPacket();
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			player.connection.send(packet);
@@ -234,7 +234,7 @@ public final class MadokuTime {
 		if (settings.enabled) {
 			return getCurrentAbsoluteDayTime();
 		}
-		return world == null ? MadokuTicks.getGameplayTicks() : world.getDayTime();
+			return world == null ? MadokuTicks.getGameplayTicks() : world.getOverworldClockTime();
 	}
 
 	public static boolean isEnabled() {

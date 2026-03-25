@@ -45,7 +45,7 @@ public abstract class ServerPlayerGameModeFarmingMixin {
 			return;
 		}
 
-		player.displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)), true);
+		player.sendOverlayMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)));
 		cir.setReturnValue(InteractionResult.FAIL);
 	}
 }

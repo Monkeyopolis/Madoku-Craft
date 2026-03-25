@@ -12,12 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ItemInput.class)
 public class ItemInputRarityMixin {
 	@Inject(
-		method = "createItemStack(IZ)Lnet/minecraft/world/item/ItemStack;",
+		method = "createItemStack",
 		at = @At("RETURN")
 	)
 	private void madokuCraft$applyRarityToCommandStacks(
 		int count,
-		boolean checkOverstack,
 		CallbackInfoReturnable<ItemStack> cir
 	) {
 		MadokuRarity.applyGeneratedRarity(cir.getReturnValue(), RandomSource.create());

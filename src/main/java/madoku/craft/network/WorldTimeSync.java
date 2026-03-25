@@ -21,7 +21,7 @@ public final class WorldTimeSync {
 			return;
 		}
 
-		PayloadTypeRegistry.playS2C().register(WorldTimePayload.TYPE, WorldTimePayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(WorldTimePayload.TYPE, WorldTimePayload.CODEC);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			WorldTimePayload payload = currentPayload(server);
 			if (payload == null || !ServerPlayNetworking.canSend(handler, WorldTimePayload.TYPE)) {
@@ -72,7 +72,7 @@ public final class WorldTimeSync {
 			return null;
 		}
 
-		WorldTimeSnapshot snapshot = fromDayTime(overworld.getDayTime());
+		WorldTimeSnapshot snapshot = fromDayTime(overworld.getOverworldClockTime());
 		return new WorldTimePayload(snapshot.day(), snapshot.hour(), snapshot.minute());
 	}
 

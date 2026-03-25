@@ -1,7 +1,6 @@
 package madoku.craft.mixin;
 
 import madoku.craft.rarity.MadokuRarity;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.SmithingRecipeInput;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
@@ -15,7 +14,6 @@ public class SmithingTransformRecipeRarityMixin {
 	@Inject(method = "assemble", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$transferRarity(
 		SmithingRecipeInput input,
-		HolderLookup.Provider registries,
 		CallbackInfoReturnable<ItemStack> cir
 	) {
 		ItemStack upgradedResult = MadokuRarity.createSmithingUpgradeResult(input.base(), cir.getReturnValue());

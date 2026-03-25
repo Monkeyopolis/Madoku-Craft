@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -154,7 +154,7 @@ public final class MadokuHud {
 		);
 	}
 
-	private static void renderWorldHud(GuiGraphics context, DeltaTracker tickCounter) {
+	private static void renderWorldHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
 		if (!settings.worldHudEnabled) {
 			return;
 		}
@@ -175,7 +175,7 @@ public final class MadokuHud {
 			hour = serverHour;
 			minute = serverMinute;
 		} else {
-			long dayTime = level.getDayTime();
+			long dayTime = level.getOverworldClockTime();
 			day = MadokuTime.getDay(dayTime);
 			int totalMinutes = MadokuTime.getTotalMinutes(dayTime);
 			hour = totalMinutes / 60;
@@ -192,30 +192,30 @@ public final class MadokuHud {
 		}
 	}
 
-	private static void renderHealthHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderHealthHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
 		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (!settings.healthHudEnabled) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		// Keep vanilla health timers progressing while hiding its rendered location.
 		context.pose().pushMatrix();
 		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
+		oldElement.extractRenderState(context, tickCounter);
 		context.pose().popMatrix();
 
 		float health = roundToStep(player.getHealth(), HEALTH_STEP);
@@ -253,7 +253,7 @@ public final class MadokuHud {
 		int textY = heartY + 1;
 		context.pose().pushMatrix();
 		context.pose().scale(HEALTH_TEXT_SCALE, HEALTH_TEXT_SCALE);
-		context.drawString(
+		context.text(
 			client.font,
 			healthText,
 			Math.round(textX / HEALTH_TEXT_SCALE),
@@ -264,30 +264,30 @@ public final class MadokuHud {
 		context.pose().popMatrix();
 	}
 
-	private static void renderHungerHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderHungerHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
 		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (!settings.hungerHudEnabled) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		// Keep vanilla food timers progressing while hiding the rendered location.
 		context.pose().pushMatrix();
 		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
+		oldElement.extractRenderState(context, tickCounter);
 		context.pose().popMatrix();
 
 		int fallbackMax = Math.max(1, MadokuHunger.getConfiguredMaximumHungerPoints());
@@ -372,7 +372,7 @@ public final class MadokuHud {
 		int textY = foodY + 1;
 		context.pose().pushMatrix();
 		context.pose().scale(HUNGER_TEXT_SCALE, HUNGER_TEXT_SCALE);
-		context.drawString(
+		context.text(
 			client.font,
 			hungerText,
 			Math.round(textX / HUNGER_TEXT_SCALE),
@@ -383,23 +383,23 @@ public final class MadokuHud {
 			context.pose().popMatrix();
 		}
 
-	private static void renderArmorHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderArmorHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
 		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (!settings.armorHudEnabled) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
@@ -411,7 +411,7 @@ public final class MadokuHud {
 		// Keep vanilla armor bar state updates while hiding vanilla visuals.
 		context.pose().pushMatrix();
 		context.pose().translate(-10000.0F, -10000.0F);
-		oldElement.render(context, tickCounter);
+		oldElement.extractRenderState(context, tickCounter);
 		context.pose().popMatrix();
 
 		int armorX = context.guiWidth() / 2 - 91;
@@ -429,7 +429,7 @@ public final class MadokuHud {
 		int textY = armorY + 1;
 		context.pose().pushMatrix();
 		context.pose().scale(ARMOR_TEXT_SCALE, ARMOR_TEXT_SCALE);
-		context.drawString(
+		context.text(
 			client.font,
 			armorText,
 			Math.round(textX / ARMOR_TEXT_SCALE),
@@ -440,23 +440,23 @@ public final class MadokuHud {
 			context.pose().popMatrix();
 		}
 
-	private static void renderOxygenHud(GuiGraphics context, DeltaTracker tickCounter, HudElement oldElement) {
+	private static void renderOxygenHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
 
 		if (player == null || level == null) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (player.isSpectator()) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		if (!settings.oxygenHudEnabled) {
-			oldElement.render(context, tickCounter);
+			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
@@ -476,7 +476,7 @@ public final class MadokuHud {
 		int textY = oxygenY + 1;
 		context.pose().pushMatrix();
 		context.pose().scale(OXYGEN_TEXT_SCALE, OXYGEN_TEXT_SCALE);
-		context.drawString(
+		context.text(
 			client.font,
 			oxygenText,
 			Math.round(textX / OXYGEN_TEXT_SCALE),
@@ -492,11 +492,11 @@ public final class MadokuHud {
 		return WORLD_Y + (lineStep * lines);
 	}
 
-	private static void drawScaledString(GuiGraphics context, Minecraft client, String text, int x, int y, int color) {
+	private static void drawScaledString(GuiGraphicsExtractor context, Minecraft client, String text, int x, int y, int color) {
 		context.pose().pushMatrix();
 		context.pose().translate(x, y);
 		context.pose().scale(WORLD_HUD_SCALE, WORLD_HUD_SCALE);
-		context.drawString(client.font, text, 0, 0, color, true);
+		context.text(client.font, text, 0, 0, color, true);
 		context.pose().popMatrix();
 	}
 
@@ -585,7 +585,7 @@ public final class MadokuHud {
 		return half ? FOOD_HALF_TEXTURE : FOOD_FULL_TEXTURE;
 	}
 
-	private static int computeFoodX(GuiGraphics context, Minecraft client, String hungerText) {
+	private static int computeFoodX(GuiGraphicsExtractor context, Minecraft client, String hungerText) {
 		int foodRightEdge = context.guiWidth() / 2 + FOOD_RIGHT_EDGE;
 		int baselineWidth = getScaledTextWidth(client, HUNGER_BASELINE_TEXT, HUNGER_TEXT_SCALE);
 		int currentWidth = getScaledTextWidth(client, hungerText, HUNGER_TEXT_SCALE);
@@ -593,7 +593,7 @@ public final class MadokuHud {
 		return baseX + (baselineWidth - currentWidth);
 	}
 
-	private static int computeOxygenX(GuiGraphics context, Minecraft client, String oxygenText) {
+	private static int computeOxygenX(GuiGraphicsExtractor context, Minecraft client, String oxygenText) {
 		int oxygenRightEdge = context.guiWidth() / 2 + OXYGEN_RIGHT_EDGE;
 		int baselineWidth = getScaledTextWidth(client, OXYGEN_BASELINE_TEXT, OXYGEN_TEXT_SCALE);
 		int currentWidth = getScaledTextWidth(client, oxygenText, OXYGEN_TEXT_SCALE);
@@ -605,7 +605,7 @@ public final class MadokuHud {
 		return Math.round(client.font.width(text) * scale);
 	}
 
-	private static int computeArmorY(GuiGraphics context) {
+	private static int computeArmorY(GuiGraphicsExtractor context) {
 		int healthY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.HEALTH_BAR);
 		return healthY - ARMOR_ROW_SPACING;
 	}

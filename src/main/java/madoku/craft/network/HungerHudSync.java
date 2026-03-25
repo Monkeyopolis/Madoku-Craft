@@ -14,7 +14,7 @@ public final class HungerHudSync {
 		if (initialized) {
 			return;
 		}
-		PayloadTypeRegistry.playS2C().register(HungerHudPayload.TYPE, HungerHudPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(HungerHudPayload.TYPE, HungerHudPayload.CODEC);
 		initialized = true;
 	}
 

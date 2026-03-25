@@ -67,7 +67,9 @@
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerSleepTimeMixin",
     "WitherSkeletonWitherEffectMixin",
-    "ZombieSpawnOverridesMixin"
+    "ZombieSpawnOverridesMixin",
+    "ItemBuiltInRegistryHolderAccessor",
+    "AbstractFurnaceCookTimeAccessor"
   ],
   "client": [
     "client.GuiGraphicsRarityOverlayMixin",

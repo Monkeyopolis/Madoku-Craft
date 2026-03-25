@@ -160,7 +160,7 @@ public final class MadokuDifficulty {
 		if (server != null) {
 			return resolveDifficultyDayCount(server);
 		}
-		return Math.floorDiv(world.getDayTime(), TICKS_PER_DAY);
+		return Math.floorDiv(world.getOverworldClockTime(), TICKS_PER_DAY);
 	}
 
 	public static void applySpawnScaling(Mob mob, ServerLevelAccessor worldAccess) {
@@ -613,7 +613,7 @@ public final class MadokuDifficulty {
 		}
 		ServerLevel overworld = server.overworld();
 		if (overworld != null) {
-			return Math.floorDiv(overworld.getDayTime(), TICKS_PER_DAY);
+			return Math.floorDiv(overworld.getOverworldClockTime(), TICKS_PER_DAY);
 		}
 		return 0L;
 	}

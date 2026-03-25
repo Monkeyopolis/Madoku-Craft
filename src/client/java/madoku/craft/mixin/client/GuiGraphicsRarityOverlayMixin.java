@@ -4,7 +4,7 @@ import madoku.craft.item.system.MadokuItem;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.rarity.MadokuRarityTier;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(GuiGraphics.class)
+@Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsRarityOverlayMixin {
 	private static final int INDICATOR_X_OFFSET = -1;
 	private static final int INDICATOR_Y_OFFSET = 5;
@@ -26,10 +26,10 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 	private static final int DURABILITY_BAR_BG_COLOR = 0xFF000000;
 
 	@Shadow
-	public abstract void drawString(Font font, String text, int x, int y, int color, boolean shadow);
+	public abstract void text(Font font, String text, int x, int y, int color, boolean shadow);
 
 	@Inject(
-		method = "renderItemBar(Lnet/minecraft/world/item/ItemStack;II)V",
+		method = "itemBar(Lnet/minecraft/world/item/ItemStack;II)V",
 		at = @At("HEAD"),
 		cancellable = true
 	)
@@ -40,7 +40,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 	}
 
 	@Inject(
-		method = "renderItemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
+		method = "itemDecorations(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
 		at = @At("TAIL")
 	)
 	private void madokuCraft$drawRarityIndicator(
@@ -56,7 +56,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		}
 
 		boolean managedRarityItem = MadokuItem.isRarityCategoryItem(stack);
-		GuiGraphics context = (GuiGraphics) (Object) this;
+		GuiGraphicsExtractor context = (GuiGraphicsExtractor) (Object) this;
 
 		if (managedRarityItem && stack.isBarVisible()) {
 			drawTopDurabilityBar(context, stack, x, y);
@@ -85,10 +85,10 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		Integer colorValue = rarity.color().getColor();
 		int textColor = (colorValue != null ? colorValue : 0xFFFFFF) | 0xFF000000;
 
-		this.drawString(textRenderer, indicator, textX, textY, textColor, true);
+		this.text(textRenderer, indicator, textX, textY, textColor, true);
 	}
 
-	private static void drawTopDurabilityBar(GuiGraphics context, ItemStack stack, int x, int y) {
+	private static void drawTopDurabilityBar(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {
 		int barX = x + DURABILITY_BAR_CENTER_X_OFFSET;
 		int barY = y + DURABILITY_BAR_Y_OFFSET;
 		int fillWidth = stack.getBarWidth();

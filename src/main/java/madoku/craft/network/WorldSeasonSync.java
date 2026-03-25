@@ -20,7 +20,7 @@ public final class WorldSeasonSync {
 			return;
 		}
 
-		PayloadTypeRegistry.playS2C().register(WorldSeasonPayload.TYPE, WorldSeasonPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(WorldSeasonPayload.TYPE, WorldSeasonPayload.CODEC);
 			ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 				WorldSeasonPayload payload = currentPayload(server);
 				if (payload == null || !ServerPlayNetworking.canSend(handler, WorldSeasonPayload.TYPE)) {

@@ -1,7 +1,7 @@
 package madoku.craft.mixin.client;
 
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import org.joml.Matrix3x2fStack;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(GuiGraphics.class)
+@Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsStackCountMixin {
 	private static final float STACK_COUNT_SCALE = 0.9f;
 
@@ -18,17 +18,17 @@ public abstract class GuiGraphicsStackCountMixin {
 	private Matrix3x2fStack pose;
 
 	@Shadow
-	public abstract void drawString(Font font, String text, int x, int y, int color, boolean shadow);
+	public abstract void text(Font font, String text, int x, int y, int color, boolean shadow);
 
 	@Redirect(
-		method = "renderItemCount(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
+		method = "itemCount(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Ljava/lang/String;IIIZ)V"
+			target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;text(Lnet/minecraft/client/gui/Font;Ljava/lang/String;IIIZ)V"
 		)
 	)
 	private void madokuCraft$scaleLargeStackCounts(
-		GuiGraphics guiGraphics,
+		GuiGraphicsExtractor guiGraphics,
 		Font font,
 		String text,
 		int x,
@@ -37,7 +37,7 @@ public abstract class GuiGraphicsStackCountMixin {
 		boolean shadow
 	) {
 		if (!shouldScale(text)) {
-			this.drawString(font, text, x, y, color, shadow);
+			this.text(font, text, x, y, color, shadow);
 			return;
 		}
 
@@ -46,7 +46,7 @@ public abstract class GuiGraphicsStackCountMixin {
 		this.pose.translate((float) (x + width), (float) y);
 		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE);
 		this.pose.translate((float) (-x - width), (float) (-y));
-		this.drawString(font, text, x, y, color, shadow);
+		this.text(font, text, x, y, color, shadow);
 		this.pose.popMatrix();
 	}
 
