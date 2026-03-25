@@ -16,15 +16,44 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Biome.class)
 public abstract class BiomeSeasonalPrecipitationMixin {
 	@Inject(
-		method = "getPrecipitationAt(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/biome/Biome$Precipitation;",
+		method = "getPrecipitationAt(Lnet/minecraft/core/BlockPos;I)Lnet/minecraft/world/level/biome/Biome$Precipitation;",
 		at = @At("HEAD"),
 		cancellable = true
 	)
 	private void madoku$seasonalPrecipitationAtPosition(
 		BlockPos pos,
+		int precipitationLevel,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
 		cir.setReturnValue(MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla());
+	}
+
+	@Inject(
+		method = "coldEnoughToSnow(Lnet/minecraft/core/BlockPos;I)Z",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madoku$seasonalColdEnoughToSnow(
+		BlockPos pos,
+		int precipitationLevel,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		Biome.Precipitation precipitation = MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla();
+		cir.setReturnValue(precipitation == Biome.Precipitation.SNOW);
+	}
+
+	@Inject(
+		method = "warmEnoughToRain(Lnet/minecraft/core/BlockPos;I)Z",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madoku$seasonalWarmEnoughToRain(
+		BlockPos pos,
+		int precipitationLevel,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		Biome.Precipitation precipitation = MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla();
+		cir.setReturnValue(precipitation == Biome.Precipitation.RAIN);
 	}
 
 	@Inject(

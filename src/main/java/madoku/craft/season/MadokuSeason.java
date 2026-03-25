@@ -17,6 +17,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -63,6 +64,8 @@ public final class MadokuSeason {
 	private static volatile boolean seasonProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String syncedClientSeasonId = "";
+	private static volatile boolean loggedClientPrecipitationResolution = false;
+	private static volatile boolean loggedServerPrecipitationResolution = false;
 	private static final LinkedHashMap<Long, SeasonWaterWork> PENDING_WATER_WORK = new LinkedHashMap<>();
 	private static final ArrayList<Long> PENDING_WATER_WORK_ORDER = new ArrayList<>();
 
@@ -288,7 +291,10 @@ public final class MadokuSeason {
 			return SeasonalPrecipitation.DRY;
 		}
 
-		SeasonState state = getCurrentState();
+		SeasonState state = lastProcessedState;
+		if (state.absoluteDay() < 0L) {
+			state = getCurrentState();
+		}
 		if (hasSyncedClientSeason()) {
 			Season syncedSeason = Season.fromId(getSyncedClientSeasonId());
 			if (syncedSeason != null) {
@@ -305,7 +311,42 @@ public final class MadokuSeason {
 		}
 		BiomeClimate climate = resolveBiomeClimate(biome);
 		BiomeMoisture moisture = resolveBiomeMoisture(biome);
-		return resolveSeasonalPrecipitation(state.season(), climate, moisture);
+		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
+		if (!loggedClientPrecipitationResolution && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_resolver_client")) {
+			loggedClientPrecipitationResolution = true;
+			MadokuDebug.event("season.precipitation_resolver_client", MadokuDebug.Domain.SEASON)
+				.side(MadokuDebug.Side.CLIENT)
+				.tick(MadokuTicks.getGameplayTicks())
+				.subject("precipitation")
+				.field("season", state.season().id)
+				.field("climate", climate.name())
+				.field("moisture", moisture.name())
+				.field("result", precipitation.name())
+				.log();
+		}
+		return precipitation;
+	}
+
+	public static SeasonalPrecipitation resolveSeasonalPrecipitation(Level level, Biome biome) {
+		if (biome == null) {
+			return SeasonalPrecipitation.DRY;
+		}
+
+		if (level instanceof ServerLevel serverLevel) {
+			return resolveSeasonalPrecipitation(serverLevel, biome);
+		}
+
+		SeasonState state = resolveCurrentState();
+		BiomeClimate climate = resolveBiomeClimate(biome);
+		BiomeMoisture moisture = resolveBiomeMoisture(biome);
+		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
+		if (hasSyncedClientSeason()) {
+			Season syncedSeason = Season.fromId(getSyncedClientSeasonId());
+			if (syncedSeason != null) {
+				precipitation = resolveSeasonalPrecipitation(syncedSeason, climate, moisture);
+			}
+		}
+		return precipitation;
 	}
 
 	public static SeasonalPrecipitation resolveSeasonalPrecipitation(ServerLevel world, Biome biome) {
@@ -316,7 +357,20 @@ public final class MadokuSeason {
 		SeasonState state = world == null ? getCurrentState() : getCurrentState(world);
 		BiomeClimate climate = resolveBiomeClimate(biome);
 		BiomeMoisture moisture = resolveBiomeMoisture(biome);
-		return resolveSeasonalPrecipitation(state.season(), climate, moisture);
+		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
+		if (!loggedServerPrecipitationResolution && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_resolver_server")) {
+			loggedServerPrecipitationResolution = true;
+			MadokuDebug.event("season.precipitation_resolver_server", MadokuDebug.Domain.SEASON)
+				.side(MadokuDebug.Side.SERVER)
+				.tick(MadokuTicks.getGameplayTicks())
+				.subject("precipitation")
+				.field("season", state.season().id)
+				.field("climate", climate.name())
+				.field("moisture", moisture.name())
+				.field("result", precipitation.name())
+				.log();
+		}
+		return precipitation;
 	}
 
 	public static SeasonalPrecipitation resolveSeasonalPrecipitation(Season season, BiomeClimate climate, BiomeMoisture moisture) {
@@ -953,6 +1007,16 @@ public final class MadokuSeason {
 
 	private static SeasonState resolveCurrentState() {
 		return resolveCurrentState(null);
+	}
+
+	private static SeasonState resolveCurrentState(Level level) {
+		if (level instanceof ServerLevel serverLevel) {
+			return resolveCurrentState(serverLevel);
+		}
+
+		long absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime();
+		long absoluteDay = Math.max(0L, MadokuTime.getDay(absoluteDayTime));
+		return resolveStateForAbsoluteDay(absoluteDay);
 	}
 
 	private static SeasonState resolveCurrentState(ServerLevel world) {
