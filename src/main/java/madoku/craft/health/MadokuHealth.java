@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
+import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
@@ -42,7 +43,7 @@ public final class MadokuHealth {
 	private static final float HEALTH_ROUND_STEP = 0.125f;
 	private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 
-	private static final String HEALTH_CONFIG_FOLDER_NAME = "madoku-craft-health";
+	private static final String HEALTH_CONFIG_DIRECTORY_NAME = "madoku-health";
 	private static final String HEALTH_CONFIG_FILE_NAME = "madoku-health";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-health";
 	private static final String DATA_FILE_NAME = "madoku-health";
@@ -832,27 +833,15 @@ public final class MadokuHealth {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(HEALTH_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, HEALTH_CONFIG_FILE_NAME);
+			Path configFile = MadokuAttributes.prepareSystemConfigFile(HEALTH_CONFIG_DIRECTORY_NAME, HEALTH_CONFIG_FILE_NAME);
 			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
-			Settings loaded = Settings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
-			settings = loaded;
+			Settings configured = Settings.fromJson(normalized);
+			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			settings = configured.withEnabled(MadokuAttributes.isEnabled());
 		} catch (IOException | RuntimeException exception) {
-			settings = fallback;
+			settings = fallback.withEnabled(MadokuAttributes.isEnabled());
 			LOGGER.error("Failed to load MadokuHealth static config; using defaults.", exception);
 		}
-	}
-
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
 	}
 
 	private static String getString(JsonObject object, String key, String fallback) {
@@ -1075,6 +1064,24 @@ public final class MadokuHealth {
 			root.addProperty("pending_health_apply_amount", pendingHealthApplyAmount);
 			root.addProperty("pending_idle_timeout_ticks", pendingIdleTimeoutTicks);
 			return root;
+		}
+
+		private Settings withEnabled(boolean attributesEnabled) {
+			return new Settings(
+				attributesEnabled && enabled,
+				schedulerTickInterval,
+				actionIntervalTicks,
+				maximumHealth,
+				highHungerStartRatio,
+				highHungerStopRatio,
+				lowHungerThresholdRatio,
+				lowHungerStepRatio,
+				maxHealthReductionPerStep,
+				minimumMaxHealthMultiplier,
+				pendingHealthPerHunger,
+				pendingHealthApplyAmount,
+				pendingIdleTimeoutTicks
+			);
 		}
 
 		private static long clampLong(long value, long min, long max) {
