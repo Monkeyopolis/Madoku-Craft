@@ -55,6 +55,7 @@
     "RangedCrossbowAttackGoalMixin",
     "ResultSlotRarityMixin",
     "PlayerEatGateMixin",
+    "PlayerLuckCriticalHitMixin",
     "PlayerExperienceMadokuLevelsMixin",
     "PlayerInventoryDeathDropMixin",
     "PlayerSprintGateMixin",

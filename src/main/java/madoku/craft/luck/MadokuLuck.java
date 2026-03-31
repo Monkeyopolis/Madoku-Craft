@@ -22,6 +22,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootContext;
@@ -49,6 +50,7 @@ public final class MadokuLuck {
 	private static final double DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER = 0.5d;
 	private static final double DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER = 0.5d;
 	private static final double FARMING_DROP_MULTIPLIER = 0.5d;
+	private static final float DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER = 1.5f;
 
 	private static volatile Settings settings = Settings.defaults();
 	private static final ThreadLocal<ActiveDropContext> ACTIVE_DROP_CONTEXT = new ThreadLocal<>();
@@ -86,6 +88,52 @@ public final class MadokuLuck {
 			"luck.ranged_accuracy_reduction_skipped",
 			"ranged_accuracy"
 		);
+	}
+
+	public static boolean shouldApplyPlayerMeleeCrit(Player player, Entity target) {
+		if (!settings.enabled || !(player instanceof ServerPlayer serverPlayer)) {
+			return false;
+		}
+
+		ServerLevel level = serverPlayer.level() instanceof ServerLevel serverLevel ? serverLevel : null;
+		double critChance = resolveLuckProcChance(serverPlayer);
+		if (critChance <= 0.0d) {
+			emitLuckDebug(
+				"luck.player_crit_skipped",
+				level,
+				target == null ? player.blockPosition() : target.blockPosition(),
+				subjectForCombatTarget(target),
+				Map.of(
+					"reason", "non_positive_chance",
+					"player", serverPlayer.getScoreboardName(),
+					"chance", Double.toString(critChance),
+					"multiplier", Float.toString(settings.playerCritDamageMultiplier)
+				)
+			);
+			return false;
+		}
+
+		RandomSource random = serverPlayer.getRandom();
+		double roll = random == null ? 1.0d : random.nextDouble();
+		boolean crit = roll < critChance;
+		emitLuckDebug(
+			crit ? "luck.player_crit_applied" : "luck.player_crit_skipped",
+			level,
+			target == null ? player.blockPosition() : target.blockPosition(),
+			subjectForCombatTarget(target),
+			Map.of(
+				"reason", crit ? "chance_succeeded" : "chance_failed",
+				"player", serverPlayer.getScoreboardName(),
+				"chance", Double.toString(critChance),
+				"roll", Double.toString(roll),
+				"multiplier", Float.toString(settings.playerCritDamageMultiplier)
+			)
+		);
+		return crit;
+	}
+
+	public static float playerCritDamageMultiplier() {
+		return settings.playerCritDamageMultiplier;
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -1025,6 +1073,13 @@ public final class MadokuLuck {
 		return safePrefix + ":" + pos.getX() + "," + pos.getY() + "," + pos.getZ();
 	}
 
+	private static String subjectForCombatTarget(Entity target) {
+		if (target == null) {
+			return "combat:unknown";
+		}
+		return "combat:" + target.getType().toShortString();
+	}
+
 	private static final class Settings {
 		private final boolean enabled;
 		private final double baseLuck;
@@ -1032,6 +1087,7 @@ public final class MadokuLuck {
 		private final double mobDropMultiplier;
 		private final double creeperGriefReductionMultiplier;
 		private final double rangedAccuracyReductionMultiplier;
+		private final float playerCritDamageMultiplier;
 
 		private Settings(
 			boolean enabled,
@@ -1039,7 +1095,8 @@ public final class MadokuLuck {
 			double dropMultiplier,
 			double mobDropMultiplier,
 			double creeperGriefReductionMultiplier,
-			double rangedAccuracyReductionMultiplier
+			double rangedAccuracyReductionMultiplier,
+			float playerCritDamageMultiplier
 		) {
 			this.enabled = enabled;
 			this.baseLuck = baseLuck;
@@ -1047,6 +1104,7 @@ public final class MadokuLuck {
 			this.mobDropMultiplier = mobDropMultiplier;
 			this.creeperGriefReductionMultiplier = creeperGriefReductionMultiplier;
 			this.rangedAccuracyReductionMultiplier = rangedAccuracyReductionMultiplier;
+			this.playerCritDamageMultiplier = playerCritDamageMultiplier;
 		}
 
 		private static Settings defaults() {
@@ -1056,7 +1114,8 @@ public final class MadokuLuck {
 				DEFAULT_DROP_MULTIPLIER,
 				DEFAULT_MOB_DROP_MULTIPLIER,
 				DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER,
-				DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER
+				DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER,
+				DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER
 			);
 		}
 
@@ -1079,13 +1138,19 @@ public final class MadokuLuck {
 				0.0d,
 				1.0d
 			);
+			float playerCritDamageMultiplier = (float) clampDouble(
+				getDouble(source, "player_crit_damage_multiplier", defaults.playerCritDamageMultiplier),
+				0.0d,
+				1024.0d
+			);
 			return new Settings(
 				getBoolean(source, "enabled", defaults.enabled),
 				baseLuck,
 				dropMultiplier,
 				mobDropMultiplier,
 				creeperGriefReductionMultiplier,
-				rangedAccuracyReductionMultiplier
+				rangedAccuracyReductionMultiplier,
+				playerCritDamageMultiplier
 			);
 		}
 
@@ -1097,6 +1162,7 @@ public final class MadokuLuck {
 			root.addProperty("mob_drop_multiplier", mobDropMultiplier);
 			root.addProperty("creeper_grief_reduction_multiplier", creeperGriefReductionMultiplier);
 			root.addProperty("ranged_accuracy_reduction_multiplier", rangedAccuracyReductionMultiplier);
+			root.addProperty("player_crit_damage_multiplier", playerCritDamageMultiplier);
 			return root;
 		}
 	}
