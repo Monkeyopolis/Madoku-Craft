@@ -340,6 +340,7 @@ public final class MadokuDebug {
 
 	public enum Domain {
 		PLAYER("player"),
+		LUCK("luck"),
 		MOB("mob"),
 		ENTITY("entity"),
 		BLOCK_ENTITY("block_entity"),
@@ -381,6 +382,7 @@ public final class MadokuDebug {
 
 			return switch (value) {
 				case "player", "players" -> PLAYER;
+				case "luck" -> LUCK;
 				case "mob", "mobs" -> MOB;
 				case "entity", "entities" -> ENTITY;
 				case "blockentity", "block_entity", "blockentities", "block_entities", "entityblock", "entityblocks", "entity_block", "entity_blocks" -> BLOCK_ENTITY;

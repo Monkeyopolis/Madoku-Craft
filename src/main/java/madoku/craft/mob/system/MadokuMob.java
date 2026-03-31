@@ -7,6 +7,7 @@ import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.luck.MadokuLuck;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
@@ -494,6 +495,7 @@ public final class MadokuMob {
 		}
 		double accuracy = resolveScaledAttackAccuracy(readDouble(root, MadokuMobConfig.FIELD_ATTACK_ACCURACY, 0.7D), shooter.level().getDifficulty(), isHardcoreWorld(shooter.level()));
 		accuracy = shooter instanceof Mob mob ? MadokuDifficulty.resolveMobAttackAccuracyScaling(mob, accuracy) : accuracy;
+		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		if (shooter.getRandom().nextDouble() <= accuracy) {
 			projectile.shoot(velocityX, velocityY, velocityZ, speed, 0.0F);
 			if (projectile instanceof AbstractArrow arrow) {
@@ -589,6 +591,7 @@ public final class MadokuMob {
 			0.0D,
 			1.0D
 		);
+		chance = MadokuLuck.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
 		Double configuredPower = readOptionalDouble(variant, MadokuMobConfig.FIELD_EXPLOSION_POWER);
 		float power = configuredPower == null ? vanillaPower : configuredPower.floatValue();
 		power = (float) resolveDifficultyAdjustedValue(level.getDifficulty(), isHardcoreWorld(level), Math.max(0.0D, power), CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
@@ -1499,6 +1502,7 @@ public final class MadokuMob {
 	}
 
 	private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
+		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		double dx = target.getX() - skeleton.getX();
 		double dz = target.getZ() - skeleton.getZ();
 		double horizontal = Math.sqrt(dx * dx + dz * dz);

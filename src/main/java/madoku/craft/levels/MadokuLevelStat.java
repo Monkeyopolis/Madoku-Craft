@@ -14,6 +14,7 @@ public enum MadokuLevelStat {
 	HEALTH("health", "Health", "health", 0xFF6B6B),
 	PLAYER_DAMAGE("player_damage", "Strength", "strength", 0xF4A261),
 	PLAYER_ARMOR("player_armor", "Defense", "defense", 0x4D96FF),
+	PLAYER_LUCK("player_luck", "Luck", "luck", 0x6A994E),
 	PLAYER_HUNGER("player_hunger", "Hunger", "hunger", 0xF9C74F),
 	PLAYER_MOVEMENT_SPEED("player_movement_speed", "Speed", "speed", 0x43AA8B);
 
@@ -59,12 +60,16 @@ public enum MadokuLevelStat {
 			case PLAYER_ARMOR -> normalizedLevel * (
 				MadokuAttributes.isEnabled() ? MadokuLevels.playerArmorPerLevelAttributes() : MadokuLevels.playerArmorPerLevelVanilla()
 			);
+			case PLAYER_LUCK -> normalizedLevel * MadokuLevels.playerLuckPerLevel();
 			case PLAYER_HUNGER -> normalizedLevel * (MadokuHunger.isEnabled() ? MadokuLevels.playerHungerPerLevel() : 0.0d);
 			case PLAYER_MOVEMENT_SPEED -> normalizedLevel * MadokuLevels.playerMovementSpeedPerLevel();
 		};
 	}
 
 	public String formattedValue(int level) {
+		if (this == PLAYER_LUCK) {
+			return "+" + BigDecimal.valueOf(valueAtLevel(level) * 100.0d).stripTrailingZeros().toPlainString() + "%";
+		}
 		return "+" + BigDecimal.valueOf(valueAtLevel(level)).stripTrailingZeros().toPlainString();
 	}
 
@@ -99,11 +104,15 @@ public enum MadokuLevelStat {
 	}
 
 	public static List<MadokuLevelStat> attributeVisibleStats() {
-		return List.of(HEALTH, PLAYER_DAMAGE, PLAYER_ARMOR, PLAYER_HUNGER, PLAYER_MOVEMENT_SPEED);
+		return List.of(HEALTH, PLAYER_DAMAGE, PLAYER_ARMOR, PLAYER_LUCK, PLAYER_HUNGER, PLAYER_MOVEMENT_SPEED);
 	}
 
 	public static List<MadokuLevelStat> attributeVisibleStatsWithoutHunger() {
-		return List.of(HEALTH, PLAYER_DAMAGE, PLAYER_ARMOR, PLAYER_MOVEMENT_SPEED);
+		return List.of(HEALTH, PLAYER_DAMAGE, PLAYER_ARMOR, PLAYER_LUCK, PLAYER_MOVEMENT_SPEED);
+	}
+
+	public static List<MadokuLevelStat> attributeVisibleStatsWithoutLuck() {
+		return List.of(HEALTH, PLAYER_DAMAGE, PLAYER_ARMOR, PLAYER_HUNGER, PLAYER_MOVEMENT_SPEED);
 	}
 
 	public static String encodeVisibleStats(Iterable<MadokuLevelStat> stats) {

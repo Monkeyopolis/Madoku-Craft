@@ -21,7 +21,7 @@ public final class MadokuLevelsScreen extends Screen {
 	private static final int PANEL_WIDTH = 176;
 	private static final int PANEL_HEIGHT = 165;
 	private static final int TOP_MARGIN = 8;
-	private static final int XP_BAR_WIDTH = 124;
+	private static final int XP_BAR_WIDTH = 148;
 	private static final int XP_BAR_HEIGHT = 5;
 	private static final int ENTRY_WIDTH = 80;
 	private static final int ENTRY_HEIGHT = 30;

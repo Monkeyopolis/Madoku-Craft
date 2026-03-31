@@ -241,6 +241,14 @@ public final class MadokuTime {
 		return settings.enabled;
 	}
 
+	public static long getGameplayTicksPerDay() {
+		TimeSettings currentSettings = settings;
+		if (!currentSettings.enabled) {
+			return MINECRAFT_TICKS_PER_CYCLE;
+		}
+		return Math.max(1L, currentSettings.serverTicksPerCycle);
+	}
+
 	public static long toAbsoluteDayTime(long day, int hour, int minute) {
 		TimeSettings currentSettings = settings;
 		long normalizedDay = Math.max(0L, day);

@@ -9,6 +9,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.luck.MadokuLuck;
 import madoku.craft.network.MadokuLevelUpPayload;
 import madoku.craft.network.MadokuLevelsPayload;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -39,7 +40,8 @@ public final class MadokuLevels {
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final double DEFAULT_BASE_XP_REQUIREMENT = 5.0d;
 	private static final double DEFAULT_BASE_XP_MULTIPLIER = 0.10d;
-	private static final int DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES = 50;
+	private static final int DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES = 60;
+	private static final int DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES_PARTIAL = 50;
 	private static final int DEFAULT_MAX_PLAYER_LEVEL_VANILLA = 40;
 	private static final int DEFAULT_MAX_STAT_LEVEL_ATTRIBUTES = 10;
 	private static final int DEFAULT_MAX_STAT_LEVEL_VANILLA = 10;
@@ -47,6 +49,7 @@ public final class MadokuLevels {
 	private static final double DEFAULT_PLAYER_DAMAGE_PER_LEVEL = 0.2d;
 	private static final double DEFAULT_PLAYER_ARMOR_PER_LEVEL_ATTRIBUTES = 0.4d;
 	private static final double DEFAULT_PLAYER_ARMOR_PER_LEVEL_VANILLA = 0.2d;
+	private static final double DEFAULT_PLAYER_LUCK_PER_LEVEL = 0.02d;
 	private static final double DEFAULT_PLAYER_HUNGER_PER_LEVEL = 2.0d;
 	private static final double DEFAULT_PLAYER_MOVEMENT_SPEED_PER_LEVEL = 0.001d;
 	private static final Identifier HEALTH_BONUS_MODIFIER_ID =
@@ -55,6 +58,8 @@ public final class MadokuLevels {
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_damage_bonus");
 	private static final Identifier ARMOR_BONUS_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_armor_bonus");
+	private static final Identifier LUCK_BONUS_MODIFIER_ID =
+		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_luck_bonus");
 	private static final Identifier MOVEMENT_SPEED_BONUS_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_movement_speed_bonus");
 
@@ -111,6 +116,10 @@ public final class MadokuLevels {
 
 	public static double playerHungerPerLevel() {
 		return settings.playerHungerPerLevel;
+	}
+
+	public static double playerLuckPerLevel() {
+		return settings.playerLuckPerLevel;
 	}
 
 	public static double playerMovementSpeedPerLevel() {
@@ -260,11 +269,13 @@ public final class MadokuLevels {
 		AttributeInstance maxHealthAttribute = player.getAttribute(Attributes.MAX_HEALTH);
 		AttributeInstance attackDamageAttribute = player.getAttribute(Attributes.ATTACK_DAMAGE);
 		AttributeInstance armorAttribute = player.getAttribute(Attributes.ARMOR);
+		AttributeInstance luckAttribute = player.getAttribute(Attributes.LUCK);
 		AttributeInstance movementSpeedAttribute = player.getAttribute(Attributes.MOVEMENT_SPEED);
 
 		int healthStatLevel = state.statLevels.getOrDefault(MadokuLevelStat.HEALTH, MadokuLevelStat.DEFAULT_STAT_LEVEL);
 		int damageStatLevel = state.statLevels.getOrDefault(MadokuLevelStat.PLAYER_DAMAGE, MadokuLevelStat.DEFAULT_STAT_LEVEL);
 		int armorStatLevel = state.statLevels.getOrDefault(MadokuLevelStat.PLAYER_ARMOR, MadokuLevelStat.DEFAULT_STAT_LEVEL);
+		int luckStatLevel = state.statLevels.getOrDefault(MadokuLevelStat.PLAYER_LUCK, MadokuLevelStat.DEFAULT_STAT_LEVEL);
 		int movementSpeedStatLevel = state.statLevels.getOrDefault(MadokuLevelStat.PLAYER_MOVEMENT_SPEED, MadokuLevelStat.DEFAULT_STAT_LEVEL);
 
 		if (maxHealthAttribute != null) {
@@ -275,6 +286,9 @@ public final class MadokuLevels {
 		}
 		if (armorAttribute != null) {
 			applyAttributeModifier(armorAttribute, ARMOR_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_ARMOR.valueAtLevel(armorStatLevel));
+		}
+		if (luckAttribute != null) {
+			applyAttributeModifier(luckAttribute, LUCK_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_LUCK.valueAtLevel(luckStatLevel));
 		}
 		if (movementSpeedAttribute != null) {
 			applyAttributeModifier(
@@ -320,18 +334,39 @@ public final class MadokuLevels {
 	}
 
 	private static boolean useAttributesContainer() {
-		return MadokuAttributes.isEnabled() && MadokuHunger.isEnabled();
+		return MadokuAttributes.isEnabled() && hasExtendedAttributeStats();
 	}
 
 	private static List<MadokuLevelStat> visibleStats() {
 		if (!MadokuAttributes.isEnabled()) {
 			return MadokuLevelStat.vanillaVisibleStats();
 		}
+		if (!hasExtendedAttributeStats()) {
+			return MadokuLevelStat.vanillaVisibleStats();
+		}
 		if (!MadokuHunger.isEnabled()) {
 			return MadokuLevelStat.attributeVisibleStatsWithoutHunger();
 		}
+		if (!MadokuLuck.isEnabled()) {
+			return MadokuLevelStat.attributeVisibleStatsWithoutLuck();
+		}
 		// Health remains visible even if the custom health subsystem is disabled.
 		return MadokuLevelStat.attributeVisibleStats();
+	}
+
+	private static boolean hasExtendedAttributeStats() {
+		return MadokuHunger.isEnabled() || MadokuLuck.isEnabled();
+	}
+
+	private static int activeExtendedAttributeStatCount() {
+		int count = 0;
+		if (MadokuHunger.isEnabled()) {
+			count++;
+		}
+		if (MadokuLuck.isEnabled()) {
+			count++;
+		}
+		return count;
 	}
 
 	private static void markDirty(UUID playerId) {
@@ -365,8 +400,18 @@ public final class MadokuLevels {
 	}
 
 	private static int maxPlayerLevel() {
-		boolean useAttributePlayerCap = MadokuAttributes.isEnabled() && MadokuHunger.isEnabled();
-		return Math.max(1, useAttributePlayerCap ? settings.maxPlayerLevelAttributes : settings.maxPlayerLevelVanilla);
+		if (!MadokuAttributes.isEnabled()) {
+			return Math.max(1, settings.maxPlayerLevelVanilla);
+		}
+
+		int activeExtendedStats = activeExtendedAttributeStatCount();
+		if (activeExtendedStats <= 0) {
+			return Math.max(1, settings.maxPlayerLevelVanilla);
+		}
+		if (activeExtendedStats == 1) {
+			return Math.max(1, settings.maxPlayerLevelAttributesPartial);
+		}
+		return Math.max(1, settings.maxPlayerLevelAttributes);
 	}
 
 	private static void loadStaticConfig() {
@@ -545,6 +590,7 @@ public final class MadokuLevels {
 		private final double baseXpRequirement;
 		private final double baseXpMultiplier;
 		private final int maxPlayerLevelAttributes;
+		private final int maxPlayerLevelAttributesPartial;
 		private final int maxPlayerLevelVanilla;
 		private final int maxStatLevelAttributes;
 		private final int maxStatLevelVanilla;
@@ -552,6 +598,7 @@ public final class MadokuLevels {
 		private final double playerDamagePerLevel;
 		private final double playerArmorPerLevelAttributes;
 		private final double playerArmorPerLevelVanilla;
+		private final double playerLuckPerLevel;
 		private final double playerHungerPerLevel;
 		private final double playerMovementSpeedPerLevel;
 
@@ -559,6 +606,7 @@ public final class MadokuLevels {
 			double baseXpRequirement,
 			double baseXpMultiplier,
 			int maxPlayerLevelAttributes,
+			int maxPlayerLevelAttributesPartial,
 			int maxPlayerLevelVanilla,
 			int maxStatLevelAttributes,
 			int maxStatLevelVanilla,
@@ -566,12 +614,14 @@ public final class MadokuLevels {
 			double playerDamagePerLevel,
 			double playerArmorPerLevelAttributes,
 			double playerArmorPerLevelVanilla,
+			double playerLuckPerLevel,
 			double playerHungerPerLevel,
 			double playerMovementSpeedPerLevel
 		) {
 			this.baseXpRequirement = baseXpRequirement;
 			this.baseXpMultiplier = baseXpMultiplier;
 			this.maxPlayerLevelAttributes = maxPlayerLevelAttributes;
+			this.maxPlayerLevelAttributesPartial = maxPlayerLevelAttributesPartial;
 			this.maxPlayerLevelVanilla = maxPlayerLevelVanilla;
 			this.maxStatLevelAttributes = maxStatLevelAttributes;
 			this.maxStatLevelVanilla = maxStatLevelVanilla;
@@ -579,6 +629,7 @@ public final class MadokuLevels {
 			this.playerDamagePerLevel = playerDamagePerLevel;
 			this.playerArmorPerLevelAttributes = playerArmorPerLevelAttributes;
 			this.playerArmorPerLevelVanilla = playerArmorPerLevelVanilla;
+			this.playerLuckPerLevel = playerLuckPerLevel;
 			this.playerHungerPerLevel = playerHungerPerLevel;
 			this.playerMovementSpeedPerLevel = playerMovementSpeedPerLevel;
 		}
@@ -588,6 +639,7 @@ public final class MadokuLevels {
 				DEFAULT_BASE_XP_REQUIREMENT,
 				DEFAULT_BASE_XP_MULTIPLIER,
 				DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES,
+				DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES_PARTIAL,
 				DEFAULT_MAX_PLAYER_LEVEL_VANILLA,
 				DEFAULT_MAX_STAT_LEVEL_ATTRIBUTES,
 				DEFAULT_MAX_STAT_LEVEL_VANILLA,
@@ -595,6 +647,7 @@ public final class MadokuLevels {
 				DEFAULT_PLAYER_DAMAGE_PER_LEVEL,
 				DEFAULT_PLAYER_ARMOR_PER_LEVEL_ATTRIBUTES,
 				DEFAULT_PLAYER_ARMOR_PER_LEVEL_VANILLA,
+				DEFAULT_PLAYER_LUCK_PER_LEVEL,
 				DEFAULT_PLAYER_HUNGER_PER_LEVEL,
 				DEFAULT_PLAYER_MOVEMENT_SPEED_PER_LEVEL
 			);
@@ -606,6 +659,11 @@ public final class MadokuLevels {
 				clampDouble(getDouble(source, "base_xp_requirement", defaults.baseXpRequirement), 0.1d, 1_000_000.0d),
 				clampDouble(getDouble(source, "base_xp_multiplier", defaults.baseXpMultiplier), 0.0d, 1_000.0d),
 				clampInt(getLong(source, "max_player_level_attributes", defaults.maxPlayerLevelAttributes), 1, 1000),
+				clampInt(
+					getLong(source, "max_player_level_attributes_partial", defaults.maxPlayerLevelAttributesPartial),
+					1,
+					1000
+				),
 				clampInt(getLong(source, "max_player_level_vanilla", defaults.maxPlayerLevelVanilla), 1, 1000),
 				clampInt(getLong(source, "max_stat_level_attributes", defaults.maxStatLevelAttributes), 1, 1000),
 				clampInt(getLong(source, "max_stat_level_vanilla", defaults.maxStatLevelVanilla), 1, 1000),
@@ -621,6 +679,7 @@ public final class MadokuLevels {
 					0.0d,
 					1000.0d
 				),
+				clampDouble(getDouble(source, "player_luck_per_level", defaults.playerLuckPerLevel), 0.0d, 1000.0d),
 				clampDouble(getDouble(source, "player_hunger_per_level", defaults.playerHungerPerLevel), 0.0d, 1000.0d),
 				clampDouble(
 					getDouble(source, "player_movement_speed_per_level", defaults.playerMovementSpeedPerLevel),
@@ -635,6 +694,7 @@ public final class MadokuLevels {
 			root.addProperty("base_xp_requirement", baseXpRequirement);
 			root.addProperty("base_xp_multiplier", baseXpMultiplier);
 			root.addProperty("max_player_level_attributes", maxPlayerLevelAttributes);
+			root.addProperty("max_player_level_attributes_partial", maxPlayerLevelAttributesPartial);
 			root.addProperty("max_player_level_vanilla", maxPlayerLevelVanilla);
 			root.addProperty("max_stat_level_attributes", maxStatLevelAttributes);
 			root.addProperty("max_stat_level_vanilla", maxStatLevelVanilla);
@@ -642,6 +702,7 @@ public final class MadokuLevels {
 			root.addProperty("player_damage_per_level", playerDamagePerLevel);
 			root.addProperty("player_armor_per_level_attributes", playerArmorPerLevelAttributes);
 			root.addProperty("player_armor_per_level_vanilla", playerArmorPerLevelVanilla);
+			root.addProperty("player_luck_per_level", playerLuckPerLevel);
 			root.addProperty("player_hunger_per_level", playerHungerPerLevel);
 			root.addProperty("player_movement_speed_per_level", playerMovementSpeedPerLevel);
 			return root;
