@@ -23,7 +23,6 @@
     "CrossbowProjectileAccuracyMixin",
     "DifficultyInstanceRegionalDifficultyMixin",
     "EffectCommandsSaturationDurationMixin",
-    "ExtraCodecsIntRangeMixin",
     "FoodDataStarvationDamageMixin",
     "FurnaceCookTimeMixin",
     "FurnaceMenuMixin",
@@ -75,6 +74,7 @@
     "WitherSkeletonWitherEffectMixin",
     "ZombieSpawnOverridesMixin",
     "ItemBuiltInRegistryHolderAccessor",
+    "ItemStackCodecMixin",
     "AbstractFurnaceCookTimeAccessor"
   ],
   "client": [

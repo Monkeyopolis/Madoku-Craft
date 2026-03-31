@@ -116,6 +116,22 @@ public final class MadokuItemStack {
 		return Math.max(maximum, getMaxStackCap());
 	}
 
+	public static DataResult<Integer> validateCodecCount(int minimum, int maximum, int value) {
+		int upper = shouldExtendCodecRange(minimum, maximum)
+			? getCodecUpperBound(maximum)
+			: maximum;
+
+		if (value < minimum) {
+			return DataResult.error(() -> "Value must be within range [" + minimum + ";" + upper + "]: " + value);
+		}
+
+		if (value > upper) {
+			return DataResult.success(upper);
+		}
+
+		return DataResult.success(value);
+	}
+
 	public static boolean handleInventoryDrop(Inventory inventory) {
 		if (inventory == null || !isEnabled() || !configuration.deathDropEnabled) {
 			return false;

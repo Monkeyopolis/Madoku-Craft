@@ -27,17 +27,6 @@ loom {
 			sourceSet sourceSets.client
 		}
 	}
-
-	runs {
-		client {
-			property "fabric.remapClasspathFile", file(".gradle/loom-cache/remapClasspath.txt").absolutePath
-		}
-
-		server {
-			property "fabric.remapClasspathFile", file(".gradle/loom-cache/remapClasspath.txt").absolutePath
-		}
-	}
-
 }
 
 dependencies {
