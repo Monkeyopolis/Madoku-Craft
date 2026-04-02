@@ -26,6 +26,11 @@ Attributes:
 The Attribute system modifies attributes to rebalance the game.
 This allows you to customize the game's difficulty to your needs.
 
+Leveling:
+
+The Leveling system allows players to allocate points to increase certain stats.
+Press K to open up the Menu.
+
 ## Disclaimer:
 
 Make sure to backup your worlds before using this MOD.
