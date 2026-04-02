@@ -1,4 +1,6 @@
 {
+  "entity.madoku-craft.hag": "Hag",
+  "item.madoku-craft.hag_spawn_egg": "Hag Spawn Egg",
   "key.madoku-craft.open_levels": "Open MadokuLevels",
   "category.madoku-craft.madokulevels": "MadokuLevels"
 }

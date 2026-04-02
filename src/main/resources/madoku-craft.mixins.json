@@ -15,6 +15,7 @@
     "CropBlockFarmingMixin",
     "RecipeManagerBoneMealRemovalMixin",
     "CraftingMenuRarityMixin",
+    "CreativeModeTabsSpawnEggsMixin",
     "ContainerStackLimitMixin",
     "CreeperAccessor",
     "CreeperExplosionMixin",
@@ -35,6 +36,7 @@
     "ItemFoodGateMixin",
     "ItemStackMaxSizeMixin",
     "InventoryMenuRarityMixin",
+    "InventoryMenuTrinketSlotsMixin",
     "LivingEntityArmorDamageMixin",
     "LivingEntityEffectAttributeOverrideMixin",
     "LivingEntityEffectMixin",
@@ -57,6 +59,7 @@
     "PlayerLuckCriticalHitMixin",
     "PlayerExperienceMadokuLevelsMixin",
     "PlayerInventoryDeathDropMixin",
+    "PlayerTrinketInventoryMixin",
     "PlayerSprintGateMixin",
     "PlayerSleepTickMixin",
     "SaturationMobEffectMixin",
@@ -78,12 +81,15 @@
     "AbstractFurnaceCookTimeAccessor"
   ],
   "client": [
+    "client.AbstractContainerScreenAccessor",
     "client.GuiGraphicsRarityOverlayMixin",
     "client.GuiGraphicsStackCountMixin",
     "client.GuiAccessor",
+    "client.InventoryScreenLabelMixin",
     "client.ItemFoodClientGateMixin",
     "client.MultiPlayerGameModeFarmingMixin",
-    "client.PlayerEatClientGateMixin"
+    "client.PlayerEatClientGateMixin",
+    "client.SlotAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
