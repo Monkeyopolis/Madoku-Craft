@@ -8,6 +8,7 @@ public final class MadokuEntitiesClient {
 
 	@SuppressWarnings("deprecation")
 	public static void initialize() {
+		EntityRendererRegistry.register(MadokuEntities.PET, MadokuPetEntityRenderer::new);
 		EntityRendererRegistry.register(MadokuEntities.HAG, HagRenderer::new);
 	}
 }

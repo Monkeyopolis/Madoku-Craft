@@ -21,8 +21,13 @@ public abstract class AbstractArrowDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedArrowDamage(Entity entity, DamageSource source, float originalDamage) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
+		if (MadokuMob.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
+			livingEntity.invulnerableTime = 0;
+			livingEntity.hurtTime = 0;
+		}
 		float resolvedDamage = MadokuMob.resolveProjectileDamageOverride(arrow, originalDamage);
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
+		MadokuMob.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
 			MadokuMob.applyWitherSkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}

@@ -350,7 +350,11 @@ public final class MadokuOxygen {
 		}
 
 		if (state.oxygenTicks >= 0) {
+			if (!shouldDrainOxygen(player)) {
+				state.oxygenTicks = oxygenCapTicks;
+			} else {
 			state.oxygenTicks = clampInt(state.oxygenTicks, 0, oxygenCapTicks);
+			}
 			if (state.lastKnownOxygenBoostLevels < 0) {
 				state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
 			}
@@ -358,7 +362,7 @@ public final class MadokuOxygen {
 		}
 
 		int observedAirSupply = clampInt(player.getAirSupply(), 0, oxygenCapTicks);
-		state.oxygenTicks = observedAirSupply;
+		state.oxygenTicks = shouldDrainOxygen(player) ? observedAirSupply : oxygenCapTicks;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
 	}
 

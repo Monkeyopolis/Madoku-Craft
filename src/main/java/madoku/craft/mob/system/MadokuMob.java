@@ -46,6 +46,7 @@ import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.CrossbowItem;
@@ -89,6 +90,7 @@ public final class MadokuMob {
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> MANAGED_MOB_ARROWS = new ConcurrentHashMap<>();
+	private static final java.util.Set<UUID> INVULNERABILITY_BYPASS_ARROWS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> PILLAGER_ATTACK_COOLDOWNS = new ConcurrentHashMap<>();
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
@@ -122,6 +124,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.clear();
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
+		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -140,6 +143,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.clear();
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
+		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -553,6 +557,47 @@ public final class MadokuMob {
 		double damage = resolveScaledRangedDamage(readDouble(root, MadokuMobConfig.FIELD_RANGED_DAMAGE, 6.0D), livingOwner.level().getDifficulty(), isHardcoreWorld(livingOwner.level()));
 		damage = livingOwner instanceof Mob mob ? MadokuDifficulty.resolveMobRangedDamageScaling(mob, damage) : damage;
 		return (float) Math.max(0.0D, damage);
+	}
+
+	public static boolean spawnManagedHomingArrow(
+		LivingEntity shooter,
+		LivingEntity target,
+		Vec3 spawnPosition,
+		float speed,
+		float damage
+	) {
+		if (shooter == null || target == null || !target.isAlive() || spawnPosition == null || !(shooter.level() instanceof ServerLevel level)) {
+			return false;
+		}
+
+		Arrow arrow = new Arrow(level, shooter, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
+		arrow.setPos(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		Vec3 desired = target.getEyePosition().subtract(spawnPosition);
+		if (desired.lengthSqr() <= 1.0E-6D) {
+			desired = shooter.getLookAngle();
+		}
+		arrow.shoot(desired.x, desired.y, desired.z, Math.max(0.1F, speed), 0.0F);
+		arrow.setCritArrow(false);
+		arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+		FIXED_ARROW_DAMAGE.put(arrow.getUUID(), Math.max(0.0F, damage));
+		INVULNERABILITY_BYPASS_ARROWS.add(arrow.getUUID());
+		trackManagedMobArrow(arrow, level.getServer());
+		double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
+		arrow.setNoGravity(true);
+		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
+		requestRuntimeProcessing(level.getServer(), 1L);
+		shooter.level().addFreshEntity(arrow);
+		return true;
+	}
+
+	public static boolean shouldBypassInvulnerability(AbstractArrow arrow) {
+		return arrow != null && INVULNERABILITY_BYPASS_ARROWS.contains(arrow.getUUID());
+	}
+
+	public static void clearInvulnerabilityBypass(AbstractArrow arrow) {
+		if (arrow != null) {
+			INVULNERABILITY_BYPASS_ARROWS.remove(arrow.getUUID());
+		}
 	}
 
 	public static void applyCreeperExplosionOverride(
@@ -1398,6 +1443,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.remove(arrowId);
 		FIXED_ARROW_DAMAGE.remove(arrowId);
 		MANAGED_MOB_ARROWS.remove(arrowId);
+		INVULNERABILITY_BYPASS_ARROWS.remove(arrowId);
 	}
 
 	private static void spawnSpiderJockey(Spider spider, ServerLevelAccessor world, DifficultyInstance difficulty) {

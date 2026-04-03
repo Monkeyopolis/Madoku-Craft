@@ -2,7 +2,7 @@ package madoku.craft;
 
 import madoku.craft.entity.MadokuEntitiesClient;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.inventory.MadokuTrinketInventoryClient;
+import madoku.craft.inventory.PlayerEntitiesInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.network.HungerHudPayload;
@@ -24,7 +24,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		MadokuHud.initialize();
 		MadokuEntitiesClient.initialize();
 		MadokuLevelsClient.initialize();
-		MadokuTrinketInventoryClient.initialize();
+		PlayerEntitiesInventoryClient.initialize();
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (configuredItemMetadataApplied || client.level == null) {
 				return;

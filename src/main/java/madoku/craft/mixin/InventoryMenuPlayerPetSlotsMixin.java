@@ -1,9 +1,9 @@
 package madoku.craft.mixin;
 
-import madoku.craft.trinket.MadokuTrinketHolder;
-import madoku.craft.trinket.MadokuTrinketInventory;
-import madoku.craft.trinket.MadokuTrinketSlot;
-import madoku.craft.trinket.MadokuTrinkets;
+import madoku.craft.trinket.PlayerPetHolder;
+import madoku.craft.trinket.PlayerPetInventory;
+import madoku.craft.trinket.PlayerPetSlot;
+import madoku.craft.trinket.PlayerPetSystem;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -19,21 +19,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(InventoryMenu.class)
-public abstract class InventoryMenuTrinketSlotsMixin extends AbstractContainerMenu {
-	protected InventoryMenuTrinketSlotsMixin(MenuType<?> menuType, int containerId) {
+public abstract class InventoryMenuPlayerPetSlotsMixin extends AbstractContainerMenu {
+	protected InventoryMenuPlayerPetSlotsMixin(MenuType<?> menuType, int containerId) {
 		super(menuType, containerId);
 	}
 
 	@Inject(method = "<init>", at = @At("TAIL"))
-	private void madokuCraft$addTrinketSlots(Inventory inventory, boolean active, Player owner, CallbackInfo ci) {
-		MadokuTrinketInventory trinketInventory = ((MadokuTrinketHolder) owner).madokuCraft$getTrinketInventory();
-		for (int slot = 0; slot < MadokuTrinkets.SLOT_COUNT; slot++) {
-			this.addSlot(new MadokuTrinketSlot(trinketInventory, slot, MadokuTrinkets.SLOT_X, MadokuTrinkets.SLOT_YS[slot]));
+	private void madokuCraft$addPlayerPetSlots(Inventory inventory, boolean active, Player owner, CallbackInfo ci) {
+		PlayerPetInventory playerPetInventory = ((PlayerPetHolder) owner).madokuCraft$getPlayerPetInventory();
+		for (int slot = 0; slot < PlayerPetSystem.SLOT_COUNT; slot++) {
+			this.addSlot(new PlayerPetSlot(playerPetInventory, slot, PlayerPetSystem.SLOT_X, PlayerPetSystem.SLOT_YS[slot]));
 		}
 	}
 
 	@Inject(method = "quickMoveStack", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$handleTrinketQuickMove(Player player, int slotIndex, CallbackInfoReturnable<ItemStack> cir) {
+	private void madokuCraft$handlePlayerPetQuickMove(Player player, int slotIndex, CallbackInfoReturnable<ItemStack> cir) {
 		if (slotIndex < 0 || slotIndex >= this.slots.size()) {
 			return;
 		}
@@ -43,13 +43,13 @@ public abstract class InventoryMenuTrinketSlotsMixin extends AbstractContainerMe
 			return;
 		}
 
-		if (slotIndex >= MadokuTrinkets.FIRST_SLOT_INDEX && slotIndex < MadokuTrinkets.FIRST_SLOT_INDEX + MadokuTrinkets.SLOT_COUNT) {
-			cir.setReturnValue(madokuCraft$quickMove(player, slot, 9, MadokuTrinkets.FIRST_SLOT_INDEX));
+		if (slotIndex >= PlayerPetSystem.FIRST_SLOT_INDEX && slotIndex < PlayerPetSystem.FIRST_SLOT_INDEX + PlayerPetSystem.SLOT_COUNT) {
+			cir.setReturnValue(madokuCraft$quickMove(player, slot, 9, PlayerPetSystem.FIRST_SLOT_INDEX));
 			return;
 		}
 
-		if (slotIndex >= 9 && slotIndex < MadokuTrinkets.FIRST_SLOT_INDEX && MadokuTrinkets.isValidTrinket(slot.getItem())) {
-			ItemStack moved = madokuCraft$quickMove(player, slot, MadokuTrinkets.FIRST_SLOT_INDEX, MadokuTrinkets.FIRST_SLOT_INDEX + MadokuTrinkets.SLOT_COUNT);
+		if (slotIndex >= 9 && slotIndex < PlayerPetSystem.FIRST_SLOT_INDEX && PlayerPetSystem.isValidPlayerPet(slot.getItem())) {
+			ItemStack moved = madokuCraft$quickMove(player, slot, PlayerPetSystem.FIRST_SLOT_INDEX, PlayerPetSystem.FIRST_SLOT_INDEX + PlayerPetSystem.SLOT_COUNT);
 			if (!moved.isEmpty()) {
 				cir.setReturnValue(moved);
 			}

@@ -1,8 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.trinket.MadokuTrinketHolder;
-import madoku.craft.trinket.MadokuTrinketInventory;
-import madoku.craft.trinket.MadokuTrinkets;
+import madoku.craft.trinket.PlayerPetHolder;
+import madoku.craft.trinket.PlayerPetInventory;
+import madoku.craft.trinket.PlayerPetSystem;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Player;
@@ -17,19 +17,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
-public abstract class PlayerTrinketInventoryMixin implements MadokuTrinketHolder {
+public abstract class PlayerPetInventoryMixin implements PlayerPetHolder {
 	@Unique
-	private final MadokuTrinketInventory madokuCraft$trinketInventory = new MadokuTrinketInventory();
+	private final PlayerPetInventory madokuCraft$playerPetInventory = new PlayerPetInventory();
 
 	@Override
-	public MadokuTrinketInventory madokuCraft$getTrinketInventory() {
-		return madokuCraft$trinketInventory;
+	public PlayerPetInventory madokuCraft$getPlayerPetInventory() {
+		return madokuCraft$playerPetInventory;
 	}
 
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
-	private void madokuCraft$saveTrinkets(ValueOutput output, CallbackInfo ci) {
-		for (int slot = 0; slot < madokuCraft$trinketInventory.getContainerSize(); slot++) {
-			ItemStack stack = madokuCraft$trinketInventory.getItem(slot);
+	private void madokuCraft$savePlayerPets(ValueOutput output, CallbackInfo ci) {
+		for (int slot = 0; slot < madokuCraft$playerPetInventory.getContainerSize(); slot++) {
+			ItemStack stack = madokuCraft$playerPetInventory.getItem(slot);
 			if (stack.isEmpty()) {
 				continue;
 			}
@@ -43,29 +43,29 @@ public abstract class PlayerTrinketInventoryMixin implements MadokuTrinketHolder
 	}
 
 	@Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
-	private void madokuCraft$loadTrinkets(ValueInput input, CallbackInfo ci) {
-		for (int slot = 0; slot < madokuCraft$trinketInventory.getContainerSize(); slot++) {
+	private void madokuCraft$loadPlayerPets(ValueInput input, CallbackInfo ci) {
+		for (int slot = 0; slot < madokuCraft$playerPetInventory.getContainerSize(); slot++) {
 			String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
 			if (itemId.isBlank()) {
-				madokuCraft$trinketInventory.setItem(slot, ItemStack.EMPTY);
+				madokuCraft$playerPetInventory.setItem(slot, ItemStack.EMPTY);
 				continue;
 			}
 
 			Identifier identifier = Identifier.tryParse(itemId);
 			Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
 			if (item == null) {
-				madokuCraft$trinketInventory.setItem(slot, ItemStack.EMPTY);
+				madokuCraft$playerPetInventory.setItem(slot, ItemStack.EMPTY);
 				continue;
 			}
 
 			ItemStack stack = new ItemStack(item);
-			madokuCraft$trinketInventory.setItem(slot, MadokuTrinkets.isValidTrinket(stack) ? stack : ItemStack.EMPTY);
+			madokuCraft$playerPetInventory.setItem(slot, PlayerPetSystem.isValidPlayerPet(stack) ? stack : ItemStack.EMPTY);
 		}
-		madokuCraft$trinketInventory.setChanged();
+		madokuCraft$playerPetInventory.setChanged();
 	}
 
 	@Unique
 	private static String madokuCraft$slotKey(int slot) {
-		return MadokuTrinkets.SAVE_KEY + "." + slot;
+		return PlayerPetSystem.SAVE_KEY + "." + slot;
 	}
 }

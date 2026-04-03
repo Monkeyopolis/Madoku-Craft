@@ -1,8 +1,8 @@
 package madoku.craft.inventory;
 
-import madoku.craft.trinket.MadokuTrinkets;
 import madoku.craft.mixin.client.AbstractContainerScreenAccessor;
 import madoku.craft.mixin.client.SlotAccessor;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
@@ -13,17 +13,18 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.inventory.Slot;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-public final class MadokuTrinketInventoryClient {
+public final class PlayerEntitiesInventoryClient {
 	private static final Identifier INVENTORY_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/containers/trinket_inventory.png");
 	private static final Identifier RECIPE_BUTTON_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/button.png");
 	private static final Identifier RECIPE_BUTTON_HIGHLIGHTED_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/button_highlighted.png");
-	private static final Identifier TRINKET_SLOT_TEXTURE =
+	private static final Identifier ENTITY_SLOT_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/trinket.png");
 	private static final int TEXTURE_SIZE = 256;
 	private static final int INVENTORY_WIDTH = 176;
@@ -49,7 +50,7 @@ public final class MadokuTrinketInventoryClient {
 	private static Method playerPreviewRenderMethod;
 	private static boolean lookedUpPlayerPreviewRenderMethod;
 
-	private MadokuTrinketInventoryClient() {
+	private PlayerEntitiesInventoryClient() {
 	}
 
 	public static void initialize() {
@@ -75,7 +76,7 @@ public final class MadokuTrinketInventoryClient {
 					TEXTURE_SIZE
 				);
 				drawPlayerPreview(inventoryScreen, graphics, mouseX, mouseY);
-				drawTrinketPlaceholders(inventoryScreen, graphics);
+				drawEntityPlaceholders(inventoryScreen, graphics);
 				drawRecipeBookButtonIcon(inventoryScreen, graphics, mouseX, mouseY);
 			});
 
@@ -147,9 +148,11 @@ public final class MadokuTrinketInventoryClient {
 		);
 	}
 
-	private static void drawTrinketPlaceholders(InventoryScreen screen, Object graphics) {
+	private static void drawEntityPlaceholders(InventoryScreen screen, Object graphics) {
 		net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics = (net.minecraft.client.gui.GuiGraphicsExtractor) graphics;
-		for (int slotIndex = MadokuTrinkets.FIRST_SLOT_INDEX; slotIndex < MadokuTrinkets.FIRST_SLOT_INDEX + MadokuTrinkets.SLOT_COUNT; slotIndex++) {
+		for (int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX;
+			slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT;
+			slotIndex++) {
 			if (slotIndex >= screen.getMenu().slots.size()) {
 				break;
 			}
@@ -163,7 +166,7 @@ public final class MadokuTrinketInventoryClient {
 			int iconY = topPos(screen) + slot.y;
 			guiGraphics.blit(
 				RenderPipelines.GUI_TEXTURED,
-				TRINKET_SLOT_TEXTURE,
+				ENTITY_SLOT_TEXTURE,
 				iconX,
 				iconY,
 				0.0F,
