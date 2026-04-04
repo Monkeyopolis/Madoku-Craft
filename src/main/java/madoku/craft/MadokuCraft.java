@@ -30,7 +30,6 @@ import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.time.MadokuSleep;
 import madoku.craft.time.MadokuTime;
 import madoku.craft.pet.PlayerEntitiesSystem;
-import madoku.craft.trinket.PlayerPetSystem;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -62,7 +61,6 @@ public class MadokuCraft implements ModInitializer {
 		MadokuOxygen.initialize();
 		MadokuLevels.initialize();
 		MadokuLuck.initialize();
-		PlayerPetSystem.initialize();
 		PlayerEntitiesSystem.initialize();
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
 		WorldTimeSync.initialize();
@@ -84,6 +82,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHunger.reset();
 			MadokuOxygen.reset();
 			MadokuLevels.reset();
+			PlayerEntitiesSystem.reset();
 			MadokuScheduler.reset();
 			MadokuScheduler.loadPersistedData(server);
 			MadokuTime.loadPersistedData(server);
@@ -97,6 +96,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHunger.loadPersistedData(server);
 			MadokuOxygen.loadPersistedData(server);
 			MadokuLevels.loadPersistedData(server);
+			PlayerEntitiesSystem.loadPersistedData(server);
 			MadokuItemStack.loadPersistedData(server);
 			MadokuItem.onServerStarted();
 			MadokuMob.onServerStarted(server);
@@ -120,6 +120,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHunger.savePersistedData(server);
 			MadokuOxygen.savePersistedData(server);
 			MadokuLevels.savePersistedData(server);
+			PlayerEntitiesSystem.savePersistedData(server);
 			MadokuItemStack.savePersistedData(server);
 			MadokuClock.reset();
 			MadokuTicks.reset();
@@ -136,6 +137,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHunger.reset();
 			MadokuOxygen.reset();
 			MadokuLevels.reset();
+			PlayerEntitiesSystem.reset();
 			MadokuItemStack.reset();
 			WorldTimeSync.reset();
 			WorldDifficultySync.reset();
@@ -157,11 +159,13 @@ public class MadokuCraft implements ModInitializer {
 			MadokuPlacedBlocks.autosavePersistedData(server);
 			MadokuOxygen.autosavePersistedData(server);
 			MadokuLevels.autosavePersistedData(server);
+			PlayerEntitiesSystem.autosavePersistedData(server);
 			MadokuItemStack.autosavePersistedData(server);
 			MadokuTime.update(server);
 			MadokuSeason.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
 			MadokuMob.onServerTick(server);
+			PlayerEntitiesSystem.onServerTick(server);
 			MadokuLevels.flushDirtySyncs(server);
 			WorldTimeSync.broadcastIfChanged(server);
 			WorldDifficultySync.broadcastIfChanged(server);

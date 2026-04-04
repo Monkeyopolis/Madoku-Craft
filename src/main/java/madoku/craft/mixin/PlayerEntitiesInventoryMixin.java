@@ -47,6 +47,9 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 		for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
 			String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
 			if (itemId.isBlank()) {
+				itemId = input.getStringOr(madokuCraft$legacySlotKey(slot), "");
+			}
+			if (itemId.isBlank()) {
 				madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
 				continue;
 			}
@@ -67,5 +70,10 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 	@Unique
 	private static String madokuCraft$slotKey(int slot) {
 		return PlayerEntitiesSystem.SAVE_KEY + "." + slot;
+	}
+
+	@Unique
+	private static String madokuCraft$legacySlotKey(int slot) {
+		return PlayerEntitiesSystem.legacySaveKey() + "." + slot;
 	}
 }

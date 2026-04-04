@@ -1,7 +1,6 @@
 package madoku.craft.entity;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.pet.MadokuPetEntity;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.Registry;
@@ -22,19 +21,7 @@ import net.minecraft.world.level.levelgen.structure.StructureStart;
 
 public final class MadokuEntities {
 	public static final Identifier HAG_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "hag");
-	public static final Identifier PET_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "pet");
 	public static final Identifier HAG_SPAWN_EGG_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "hag_spawn_egg");
-	public static final EntityType<MadokuPetEntity> PET = Registry.register(
-		BuiltInRegistries.ENTITY_TYPE,
-		PET_ID,
-		EntityType.Builder.of(MadokuPetEntity::new, MobCategory.MISC)
-			.sized(0.35F, 0.35F)
-			.eyeHeight(0.25F)
-			.clientTrackingRange(8)
-			.updateInterval(1)
-			.noSave()
-			.build(ResourceKey.create(Registries.ENTITY_TYPE, PET_ID))
-	);
 	public static final EntityType<Hag> HAG = Registry.register(
 		BuiltInRegistries.ENTITY_TYPE,
 		HAG_ID,
@@ -59,7 +46,6 @@ public final class MadokuEntities {
 	}
 
 	public static void initialize() {
-		FabricDefaultAttributeRegistry.register(PET, MadokuPetEntity.createAttributes());
 		FabricDefaultAttributeRegistry.register(HAG, Witch.createAttributes());
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (!(entity instanceof Witch witch) || witch.getType() != EntityType.WITCH || !(world instanceof ServerLevel serverLevel)) {
