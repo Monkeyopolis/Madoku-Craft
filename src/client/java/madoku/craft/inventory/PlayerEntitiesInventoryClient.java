@@ -1,6 +1,7 @@
 package madoku.craft.inventory;
 
 import madoku.craft.mixin.client.AbstractContainerScreenAccessor;
+import madoku.craft.mixin.client.CreativeModeInventoryScreenAccessor;
 import madoku.craft.mixin.client.SlotAccessor;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -8,6 +9,8 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -18,8 +21,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
 public final class PlayerEntitiesInventoryClient {
-	private static final Identifier INVENTORY_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft", "textures/containers/trinket_inventory.png");
+	private static final Identifier SURVIVAL_INVENTORY_TEXTURE =
+		Identifier.fromNamespaceAndPath("madoku-craft", "textures/containers/survival_pet_inventory.png");
+	private static final Identifier CREATIVE_INVENTORY_TEXTURE =
+		Identifier.fromNamespaceAndPath("madoku-craft", "textures/containers/creative_pet_inventory.png");
 	private static final Identifier RECIPE_BUTTON_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/button.png");
 	private static final Identifier RECIPE_BUTTON_HIGHLIGHTED_TEXTURE =
@@ -38,6 +43,12 @@ public final class PlayerEntitiesInventoryClient {
 	private static final int RECIPE_BUTTON_MATCH_TOLERANCE = 12;
 	private static final int RECIPE_BUTTON_X = 95;
 	private static final int RECIPE_BUTTON_Y = 61;
+	private static final int[] CREATIVE_ARMOR_SLOT_XS = {53, 53, 33, 33};
+	private static final int[] CREATIVE_ARMOR_SLOT_YS = {8, 32, 8, 32};
+	private static final int[] CREATIVE_PET_SLOT_XS = {109, 129, 109, 129};
+	private static final int[] CREATIVE_PET_SLOT_YS = {8, 8, 32, 32};
+	private static final int CREATIVE_OFFHAND_SLOT_X = 149;
+	private static final int CREATIVE_OFFHAND_SLOT_Y = 32;
 	private static final int OFFHAND_SLOT_INDEX = 45;
 	private static final int OFFHAND_SLOT_X = 117;
 	private static final int OFFHAND_SLOT_Y = 62;
@@ -47,6 +58,12 @@ public final class PlayerEntitiesInventoryClient {
 	private static final int PLAYER_PREVIEW_BOTTOM = 78;
 	private static final int PLAYER_PREVIEW_SCALE = 30;
 	private static final float PLAYER_PREVIEW_VERTICAL_OFFSET = 0.0625F;
+	private static final int CREATIVE_PLAYER_PREVIEW_LEFT = 73;
+	private static final int CREATIVE_PLAYER_PREVIEW_TOP = 6;
+	private static final int CREATIVE_PLAYER_PREVIEW_RIGHT = 104;
+	private static final int CREATIVE_PLAYER_PREVIEW_BOTTOM = 48;
+	private static final int CREATIVE_PLAYER_PREVIEW_SCALE = 20;
+	private static final float CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET = 0.0F;
 	private static Method playerPreviewRenderMethod;
 	private static boolean lookedUpPlayerPreviewRenderMethod;
 
@@ -55,44 +72,79 @@ public final class PlayerEntitiesInventoryClient {
 
 	public static void initialize() {
 		ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-			if (!(screen instanceof InventoryScreen inventoryScreen)) {
-				return;
+			if (screen instanceof InventoryScreen inventoryScreen) {
+				ScreenEvents.afterBackground(inventoryScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
+					applyLayout(inventoryScreen);
+					int leftPos = leftPos(inventoryScreen);
+					int topPos = topPos(inventoryScreen);
+					graphics.blit(
+						RenderPipelines.GUI_TEXTURED,
+						SURVIVAL_INVENTORY_TEXTURE,
+						leftPos,
+						topPos,
+						0.0F,
+						0.0F,
+						INVENTORY_WIDTH,
+						INVENTORY_HEIGHT,
+						TEXTURE_SIZE,
+						TEXTURE_SIZE
+					);
+					drawPlayerPreview(inventoryScreen, graphics, mouseX, mouseY);
+					drawEntityPlaceholders(inventoryScreen, graphics);
+					drawRecipeBookButtonIcon(inventoryScreen, graphics, mouseX, mouseY);
+				});
+
+				ScreenMouseEvents.allowMouseClick(inventoryScreen).register((currentScreen, event) -> {
+					applyLayout(inventoryScreen);
+					AbstractWidget recipeButton = findRecipeButton(inventoryScreen);
+					if (recipeButton == null) {
+						return true;
+					}
+					if (!isHovered(recipeButton, (int) event.x(), (int) event.y())) {
+						return true;
+					}
+
+					recipeButton.onClick(event, false);
+					return false;
+				});
 			}
 
-			ScreenEvents.afterBackground(inventoryScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
-				applyLayout(inventoryScreen);
-				int leftPos = leftPos(inventoryScreen);
-				int topPos = topPos(inventoryScreen);
-				graphics.blit(
-					RenderPipelines.GUI_TEXTURED,
-					INVENTORY_TEXTURE,
-					leftPos,
-					topPos,
-					0.0F,
-					0.0F,
-					INVENTORY_WIDTH,
-					INVENTORY_HEIGHT,
-					TEXTURE_SIZE,
-					TEXTURE_SIZE
-				);
-				drawPlayerPreview(inventoryScreen, graphics, mouseX, mouseY);
-				drawEntityPlaceholders(inventoryScreen, graphics);
-				drawRecipeBookButtonIcon(inventoryScreen, graphics, mouseX, mouseY);
-			});
+			if (screen instanceof CreativeModeInventoryScreen creativeScreen) {
+				ScreenEvents.afterBackground(creativeScreen).register((currentScreen, graphics, mouseX, mouseY, tickProgress) -> {
+					if (!((CreativeModeInventoryScreenAccessor) creativeScreen).madokuCraft$isInventoryOpen()) {
+						return;
+					}
 
-			ScreenMouseEvents.allowMouseClick(inventoryScreen).register((currentScreen, event) -> {
-				applyLayout(inventoryScreen);
-				AbstractWidget recipeButton = findRecipeButton(inventoryScreen);
-				if (recipeButton == null) {
-					return true;
-				}
-				if (!isHovered(recipeButton, (int) event.x(), (int) event.y())) {
-					return true;
-				}
-
-				recipeButton.onClick(event, false);
-				return false;
-			});
+					applyCreativeLayout(creativeScreen);
+					int leftPos = leftPos(creativeScreen);
+					int topPos = topPos(creativeScreen);
+					graphics.blit(
+						RenderPipelines.GUI_TEXTURED,
+						CREATIVE_INVENTORY_TEXTURE,
+						leftPos,
+						topPos,
+						0.0F,
+						0.0F,
+						INVENTORY_WIDTH,
+						INVENTORY_HEIGHT,
+						TEXTURE_SIZE,
+						TEXTURE_SIZE
+					);
+					drawPlayerPreview(
+						creativeScreen,
+						graphics,
+						mouseX,
+						mouseY,
+						CREATIVE_PLAYER_PREVIEW_LEFT,
+						CREATIVE_PLAYER_PREVIEW_TOP,
+						CREATIVE_PLAYER_PREVIEW_RIGHT,
+						CREATIVE_PLAYER_PREVIEW_BOTTOM,
+						CREATIVE_PLAYER_PREVIEW_SCALE,
+						CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET
+					);
+					drawEntityPlaceholders(creativeScreen, graphics);
+				});
+			}
 		});
 	}
 
@@ -109,6 +161,48 @@ public final class PlayerEntitiesInventoryClient {
 		Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
 		((SlotAccessor) offhandSlot).madokuCraft$setX(OFFHAND_SLOT_X);
 		((SlotAccessor) offhandSlot).madokuCraft$setY(OFFHAND_SLOT_Y);
+	}
+
+	private static void applyCreativeLayout(CreativeModeInventoryScreen screen) {
+		moveCreativeArmorSlots(screen);
+		moveCreativeOffhandSlot(screen);
+		moveCreativePetSlots(screen);
+	}
+
+	private static void moveCreativeArmorSlots(CreativeModeInventoryScreen screen) {
+		for (int index = 0; index < CREATIVE_ARMOR_SLOT_XS.length; index++) {
+			int slotIndex = 5 + index;
+			if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+				break;
+			}
+
+			Slot slot = screen.getMenu().slots.get(slotIndex);
+			((SlotAccessor) slot).madokuCraft$setX(CREATIVE_ARMOR_SLOT_XS[index]);
+			((SlotAccessor) slot).madokuCraft$setY(CREATIVE_ARMOR_SLOT_YS[index]);
+		}
+	}
+
+	private static void moveCreativeOffhandSlot(CreativeModeInventoryScreen screen) {
+		if (OFFHAND_SLOT_INDEX < 0 || OFFHAND_SLOT_INDEX >= screen.getMenu().slots.size()) {
+			return;
+		}
+
+		Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
+		((SlotAccessor) offhandSlot).madokuCraft$setX(CREATIVE_OFFHAND_SLOT_X);
+		((SlotAccessor) offhandSlot).madokuCraft$setY(CREATIVE_OFFHAND_SLOT_Y);
+	}
+
+	private static void moveCreativePetSlots(CreativeModeInventoryScreen screen) {
+		for (int slot = 0; slot < PlayerEntitiesSystem.SLOT_COUNT; slot++) {
+			int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot;
+			if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+				break;
+			}
+
+			Slot petSlot = screen.getMenu().slots.get(slotIndex);
+			((SlotAccessor) petSlot).madokuCraft$setX(CREATIVE_PET_SLOT_XS[slot]);
+			((SlotAccessor) petSlot).madokuCraft$setY(CREATIVE_PET_SLOT_YS[slot]);
+		}
 	}
 
 	private static void positionRecipeBookButton(InventoryScreen screen) {
@@ -148,7 +242,7 @@ public final class PlayerEntitiesInventoryClient {
 		);
 	}
 
-	private static void drawEntityPlaceholders(InventoryScreen screen, Object graphics) {
+	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, Object graphics) {
 		net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics = (net.minecraft.client.gui.GuiGraphicsExtractor) graphics;
 		for (int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX;
 			slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT;
@@ -180,6 +274,32 @@ public final class PlayerEntitiesInventoryClient {
 	}
 
 	private static void drawPlayerPreview(InventoryScreen screen, Object graphics, int mouseX, int mouseY) {
+		drawPlayerPreview(
+			screen,
+			graphics,
+			mouseX,
+			mouseY,
+			PLAYER_PREVIEW_LEFT,
+			PLAYER_PREVIEW_TOP,
+			PLAYER_PREVIEW_RIGHT,
+			PLAYER_PREVIEW_BOTTOM,
+			PLAYER_PREVIEW_SCALE,
+			PLAYER_PREVIEW_VERTICAL_OFFSET
+		);
+	}
+
+	private static void drawPlayerPreview(
+		AbstractContainerScreen<?> screen,
+		Object graphics,
+		int mouseX,
+		int mouseY,
+		int previewLeft,
+		int previewTop,
+		int previewRight,
+		int previewBottom,
+		int previewScale,
+		float previewVerticalOffset
+	) {
 		Minecraft client = Minecraft.getInstance();
 		if (client.player == null) {
 			return;
@@ -194,12 +314,12 @@ public final class PlayerEntitiesInventoryClient {
 			method.invoke(
 				null,
 				graphics,
-				leftPos(screen) + PLAYER_PREVIEW_LEFT,
-				topPos(screen) + PLAYER_PREVIEW_TOP,
-				leftPos(screen) + PLAYER_PREVIEW_RIGHT,
-				topPos(screen) + PLAYER_PREVIEW_BOTTOM,
-				PLAYER_PREVIEW_SCALE,
-				PLAYER_PREVIEW_VERTICAL_OFFSET,
+				leftPos(screen) + previewLeft,
+				topPos(screen) + previewTop,
+				leftPos(screen) + previewRight,
+				topPos(screen) + previewBottom,
+				previewScale,
+				previewVerticalOffset,
 				(float) mouseX,
 				(float) mouseY,
 				client.player
@@ -263,11 +383,11 @@ public final class PlayerEntitiesInventoryClient {
 		return bestScore <= RECIPE_BUTTON_MATCH_TOLERANCE ? match : null;
 	}
 
-	private static int leftPos(InventoryScreen screen) {
+	private static int leftPos(AbstractContainerScreen<?> screen) {
 		return ((AbstractContainerScreenAccessor) screen).madokuCraft$getLeftPos();
 	}
 
-	private static int topPos(InventoryScreen screen) {
+	private static int topPos(AbstractContainerScreen<?> screen) {
 		return ((AbstractContainerScreenAccessor) screen).madokuCraft$getTopPos();
 	}
 

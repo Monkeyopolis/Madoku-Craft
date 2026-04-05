@@ -7,6 +7,7 @@ import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.entity.MadokuEntities;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import madoku.craft.mixin.CreeperAccessor;
@@ -163,6 +164,11 @@ public final class MadokuMob {
 				applyCreeperSpawnOverrides(creeper, world, difficulty);
 		} else if (mob instanceof Piglin piglin) {
 			applyPiglinSpawnOverrides(piglin, world);
+		} else if (mob.getType() == MadokuEntities.HAG) {
+			JsonObject root = root(MadokuMobConfig.FILE_HAG);
+			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
+				applyUniversalStats(mob, root);
+			}
 		}
 	}
 
@@ -761,6 +767,10 @@ public final class MadokuMob {
 			if (entity instanceof Creeper creeper) {
 				JsonObject root = root(MadokuMobConfig.FILE_CREEPER);
 				return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyCreeperRuntimeStats(creeper, root);
+			}
+			if (entity.getType() == MadokuEntities.HAG) {
+				JsonObject root = root(MadokuMobConfig.FILE_HAG);
+				return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(entity, root);
 			}
 			return false;
 	}

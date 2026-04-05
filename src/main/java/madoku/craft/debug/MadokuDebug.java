@@ -238,6 +238,7 @@ public final class MadokuDebug {
 						setDomainEnabled(Domain.HUNGER, true);
 						setDomainEnabled(Domain.MOB, true);
 						setDomainEnabled(Domain.FARMING, true);
+						setDomainEnabled(Domain.PET, true);
 					}
 			}
 
@@ -266,10 +267,11 @@ public final class MadokuDebug {
 				activeDomains.add(Domain.SLEEP.id());
 				activeDomains.add(Domain.SMELTING.id());
 				activeDomains.add(Domain.HEALTH.id());
-					activeDomains.add(Domain.HUNGER.id());
+				activeDomains.add(Domain.HUNGER.id());
 					activeDomains.add(Domain.MOB.id());
 				activeDomains.add(Domain.FARMING.id());
 				activeDomains.add(Domain.SEASON.id());
+				activeDomains.add(Domain.PET.id());
 				root.add("active_domains", activeDomains);
 				root.add("disabled_metrics", new JsonArray());
 				return root;
@@ -352,6 +354,7 @@ public final class MadokuDebug {
 		SMELTING("smelting"),
 		HEALTH("health"),
 				HUNGER("hunger"),
+		PET("pet"),
 			NETWORK("network"),
 			CLOCK("clock"),
 			SLEEP("sleep"),
@@ -394,6 +397,7 @@ public final class MadokuDebug {
 					case "smelting", "smelt" -> SMELTING;
 					case "health", "hp" -> HEALTH;
 						case "hunger", "food" -> HUNGER;
+						case "pet", "pets" -> PET;
 						case "network", "net" -> NETWORK;
 						case "clock", "time_clock" -> CLOCK;
 						case "sleep", "sleeping" -> SLEEP;

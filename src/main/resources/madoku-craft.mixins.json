@@ -66,6 +66,7 @@
     "PlayerSprintGateMixin",
     "PlayerSleepTickMixin",
     "SaturationMobEffectMixin",
+    "ServerGamePacketListenerCreativePetSlotMixin",
     "FarmlandBlockFarmingMixin",
     "ServerPlayerGameModeFarmingMixin",
     "ServerLevelSeasonalPrecipitationMixin",
@@ -85,6 +86,9 @@
   ],
   "client": [
     "client.AbstractContainerScreenAccessor",
+    "client.CreativeModeInventoryScreenAccessor",
+    "client.CreativeModeInventoryScreenPetSlotMixin",
+    "client.CreativeModeSlotWrapperAccessor",
     "client.GuiGraphicsRarityOverlayMixin",
     "client.GuiGraphicsStackCountMixin",
     "client.GuiAccessor",

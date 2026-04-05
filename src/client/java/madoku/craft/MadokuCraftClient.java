@@ -6,6 +6,7 @@ import madoku.craft.inventory.PlayerEntitiesInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.network.HungerHudPayload;
+import madoku.craft.network.PetAbilityHudPayload;
 import madoku.craft.network.WorldDifficultyPayload;
 import madoku.craft.network.WorldSeasonPayload;
 import madoku.craft.network.WorldTimePayload;
@@ -43,12 +44,16 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(WorldSeasonPayload.TYPE, (payload, context) ->
 			MadokuHud.setServerSeason(payload.season())
 		);
+		ClientPlayNetworking.registerGlobalReceiver(PetAbilityHudPayload.TYPE, (payload, context) ->
+			MadokuHud.setPetAbilityCooldowns(payload.asArray())
+		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			MadokuHud.clearServerTime();
 			MadokuHud.clearServerHunger();
 			MadokuHud.clearServerDifficulty();
 			MadokuHud.clearServerSeason();
 			MadokuHud.clearOxygenHudState();
+			MadokuHud.clearPetAbilityHudState();
 		});
 	}
 }

@@ -12,6 +12,7 @@ import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.network.MadokuLevelUpPayload;
 import madoku.craft.network.MadokuLevelsPayload;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -284,6 +285,7 @@ public final class MadokuLevels {
 		if (attackDamageAttribute != null) {
 			applyAttributeModifier(attackDamageAttribute, DAMAGE_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_DAMAGE.valueAtLevel(damageStatLevel));
 		}
+		PlayerEntitiesSystem.applyPlayerDamageAbilityBonus(player);
 		if (armorAttribute != null) {
 			applyAttributeModifier(armorAttribute, ARMOR_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_ARMOR.valueAtLevel(armorStatLevel));
 		}

@@ -35,8 +35,9 @@ public abstract class LivingEntityPetBehaviorMixin {
 
 	@Inject(method = "getSoundVolume", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$reduceManagedPetSoundVolume(CallbackInfoReturnable<Float> cir) {
-		if (PlayerEntitiesSystem.isManagedPet((Entity) (Object) this)) {
-			cir.setReturnValue(PlayerEntitiesSystem.soundVolume(cir.getReturnValueF()));
+		Entity self = (Entity) (Object) this;
+		if (PlayerEntitiesSystem.isManagedPet(self)) {
+			cir.setReturnValue(PlayerEntitiesSystem.soundVolume(self, cir.getReturnValueF()));
 		}
 	}
 }

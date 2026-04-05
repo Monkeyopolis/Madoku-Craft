@@ -31,6 +31,7 @@ public final class MadokuMobConfig {
 	public static final String FILE_PIGLIN = "piglin";
 	public static final String FILE_PILLAGER = "pillager";
 	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
+	public static final String FILE_HAG = "hag";
 
 	public static final String FIELD_USE_CUSTOM_BABY_SPAWN_CHANCE = "use_custom_baby_spawn_chance";
 	public static final String FIELD_CAN_BREAK_DOORS = "can_break_doors";
@@ -134,11 +135,12 @@ public final class MadokuMobConfig {
 			FILE_ZOMBIE_VILLAGER,
 			buildZombieTypeDefaults(FIELD_ADULT_ZOMBIE_VILLAGER, FIELD_BABY_ZOMBIE_VILLAGER, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7)
 		);
-			defaults.put(FILE_PIGLIN, buildPiglinDefaults());
-			defaults.put(FILE_PILLAGER, buildPillagerDefaults());
-			defaults.put(FILE_WITHER_SKELETON, buildWitherSkeletonDefaults());
-			return defaults;
-		}
+		defaults.put(FILE_PIGLIN, buildPiglinDefaults());
+		defaults.put(FILE_PILLAGER, buildPillagerDefaults());
+		defaults.put(FILE_WITHER_SKELETON, buildWitherSkeletonDefaults());
+		defaults.put(FILE_HAG, buildHagDefaults());
+		return defaults;
+	}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
 		JsonObject root = new JsonObject();
@@ -184,6 +186,12 @@ public final class MadokuMobConfig {
 		if (experienceDrop != null) {
 			root.addProperty(FIELD_EXPERIENCE_DROP, experienceDrop);
 		}
+		return root;
+	}
+
+	private static JsonObject buildHagDefaults() {
+		JsonObject root = buildUniversalDefaults(40.0d, 1.0d, null, 0.25d, 0.2d, null, 11);
+		root.addProperty(FIELD_ENABLED, true);
 		return root;
 	}
 

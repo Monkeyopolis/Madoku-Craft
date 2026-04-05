@@ -12,8 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MobPetSoundMixin {
 	@Inject(method = "getAmbientSoundInterval", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$slowManagedPetAmbientSounds(CallbackInfoReturnable<Integer> cir) {
-		if (PlayerEntitiesSystem.isManagedPet((Entity) (Object) this)) {
-			cir.setReturnValue(PlayerEntitiesSystem.ambientSoundInterval(cir.getReturnValueI()));
+		Entity self = (Entity) (Object) this;
+		if (PlayerEntitiesSystem.isManagedPet(self)) {
+			cir.setReturnValue(PlayerEntitiesSystem.ambientSoundInterval(self, cir.getReturnValueI()));
 		}
 	}
 }

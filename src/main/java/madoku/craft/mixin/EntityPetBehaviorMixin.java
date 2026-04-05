@@ -83,7 +83,7 @@ public abstract class EntityPetBehaviorMixin {
 	)
 	private float madokuCraft$reduceManagedPetStepVolume(float volume) {
 		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(volume) : volume;
+		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
 	}
 
 	@ModifyArg(
@@ -93,7 +93,7 @@ public abstract class EntityPetBehaviorMixin {
 	)
 	private float madokuCraft$reduceManagedPetCombinationStepVolume(float volume) {
 		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(volume) : volume;
+		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
 	}
 
 	@ModifyArg(
@@ -103,6 +103,6 @@ public abstract class EntityPetBehaviorMixin {
 	)
 	private float madokuCraft$reduceManagedPetMuffledStepVolume(float volume) {
 		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(volume) : volume;
+		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
 	}
 }

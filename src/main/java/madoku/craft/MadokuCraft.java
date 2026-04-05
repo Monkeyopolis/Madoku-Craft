@@ -19,6 +19,7 @@ import madoku.craft.luck.MadokuLuck;
 import madoku.craft.luck.MadokuPlacedBlocks;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.HungerHudSync;
+import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.WorldDifficultySync;
 import madoku.craft.network.WorldSeasonSync;
 import madoku.craft.network.WorldTimeSync;
@@ -67,6 +68,7 @@ public class MadokuCraft implements ModInitializer {
 		WorldDifficultySync.initialize();
 		WorldSeasonSync.initialize();
 		HungerHudSync.initialize();
+		PetAbilityHudSync.initialize();
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
 			MadokuDebug.resetSession();
