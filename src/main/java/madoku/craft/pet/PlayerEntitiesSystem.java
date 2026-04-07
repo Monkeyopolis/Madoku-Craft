@@ -11,19 +11,24 @@ import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
+import madoku.craft.network.PetSoundStateSync;
 import madoku.craft.scheduler.MadokuScheduler;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
@@ -37,6 +42,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,12 +81,21 @@ public final class PlayerEntitiesSystem {
 	private static final String MANAGED_PET_ITEM_PREFIX = "madoku-craft.pet.item:";
 	private static final String PET_ABILITY_NONE = "none";
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";
+	private static final String PET_ABILITY_WEB_PROJECTILE = "web_projectile";
+	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = "explosive_projectile";
 	private static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
 	private static final String PET_RARITY_COMMON = "common";
 	private static final String PET_RARITY_RARE = "rare";
 	private static final String PET_RARITY_EPIC = "epic";
 	private static final String PET_RARITY_MYTHIC = "mythic";
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
+	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
+	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
+	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
+	private static final int WEB_PROJECTILE_SLOW_AMPLIFIER = 9;
+	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
+	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
+	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
 	private static final String FIELD_SLOT = "slot";
@@ -104,6 +119,8 @@ public final class PlayerEntitiesSystem {
 	private static final Set<UUID> DIRTY_ABILITY_HUD_PLAYERS = new HashSet<>();
 	private static final Map<UUID, Long> LAST_PROCESSED_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
+	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
 
 	private static volatile Settings settings = Settings.defaults();
 	private static volatile Map<String, PetRule> petRulesByItemId = Map.of();
@@ -147,6 +164,7 @@ public final class PlayerEntitiesSystem {
 			ACTIVE_PET_IDS.remove(entityId);
 			NEXT_IDLE_MOVE_BY_PET.remove(entityId);
 			FOLLOW_COMMANDS_BY_PET.remove(entityId);
+			PetSoundState.remove(entityId);
 		});
 	}
 
@@ -160,6 +178,9 @@ public final class PlayerEntitiesSystem {
 		DIRTY_ABILITY_HUD_PLAYERS.clear();
 		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
 		PLAYER_SLOT_COOLDOWNS.clear();
+		ACTIVE_WEB_PROJECTILES.clear();
+		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		PetSoundState.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
 
@@ -215,6 +236,9 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
+		tickManagedWebProjectiles(server);
+		tickManagedExplosiveProjectiles(server);
+
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (player == null || player.isSpectator()) {
 				continue;
@@ -243,7 +267,10 @@ public final class PlayerEntitiesSystem {
 	}
 
 	public static boolean isManagedPet(Entity entity) {
-		return entity != null && (ACTIVE_PET_IDS.contains(entity.getUUID()) || entity.entityTags().contains(MANAGED_PET_TAG));
+		return entity != null
+			&& (ACTIVE_PET_IDS.contains(entity.getUUID())
+				|| entity.entityTags().contains(MANAGED_PET_TAG)
+				|| PetSoundState.isManaged(entity));
 	}
 
 	public static float soundVolume(Entity entity, float baseVolume) {
@@ -524,7 +551,9 @@ public final class PlayerEntitiesSystem {
 
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
 		defaults.put("skeleton", PetRule.defaultsForItem("minecraft:skeleton_spawn_egg", PET_ABILITY_RANGED_HOMING_ARROW));
+		defaults.put("spider", PetRule.defaultsForItem("minecraft:spider_spawn_egg", PET_ABILITY_WEB_PROJECTILE));
 		defaults.put("zombie", PetRule.defaultsForItem("minecraft:zombie_spawn_egg", PET_ABILITY_PLAYER_DAMAGE_BONUS));
 		return defaults;
 	}
@@ -556,8 +585,33 @@ public final class PlayerEntitiesSystem {
 		handlePlayerLeave(server, player.getUUID());
 		markAbilityHudDirty(player.getUUID());
 		applyPlayerDamageAbilityBonus(player);
+		syncManagedPetSoundStateTo(player, server);
 		if (petEntitiesEnabled()) {
 			requestPetProcessing(server, player.getUUID(), 0L);
+		}
+	}
+
+	private static void syncManagedPetSoundStateTo(ServerPlayer player, MinecraftServer server) {
+		if (player == null || server == null) {
+			return;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			for (Entity entity : level.getAllEntities()) {
+				if (!(entity instanceof Mob pet) || !isManagedPet(pet)) {
+					continue;
+				}
+				PetRule rule = resolvePetRule(pet);
+				PetSoundStateSync.send(player, pet.getUUID(), rule == null ? "" : rule.itemId);
+			}
+		}
+	}
+
+	private static void broadcastManagedPetSoundState(MinecraftServer server, UUID petId, String itemId) {
+		if (server == null || petId == null) {
+			return;
+		}
+		for (ServerPlayer onlinePlayer : server.getPlayerList().getPlayers()) {
+			PetSoundStateSync.send(onlinePlayer, petId, itemId);
 		}
 	}
 
@@ -583,13 +637,13 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 		if (entity != null && source.getEntity() instanceof ServerPlayer playerAttacker) {
-			triggerReactiveRangedAttacks(playerAttacker, entity);
+			triggerReactivePetAttacks(playerAttacker, entity);
 		}
 
 		if (entity instanceof ServerPlayer playerVictim) {
 			LivingEntity attackerTarget = resolveDamageSourceLivingEntity(source);
 			if (attackerTarget != null) {
-				triggerReactiveRangedAttacks(playerVictim, attackerTarget);
+				triggerReactivePetAttacks(playerVictim, attackerTarget);
 			}
 		}
 	}
@@ -607,8 +661,8 @@ public final class PlayerEntitiesSystem {
 		return null;
 	}
 
-	private static void triggerReactiveRangedAttacks(ServerPlayer player, LivingEntity target) {
-		if (player == null || target == null || !player.isAlive() || !target.isAlive() || player == target) {
+	private static void triggerReactivePetAttacks(ServerPlayer player, LivingEntity target) {
+		if (!canReactiveAttackTarget(player, target)) {
 			return;
 		}
 
@@ -624,10 +678,7 @@ public final class PlayerEntitiesSystem {
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
 			PetRule rule = resolvePetRule(stack);
-			if (rule == null || !rule.canPerformReactiveRangedAttack()) {
-				if (!stack.isEmpty()) {
-					clearSlotCooldown(player.getUUID(), slot);
-				}
+			if (rule == null || !rule.canPerformReactiveAttack()) {
 				continue;
 			}
 			if (!canPetSlotShoot(player, slot, gameplayTicks, stack)) {
@@ -647,7 +698,7 @@ public final class PlayerEntitiesSystem {
 			PetRule rule = readyRules[index];
 			Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, readyCount, rule);
 			if (index == 0) {
-				if (spawnPetRangedAttack(player, target, spawnPosition, rule)) {
+				if (spawnPetReactiveAttack(player, target, spawnPosition, rule)) {
 					setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
 				}
 				continue;
@@ -655,6 +706,36 @@ public final class PlayerEntitiesSystem {
 
 			enqueueDelayedPetAttack(player, slot, target, spawnPosition, index * rule.shotDelayTicks);
 		}
+	}
+
+	private static LivingEntity resolveOngoingReactiveTarget(ServerPlayer player) {
+		if (player == null || !player.isAlive()) {
+			return null;
+		}
+
+		LivingEntity attackedTarget = normalizeReactiveTarget(player, player.getLastHurtMob());
+		LivingEntity attackerTarget = normalizeReactiveTarget(player, player.getLastHurtByMob());
+		if (attackedTarget == null) {
+			return attackerTarget;
+		}
+		if (attackerTarget == null) {
+			return attackedTarget;
+		}
+		return player.getLastHurtMobTimestamp() >= player.getLastHurtByMobTimestamp() ? attackedTarget : attackerTarget;
+	}
+
+	private static LivingEntity normalizeReactiveTarget(ServerPlayer player, LivingEntity target) {
+		return canReactiveAttackTarget(player, target) ? target : null;
+	}
+
+	private static boolean canReactiveAttackTarget(ServerPlayer player, LivingEntity target) {
+		if (player == null || target == null || target == player || !player.isAlive() || !target.isAlive()) {
+			return false;
+		}
+		if (target.level() != player.level()) {
+			return false;
+		}
+		return player.hasLineOfSight(target);
 	}
 
 	private static void runPetTick(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
@@ -697,6 +778,11 @@ public final class PlayerEntitiesSystem {
 			.log();
 
 		long nextDelay = syncPlayerPets(player);
+		LivingEntity ongoingReactiveTarget = resolveOngoingReactiveTarget(player);
+		if (ongoingReactiveTarget != null) {
+			triggerReactivePetAttacks(player, ongoingReactiveTarget);
+			nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
+		}
 		if (nextDelay >= 0L) {
 			debugPlayerEvent("pet.tick_completed", player)
 				.field("next_delay", nextDelay)
@@ -738,13 +824,13 @@ public final class PlayerEntitiesSystem {
 
 		ItemStack stack = inventory.getItem(slot);
 		PetRule rule = resolvePetRule(stack);
-		if (rule == null || !rule.canPerformReactiveRangedAttack() || !canPetSlotShoot(player, slot, context.getNowTick(), stack)) {
+		if (rule == null || !rule.canPerformReactiveAttack() || !canPetSlotShoot(player, slot, context.getNowTick(), stack)) {
 			return;
 		}
 
 		UUID targetId = parseUuid(getString(payload, FIELD_TARGET_UUID, ""));
 		LivingEntity target = findLivingEntity(server, targetId);
-		if (target == null || !target.isAlive() || target == player) {
+		if (!canReactiveAttackTarget(player, target)) {
 			return;
 		}
 
@@ -753,7 +839,7 @@ public final class PlayerEntitiesSystem {
 			getDouble(payload, FIELD_SPAWN_Y, player.getEyeY()),
 			getDouble(payload, FIELD_SPAWN_Z, player.getZ())
 		);
-		if (spawnPetRangedAttack(player, target, spawnPosition, rule)) {
+		if (spawnPetReactiveAttack(player, target, spawnPosition, rule)) {
 			setSlotCooldown(playerId, slot, context.getNowTick() + rule.cooldownTicks);
 		}
 	}
@@ -794,7 +880,6 @@ public final class PlayerEntitiesSystem {
 				}
 				removePet(server, petIds[slot]);
 				petIds[slot] = null;
-				clearSlotCooldown(player.getUUID(), slot);
 				continue;
 			}
 
@@ -862,6 +947,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 		ACTIVE_PET_IDS.add(pet.getUUID());
+		broadcastManagedPetSoundState(owner.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
 		debugPetEvent("pet.spawned", pet)
 			.field("owner_uuid", owner.getUUID())
 			.field("slot", slot)
@@ -931,13 +1017,16 @@ public final class PlayerEntitiesSystem {
 		if (pet.isAggressive()) {
 			pet.setAggressive(false);
 		}
-		setManagedPetItemId(pet, rule == null ? null : rule.itemId);
+		boolean itemIdChanged = setManagedPetItemId(pet, rule == null ? null : rule.itemId);
 		AttributeInstance scale = pet.getAttribute(Attributes.SCALE);
 		if (scale != null) {
 			double desiredScale = rule == null ? 0.25D : rule.petScale;
 			if (Math.abs(scale.getBaseValue() - desiredScale) > 1.0E-4D) {
 				scale.setBaseValue(desiredScale);
 			}
+		}
+		if (itemIdChanged) {
+			broadcastManagedPetSoundState(pet.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
 		}
 	}
 
@@ -1113,17 +1202,375 @@ public final class PlayerEntitiesSystem {
 		return SpawnEggItem.getType(stack);
 	}
 
-	private static boolean spawnPetRangedAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule) {
+	private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule) {
 		if (player == null || target == null || spawnPosition == null || rule == null || !player.isAlive() || !target.isAlive()) {
-			return false;
-		}
-		if (!MadokuMob.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage)) {
 			return false;
 		}
 
 		SoundEvent soundEvent = rule.resolveSoundEvent();
-		player.playSound(soundEvent, 1.0F, 1.0F / (player.getRandom().nextFloat() * 0.4F + 0.8F));
+		float soundVolume = Math.max(0.4F, rule.soundVolumeMultiplier);
+		float soundPitch = 1.0F / (player.getRandom().nextFloat() * 0.4F + 0.8F);
+		boolean spawned;
+		if (PET_ABILITY_RANGED_HOMING_ARROW.equals(rule.abilityType)) {
+			spawned = MadokuMob.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage);
+		} else if (PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType)) {
+			spawned = spawnManagedWebProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
+		} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType)) {
+			spawned = spawnManagedExplosiveProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
+		} else {
+			spawned = false;
+		}
+		if (!spawned) {
+			return false;
+		}
+
+		if (!(PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType) || PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType))
+			&& player.level() instanceof ServerLevel level) {
+			level.playSound(null, spawnPosition.x, spawnPosition.y, spawnPosition.z, soundEvent, SoundSource.HOSTILE, soundVolume, soundPitch);
+		}
 		return true;
+	}
+
+	private static boolean spawnManagedWebProjectile(
+		ServerPlayer player,
+		LivingEntity target,
+		Vec3 spawnPosition,
+		PetRule rule,
+		SoundEvent soundEvent,
+		float soundVolume,
+		float soundPitch
+	) {
+		if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+			return false;
+		}
+		Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		emitWebProjectileLaunch(level, initialPosition, soundEvent, soundVolume, soundPitch);
+		UUID projectileId = UUID.randomUUID();
+		ACTIVE_WEB_PROJECTILES.put(
+			projectileId,
+			new WebProjectileState(
+				level.dimension().toString(),
+				player.getUUID(),
+				target.getUUID(),
+				initialPosition,
+				Math.max(WEB_PROJECTILE_MIN_SPEED, rule.attackSpeed),
+				Math.max(0.0F, rule.attackDamage),
+				(int) Math.max(0L, rule.effectDurationTicks),
+				WEB_PROJECTILE_LIFETIME_TICKS
+			)
+		);
+		return true;
+	}
+
+	private static boolean spawnManagedExplosiveProjectile(
+		ServerPlayer player,
+		LivingEntity target,
+		Vec3 spawnPosition,
+		PetRule rule,
+		SoundEvent soundEvent,
+		float soundVolume,
+		float soundPitch
+	) {
+		if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+			return false;
+		}
+		Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		emitExplosiveProjectileLaunch(level, initialPosition, soundEvent, soundVolume, soundPitch);
+		UUID projectileId = UUID.randomUUID();
+		ACTIVE_EXPLOSIVE_PROJECTILES.put(
+			projectileId,
+			new ExplosiveProjectileState(
+				level.dimension().toString(),
+				player.getUUID(),
+				target.getUUID(),
+				initialPosition,
+				Math.max(EXPLOSIVE_PROJECTILE_MIN_SPEED, rule.attackSpeed),
+				Math.max(0.0F, rule.attackDamage),
+				Math.max(0.5F, rule.explosionRadius),
+				EXPLOSIVE_PROJECTILE_LIFETIME_TICKS
+			)
+		);
+		return true;
+	}
+
+	private static void tickManagedWebProjectiles(MinecraftServer server) {
+		if (server == null || ACTIVE_WEB_PROJECTILES.isEmpty()) {
+			return;
+		}
+
+		for (Map.Entry<UUID, WebProjectileState> entry : ACTIVE_WEB_PROJECTILES.entrySet()) {
+			UUID projectileId = entry.getKey();
+			WebProjectileState state = entry.getValue();
+			if (state.remainingTicks <= 0) {
+				ACTIVE_WEB_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			ServerLevel level = findLevel(server, state.dimensionId);
+			ServerPlayer owner = server.getPlayerList().getPlayer(state.ownerUuid);
+			LivingEntity target = findLivingEntity(server, state.targetUuid);
+			if (level == null || owner == null || !owner.isAlive() || target == null || !target.isAlive() || target.level() != level) {
+				ACTIVE_WEB_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			Vec3 targetPosition = resolveWebProjectileTargetPosition(target);
+			Vec3 toTarget = targetPosition.subtract(state.position);
+			double distance = toTarget.length();
+			if (distance <= 1.0E-6D) {
+				applyWebProjectileHit(level, owner, target, targetPosition, state.damage, state.effectDurationTicks);
+				ACTIVE_WEB_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			double step = Math.min(distance, state.speed);
+			Vec3 nextPosition = state.position.add(toTarget.normalize().scale(step));
+			emitWebProjectileTrail(level, state.position, nextPosition);
+			if (nextPosition.distanceTo(targetPosition) <= WEB_PROJECTILE_HIT_DISTANCE) {
+				applyWebProjectileHit(level, owner, target, targetPosition, state.damage, state.effectDurationTicks);
+				ACTIVE_WEB_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			ACTIVE_WEB_PROJECTILES.put(
+				projectileId,
+				new WebProjectileState(
+					state.dimensionId,
+					state.ownerUuid,
+					state.targetUuid,
+					nextPosition,
+					state.speed,
+					state.damage,
+					state.effectDurationTicks,
+					state.remainingTicks - 1
+				)
+			);
+		}
+	}
+
+	private static void tickManagedExplosiveProjectiles(MinecraftServer server) {
+		if (server == null || ACTIVE_EXPLOSIVE_PROJECTILES.isEmpty()) {
+			return;
+		}
+
+		for (Map.Entry<UUID, ExplosiveProjectileState> entry : ACTIVE_EXPLOSIVE_PROJECTILES.entrySet()) {
+			UUID projectileId = entry.getKey();
+			ExplosiveProjectileState state = entry.getValue();
+			if (state.remainingTicks <= 0) {
+				ServerLevel expiredLevel = findLevel(server, state.dimensionId);
+				ServerPlayer expiredOwner = server.getPlayerList().getPlayer(state.ownerUuid);
+				if (expiredLevel != null && expiredOwner != null && expiredOwner.isAlive()) {
+					applyExplosiveProjectileHit(expiredLevel, expiredOwner, state.position, state.damage, state.radius);
+				}
+				ACTIVE_EXPLOSIVE_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			ServerLevel level = findLevel(server, state.dimensionId);
+			ServerPlayer owner = server.getPlayerList().getPlayer(state.ownerUuid);
+			LivingEntity target = findLivingEntity(server, state.targetUuid);
+			if (level == null || owner == null || !owner.isAlive()) {
+				ACTIVE_EXPLOSIVE_PROJECTILES.remove(projectileId);
+				continue;
+			}
+			if (target == null || !target.isAlive() || target.level() != level) {
+				applyExplosiveProjectileHit(level, owner, state.position, state.damage, state.radius);
+				ACTIVE_EXPLOSIVE_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			Vec3 targetPosition = resolveWebProjectileTargetPosition(target);
+			Vec3 toTarget = targetPosition.subtract(state.position);
+			double distance = toTarget.length();
+			if (distance <= 1.0E-6D) {
+				applyExplosiveProjectileHit(level, owner, targetPosition, state.damage, state.radius);
+				ACTIVE_EXPLOSIVE_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			double step = Math.min(distance, state.speed);
+			Vec3 nextPosition = state.position.add(toTarget.normalize().scale(step));
+			emitExplosiveProjectileTrail(level, state.position, nextPosition);
+			if (nextPosition.distanceTo(targetPosition) <= EXPLOSIVE_PROJECTILE_HIT_DISTANCE) {
+				applyExplosiveProjectileHit(level, owner, targetPosition, state.damage, state.radius);
+				ACTIVE_EXPLOSIVE_PROJECTILES.remove(projectileId);
+				continue;
+			}
+
+			ACTIVE_EXPLOSIVE_PROJECTILES.put(
+				projectileId,
+				new ExplosiveProjectileState(
+					state.dimensionId,
+					state.ownerUuid,
+					state.targetUuid,
+					nextPosition,
+					state.speed,
+					state.damage,
+					state.radius,
+					state.remainingTicks - 1
+				)
+			);
+		}
+	}
+
+	private static ServerLevel findLevel(MinecraftServer server, String dimensionId) {
+		if (server == null || dimensionId == null || dimensionId.isBlank()) {
+			return null;
+		}
+
+		for (ServerLevel level : server.getAllLevels()) {
+			if (dimensionId.equals(level.dimension().toString())) {
+				return level;
+			}
+		}
+		return null;
+	}
+
+	private static Vec3 resolveWebProjectileTargetPosition(LivingEntity target) {
+		if (target == null) {
+			return Vec3.ZERO;
+		}
+		return new Vec3(target.getX(), target.getY() + target.getBbHeight() * 0.35D, target.getZ());
+	}
+
+	private static void emitWebProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		if (level == null || position == null) {
+			return;
+		}
+		if (soundEvent != null && soundVolume > 0.0F) {
+			level.playSound(null, position.x, position.y, position.z, soundEvent, SoundSource.HOSTILE, soundVolume, soundPitch);
+		}
+		level.sendParticles(ParticleTypes.ITEM_COBWEB, position.x, position.y, position.z, 2, 0.015D, 0.015D, 0.015D, 0.0D);
+		level.sendParticles(ParticleTypes.WHITE_ASH, position.x, position.y, position.z, 2, 0.02D, 0.01D, 0.02D, 0.0D);
+	}
+
+	private static void emitExplosiveProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		if (level == null || position == null) {
+			return;
+		}
+		if (soundEvent != null && soundVolume > 0.0F) {
+			level.playSound(null, position.x, position.y, position.z, soundEvent, SoundSource.HOSTILE, soundVolume, soundPitch);
+		}
+		level.sendParticles(ParticleTypes.SMOKE, position.x, position.y, position.z, 4, 0.04D, 0.04D, 0.04D, 0.0D);
+		level.sendParticles(ParticleTypes.FLAME, position.x, position.y, position.z, 3, 0.02D, 0.02D, 0.02D, 0.0D);
+	}
+
+	private static void emitWebProjectileTrail(ServerLevel level, Vec3 start, Vec3 end) {
+		if (level == null || start == null || end == null) {
+			return;
+		}
+
+		Vec3 delta = end.subtract(start);
+		int steps = Math.max(1, (int) Math.ceil(delta.length() * 4.0D));
+		for (int index = 0; index <= steps; index++) {
+			double progress = (double) index / (double) steps;
+			Vec3 sample = start.add(delta.scale(progress));
+			level.sendParticles(ParticleTypes.WHITE_ASH, sample.x, sample.y, sample.z, 1, 0.008D, 0.004D, 0.008D, 0.0D);
+			if ((index & 1) == 0) {
+				level.sendParticles(ParticleTypes.ITEM_COBWEB, sample.x, sample.y, sample.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+			}
+		}
+	}
+
+	private static void emitExplosiveProjectileTrail(ServerLevel level, Vec3 start, Vec3 end) {
+		if (level == null || start == null || end == null) {
+			return;
+		}
+
+		Vec3 delta = end.subtract(start);
+		int steps = Math.max(1, (int) Math.ceil(delta.length() * 4.0D));
+		for (int index = 0; index <= steps; index++) {
+			double progress = (double) index / (double) steps;
+			Vec3 sample = start.add(delta.scale(progress));
+			level.sendParticles(ParticleTypes.SMOKE, sample.x, sample.y, sample.z, 1, 0.01D, 0.01D, 0.01D, 0.0D);
+			if ((index & 1) == 0) {
+				level.sendParticles(ParticleTypes.FLAME, sample.x, sample.y, sample.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+			}
+		}
+	}
+
+	private static void emitWebProjectileImpact(ServerLevel level, Vec3 position) {
+		if (level == null || position == null) {
+			return;
+		}
+		level.sendParticles(ParticleTypes.SMALL_GUST, position.x, position.y, position.z, 8, 0.18D, 0.22D, 0.18D, 0.0D);
+		level.sendParticles(ParticleTypes.CLOUD, position.x, position.y, position.z, 6, 0.15D, 0.10D, 0.15D, 0.0D);
+	}
+
+	private static void emitExplosiveProjectileImpact(ServerLevel level, Vec3 position, float radius) {
+		if (level == null || position == null) {
+			return;
+		}
+		double spread = Math.max(0.10D, radius * 0.25D);
+		level.playSound(null, position.x, position.y, position.z, SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 0.8F, 1.0F);
+		level.sendParticles(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 2, spread, spread, spread, 0.0D);
+		level.sendParticles(ParticleTypes.LARGE_SMOKE, position.x, position.y, position.z, 10, spread, spread, spread, 0.02D);
+		level.sendParticles(ParticleTypes.FLAME, position.x, position.y, position.z, 8, spread, spread * 0.5D, spread, 0.01D);
+	}
+
+	private static void applyWebProjectileHit(ServerLevel level, ServerPlayer owner, LivingEntity target, Vec3 position, float damage, int effectDurationTicks) {
+		emitWebProjectileImpact(level, position);
+		if (owner == null || target == null || !target.isAlive()) {
+			return;
+		}
+
+		target.setDeltaMovement(Vec3.ZERO);
+		if (damage > 0.0F) {
+			target.hurtServer(level, owner.damageSources().generic(), damage);
+			target.setDeltaMovement(Vec3.ZERO);
+		}
+		if (effectDurationTicks > 0) {
+			MobEffectInstance existingSlow = target.getEffect(MobEffects.SLOWNESS);
+			int stackedDurationTicks = effectDurationTicks;
+			int amplifier = WEB_PROJECTILE_SLOW_AMPLIFIER;
+			if (existingSlow != null) {
+				stackedDurationTicks += Math.max(0, existingSlow.getDuration());
+				amplifier = Math.max(amplifier, existingSlow.getAmplifier());
+			}
+			target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, stackedDurationTicks, amplifier), owner);
+		}
+		if (target instanceof Mob mob) {
+			mob.getNavigation().stop();
+		}
+	}
+
+	private static void applyExplosiveProjectileHit(ServerLevel level, ServerPlayer owner, Vec3 position, float damage, float radius) {
+		emitExplosiveProjectileImpact(level, position, radius);
+		if (level == null || owner == null || !owner.isAlive() || position == null || radius <= 0.0F || damage <= 0.0F) {
+			return;
+		}
+
+		AABB area = new AABB(
+			position.x - radius,
+			position.y - radius,
+			position.z - radius,
+			position.x + radius,
+			position.y + radius,
+			position.z + radius
+		);
+		for (Mob mob : level.getEntitiesOfClass(Mob.class, area, candidate ->
+			candidate != null && candidate.isAlive() && !isManagedPet(candidate) && !candidate.getUUID().equals(owner.getUUID())
+		)) {
+			double distance = mob.position().distanceTo(position);
+			if (distance > radius) {
+				continue;
+			}
+			resetDamageImmunity(mob);
+			mob.hurtServer(level, owner.damageSources().generic(), damage);
+			Vec3 knockback = mob.position().subtract(position);
+			if (knockback.lengthSqr() > 1.0E-6D) {
+				double strength = Math.max(0.0D, 0.35D * (1.0D - (distance / radius)));
+				mob.push(knockback.normalize().x * strength, 0.12D, knockback.normalize().z * strength);
+			}
+		}
+	}
+
+	private static void resetDamageImmunity(LivingEntity entity) {
+		if (entity == null) {
+			return;
+		}
+		entity.invulnerableTime = 0;
+		entity.hurtTime = 0;
 	}
 
 	private static Vec3 resolveRangedAttackSpawn(ServerPlayer player, int index, int count, PetRule rule) {
@@ -1258,8 +1705,7 @@ public final class PlayerEntitiesSystem {
 			return false;
 		}
 		PetRule rule = resolvePetRule(stack);
-		if (!isValidPlayerEntity(stack) || rule == null || !rule.canPerformReactiveRangedAttack()) {
-			clearSlotCooldown(player.getUUID(), slot);
+		if (!isValidPlayerEntity(stack) || rule == null || !rule.canPerformReactiveAttack()) {
 			return false;
 		}
 		return gameplayTicks >= slotCooldowns(player.getUUID())[slot];
@@ -1279,20 +1725,6 @@ public final class PlayerEntitiesSystem {
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			applyPlayerDamageAbilityBonus(player);
-		}
-	}
-
-	private static void clearSlotCooldown(UUID playerId, int slot) {
-		if (playerId == null || slot < 0 || slot >= SLOT_COUNT) {
-			return;
-		}
-		long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
-		if (cooldowns != null) {
-			cooldowns[slot] = 0L;
-			if (!hasNonZeroCooldown(cooldowns)) {
-				PLAYER_SLOT_COOLDOWNS.remove(playerId);
-			}
-			markAbilityHudDirty(playerId);
 		}
 	}
 
@@ -1316,8 +1748,9 @@ public final class PlayerEntitiesSystem {
 		if (cooldowns == null) {
 			return;
 		}
+		long gameplayTicks = MadokuTicks.getGameplayTicks();
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
-			if (!isValidPlayerEntity(inventory.getItem(slot))) {
+			if (cooldowns[slot] > 0L && cooldowns[slot] <= gameplayTicks) {
 				cooldowns[slot] = 0L;
 			}
 		}
@@ -1403,6 +1836,8 @@ public final class PlayerEntitiesSystem {
 			ACTIVE_PET_IDS.remove(petId);
 			NEXT_IDLE_MOVE_BY_PET.remove(petId);
 			FOLLOW_COMMANDS_BY_PET.remove(petId);
+			PetSoundState.remove(petId);
+			broadcastManagedPetSoundState(server, petId, "");
 		}
 	}
 
@@ -1475,6 +1910,9 @@ public final class PlayerEntitiesSystem {
 		NEXT_IDLE_MOVE_BY_PET.clear();
 		FOLLOW_COMMANDS_BY_PET.clear();
 		SCHEDULED_PLAYERS.clear();
+		ACTIVE_WEB_PROJECTILES.clear();
+		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		PetSoundState.clear();
 	}
 
 	private static String ownerTag(UUID ownerId) {
@@ -1500,6 +1938,10 @@ public final class PlayerEntitiesSystem {
 	private static PetRule resolvePetRule(Entity entity) {
 		if (entity == null) {
 			return null;
+		}
+		String syncedItemId = normalizeKey(PetSoundState.getItemId(entity));
+		if (!syncedItemId.isBlank()) {
+			return resolvePetRule(syncedItemId);
 		}
 		String itemId = getManagedPetItemId(entity);
 		return itemId.isBlank() ? null : resolvePetRule(itemId);
@@ -1644,10 +2086,27 @@ public final class PlayerEntitiesSystem {
 		if ("minecraft:skeleton_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_RANGED_HOMING_ARROW;
 		}
+		if ("minecraft:spider_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_WEB_PROJECTILE;
+		}
+		if ("minecraft:creeper_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_EXPLOSIVE_PROJECTILE;
+		}
 		if ("minecraft:zombie_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_PLAYER_DAMAGE_BONUS;
 		}
 		return PET_ABILITY_NONE;
+	}
+
+	private static String defaultRarityForItem(String itemId) {
+		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:creeper_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:skeleton_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:zombie_spawn_egg".equals(normalizedItemId)) {
+			return PET_RARITY_RARE;
+		}
+		return PET_RARITY_COMMON;
 	}
 
 	private static String resolvePetItemId(String fileKey, JsonObject sourceRoot) {
@@ -1675,10 +2134,12 @@ public final class PlayerEntitiesSystem {
 		return null;
 	}
 
-	private static void setManagedPetItemId(Mob pet, String itemId) {
+	private static boolean setManagedPetItemId(Mob pet, String itemId) {
 		if (pet == null) {
-			return;
+			return false;
 		}
+		String normalizedItemId = normalizeKey(itemId);
+		PetSoundState.set(pet.getUUID(), normalizedItemId);
 		String existingTag = null;
 		for (String tag : pet.entityTags()) {
 			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {
@@ -1686,10 +2147,9 @@ public final class PlayerEntitiesSystem {
 				break;
 			}
 		}
-		String normalizedItemId = normalizeKey(itemId);
 		String desiredTag = normalizedItemId.isEmpty() ? "" : MANAGED_PET_ITEM_PREFIX + normalizedItemId;
 		if (desiredTag.equals(existingTag)) {
-			return;
+			return false;
 		}
 		if (existingTag != null) {
 			pet.removeTag(existingTag);
@@ -1697,6 +2157,7 @@ public final class PlayerEntitiesSystem {
 		if (!desiredTag.isEmpty()) {
 			pet.addTag(desiredTag);
 		}
+		return true;
 	}
 
 	private static String getManagedPetItemId(Entity entity) {
@@ -1803,6 +2264,30 @@ public final class PlayerEntitiesSystem {
 	private record FollowCommand(Vec3 target, double speed) {
 	}
 
+	private record WebProjectileState(
+		String dimensionId,
+		UUID ownerUuid,
+		UUID targetUuid,
+		Vec3 position,
+		double speed,
+		float damage,
+		int effectDurationTicks,
+		int remainingTicks
+	) {
+	}
+
+	private record ExplosiveProjectileState(
+		String dimensionId,
+		UUID ownerUuid,
+		UUID targetUuid,
+		Vec3 position,
+		double speed,
+		float damage,
+		float radius,
+		int remainingTicks
+	) {
+	}
+
 	private static final class Settings {
 		private final boolean enabled;
 		private final boolean entitiesEnabled;
@@ -1872,6 +2357,7 @@ public final class PlayerEntitiesSystem {
 		private final String abilityType;
 		private final float attackDamage;
 		private final float attackSpeed;
+		private final long effectDurationTicks;
 		private final double playerDamageBonusAmount;
 		private final long cooldownTicks;
 		private final long shotDelayTicks;
@@ -1880,6 +2366,7 @@ public final class PlayerEntitiesSystem {
 		private final double attackRearSpread;
 		private final double attackLateralRadius;
 		private final double attackVerticalOffset;
+		private final float explosionRadius;
 		private final String soundEventId;
 
 		private PetRule(
@@ -1899,6 +2386,7 @@ public final class PlayerEntitiesSystem {
 			String abilityType,
 			float attackDamage,
 			float attackSpeed,
+			long effectDurationTicks,
 			double playerDamageBonusAmount,
 			long cooldownTicks,
 			long shotDelayTicks,
@@ -1907,6 +2395,7 @@ public final class PlayerEntitiesSystem {
 			double attackRearSpread,
 			double attackLateralRadius,
 			double attackVerticalOffset,
+			float explosionRadius,
 			String soundEventId
 		) {
 			this.enabled = enabled;
@@ -1925,6 +2414,7 @@ public final class PlayerEntitiesSystem {
 			this.abilityType = abilityType;
 			this.attackDamage = attackDamage;
 			this.attackSpeed = attackSpeed;
+			this.effectDurationTicks = effectDurationTicks;
 			this.playerDamageBonusAmount = playerDamageBonusAmount;
 			this.cooldownTicks = cooldownTicks;
 			this.shotDelayTicks = shotDelayTicks;
@@ -1933,6 +2423,7 @@ public final class PlayerEntitiesSystem {
 			this.attackRearSpread = attackRearSpread;
 			this.attackLateralRadius = attackLateralRadius;
 			this.attackVerticalOffset = attackVerticalOffset;
+			this.explosionRadius = explosionRadius;
 			this.soundEventId = soundEventId;
 		}
 
@@ -1941,10 +2432,12 @@ public final class PlayerEntitiesSystem {
 			String resolvedItemId = itemId == null ? "" : itemId.trim();
 			String resolvedAbilityType = normalizeKey(abilityType);
 			boolean usesRangedHomingArrow = PET_ABILITY_RANGED_HOMING_ARROW.equals(resolvedAbilityType);
+			boolean usesWebProjectile = PET_ABILITY_WEB_PROJECTILE.equals(resolvedAbilityType);
+			boolean usesExplosiveProjectile = PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(resolvedAbilityType);
 			boolean usesPlayerDamageBonus = PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType);
 			root.addProperty("enabled", true);
 			root.addProperty("item_id", resolvedItemId);
-			root.addProperty("rarity", PET_RARITY_COMMON);
+			root.addProperty("rarity", defaultRarityForItem(resolvedItemId));
 			root.addProperty("pet_scale", 0.25D);
 			root.addProperty("follow_speed", 1.2D);
 			root.addProperty("idle_move_speed", 0.8D);
@@ -1954,12 +2447,12 @@ public final class PlayerEntitiesSystem {
 			root.addProperty("idle_min_interval_ticks", 20L);
 			root.addProperty("idle_max_interval_ticks", 60L);
 			root.addProperty("ambient_sound_interval_multiplier", 3);
-			root.addProperty("sound_volume_multiplier", 0.5D);
+			root.addProperty("sound_volume_multiplier", 0.2D);
 			root.addProperty("ability", resolvedAbilityType.isBlank() ? PET_ABILITY_NONE : resolvedAbilityType);
 			if (usesRangedHomingArrow) {
-				root.addProperty("attack_damage", 5.0D);
-				root.addProperty("attack_speed", 1.0D);
-				root.addProperty("cooldown_ticks", 10L * 20L);
+				root.addProperty("attack_damage", 3.0D);
+				root.addProperty("attack_speed", 1.5D);
+				root.addProperty("cooldown_ticks", 5L * 20L);
 				root.addProperty("shot_delay_ticks", 10L);
 				root.addProperty("attack_arc_step_degrees", 18.0D);
 				root.addProperty("attack_rear_offset", 0.58D);
@@ -1967,6 +2460,36 @@ public final class PlayerEntitiesSystem {
 				root.addProperty("attack_lateral_radius", 0.45D);
 				root.addProperty("attack_vertical_offset", -0.34D);
 				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
+			}
+			if (usesWebProjectile) {
+				root.addProperty("follow_speed", 1.0D);
+				root.addProperty("idle_move_speed", 0.75D);
+				root.addProperty("attack_damage", 1.5D);
+				root.addProperty("attack_speed", 1.0D);
+				root.addProperty("effect_duration_ticks", 100L);
+				root.addProperty("cooldown_ticks", 15L * 20L);
+				root.addProperty("shot_delay_ticks", 10L);
+				root.addProperty("attack_arc_step_degrees", 12.0D);
+				root.addProperty("attack_rear_offset", 0.50D);
+				root.addProperty("attack_rear_spread", 0.15D);
+				root.addProperty("attack_lateral_radius", 0.38D);
+				root.addProperty("attack_vertical_offset", -0.28D);
+				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString());
+			}
+			if (usesExplosiveProjectile) {
+				root.addProperty("follow_speed", 1.2D);
+				root.addProperty("idle_move_speed", 0.8D);
+				root.addProperty("attack_damage", 10.0D);
+				root.addProperty("attack_speed", 2.0D);
+				root.addProperty("cooldown_ticks", 60L * 20L);
+				root.addProperty("shot_delay_ticks", 10L);
+				root.addProperty("attack_arc_step_degrees", 10.0D);
+				root.addProperty("attack_rear_offset", 0.46D);
+				root.addProperty("attack_rear_spread", 0.12D);
+				root.addProperty("attack_lateral_radius", 0.35D);
+				root.addProperty("attack_vertical_offset", -0.26D);
+				root.addProperty("explosion_radius", 4D);
+				root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString());
 			}
 			if (usesPlayerDamageBonus) {
 				root.addProperty("player_damage_bonus", 1.0D);
@@ -1993,10 +2516,11 @@ public final class PlayerEntitiesSystem {
 			long idleMinIntervalTicks = Settings.clampLong(getLong(source, "idle_min_interval_ticks", 20L), 1L, 20L * 60L);
 			long idleMaxIntervalTicks = Settings.clampLong(getLong(source, "idle_max_interval_ticks", 60L), idleMinIntervalTicks, 20L * 60L);
 			int ambientSoundIntervalMultiplier = (int) Settings.clampLong(getLong(source, "ambient_sound_interval_multiplier", 3L), 1L, 20L);
-			float soundVolumeMultiplier = (float) Settings.clampDouble(getDouble(source, "sound_volume_multiplier", 0.5D), 0.0D, 4.0D);
+			float soundVolumeMultiplier = (float) Settings.clampDouble(getDouble(source, "sound_volume_multiplier", 0.2D), 0.0D, 4.0D);
 			String abilityType = normalizeKey(getString(source, "ability", PET_ABILITY_NONE));
 			float attackDamage = (float) Settings.clampDouble(getDouble(source, "attack_damage", 0.0D), 0.0D, 1024.0D);
 			float attackSpeed = (float) Settings.clampDouble(getDouble(source, "attack_speed", 0.0D), 0.05D, 8.0D);
+			long effectDurationTicks = Settings.clampLong(getLong(source, "effect_duration_ticks", 0L), 0L, 20L * 60L);
 			double playerDamageBonusAmount = Settings.clampDouble(getDouble(source, "player_damage_bonus", 0.0D), 0.0D, 1024.0D);
 			long cooldownTicks = Settings.clampLong(getLong(source, "cooldown_ticks", 0L), 0L, 20L * 60L * 60L);
 			long shotDelayTicks = Settings.clampLong(getLong(source, "shot_delay_ticks", 0L), 0L, 20L * 60L);
@@ -2005,6 +2529,7 @@ public final class PlayerEntitiesSystem {
 			double attackRearSpread = Settings.clampDouble(getDouble(source, "attack_rear_spread", 0.20D), 0.0D, 4.0D);
 			double attackLateralRadius = Settings.clampDouble(getDouble(source, "attack_lateral_radius", 0.45D), 0.0D, 4.0D);
 			double attackVerticalOffset = Settings.clampDouble(getDouble(source, "attack_vertical_offset", -0.34D), -4.0D, 4.0D);
+			float explosionRadius = (float) Settings.clampDouble(getDouble(source, "explosion_radius", 4.0D), 0.25D, 12.0D);
 			String soundEventId = getString(source, "sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
 			return new PetRule(
 				getBoolean(source, "enabled", true),
@@ -2023,6 +2548,7 @@ public final class PlayerEntitiesSystem {
 				abilityType.isBlank() ? PET_ABILITY_NONE : abilityType,
 				attackDamage,
 				attackSpeed,
+				effectDurationTicks,
 				playerDamageBonusAmount,
 				cooldownTicks,
 				shotDelayTicks,
@@ -2031,16 +2557,22 @@ public final class PlayerEntitiesSystem {
 				attackRearSpread,
 				attackLateralRadius,
 				attackVerticalOffset,
+				explosionRadius,
 				soundEventId
 			);
 		}
 
-		private boolean canPerformReactiveRangedAttack() {
-			return enabled
-				&& PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)
-				&& attackDamage > 0.0F
-				&& attackSpeed > 0.0F
-				&& cooldownTicks > 0L;
+		private boolean canPerformReactiveAttack() {
+			if (!enabled || attackSpeed <= 0.0F || cooldownTicks <= 0L) {
+				return false;
+			}
+			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
+				return attackDamage > 0.0F;
+			}
+			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+				return true;
+			}
+			return PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && explosionRadius > 0.0F && attackDamage > 0.0F;
 		}
 
 		private double playerDamageBonus() {
@@ -2054,10 +2586,20 @@ public final class PlayerEntitiesSystem {
 		private SoundEvent resolveSoundEvent() {
 			Identifier identifier = Identifier.tryParse(soundEventId == null ? "" : soundEventId.trim());
 			if (identifier == null) {
-				return SoundEvents.SKELETON_SHOOT;
+				return defaultSoundEvent();
 			}
 			SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
-			return soundEvent == null ? SoundEvents.SKELETON_SHOOT : soundEvent;
+			return soundEvent == null ? defaultSoundEvent() : soundEvent;
+		}
+
+		private SoundEvent defaultSoundEvent() {
+			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+				return SoundEvents.LLAMA_SPIT;
+			}
+			if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
+				return SoundEvents.CREEPER_PRIMED;
+			}
+			return SoundEvents.SKELETON_SHOOT;
 		}
 	}
 }

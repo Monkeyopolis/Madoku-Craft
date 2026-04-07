@@ -1,11 +1,11 @@
 package madoku.craft.mixin;
 
 import madoku.craft.pet.PlayerEntitiesSystem;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -76,33 +76,19 @@ public abstract class EntityPetBehaviorMixin {
 		}
 	}
 
-	@ModifyArg(
-		method = "playStepSound",
-		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;playSound(Lnet/minecraft/sounds/SoundEvent;FF)V"),
-		index = 1
-	)
-	private float madokuCraft$reduceManagedPetStepVolume(float volume) {
+	@Inject(method = "playSound(Lnet/minecraft/sounds/SoundEvent;FF)V", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$reduceManagedPetSoundAtSource(SoundEvent soundEvent, float volume, float pitch, CallbackInfo ci) {
 		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
-	}
-
-	@ModifyArg(
-		method = "playCombinationStepSounds",
-		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;playSound(Lnet/minecraft/sounds/SoundEvent;FF)V"),
-		index = 1
-	)
-	private float madokuCraft$reduceManagedPetCombinationStepVolume(float volume) {
-		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
-	}
-
-	@ModifyArg(
-		method = "playMuffledStepSound",
-		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;playSound(Lnet/minecraft/sounds/SoundEvent;FF)V"),
-		index = 1
-	)
-	private float madokuCraft$reduceManagedPetMuffledStepVolume(float volume) {
-		Entity self = (Entity) (Object) this;
-		return PlayerEntitiesSystem.isManagedPet(self) ? PlayerEntitiesSystem.soundVolume(self, volume) : volume;
+		if (!PlayerEntitiesSystem.isManagedPet(self)) {
+			return;
+		}
+		float adjustedVolume = PlayerEntitiesSystem.soundVolume(self, volume);
+		if (Math.abs(adjustedVolume - volume) < 1.0E-4F) {
+			return;
+		}
+		if (!self.isSilent()) {
+			self.level().playSound(null, self.getX(), self.getY(), self.getZ(), soundEvent, self.getSoundSource(), adjustedVolume, pitch);
+		}
+		ci.cancel();
 	}
 }

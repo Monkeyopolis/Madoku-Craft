@@ -270,21 +270,21 @@ public class Hag extends Witch implements Merchant {
 
 	private int eggCost(Item item) {
 		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 512;
-			case PET_RARITY_EPIC -> 256;
-			case PET_RARITY_RARE -> 128;
-			case PET_RARITY_COMMON -> 64;
-			default -> 64;
+			case PET_RARITY_MYTHIC -> 64;
+			case PET_RARITY_EPIC -> 48;
+			case PET_RARITY_RARE -> 32;
+			case PET_RARITY_COMMON -> 16;
+			default -> 16;
 		};
 	}
 
 	private int emeraldCost(Item item) {
 		return switch (petRarity(item)) {
 			case PET_RARITY_MYTHIC -> 128;
-			case PET_RARITY_EPIC -> 64;
-			case PET_RARITY_RARE -> 32;
-			case PET_RARITY_COMMON -> 16;
-			default -> 16;
+			case PET_RARITY_EPIC -> 96;
+			case PET_RARITY_RARE -> 64;
+			case PET_RARITY_COMMON -> 32;
+			default -> 32;
 		};
 	}
 

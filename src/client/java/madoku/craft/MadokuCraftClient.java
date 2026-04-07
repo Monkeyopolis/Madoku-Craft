@@ -7,9 +7,11 @@ import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.network.HungerHudPayload;
 import madoku.craft.network.PetAbilityHudPayload;
+import madoku.craft.network.PetSoundStatePayload;
 import madoku.craft.network.WorldDifficultyPayload;
 import madoku.craft.network.WorldSeasonPayload;
 import madoku.craft.network.WorldTimePayload;
+import madoku.craft.pet.PetSoundState;
 import madoku.craft.network.WorldTimeSync;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -47,6 +49,9 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(PetAbilityHudPayload.TYPE, (payload, context) ->
 			MadokuHud.setPetAbilityCooldowns(payload.asArray())
 		);
+		ClientPlayNetworking.registerGlobalReceiver(PetSoundStatePayload.TYPE, (payload, context) ->
+			PetSoundState.set(parseUuid(payload.petUuid()), payload.itemId())
+		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			MadokuHud.clearServerTime();
 			MadokuHud.clearServerHunger();
@@ -54,6 +59,18 @@ public class MadokuCraftClient implements ClientModInitializer {
 			MadokuHud.clearServerSeason();
 			MadokuHud.clearOxygenHudState();
 			MadokuHud.clearPetAbilityHudState();
+			PetSoundState.clear();
 		});
+	}
+
+	private static java.util.UUID parseUuid(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return java.util.UUID.fromString(value);
+		} catch (IllegalArgumentException exception) {
+			return null;
+		}
 	}
 }
