@@ -2,6 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.armor.MadokuArmor;
 import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,22 +19,28 @@ public abstract class LivingEntityArmorDamageMixin {
 
 	@Inject(method = "getDamageAfterArmorAbsorb", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyMadokuArmor(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
-		if (MadokuMob.shouldSkeletonMeleeIgnoreArmor(source)) {
-			cir.setReturnValue(amount);
-			return;
-		}
-		if (!MadokuArmor.isEnabled()) {
-			return;
-		}
-		if (source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !source.is(DamageTypeTags.IS_FALL)) {
+		LivingEntity entity = (LivingEntity) (Object) this;
+		boolean skeletonIgnoresArmor = MadokuMob.shouldSkeletonMeleeIgnoreArmor(source);
+		boolean fallDamage = source != null && source.is(DamageTypeTags.IS_FALL);
+		boolean bypassesArmor = source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !fallDamage;
+		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
+		if (!MadokuArmor.isEnabled() && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor) {
 			return;
 		}
 
-		if (source != null && !source.is(DamageTypeTags.BYPASSES_ARMOR)) {
+		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && source != null && !bypassesArmor) {
 			this.hurtArmor(source, amount);
 		}
 
-		LivingEntity entity = (LivingEntity) (Object) this;
-		cir.setReturnValue(MadokuArmor.applyCustomArmorDamage(entity, source, amount));
+		float damageAfterArmor;
+		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !bypassesArmor) {
+			damageAfterArmor = MadokuArmor.applyCustomArmorDamage(entity, source, amount);
+		} else {
+			damageAfterArmor = amount;
+		}
+
+		damageAfterArmor = PlayerEntitiesSystem.applyFallDamageAbilityReduction(entity, source, damageAfterArmor);
+		damageAfterArmor = PlayerEntitiesSystem.applyIncomingDamageBlockAbility(entity, source, damageAfterArmor);
+		cir.setReturnValue(damageAfterArmor);
 	}
 }

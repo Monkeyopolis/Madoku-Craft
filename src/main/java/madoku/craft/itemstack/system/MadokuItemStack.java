@@ -88,6 +88,14 @@ public final class MadokuItemStack {
 		return configuration.enableFeature;
 	}
 
+	public static boolean usesManagedDeathDrop() {
+		return isEnabled() && configuration.deathDropEnabled;
+	}
+
+	public static int getDeathDropStackPercent() {
+		return configuration.deathDropStackPercent;
+	}
+
 	public static int getStackLimit() {
 		return configuration.customStackAmount;
 	}

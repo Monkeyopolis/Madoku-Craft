@@ -282,6 +282,7 @@ public final class MadokuLevels {
 		if (maxHealthAttribute != null) {
 			applyAttributeModifier(maxHealthAttribute, HEALTH_BONUS_MODIFIER_ID, MadokuLevelStat.HEALTH.valueAtLevel(healthStatLevel));
 		}
+		PlayerEntitiesSystem.applyPlayerMaxHealthAbilityBonus(player);
 		if (attackDamageAttribute != null) {
 			applyAttributeModifier(attackDamageAttribute, DAMAGE_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_DAMAGE.valueAtLevel(damageStatLevel));
 		}
@@ -289,6 +290,7 @@ public final class MadokuLevels {
 		if (armorAttribute != null) {
 			applyAttributeModifier(armorAttribute, ARMOR_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_ARMOR.valueAtLevel(armorStatLevel));
 		}
+		PlayerEntitiesSystem.applyPlayerArmorAbilityBonus(player);
 		if (luckAttribute != null) {
 			applyAttributeModifier(luckAttribute, LUCK_BONUS_MODIFIER_ID, MadokuLevelStat.PLAYER_LUCK.valueAtLevel(luckStatLevel));
 		}

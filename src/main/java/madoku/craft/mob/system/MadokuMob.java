@@ -600,6 +600,10 @@ public final class MadokuMob {
 		return arrow != null && INVULNERABILITY_BYPASS_ARROWS.contains(arrow.getUUID());
 	}
 
+	public static boolean isManagedHomingArrow(AbstractArrow arrow) {
+		return arrow != null && HOMING_ARROWS.containsKey(arrow.getUUID());
+	}
+
 	public static void clearInvulnerabilityBypass(AbstractArrow arrow) {
 		if (arrow != null) {
 			INVULNERABILITY_BYPASS_ARROWS.remove(arrow.getUUID());

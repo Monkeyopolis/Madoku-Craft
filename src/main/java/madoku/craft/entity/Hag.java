@@ -87,6 +87,10 @@ public class Hag extends Witch implements Merchant {
 
 	@Override
 	protected void customServerAiStep(ServerLevel level) {
+		if (MadokuEntities.shouldDespawnWanderingHag(this, level)) {
+			this.discard();
+			return;
+		}
 		if (this.tradingPlayer != null) {
 			this.getNavigation().stop();
 			this.setTarget(null);
@@ -248,10 +252,14 @@ public class Hag extends Witch implements Merchant {
 	private MerchantOffer createSpawnEggOffer(Item item, boolean petSystemEnabled) {
 		int eggCost = petSystemEnabled ? eggCost(item) : DEFAULT_SPAWN_EGG_EGG_COST;
 		int emeraldCost = petSystemEnabled ? emeraldCost(item) : DEFAULT_SPAWN_EGG_EMERALD_COST;
+		ItemStack resultStack = new ItemStack(item);
+		if (petSystemEnabled) {
+			PlayerEntitiesSystem.applyAbilityLore(resultStack);
+		}
 		return new MerchantOffer(
 			new ItemCost(Items.EGG, eggCost),
 			Optional.of(new ItemCost(Items.EMERALD, emeraldCost)),
-			new ItemStack(item),
+			resultStack,
 			TRADE_MAX_USES,
 			0,
 			0.0F

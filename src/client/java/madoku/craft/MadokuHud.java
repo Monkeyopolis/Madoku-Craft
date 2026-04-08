@@ -111,6 +111,9 @@ public final class MadokuHud {
 	private static final int ABILITY_ITEM_RENDER_SIZE = 12;
 	private static final float ABILITY_ITEM_SCALE = 0.75F;
 	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
+	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.75F;
+	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
+	private static final int ABILITY_COOLDOWN_TEXT_Y_SPACING = 2;
 	private static final long HUNGER_DISPLAY_STEP_TICKS = 10L;
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
@@ -261,7 +264,7 @@ public final class MadokuHud {
 			int itemX = slotX + itemOffset;
 			int itemY = slotY + itemOffset;
 			renderScaledAbilityItem(context, stack, itemX, itemY);
-			renderAbilityCooldownOverlay(context, client, stack, slot, itemX, itemY);
+			renderAbilityCooldownOverlay(context, client, stack, slot, slotX, slotY, itemX, itemY);
 		}
 	}
 
@@ -690,7 +693,16 @@ public final class MadokuHud {
 		return visible;
 	}
 
-	private static void renderAbilityCooldownOverlay(GuiGraphicsExtractor context, Minecraft client, ItemStack stack, int slot, int itemX, int itemY) {
+	private static void renderAbilityCooldownOverlay(
+		GuiGraphicsExtractor context,
+		Minecraft client,
+		ItemStack stack,
+		int slot,
+		int slotX,
+		int slotY,
+		int itemX,
+		int itemY
+	) {
 		if (client == null || client.level == null || stack == null || stack.isEmpty()) {
 			return;
 		}
@@ -709,6 +721,35 @@ public final class MadokuHud {
 		int overlayTop = itemY + net.minecraft.util.Mth.floor(ABILITY_ITEM_RENDER_SIZE * (1.0F - cooldownPercent));
 		int overlayBottom = overlayTop + net.minecraft.util.Mth.ceil(ABILITY_ITEM_RENDER_SIZE * cooldownPercent);
 		context.fill(RenderPipelines.GUI, itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
+		renderAbilityCooldownLabel(context, client, slotX, slotY, remainingTicks);
+	}
+
+	private static void renderAbilityCooldownLabel(
+		GuiGraphicsExtractor context,
+		Minecraft client,
+		int slotX,
+		int slotY,
+		long remainingTicks
+	) {
+		if (client == null || remainingTicks <= 0L) {
+			return;
+		}
+
+		String cooldownText = Integer.toString(Math.max(1, net.minecraft.util.Mth.ceil(remainingTicks / 20.0F)));
+		int textWidth = getScaledTextWidth(client, cooldownText, ABILITY_COOLDOWN_TEXT_SCALE);
+		int textX = slotX + ((ABILITY_SLOT_SIZE - textWidth) / 2);
+		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
+		context.pose().pushMatrix();
+		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
+		context.text(
+			client.font,
+			cooldownText,
+			Math.round(textX / ABILITY_COOLDOWN_TEXT_SCALE),
+			Math.round(textY / ABILITY_COOLDOWN_TEXT_SCALE),
+			ABILITY_COOLDOWN_TEXT_COLOR,
+			true
+		);
+		context.pose().popMatrix();
 	}
 
 	private static void renderScaledAbilityItem(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {

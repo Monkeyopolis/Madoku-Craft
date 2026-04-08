@@ -79,6 +79,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
+			MadokuEntities.reset();
 			MadokuFarming.reset();
 			MadokuItemStack.reset();
 			MadokuPlacedBlocks.reset();
@@ -91,6 +92,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuScheduler.loadPersistedData(server);
 			MadokuTime.loadPersistedData(server);
 			MadokuSeason.loadPersistedData(server);
+			MadokuEntities.loadPersistedData(server);
 			MadokuFarming.loadPersistedData(server);
 			MadokuPlacedBlocks.loadPersistedData(server);
 			MadokuSeason.onServerStarted(server);
@@ -117,6 +119,7 @@ public class MadokuCraft implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			MadokuTime.savePersistedData(server);
 			MadokuSeason.savePersistedData(server);
+			MadokuEntities.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
 			MadokuScheduler.savePersistedData(server);
 			MadokuPlacedBlocks.savePersistedData(server);
@@ -131,6 +134,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
+			MadokuEntities.reset();
 			MadokuFarming.reset();
 			MadokuScheduler.reset();
 			MadokuPlacedBlocks.reset();
@@ -159,6 +163,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHealth.autosavePersistedData(server);
 			MadokuHunger.autosavePersistedData(server);
 			MadokuSeason.autosavePersistedData(server);
+			MadokuEntities.autosavePersistedData(server);
 			MadokuFarming.autosavePersistedData(server);
 			MadokuPlacedBlocks.autosavePersistedData(server);
 			MadokuOxygen.autosavePersistedData(server);
@@ -167,6 +172,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuItemStack.autosavePersistedData(server);
 			MadokuTime.update(server);
 			MadokuSeason.onServerTick(server);
+			MadokuEntities.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
 			MadokuMob.onServerTick(server);
 			PlayerEntitiesSystem.onServerTick(server);

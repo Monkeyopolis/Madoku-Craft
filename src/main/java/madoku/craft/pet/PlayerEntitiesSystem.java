@@ -9,6 +9,7 @@ import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
+import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
@@ -17,8 +18,10 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -26,6 +29,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -38,9 +42,11 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -84,6 +90,10 @@ public final class PlayerEntitiesSystem {
 	private static final String PET_ABILITY_WEB_PROJECTILE = "web_projectile";
 	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = "explosive_projectile";
 	private static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
+	private static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
+	private static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
+	private static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
+	private static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
 	private static final String PET_RARITY_COMMON = "common";
 	private static final String PET_RARITY_RARE = "rare";
 	private static final String PET_RARITY_EPIC = "epic";
@@ -98,6 +108,10 @@ public final class PlayerEntitiesSystem {
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
+	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
+		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_max_health_bonus");
+	private static final Identifier PLAYER_ARMOR_ABILITY_MODIFIER_ID =
+		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final String FIELD_SLOT = "slot";
 	private static final String FIELD_TARGET_UUID = "target_uuid";
 	private static final String FIELD_SPAWN_X = "spawn_x";
@@ -222,7 +236,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		refreshPlayerDamageAbilityBonuses(server);
+		refreshPlayerPassiveAbilityBonuses(server);
 
 		if (!settings.enabled) {
 			clearAllManagedPetState(server);
@@ -313,6 +327,32 @@ public final class PlayerEntitiesSystem {
 		return rule == null ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, rule.cooldownTicks));
 	}
 
+	public static void applyAbilityLore(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return;
+		}
+
+		PetRule rule = resolvePetRule(stack);
+		if (rule == null) {
+			return;
+		}
+
+		List<Component> lines = new ArrayList<>();
+		String abilityText = rule.abilityDescription();
+		if (!abilityText.isBlank()) {
+			lines.add(Component.literal(abilityText).withStyle(ChatFormatting.GOLD));
+		}
+		String cooldownText = rule.cooldownDescription();
+		if (!cooldownText.isBlank()) {
+			lines.add(Component.literal(cooldownText).withStyle(ChatFormatting.GRAY));
+		}
+		if (lines.isEmpty()) {
+			return;
+		}
+
+		stack.set(DataComponents.LORE, new ItemLore(lines));
+	}
+
 	public static double playerDamageAbilityBonus(ServerPlayer player) {
 		if (player == null || !settings.enabled) {
 			return 0.0D;
@@ -331,6 +371,169 @@ public final class PlayerEntitiesSystem {
 			}
 		}
 		return totalBonus;
+	}
+
+	public static double playerFallDamageAbilityReduction(ServerPlayer player) {
+		if (player == null || !settings.enabled) {
+			return 0.0D;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return 0.0D;
+		}
+
+		double totalReduction = 0.0D;
+		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+			PetRule rule = resolvePetRule(inventory.getItem(slot));
+			if (rule != null) {
+				totalReduction += rule.fallDamageReduction();
+			}
+		}
+		return Math.min(1.0D, Math.max(0.0D, totalReduction));
+	}
+
+	public static double playerMaxHealthAbilityBonus(ServerPlayer player) {
+		if (player == null || !settings.enabled) {
+			return 0.0D;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return 0.0D;
+		}
+
+		double totalBonus = 0.0D;
+		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+			PetRule rule = resolvePetRule(inventory.getItem(slot));
+			if (rule != null) {
+				totalBonus += rule.maxHealthBonus();
+			}
+		}
+		return Math.max(0.0D, totalBonus);
+	}
+
+	public static double playerArmorAbilityBonus(ServerPlayer player) {
+		if (player == null || !settings.enabled) {
+			return 0.0D;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return 0.0D;
+		}
+
+		double totalBonus = 0.0D;
+		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+			PetRule rule = resolvePetRule(inventory.getItem(slot));
+			if (rule != null) {
+				totalBonus += rule.armorBonus();
+			}
+		}
+		return Math.max(0.0D, totalBonus);
+	}
+
+	public static float applyFallDamageAbilityReduction(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+		if (!(entity instanceof ServerPlayer player) || source == null || amount <= 0.0F || !source.is(DamageTypeTags.IS_FALL)) {
+			return amount;
+		}
+
+		double reduction = playerFallDamageAbilityReduction(player);
+		if (reduction <= 0.0D) {
+			return amount;
+		}
+
+		return (float) Math.max(0.0D, amount * (1.0D - reduction));
+	}
+
+	public static float applyIncomingDamageBlockAbility(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
+		if (!(entity instanceof ServerPlayer player) || amount <= 0.0F || !settings.enabled) {
+			return amount;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return amount;
+		}
+
+		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = resolvePetRule(stack);
+			if (rule == null || !rule.canBlockIncomingDamage() || !isPetSlotOffCooldown(player, slot, gameplayTicks)) {
+				continue;
+			}
+
+			setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
+			float blockedAmount = (float) Math.max(0.0D, amount - rule.damageBlockAmount());
+			if (blockedAmount < amount) {
+				player.level().playSound(
+					null,
+					player.getX(),
+					player.getY(),
+					player.getZ(),
+					SoundEvents.SHIELD_BLOCK,
+					SoundSource.PLAYERS,
+					0.8F,
+					1.0F
+				);
+			}
+			return blockedAmount;
+		}
+
+		return amount;
+	}
+
+	public static void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+
+		AttributeInstance maxHealthAttribute = player.getAttribute(Attributes.MAX_HEALTH);
+		if (maxHealthAttribute == null) {
+			return;
+		}
+
+		maxHealthAttribute.removeModifier(PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID);
+		double bonus = playerMaxHealthAbilityBonus(player);
+		if (bonus > 0.0D) {
+			maxHealthAttribute.addOrUpdateTransientModifier(
+				new AttributeModifier(
+					PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID,
+					bonus,
+					AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL
+				)
+			);
+		}
+
+		if (player.getHealth() > player.getMaxHealth()) {
+			player.setHealth(player.getMaxHealth());
+		}
+	}
+
+	public static void applyPlayerArmorAbilityBonus(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+
+		AttributeInstance armorAttribute = player.getAttribute(Attributes.ARMOR);
+		if (armorAttribute == null) {
+			return;
+		}
+
+		armorAttribute.removeModifier(PLAYER_ARMOR_ABILITY_MODIFIER_ID);
+		double bonus = playerArmorAbilityBonus(player);
+		if (bonus <= 0.0D) {
+			return;
+		}
+
+		armorAttribute.addOrUpdateTransientModifier(
+			new AttributeModifier(
+				PLAYER_ARMOR_ABILITY_MODIFIER_ID,
+				bonus,
+				AttributeModifier.Operation.ADD_VALUE
+			)
+		);
 	}
 
 	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) {
@@ -381,11 +584,37 @@ public final class PlayerEntitiesSystem {
 
 	public static void dropAll(ServerPlayer player) {
 		PlayerEntitiesInventory playerEntitiesInventory = playerEntitiesInventory(player);
-		if (playerEntitiesInventory == null) {
+		if (player == null || playerEntitiesInventory == null) {
 			return;
 		}
 
+		List<Integer> occupiedSlots = new ArrayList<>(playerEntitiesInventory.getContainerSize());
 		for (int slot = 0; slot < playerEntitiesInventory.getContainerSize(); slot++) {
+			if (!playerEntitiesInventory.getItem(slot).isEmpty()) {
+				occupiedSlots.add(slot);
+			}
+		}
+		if (occupiedSlots.isEmpty()) {
+			return;
+		}
+
+		int dropPercent = MadokuItemStack.usesManagedDeathDrop() ? MadokuItemStack.getDeathDropStackPercent() : 100;
+		for (int i = occupiedSlots.size() - 1; i > 0; i--) {
+			int j = player.getRandom().nextInt(i + 1);
+			if (i == j) {
+				continue;
+			}
+			int temp = occupiedSlots.get(i);
+			occupiedSlots.set(i, occupiedSlots.get(j));
+			occupiedSlots.set(j, temp);
+		}
+
+		int dropCount = Math.min(
+			occupiedSlots.size(),
+			Math.max(0, Math.round(occupiedSlots.size() * (Math.max(0, Math.min(100, dropPercent)) / 100.0F)))
+		);
+		for (int index = 0; index < dropCount; index++) {
+			int slot = occupiedSlots.get(index);
 			ItemStack stack = playerEntitiesInventory.getItem(slot);
 			if (stack.isEmpty()) {
 				continue;
@@ -551,7 +780,11 @@ public final class PlayerEntitiesSystem {
 
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", PET_ABILITY_FALL_DAMAGE_REDUCTION));
+		defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", PET_ABILITY_DAMAGE_BLOCK));
 		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
+		defaults.put("pig", PetRule.defaultsForItem("minecraft:pig_spawn_egg", PET_ABILITY_MAX_HEALTH_BONUS));
+		defaults.put("sheep", PetRule.defaultsForItem("minecraft:sheep_spawn_egg", PET_ABILITY_ARMOR_BONUS));
 		defaults.put("skeleton", PetRule.defaultsForItem("minecraft:skeleton_spawn_egg", PET_ABILITY_RANGED_HOMING_ARROW));
 		defaults.put("spider", PetRule.defaultsForItem("minecraft:spider_spawn_egg", PET_ABILITY_WEB_PROJECTILE));
 		defaults.put("zombie", PetRule.defaultsForItem("minecraft:zombie_spawn_egg", PET_ABILITY_PLAYER_DAMAGE_BONUS));
@@ -584,6 +817,8 @@ public final class PlayerEntitiesSystem {
 
 		handlePlayerLeave(server, player.getUUID());
 		markAbilityHudDirty(player.getUUID());
+		applyPlayerMaxHealthAbilityBonus(player);
+		applyPlayerArmorAbilityBonus(player);
 		applyPlayerDamageAbilityBonus(player);
 		syncManagedPetSoundStateTo(player, server);
 		if (petEntitiesEnabled()) {
@@ -1708,6 +1943,13 @@ public final class PlayerEntitiesSystem {
 		if (!isValidPlayerEntity(stack) || rule == null || !rule.canPerformReactiveAttack()) {
 			return false;
 		}
+		return isPetSlotOffCooldown(player, slot, gameplayTicks);
+	}
+
+	private static boolean isPetSlotOffCooldown(ServerPlayer player, int slot, long gameplayTicks) {
+		if (player == null || slot < 0 || slot >= SLOT_COUNT) {
+			return false;
+		}
 		return gameplayTicks >= slotCooldowns(player.getUUID())[slot];
 	}
 
@@ -1718,12 +1960,14 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static void refreshPlayerDamageAbilityBonuses(MinecraftServer server) {
+	private static void refreshPlayerPassiveAbilityBonuses(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			applyPlayerMaxHealthAbilityBonus(player);
+			applyPlayerArmorAbilityBonus(player);
 			applyPlayerDamageAbilityBonus(player);
 		}
 	}
@@ -2083,6 +2327,18 @@ public final class PlayerEntitiesSystem {
 
 	private static String defaultAbilityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_FALL_DAMAGE_REDUCTION;
+		}
+		if ("minecraft:cow_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_DAMAGE_BLOCK;
+		}
+		if ("minecraft:pig_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_MAX_HEALTH_BONUS;
+		}
+		if ("minecraft:sheep_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_ARMOR_BONUS;
+		}
 		if ("minecraft:skeleton_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_RANGED_HOMING_ARROW;
 		}
@@ -2359,6 +2615,10 @@ public final class PlayerEntitiesSystem {
 		private final float attackSpeed;
 		private final long effectDurationTicks;
 		private final double playerDamageBonusAmount;
+		private final double fallDamageReductionAmount;
+		private final double maxHealthBonusAmount;
+		private final double armorBonusAmount;
+		private final double damageBlockAmount;
 		private final long cooldownTicks;
 		private final long shotDelayTicks;
 		private final double attackArcStepDegrees;
@@ -2388,6 +2648,10 @@ public final class PlayerEntitiesSystem {
 			float attackSpeed,
 			long effectDurationTicks,
 			double playerDamageBonusAmount,
+			double fallDamageReductionAmount,
+			double maxHealthBonusAmount,
+			double armorBonusAmount,
+			double damageBlockAmount,
 			long cooldownTicks,
 			long shotDelayTicks,
 			double attackArcStepDegrees,
@@ -2416,6 +2680,10 @@ public final class PlayerEntitiesSystem {
 			this.attackSpeed = attackSpeed;
 			this.effectDurationTicks = effectDurationTicks;
 			this.playerDamageBonusAmount = playerDamageBonusAmount;
+			this.fallDamageReductionAmount = fallDamageReductionAmount;
+			this.maxHealthBonusAmount = maxHealthBonusAmount;
+			this.armorBonusAmount = armorBonusAmount;
+			this.damageBlockAmount = damageBlockAmount;
 			this.cooldownTicks = cooldownTicks;
 			this.shotDelayTicks = shotDelayTicks;
 			this.attackArcStepDegrees = attackArcStepDegrees;
@@ -2435,6 +2703,10 @@ public final class PlayerEntitiesSystem {
 			boolean usesWebProjectile = PET_ABILITY_WEB_PROJECTILE.equals(resolvedAbilityType);
 			boolean usesExplosiveProjectile = PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(resolvedAbilityType);
 			boolean usesPlayerDamageBonus = PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(resolvedAbilityType);
+			boolean usesFallDamageReduction = PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(resolvedAbilityType);
+			boolean usesMaxHealthBonus = PET_ABILITY_MAX_HEALTH_BONUS.equals(resolvedAbilityType);
+			boolean usesArmorBonus = PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType);
+			boolean usesDamageBlock = PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 			root.addProperty("enabled", true);
 			root.addProperty("item_id", resolvedItemId);
 			root.addProperty("rarity", defaultRarityForItem(resolvedItemId));
@@ -2494,6 +2766,19 @@ public final class PlayerEntitiesSystem {
 			if (usesPlayerDamageBonus) {
 				root.addProperty("player_damage_bonus", 1.0D);
 			}
+			if (usesFallDamageReduction) {
+				root.addProperty("fall_damage_reduction", 0.10D);
+			}
+			if (usesMaxHealthBonus) {
+				root.addProperty("max_health_bonus", 0.10D);
+			}
+			if (usesArmorBonus) {
+				root.addProperty("armor_bonus", 2.0D);
+			}
+			if (usesDamageBlock) {
+				root.addProperty("damage_block", 4.0D);
+				root.addProperty("cooldown_ticks", 30L * 20L);
+			}
 			return root;
 		}
 
@@ -2522,6 +2807,10 @@ public final class PlayerEntitiesSystem {
 			float attackSpeed = (float) Settings.clampDouble(getDouble(source, "attack_speed", 0.0D), 0.05D, 8.0D);
 			long effectDurationTicks = Settings.clampLong(getLong(source, "effect_duration_ticks", 0L), 0L, 20L * 60L);
 			double playerDamageBonusAmount = Settings.clampDouble(getDouble(source, "player_damage_bonus", 0.0D), 0.0D, 1024.0D);
+			double fallDamageReductionAmount = Settings.clampDouble(getDouble(source, "fall_damage_reduction", 0.0D), 0.0D, 1.0D);
+			double maxHealthBonusAmount = Settings.clampDouble(getDouble(source, "max_health_bonus", 0.0D), 0.0D, 10.0D);
+			double armorBonusAmount = Settings.clampDouble(getDouble(source, "armor_bonus", 0.0D), 0.0D, 1024.0D);
+			double damageBlockAmount = Settings.clampDouble(getDouble(source, "damage_block", 0.0D), 0.0D, 1024.0D);
 			long cooldownTicks = Settings.clampLong(getLong(source, "cooldown_ticks", 0L), 0L, 20L * 60L * 60L);
 			long shotDelayTicks = Settings.clampLong(getLong(source, "shot_delay_ticks", 0L), 0L, 20L * 60L);
 			double attackArcStepDegrees = Settings.clampDouble(getDouble(source, "attack_arc_step_degrees", 18.0D), 0.0D, 90.0D);
@@ -2550,6 +2839,10 @@ public final class PlayerEntitiesSystem {
 				attackSpeed,
 				effectDurationTicks,
 				playerDamageBonusAmount,
+				fallDamageReductionAmount,
+				maxHealthBonusAmount,
+				armorBonusAmount,
+				damageBlockAmount,
 				cooldownTicks,
 				shotDelayTicks,
 				attackArcStepDegrees,
@@ -2579,6 +2872,64 @@ public final class PlayerEntitiesSystem {
 			return enabled && PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? playerDamageBonusAmount : 0.0D;
 		}
 
+		private double fallDamageReduction() {
+			return enabled && PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) ? fallDamageReductionAmount : 0.0D;
+		}
+
+		private double maxHealthBonus() {
+			return enabled && PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) ? maxHealthBonusAmount : 0.0D;
+		}
+
+		private double armorBonus() {
+			return enabled && PET_ABILITY_ARMOR_BONUS.equals(abilityType) ? armorBonusAmount : 0.0D;
+		}
+
+		private double damageBlockAmount() {
+			return enabled && PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) ? damageBlockAmount : 0.0D;
+		}
+
+		private boolean canBlockIncomingDamage() {
+			return enabled && PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D && cooldownTicks > 0L;
+		}
+
+		private String abilityDescription() {
+			if (!enabled) {
+				return "";
+			}
+			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
+				return "Active: Fires a homing arrow at your target.";
+			}
+			if (PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+				return "Active: Launches a web projectile that slows enemies.";
+			}
+			if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
+				return "Active: Fires an explosive projectile at your target.";
+			}
+			if (PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) && playerDamageBonusAmount > 0.0D) {
+				return "Passive: Increases player damage by " + formatAbilityAmount(playerDamageBonusAmount) + ".";
+			}
+			if (PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && fallDamageReductionAmount > 0.0D) {
+				return "Passive: Reduces fall damage by " + formatPercent(fallDamageReductionAmount) + ".";
+			}
+			if (PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) && maxHealthBonusAmount > 0.0D) {
+				return "Passive: Increases max health by " + formatPercent(maxHealthBonusAmount) + ".";
+			}
+			if (PET_ABILITY_ARMOR_BONUS.equals(abilityType) && armorBonusAmount > 0.0D) {
+				return "Passive: Increases armor by " + formatAbilityAmount(armorBonusAmount) + ".";
+			}
+			if (PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D) {
+				return "Active: Blocks " + formatAbilityAmount(damageBlockAmount) + " incoming damage.";
+			}
+			return "";
+		}
+
+		private String cooldownDescription() {
+			if (!enabled || cooldownTicks <= 0L || PET_ABILITY_NONE.equals(abilityType)) {
+				return "";
+			}
+			return "Cooldown: " + formatCooldownSeconds(cooldownTicks) + "s";
+		}
+
 		private boolean hasAbility() {
 			return enabled && !PET_ABILITY_NONE.equals(abilityType);
 		}
@@ -2600,6 +2951,27 @@ public final class PlayerEntitiesSystem {
 				return SoundEvents.CREEPER_PRIMED;
 			}
 			return SoundEvents.SKELETON_SHOOT;
+		}
+
+		private static String formatAbilityAmount(double value) {
+			double rounded = Math.round(value * 100.0D) / 100.0D;
+			if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
+				return Long.toString(Math.round(rounded));
+			}
+			return Double.toString(rounded);
+		}
+
+		private static String formatPercent(double value) {
+			return formatAbilityAmount(value * 100.0D) + "%";
+		}
+
+		private static String formatCooldownSeconds(long ticks) {
+			double seconds = Math.max(0.0D, ticks / 20.0D);
+			double rounded = Math.round(seconds * 10.0D) / 10.0D;
+			if (Math.abs(rounded - Math.rint(rounded)) <= 1.0E-6D) {
+				return Long.toString(Math.round(rounded));
+			}
+			return Double.toString(rounded);
 		}
 	}
 }
