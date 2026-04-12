@@ -81,6 +81,7 @@
     "WitherSkeletonWitherEffectMixin",
     "ZombieSpawnOverridesMixin",
     "ItemBuiltInRegistryHolderAccessor",
+    "ItemCostEggVariantsMixin",
     "ItemStackCodecMixin",
     "AbstractFurnaceCookTimeAccessor"
   ],
@@ -94,6 +95,7 @@
     "client.GuiAccessor",
     "client.InventoryScreenLabelMixin",
     "client.ItemFoodClientGateMixin",
+    "client.MerchantScreenAccessor",
     "client.MultiPlayerGameModeFarmingMixin",
     "client.PlayerEatClientGateMixin",
     "client.SlotAccessor"
