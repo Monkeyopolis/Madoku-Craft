@@ -87,6 +87,7 @@ public final class MadokuMob {
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
 	private static final int WITHER_EFFECT_DURATION_TICKS = 5 * 20;
+	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
 
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
@@ -513,6 +514,7 @@ public final class MadokuMob {
 				if (shooter instanceof Pillager || shooter instanceof Piglin) {
 					double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
 					arrow.setNoGravity(true);
+					arrow.addTag(HOMING_PROJECTILE_TAG);
 					HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
 					requestRuntimeProcessing(resolveServer(shooter), 1L);
 					if (shooter instanceof Piglin) {
@@ -590,6 +592,7 @@ public final class MadokuMob {
 		trackManagedMobArrow(arrow, level.getServer());
 		double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
 		arrow.setNoGravity(true);
+		arrow.addTag(HOMING_PROJECTILE_TAG);
 		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
 		requestRuntimeProcessing(level.getServer(), 1L);
 		shooter.level().addFreshEntity(arrow);
@@ -601,7 +604,7 @@ public final class MadokuMob {
 	}
 
 	public static boolean isManagedHomingArrow(AbstractArrow arrow) {
-		return arrow != null && HOMING_ARROWS.containsKey(arrow.getUUID());
+		return arrow != null && (HOMING_ARROWS.containsKey(arrow.getUUID()) || arrow.entityTags().contains(HOMING_PROJECTILE_TAG));
 	}
 
 	public static void clearInvulnerabilityBypass(AbstractArrow arrow) {
