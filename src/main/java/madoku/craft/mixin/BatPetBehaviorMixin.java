@@ -3,6 +3,7 @@ package madoku.craft.mixin;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -47,7 +48,11 @@ public abstract class BatPetBehaviorMixin {
 			Vec3 target = PlayerEntitiesSystem.managedPetMovementTarget(self);
 			BlockPos targetPos = target == null
 				? BlockPos.containing(self.position())
-				: BlockPos.containing(target.x, target.y, target.z);
+				: new BlockPos(
+					Mth.floor(target.x),
+					Math.max(level.getMinY(), Mth.floor(target.y + 0.4D)),
+					Mth.floor(target.z)
+				);
 			MANAGED_BAT_TARGETS.put(self.getUUID(), targetPos);
 		}
 
