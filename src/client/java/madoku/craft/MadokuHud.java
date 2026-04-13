@@ -114,7 +114,6 @@ public final class MadokuHud {
 	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.75F;
 	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
 	private static final int ABILITY_COOLDOWN_TEXT_Y_SPACING = 2;
-	private static final long HUNGER_DISPLAY_STEP_TICKS = 10L;
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
 	private static final float ARMOR_STEP = 0.25F;
@@ -141,12 +140,6 @@ public final class MadokuHud {
 	private static volatile int serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
 	private static volatile boolean hasServerHunger = false;
 	private static final long[] petAbilityCooldownEndTicks = new long[PlayerEntitiesSystem.SLOT_COUNT];
-	private static volatile long smoothedDisplayedHunger = -1L;
-	private static volatile long nextHungerDisplayStepTick = Long.MIN_VALUE;
-	private static volatile int smoothedDisplayMaxHunger = VANILLA_MAX_FOOD_LEVEL;
-	private static volatile long lastHungerDisplayTarget = -1L;
-	private static volatile boolean smoothUpFromPendingIncrease = false;
-	private static volatile boolean smoothDownFromPendingDecrease = false;
 	private static volatile int cachedAirSupply = 300;
 	private static volatile int cachedMaxAirSupply = 300;
 	private static volatile int cachedOxygenPoints = 10;
@@ -382,58 +375,7 @@ public final class MadokuHud {
 		}
 		float hungerPercent = currentHunger / (float) Math.max(1, maxHunger);
 
-		long targetDisplayedHunger = (long) currentHunger + (long) pendingHunger;
-		long displayedHunger = targetDisplayedHunger;
-		if (hasServerHunger) {
-			long nowTick = level.getGameTime();
-			if (smoothedDisplayedHunger < 0L || smoothedDisplayMaxHunger != maxHunger) {
-				smoothedDisplayedHunger = currentHunger;
-				smoothedDisplayMaxHunger = maxHunger;
-				lastHungerDisplayTarget = targetDisplayedHunger;
-				nextHungerDisplayStepTick = nowTick + HUNGER_DISPLAY_STEP_TICKS;
-			}
-			if (smoothedDisplayedHunger < currentHunger) {
-				smoothedDisplayedHunger = currentHunger;
-			}
-			if (lastHungerDisplayTarget != targetDisplayedHunger) {
-				lastHungerDisplayTarget = targetDisplayedHunger;
-				if (smoothedDisplayedHunger != targetDisplayedHunger) {
-					nextHungerDisplayStepTick = nowTick + HUNGER_DISPLAY_STEP_TICKS;
-				}
-			}
-			if (targetDisplayedHunger < smoothedDisplayedHunger && !smoothDownFromPendingDecrease) {
-				smoothedDisplayedHunger = targetDisplayedHunger;
-				nextHungerDisplayStepTick = nowTick + HUNGER_DISPLAY_STEP_TICKS;
-			}
-			if (targetDisplayedHunger > smoothedDisplayedHunger && !smoothUpFromPendingIncrease) {
-				smoothedDisplayedHunger = targetDisplayedHunger;
-				nextHungerDisplayStepTick = nowTick + HUNGER_DISPLAY_STEP_TICKS;
-			}
-			if (targetDisplayedHunger != smoothedDisplayedHunger && nowTick >= nextHungerDisplayStepTick) {
-				if (targetDisplayedHunger > smoothedDisplayedHunger && smoothUpFromPendingIncrease) {
-					smoothedDisplayedHunger = Math.min(targetDisplayedHunger, smoothedDisplayedHunger + 1L);
-				} else if (smoothDownFromPendingDecrease) {
-					smoothedDisplayedHunger = Math.max(targetDisplayedHunger, smoothedDisplayedHunger - 1L);
-				}
-				nextHungerDisplayStepTick = nowTick + HUNGER_DISPLAY_STEP_TICKS;
-			}
-			if (smoothedDisplayedHunger >= targetDisplayedHunger) {
-				smoothUpFromPendingIncrease = false;
-			}
-			if (smoothedDisplayedHunger <= targetDisplayedHunger) {
-				smoothDownFromPendingDecrease = false;
-			}
-			displayedHunger = smoothedDisplayedHunger;
-		} else {
-			smoothedDisplayedHunger = -1L;
-			nextHungerDisplayStepTick = Long.MIN_VALUE;
-			smoothedDisplayMaxHunger = VANILLA_MAX_FOOD_LEVEL;
-			lastHungerDisplayTarget = -1L;
-			smoothUpFromPendingIncrease = false;
-			smoothDownFromPendingDecrease = false;
-		}
-
-		String hungerText = "Hunger: " + displayedHunger + "/" + maxHunger;
+		String hungerText = "Hunger: " + ((long) currentHunger + (long) pendingHunger) + "/" + maxHunger;
 		int foodX = computeFoodX(context, client, hungerText);
 		int foodY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.FOOD_BAR);
 		boolean hasHungerEffect = player.hasEffect(MobEffects.HUNGER);
@@ -707,7 +649,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(stack);
+		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(client.player, slot, stack);
 		if (totalCooldownTicks <= 0 || slot < 0 || slot >= petAbilityCooldownEndTicks.length) {
 			return;
 		}
@@ -736,16 +678,17 @@ public final class MadokuHud {
 		}
 
 		String cooldownText = Integer.toString(Math.max(1, net.minecraft.util.Mth.ceil(remainingTicks / 20.0F)));
-		int textWidth = getScaledTextWidth(client, cooldownText, ABILITY_COOLDOWN_TEXT_SCALE);
-		int textX = slotX + ((ABILITY_SLOT_SIZE - textWidth) / 2);
+		int textWidth = client.font.width(cooldownText);
+		float centerX = slotX + (ABILITY_SLOT_SIZE / 2.0F);
 		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
 		context.pose().pushMatrix();
+		context.pose().translate(centerX, textY);
 		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
 		context.text(
 			client.font,
 			cooldownText,
-			Math.round(textX / ABILITY_COOLDOWN_TEXT_SCALE),
-			Math.round(textY / ABILITY_COOLDOWN_TEXT_SCALE),
+			Math.round(-textWidth / 2.0F),
+			0,
 			ABILITY_COOLDOWN_TEXT_COLOR,
 			true
 		);
@@ -1036,20 +979,8 @@ public final class MadokuHud {
 	}
 
 	public static void setServerHunger(int current, int pending, int max) {
-		int normalizedCurrent = Math.max(0, current);
-		int normalizedPending = Math.max(0, pending);
-		if (normalizedCurrent < serverHungerCurrent) {
-			// Immediate drops (e.g. hunger drained for health) should not be smoothed.
-			smoothUpFromPendingIncrease = false;
-			smoothDownFromPendingDecrease = false;
-		} else if (normalizedPending > serverHungerPending) {
-			smoothUpFromPendingIncrease = true;
-			smoothDownFromPendingDecrease = false;
-		} else if (normalizedPending < serverHungerPending) {
-			smoothDownFromPendingDecrease = true;
-		}
-		serverHungerCurrent = normalizedCurrent;
-		serverHungerPending = normalizedPending;
+		serverHungerCurrent = Math.max(0, current);
+		serverHungerPending = Math.max(0, pending);
 		serverHungerMax = Math.max(1, max);
 		hasServerHunger = true;
 	}
@@ -1059,12 +990,6 @@ public final class MadokuHud {
 		serverHungerPending = 0;
 		serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
 		hasServerHunger = false;
-		smoothedDisplayedHunger = -1L;
-		nextHungerDisplayStepTick = Long.MIN_VALUE;
-		smoothedDisplayMaxHunger = VANILLA_MAX_FOOD_LEVEL;
-		lastHungerDisplayTarget = -1L;
-		smoothUpFromPendingIncrease = false;
-		smoothDownFromPendingDecrease = false;
 	}
 
 	public static void clearOxygenHudState() {

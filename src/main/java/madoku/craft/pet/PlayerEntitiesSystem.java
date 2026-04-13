@@ -19,6 +19,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -38,6 +39,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -94,6 +96,7 @@ public final class PlayerEntitiesSystem {
 	private static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
 	private static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
 	private static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
+	private static final String PET_ABILITY_MOB_SCAN = "mob_scan";
 	private static final String PET_RARITY_COMMON = "common";
 	private static final String PET_RARITY_RARE = "rare";
 	private static final String PET_RARITY_EPIC = "epic";
@@ -106,6 +109,13 @@ public final class PlayerEntitiesSystem {
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
+	private static final int BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS = 8;
+	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 2;
+	private static final int BAT_SCAN_BASE_CHUNK_RADIUS = 1;
+	private static final int BAT_SCAN_ENHANCED_CHUNK_RADIUS = 2;
+	private static final int BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS = 3;
+	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
+	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
 	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
@@ -299,6 +309,41 @@ public final class PlayerEntitiesSystem {
 		return Math.max(20, baseInterval * Math.max(1, intervalMultiplier));
 	}
 
+	public static long managedPetSteeringInterval() {
+		return activeSchedulerTickInterval();
+	}
+
+	public static Vec3 managedPetMovementTarget(Mob pet) {
+		if (pet == null) {
+			return null;
+		}
+
+		FollowCommand followCommand = FOLLOW_COMMANDS_BY_PET.get(pet.getUUID());
+		if (followCommand != null && followCommand.target != null) {
+			return followCommand.target;
+		}
+
+		if (pet.getNavigation().isDone()) {
+			return null;
+		}
+
+		BlockPos navigationTarget = pet.getNavigation().getTargetPos();
+		return navigationTarget == null ? null : Vec3.atCenterOf(navigationTarget);
+	}
+
+	public static double managedPetMovementSpeed(Mob pet, double fallbackSpeed) {
+		if (pet == null) {
+			return fallbackSpeed;
+		}
+
+		FollowCommand followCommand = FOLLOW_COMMANDS_BY_PET.get(pet.getUUID());
+		if (followCommand != null && followCommand.speed > 0.0D) {
+			return followCommand.speed;
+		}
+
+		return fallbackSpeed;
+	}
+
 	public static boolean isEnabled() {
 		return settings.enabled;
 	}
@@ -325,6 +370,19 @@ public final class PlayerEntitiesSystem {
 	public static int abilityCooldownTicks(ItemStack stack) {
 		PetRule rule = resolvePetRule(stack);
 		return rule == null ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, rule.cooldownTicks));
+	}
+
+	public static int abilityCooldownTicks(Player player, int slot, ItemStack stack) {
+		PetRule rule = resolvePetRule(stack);
+		if (rule == null) {
+			return 0;
+		}
+		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
+			return abilityCooldownTicks(stack);
+		}
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		int batCount = countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN);
+		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(Math.max(1, batCount), rule));
 	}
 
 	public static void applyAbilityLore(ItemStack stack) {
@@ -780,6 +838,7 @@ public final class PlayerEntitiesSystem {
 
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		defaults.put("bat", PetRule.defaultsForItem("minecraft:bat_spawn_egg", PET_ABILITY_MOB_SCAN));
 		defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", PET_ABILITY_FALL_DAMAGE_REDUCTION));
 		defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", PET_ABILITY_DAMAGE_BLOCK));
 		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
@@ -973,6 +1032,165 @@ public final class PlayerEntitiesSystem {
 		return player.hasLineOfSight(target);
 	}
 
+	private static void triggerAutomaticPetAbilities(ServerPlayer player, long gameplayTicks) {
+		triggerAutomaticBatMobScan(player, gameplayTicks);
+	}
+
+	private static void triggerAutomaticBatMobScan(ServerPlayer player, long gameplayTicks) {
+		if (player == null || !player.isAlive()) {
+			return;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		int[] batSlots = new int[SLOT_COUNT];
+		PetRule[] batRules = new PetRule[SLOT_COUNT];
+		int batCount = collectSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN, batSlots, batRules);
+		if (batCount <= 0) {
+			return;
+		}
+
+		PetRule sharedRule = batRules[0];
+		if (sharedRule == null || sharedRule.cooldownTicks <= 0L) {
+			return;
+		}
+
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks);
+		if (gameplayTicks < sharedCooldownTick) {
+			return;
+		}
+
+		applyAutomaticBatMobScan(player, batCount);
+		setSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(batCount, sharedRule));
+	}
+
+	private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount) {
+		if (player == null || batCount <= 0 || !(player.level() instanceof ServerLevel level)) {
+			return;
+		}
+
+		int horizontalRadius = (batCount >= BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS ? BAT_SCAN_ENHANCED_CHUNK_RADIUS : BAT_SCAN_BASE_CHUNK_RADIUS) * 16;
+		int verticalRadius = BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS + Math.max(0, batCount - 1) * BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT;
+		AABB area = new AABB(
+			player.getX() - horizontalRadius,
+			player.getY() - verticalRadius,
+			player.getZ() - horizontalRadius,
+			player.getX() + horizontalRadius,
+			player.getY() + verticalRadius,
+			player.getZ() + horizontalRadius
+		);
+		for (Mob mob : level.getEntitiesOfClass(Mob.class, area, candidate ->
+			candidate != null
+				&& candidate.isAlive()
+				&& !candidate.isRemoved()
+				&& !isManagedPet(candidate)
+		)) {
+			mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
+		}
+	}
+
+	private static long effectiveBatScanCooldownTicks(int batCount, PetRule rule) {
+		long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
+		int additionalBats = Math.max(0, batCount - 1);
+		return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
+	}
+
+	private static int countSlotsWithAbility(PlayerEntitiesInventory inventory, String abilityType) {
+		return collectSlotsWithAbility(inventory, abilityType, null, null);
+	}
+
+	private static int collectSlotsWithAbility(
+		PlayerEntitiesInventory inventory,
+		String abilityType,
+		int[] slots,
+		PetRule[] rules
+	) {
+		if (inventory == null || abilityType == null) {
+			return 0;
+		}
+
+		int count = 0;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = resolvePetRule(stack);
+			if (rule == null || !rule.enabled || !abilityType.equals(rule.abilityType)) {
+				continue;
+			}
+			if (slots != null && count < slots.length) {
+				slots[count] = slot;
+			}
+			if (rules != null && count < rules.length) {
+				rules[count] = rule;
+			}
+			count++;
+		}
+		return count;
+	}
+
+	private static long synchronizeSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long gameplayTicks) {
+		if (playerId == null || slots == null || slotCount <= 0) {
+			return 0L;
+		}
+
+		long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
+		if (cooldowns == null) {
+			return 0L;
+		}
+
+		long sharedCooldownTick = 0L;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length)) {
+				continue;
+			}
+			sharedCooldownTick = Math.max(sharedCooldownTick, cooldowns[slot]);
+		}
+		if (sharedCooldownTick > 0L && sharedCooldownTick <= gameplayTicks) {
+			sharedCooldownTick = 0L;
+		}
+
+		boolean changed = false;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == sharedCooldownTick) {
+				continue;
+			}
+			cooldowns[slot] = sharedCooldownTick;
+			changed = true;
+		}
+		if (changed) {
+			if (!hasNonZeroCooldown(cooldowns)) {
+				PLAYER_SLOT_COOLDOWNS.remove(playerId);
+			}
+			markAbilityHudDirty(playerId);
+		}
+		return sharedCooldownTick;
+	}
+
+	private static void setSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long cooldownTick) {
+		if (playerId == null || slots == null || slotCount <= 0) {
+			return;
+		}
+
+		long[] cooldowns = slotCooldowns(playerId);
+		long normalizedCooldownTick = Math.max(0L, cooldownTick);
+		boolean changed = false;
+		for (int index = 0; index < slotCount; index++) {
+			int slot = slots[index];
+			if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == normalizedCooldownTick) {
+				continue;
+			}
+			cooldowns[slot] = normalizedCooldownTick;
+			changed = true;
+		}
+		if (changed) {
+			markAbilityHudDirty(playerId);
+		}
+	}
+
 	private static void runPetTick(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
@@ -1018,6 +1236,7 @@ public final class PlayerEntitiesSystem {
 			triggerReactivePetAttacks(player, ongoingReactiveTarget);
 			nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
 		}
+		triggerAutomaticPetAbilities(player, context.getNowTick());
 		if (nextDelay >= 0L) {
 			debugPlayerEvent("pet.tick_completed", player)
 				.field("next_delay", nextDelay)
@@ -1167,7 +1386,7 @@ public final class PlayerEntitiesSystem {
 			return null;
 		}
 
-		Vec3 desiredPosition = resolveDesiredPosition(owner, slot);
+		Vec3 desiredPosition = resolveDesiredPosition(owner, slot, pet);
 		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
 		preparePet(pet);
 		configurePet(pet, rule);
@@ -1266,7 +1485,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static long updatePetPosition(ServerPlayer owner, Mob pet, int slot, PetRule rule) {
-		Vec3 desiredPosition = resolveDesiredPosition(owner, slot);
+		Vec3 desiredPosition = resolveDesiredPosition(owner, slot, pet);
 		double ownerDistanceSqr = pet.distanceToSqr(owner);
 		double creativeDistanceMultiplier = creativeDistanceMultiplier(owner);
 		double teleportDistance = (rule == null ? 8.0D : rule.teleportDistance) * creativeDistanceMultiplier;
@@ -1284,7 +1503,7 @@ public final class PlayerEntitiesSystem {
 		double idleDistanceSqr = idleDistance * idleDistance;
 		if (ownerDistanceSqr <= idleDistanceSqr) {
 			clearFollowCommand(pet.getUUID());
-			return updatePetIdleMovement(owner, pet, idleDistance, idleDistanceSqr, rule);
+			return updatePetIdleMovement(owner, pet, slot, idleDistance, idleDistanceSqr, rule);
 		}
 
 		double followSpeed = rule == null ? 1.25D : rule.followSpeed;
@@ -1293,7 +1512,7 @@ public final class PlayerEntitiesSystem {
 		return activeSchedulerTickInterval();
 	}
 
-	private static long updatePetIdleMovement(ServerPlayer owner, Mob pet, double idleDistance, double idleDistanceSqr, PetRule rule) {
+	private static long updatePetIdleMovement(ServerPlayer owner, Mob pet, int slot, double idleDistance, double idleDistanceSqr, PetRule rule) {
 		if (pet == null || !pet.getNavigation().isDone()) {
 			return activeSchedulerTickInterval();
 		}
@@ -1304,7 +1523,7 @@ public final class PlayerEntitiesSystem {
 			return clampScheduledDelay(nextMoveTick - gameTime);
 		}
 
-		Vec3 idleTarget = resolveIdleTarget(owner, pet, idleDistance, idleDistanceSqr, rule);
+		Vec3 idleTarget = resolveIdleTarget(owner, pet, slot, idleDistance, idleDistanceSqr, rule);
 		if (idleTarget == null) {
 			scheduleNextIdleMove(pet, rule);
 			return nextIdleMoveDelay(pet);
@@ -1316,8 +1535,30 @@ public final class PlayerEntitiesSystem {
 		return activeSchedulerTickInterval();
 	}
 
-	private static Vec3 resolveIdleTarget(ServerPlayer owner, Mob pet, double idleDistance, double idleDistanceSqr, PetRule rule) {
+	private static Vec3 resolveIdleTarget(ServerPlayer owner, Mob pet, int slot, double idleDistance, double idleDistanceSqr, PetRule rule) {
 		double idleWanderRadius = rule == null ? 2.0D : rule.idleWanderRadius;
+		if (pet instanceof Bat) {
+			Vec3 hoverAnchor = resolveDesiredPosition(owner, slot, pet);
+			Vec3 offset = new Vec3(
+				(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius,
+				(pet.getRandom().nextDouble() - 0.5D) * 1.2D,
+				(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius
+			);
+			Vec3 candidate = hoverAnchor.add(offset);
+			double minHoverY = owner.getY() + 0.9D;
+			double maxHoverY = owner.getY() + Math.max(1.8D, owner.getBbHeight() + 0.8D);
+			candidate = new Vec3(candidate.x, Mth.clamp(candidate.y, minHoverY, maxHoverY), candidate.z);
+			if (candidate.distanceToSqr(owner.position()) > idleDistanceSqr) {
+				Vec3 clampedOffset = candidate.subtract(owner.position());
+				if (clampedOffset.lengthSqr() <= 1.0E-6D) {
+					return hoverAnchor;
+				}
+				candidate = owner.position().add(clampedOffset.normalize().scale(Math.max(0.75D, idleDistance * 0.55D)));
+				candidate = new Vec3(candidate.x, Mth.clamp(candidate.y, minHoverY, maxHoverY), candidate.z);
+			}
+			return candidate;
+		}
+
 		Vec3 current = pet.position();
 		Vec3 offset = new Vec3(
 			(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius,
@@ -1405,12 +1646,26 @@ public final class PlayerEntitiesSystem {
 		return clampScheduledDelay(nextMoveTick - gameTime);
 	}
 
-	private static Vec3 resolveDesiredPosition(ServerPlayer owner, int slot) {
+	private static Vec3 resolveDesiredPosition(ServerPlayer owner, int slot, Mob pet) {
 		SlotOffset offset = SLOT_OFFSETS[Math.max(0, Math.min(SLOT_OFFSETS.length - 1, slot))];
 		Vec3 horizontalForward = resolveFollowDirection(owner);
 		Vec3 right = new Vec3(-horizontalForward.z, 0.0D, horizontalForward.x);
-		Vec3 base = owner.position().add(0.0D, 0.10D, 0.0D);
+		double verticalOffset = 0.10D;
+		if (pet instanceof Bat) {
+			verticalOffset = owner.getBbHeight() * 0.75D + batSlotVerticalOffset(slot);
+		}
+		Vec3 base = owner.position().add(0.0D, verticalOffset, 0.0D);
 		return base.add(right.scale(offset.side())).subtract(horizontalForward.scale(offset.back()));
+	}
+
+	private static double batSlotVerticalOffset(int slot) {
+		return switch (Math.max(0, Math.min(SLOT_COUNT - 1, slot))) {
+			case 0 -> 0.45D;
+			case 1 -> 0.15D;
+			case 2 -> 0.35D;
+			case 3 -> 0.05D;
+			default -> 0.25D;
+		};
 	}
 
 	private static Vec3 resolveFollowDirection(ServerPlayer owner) {
@@ -2120,6 +2375,9 @@ public final class PlayerEntitiesSystem {
 		pet.setTarget(null);
 		pet.setAggressive(false);
 		pet.getNavigation().setCanFloat(true);
+		if (pet instanceof Bat bat) {
+			bat.setResting(false);
+		}
 	}
 
 	private static void tagManagedPet(Mob pet, UUID ownerId) {
@@ -2327,6 +2585,9 @@ public final class PlayerEntitiesSystem {
 
 	private static String defaultAbilityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_MOB_SCAN;
+		}
 		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_FALL_DAMAGE_REDUCTION;
 		}
@@ -2354,9 +2615,21 @@ public final class PlayerEntitiesSystem {
 		return PET_ABILITY_NONE;
 	}
 
+	private static double defaultPetScaleForItem(String itemId) {
+		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
+			return 0.4D;
+		}
+		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
+			return 0.3D;
+		}
+		return 0.25D;
+	}
+
 	private static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
-		if ("minecraft:creeper_spawn_egg".equals(normalizedItemId)
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)
+			|| "minecraft:creeper_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:skeleton_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:zombie_spawn_egg".equals(normalizedItemId)) {
@@ -2707,10 +2980,11 @@ public final class PlayerEntitiesSystem {
 			boolean usesMaxHealthBonus = PET_ABILITY_MAX_HEALTH_BONUS.equals(resolvedAbilityType);
 			boolean usesArmorBonus = PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType);
 			boolean usesDamageBlock = PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
+			boolean usesMobScan = PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 			root.addProperty("enabled", true);
 			root.addProperty("item_id", resolvedItemId);
 			root.addProperty("rarity", defaultRarityForItem(resolvedItemId));
-			root.addProperty("pet_scale", 0.25D);
+			root.addProperty("pet_scale", defaultPetScaleForItem(resolvedItemId));
 			root.addProperty("follow_speed", 1.2D);
 			root.addProperty("idle_move_speed", 0.8D);
 			root.addProperty("idle_distance", 4.0D);
@@ -2751,7 +3025,7 @@ public final class PlayerEntitiesSystem {
 			if (usesExplosiveProjectile) {
 				root.addProperty("follow_speed", 1.2D);
 				root.addProperty("idle_move_speed", 0.8D);
-				root.addProperty("attack_damage", 10.0D);
+				root.addProperty("attack_damage", 12.0D);
 				root.addProperty("attack_speed", 2.0D);
 				root.addProperty("cooldown_ticks", 60L * 20L);
 				root.addProperty("shot_delay_ticks", 10L);
@@ -2767,7 +3041,7 @@ public final class PlayerEntitiesSystem {
 				root.addProperty("player_damage_bonus", 1.0D);
 			}
 			if (usesFallDamageReduction) {
-				root.addProperty("fall_damage_reduction", 0.10D);
+				root.addProperty("fall_damage_reduction", 0.20D);
 			}
 			if (usesMaxHealthBonus) {
 				root.addProperty("max_health_bonus", 0.10D);
@@ -2778,6 +3052,9 @@ public final class PlayerEntitiesSystem {
 			if (usesDamageBlock) {
 				root.addProperty("damage_block", 4.0D);
 				root.addProperty("cooldown_ticks", 30L * 20L);
+			}
+			if (usesMobScan) {
+				root.addProperty("cooldown_ticks", 3L * 60L * 20L);
 			}
 			return root;
 		}
@@ -2792,7 +3069,7 @@ public final class PlayerEntitiesSystem {
 				return null;
 			}
 			String rarity = normalizePetRarity(getString(source, "rarity", PET_RARITY_COMMON));
-			double petScale = Settings.clampDouble(getDouble(source, "pet_scale", 0.25D), 0.01D, 4.0D);
+			double petScale = Settings.clampDouble(getDouble(source, "pet_scale", defaultPetScaleForItem(itemId)), 0.01D, 4.0D);
 			double followSpeed = Settings.clampDouble(getDouble(source, "follow_speed", 1.2D), 0.05D, 4.0D);
 			double idleMoveSpeed = Settings.clampDouble(getDouble(source, "idle_move_speed", 0.8D), 0.05D, 4.0D);
 			double idleDistance = Settings.clampDouble(getDouble(source, "idle_distance", 4.0D), 0.5D, 32.0D);
@@ -2920,12 +3197,18 @@ public final class PlayerEntitiesSystem {
 			if (PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D) {
 				return "Active: Blocks " + formatAbilityAmount(damageBlockAmount) + " incoming damage.";
 			}
+			if (PET_ABILITY_MOB_SCAN.equals(abilityType)) {
+				return "Automatic: Periodically scans nearby mobs, makes them glow for 90s, and scales with extra bats.";
+			}
 			return "";
 		}
 
 		private String cooldownDescription() {
 			if (!enabled || cooldownTicks <= 0L || PET_ABILITY_NONE.equals(abilityType)) {
 				return "";
+			}
+			if (PET_ABILITY_MOB_SCAN.equals(abilityType)) {
+				return "Cooldown: " + formatCooldownSeconds(cooldownTicks) + "s base, -40s per extra bat";
 			}
 			return "Cooldown: " + formatCooldownSeconds(cooldownTicks) + "s";
 		}

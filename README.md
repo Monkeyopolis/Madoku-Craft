@@ -31,6 +31,11 @@ Leveling:
 The Leveling system allows players to allocate points to increase certain stats.
 Press K to open up the Menu.
 
+Pets:
+
+The Pet system allows players to Equip spawn eggs in the player's Inventory.
+This Spawns a tiny MOB that helps and follows you without getting in the way.
+
 ## Disclaimer:
 
 Make sure to backup your worlds before using this MOD.
