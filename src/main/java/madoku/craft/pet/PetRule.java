@@ -346,7 +346,7 @@ final class PetRule {
 			return "Active: Blocks " + PlayerEntitiesSystem.formatAbilityAmount(damageBlockAmount) + " incoming damage.";
 		}
 		if (PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-			return "Automatic: Periodically scans nearby mobs, makes them glow for 90s, and scales with extra bats.";
+			return "Automatic: Periodically reveals nearby mobs.";
 		}
 		return "";
 	}
@@ -356,7 +356,7 @@ final class PetRule {
 			return "";
 		}
 		if (PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-			return "Cooldown: " + PlayerEntitiesSystem.formatCooldownSeconds(cooldownTicks) + "s base, -40s per extra bat";
+			return "Cooldown: " + PlayerEntitiesSystem.formatCooldownSeconds(cooldownTicks) + "s";
 		}
 		return "Cooldown: " + PlayerEntitiesSystem.formatCooldownSeconds(cooldownTicks) + "s";
 	}
