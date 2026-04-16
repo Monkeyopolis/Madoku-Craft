@@ -7,6 +7,8 @@ import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.entity.MadokuEntities;
+import madoku.craft.luck.MadokuLuck;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
@@ -45,6 +47,7 @@ import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.CrossbowItem;
@@ -84,10 +87,12 @@ public final class MadokuMob {
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
 	private static final int WITHER_EFFECT_DURATION_TICKS = 5 * 20;
+	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
 
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> MANAGED_MOB_ARROWS = new ConcurrentHashMap<>();
+	private static final java.util.Set<UUID> INVULNERABILITY_BYPASS_ARROWS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> PILLAGER_ATTACK_COOLDOWNS = new ConcurrentHashMap<>();
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
@@ -121,6 +126,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.clear();
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
+		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -139,6 +145,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.clear();
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
+		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -158,6 +165,11 @@ public final class MadokuMob {
 				applyCreeperSpawnOverrides(creeper, world, difficulty);
 		} else if (mob instanceof Piglin piglin) {
 			applyPiglinSpawnOverrides(piglin, world);
+		} else if (mob.getType() == MadokuEntities.HAG) {
+			JsonObject root = root(MadokuMobConfig.FILE_HAG);
+			if (readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true)) {
+				applyUniversalStats(mob, root);
+			}
 		}
 	}
 
@@ -494,6 +506,7 @@ public final class MadokuMob {
 		}
 		double accuracy = resolveScaledAttackAccuracy(readDouble(root, MadokuMobConfig.FIELD_ATTACK_ACCURACY, 0.7D), shooter.level().getDifficulty(), isHardcoreWorld(shooter.level()));
 		accuracy = shooter instanceof Mob mob ? MadokuDifficulty.resolveMobAttackAccuracyScaling(mob, accuracy) : accuracy;
+		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		if (shooter.getRandom().nextDouble() <= accuracy) {
 			projectile.shoot(velocityX, velocityY, velocityZ, speed, 0.0F);
 			if (projectile instanceof AbstractArrow arrow) {
@@ -501,6 +514,7 @@ public final class MadokuMob {
 				if (shooter instanceof Pillager || shooter instanceof Piglin) {
 					double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
 					arrow.setNoGravity(true);
+					arrow.addTag(HOMING_PROJECTILE_TAG);
 					HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
 					requestRuntimeProcessing(resolveServer(shooter), 1L);
 					if (shooter instanceof Piglin) {
@@ -553,6 +567,52 @@ public final class MadokuMob {
 		return (float) Math.max(0.0D, damage);
 	}
 
+	public static boolean spawnManagedHomingArrow(
+		LivingEntity shooter,
+		LivingEntity target,
+		Vec3 spawnPosition,
+		float speed,
+		float damage
+	) {
+		if (shooter == null || target == null || !target.isAlive() || spawnPosition == null || !(shooter.level() instanceof ServerLevel level)) {
+			return false;
+		}
+
+		Arrow arrow = new Arrow(level, shooter, new ItemStack(Items.ARROW), new ItemStack(Items.BOW));
+		arrow.setPos(spawnPosition.x, spawnPosition.y, spawnPosition.z);
+		Vec3 desired = target.getEyePosition().subtract(spawnPosition);
+		if (desired.lengthSqr() <= 1.0E-6D) {
+			desired = shooter.getLookAngle();
+		}
+		arrow.shoot(desired.x, desired.y, desired.z, Math.max(0.1F, speed), 0.0F);
+		arrow.setCritArrow(false);
+		arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
+		FIXED_ARROW_DAMAGE.put(arrow.getUUID(), Math.max(0.0F, damage));
+		INVULNERABILITY_BYPASS_ARROWS.add(arrow.getUUID());
+		trackManagedMobArrow(arrow, level.getServer());
+		double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
+		arrow.setNoGravity(true);
+		arrow.addTag(HOMING_PROJECTILE_TAG);
+		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
+		requestRuntimeProcessing(level.getServer(), 1L);
+		shooter.level().addFreshEntity(arrow);
+		return true;
+	}
+
+	public static boolean shouldBypassInvulnerability(AbstractArrow arrow) {
+		return arrow != null && INVULNERABILITY_BYPASS_ARROWS.contains(arrow.getUUID());
+	}
+
+	public static boolean isManagedHomingArrow(AbstractArrow arrow) {
+		return arrow != null && (HOMING_ARROWS.containsKey(arrow.getUUID()) || arrow.getTags().contains(HOMING_PROJECTILE_TAG));
+	}
+
+	public static void clearInvulnerabilityBypass(AbstractArrow arrow) {
+		if (arrow != null) {
+			INVULNERABILITY_BYPASS_ARROWS.remove(arrow.getUUID());
+		}
+	}
+
 	public static void applyCreeperExplosionOverride(
 		Creeper creeper,
 		ServerLevel level,
@@ -589,6 +649,7 @@ public final class MadokuMob {
 			0.0D,
 			1.0D
 		);
+		chance = MadokuLuck.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
 		Double configuredPower = readOptionalDouble(variant, MadokuMobConfig.FIELD_EXPLOSION_POWER);
 		float power = configuredPower == null ? vanillaPower : configuredPower.floatValue();
 		power = (float) resolveDifficultyAdjustedValue(level.getDifficulty(), isHardcoreWorld(level), Math.max(0.0D, power), CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
@@ -713,6 +774,10 @@ public final class MadokuMob {
 			if (entity instanceof Creeper creeper) {
 				JsonObject root = root(MadokuMobConfig.FILE_CREEPER);
 				return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyCreeperRuntimeStats(creeper, root);
+			}
+			if (entity.getType() == MadokuEntities.HAG) {
+				JsonObject root = root(MadokuMobConfig.FILE_HAG);
+				return readBoolean(root, MadokuMobConfig.FIELD_ENABLED, true) && applyUniversalStats(entity, root);
 			}
 			return false;
 	}
@@ -1395,6 +1460,7 @@ public final class MadokuMob {
 		HOMING_ARROWS.remove(arrowId);
 		FIXED_ARROW_DAMAGE.remove(arrowId);
 		MANAGED_MOB_ARROWS.remove(arrowId);
+		INVULNERABILITY_BYPASS_ARROWS.remove(arrowId);
 	}
 
 	private static void spawnSpiderJockey(Spider spider, ServerLevelAccessor world, DifficultyInstance difficulty) {
@@ -1499,6 +1565,7 @@ public final class MadokuMob {
 	}
 
 	private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
+		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		double dx = target.getX() - skeleton.getX();
 		double dz = target.getZ() - skeleton.getZ();
 		double horizontal = Math.sqrt(dx * dx + dz * dz);

@@ -66,7 +66,7 @@ public abstract class ItemStackFarmingMixin {
 			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
 				if (serverLevel != null && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
-					context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);
+						context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);
 				}
 				cir.setReturnValue(InteractionResult.FAIL);
 				return;

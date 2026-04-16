@@ -234,11 +234,19 @@ public final class MadokuTime {
 		if (settings.enabled) {
 			return getCurrentAbsoluteDayTime();
 		}
-		return world == null ? MadokuTicks.getGameplayTicks() : world.getDayTime();
+			return world == null ? MadokuTicks.getGameplayTicks() : world.getDayTime();
 	}
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	public static long getGameplayTicksPerDay() {
+		TimeSettings currentSettings = settings;
+		if (!currentSettings.enabled) {
+			return MINECRAFT_TICKS_PER_CYCLE;
+		}
+		return Math.max(1L, currentSettings.serverTicksPerCycle);
 	}
 
 	public static long toAbsoluteDayTime(long day, int hour, int minute) {

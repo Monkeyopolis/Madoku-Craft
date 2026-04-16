@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.luck.MadokuLuck;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;
@@ -105,11 +107,18 @@ public abstract class BlockFarmingDropsMixin {
 		}
 
 		MadokuFarming.emitPendingHarvestUsedDebug(level, pos, state, "block_drop");
-		Block.popResource(level, pos, new ItemStack(harvestItem, count));
 		Item secondaryHarvestItem = MadokuFarming.getCropSecondaryHarvestItem(level, pos, state);
 		int secondaryCount = MadokuFarming.calculateCropSecondaryHarvestCount(level, pos, state, random);
+		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(secondaryHarvestItem != null && secondaryCount > 0 ? 2 : 1);
+		drops.add(new ItemStack(harvestItem, count));
 		if (secondaryHarvestItem != null && secondaryCount > 0) {
-			Block.popResource(level, pos, new ItemStack(secondaryHarvestItem, secondaryCount));
+			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
+		}
+		MadokuLuck.applyManagedCropDrops(random, drops);
+		for (ItemStack drop : drops) {
+			if (drop != null && !drop.isEmpty()) {
+				Block.popResource(level, pos, drop);
+			}
 		}
 		MadokuFarming.completeCropHarvest(level, pos, state);
 		ci.cancel();

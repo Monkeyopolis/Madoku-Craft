@@ -3,6 +3,7 @@ package madoku.craft.oxygen;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
@@ -32,7 +33,7 @@ import java.util.UUID;
 public final class MadokuOxygen {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuOxygen.class);
 
-	private static final String OXYGEN_CONFIG_FOLDER_NAME = "madoku-craft-oxygen";
+	private static final String OXYGEN_CONFIG_DIRECTORY_NAME = "madoku-oxygen";
 	private static final String OXYGEN_CONFIG_FILE_NAME = "madoku-oxygen";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-oxygen";
 	private static final String DATA_FILE_NAME = "madoku-oxygen";
@@ -349,7 +350,11 @@ public final class MadokuOxygen {
 		}
 
 		if (state.oxygenTicks >= 0) {
+			if (!shouldDrainOxygen(player)) {
+				state.oxygenTicks = oxygenCapTicks;
+			} else {
 			state.oxygenTicks = clampInt(state.oxygenTicks, 0, oxygenCapTicks);
+			}
 			if (state.lastKnownOxygenBoostLevels < 0) {
 				state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
 			}
@@ -357,7 +362,7 @@ public final class MadokuOxygen {
 		}
 
 		int observedAirSupply = clampInt(player.getAirSupply(), 0, oxygenCapTicks);
-		state.oxygenTicks = observedAirSupply;
+		state.oxygenTicks = shouldDrainOxygen(player) ? observedAirSupply : oxygenCapTicks;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
 	}
 
@@ -544,27 +549,15 @@ public final class MadokuOxygen {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(OXYGEN_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, OXYGEN_CONFIG_FILE_NAME);
+			Path configFile = MadokuAttributes.prepareSystemConfigFile(OXYGEN_CONFIG_DIRECTORY_NAME, OXYGEN_CONFIG_FILE_NAME);
 			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
-			Settings loaded = Settings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
-			settings = loaded;
+			Settings configured = Settings.fromJson(normalized);
+			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			settings = configured.withEnabled(MadokuAttributes.isEnabled());
 		} catch (IOException | RuntimeException exception) {
-			settings = fallback;
+			settings = fallback.withEnabled(MadokuAttributes.isEnabled());
 			LOGGER.error("Failed to load MadokuOxygen static config; using defaults.", exception);
 		}
-	}
-
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
 	}
 
 	private static String getString(JsonObject object, String key, String fallback) {
@@ -765,6 +758,20 @@ public final class MadokuOxygen {
 			root.addProperty("drowning_damage_interval_ticks", drowningDamageIntervalTicks);
 			root.addProperty("drowning_damage_amount", drowningDamageAmount);
 			return root;
+		}
+
+		private Settings withEnabled(boolean attributesEnabled) {
+			return new Settings(
+				attributesEnabled && enabled,
+				schedulerTickInterval,
+				maximumOxygenTicks,
+				oxygenDrainPerTick,
+				oxygenRecoveryPerTick,
+				maximumOxygenGainPerEffectLevelFraction,
+				oxygenGainPerEffectLevelFraction,
+				drowningDamageIntervalTicks,
+				drowningDamageAmount
+			);
 		}
 
 		private static long clampLong(long value, long min, long max) {

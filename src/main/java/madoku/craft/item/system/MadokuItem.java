@@ -79,6 +79,10 @@ public final class MadokuItem {
 	}
 
 	public static void onServerStarted() {
+		applyConfiguredItemMetadata();
+	}
+
+	public static void applyConfiguredItemMetadata() {
 		if (!enabled) {
 			return;
 		}
@@ -432,18 +436,16 @@ public final class MadokuItem {
 			}
 		}
 
-		enabled = true;
-		fuelTicksByItem = Map.copyOf(resolvedFuel);
-		stackModesByItem = Map.copyOf(resolvedStackModes);
-		toolProfilesByItem = Map.copyOf(resolvedTools);
-		armorProfilesByItem = Map.copyOf(resolvedArmor);
-		composterAdjustmentsByItem = Map.copyOf(resolvedComposterAdjustments);
-		secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
-		toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
-		armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
-		applyToolProfiles(toolProfilesByItem);
-		applyArmorProfiles(armorProfilesByItem);
-	}
+			enabled = true;
+			fuelTicksByItem = Map.copyOf(resolvedFuel);
+			stackModesByItem = Map.copyOf(resolvedStackModes);
+			toolProfilesByItem = Map.copyOf(resolvedTools);
+			armorProfilesByItem = Map.copyOf(resolvedArmor);
+			composterAdjustmentsByItem = Map.copyOf(resolvedComposterAdjustments);
+			secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
+			toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
+			armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
+		}
 
 	private static JsonObject buildDynamicFuelDefaultsForFile(String fileKey) {
 		String itemId = resolveItemId(fileKey, null);
@@ -829,14 +831,11 @@ public final class MadokuItem {
 	}
 
 	private static void applyToolProfile(Item item, MadokuToolProfile profile) {
-		if (!(item instanceof ItemComponentsAccessor accessor)) {
+		if (item == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = item.components();
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		boolean changed = false;
@@ -868,7 +867,7 @@ public final class MadokuItem {
 		}
 
 		if (changed) {
-			accessor.madokuCraft$setComponents(builder.build());
+			((ItemComponentsAccessor) item).madokuCraft$setComponents(builder.build());
 		}
 	}
 
@@ -914,14 +913,11 @@ public final class MadokuItem {
 	}
 
 	private static void applyArmorProfile(Item item, MadokuArmorProfile profile) {
-		if (!(item instanceof ItemComponentsAccessor accessor)) {
+		if (item == null) {
 			return;
 		}
 
-		DataComponentMap base = accessor.madokuCraft$getComponents();
-		if (base == null) {
-			return;
-		}
+		DataComponentMap base = item.components();
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		boolean changed = false;
@@ -939,7 +935,7 @@ public final class MadokuItem {
 		}
 
 		if (changed) {
-			accessor.madokuCraft$setComponents(builder.build());
+			((ItemComponentsAccessor) item).madokuCraft$setComponents(builder.build());
 		}
 	}
 
