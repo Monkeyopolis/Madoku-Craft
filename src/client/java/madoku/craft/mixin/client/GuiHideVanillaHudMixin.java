@@ -48,18 +48,6 @@ public abstract class GuiHideVanillaHudMixin {
 		}
 	}
 
-	@Inject(
-		method = "renderAirBubbles(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/entity/player/Player;III)V",
-		at = @At("HEAD"),
-		cancellable = true,
-		require = 0
-	)
-	private void madokuCraft$hideAirBubbles(GuiGraphics context, Player player, int top, int left, int air, CallbackInfo ci) {
-		if (MadokuHud.isOxygenHudEnabled()) {
-			ci.cancel();
-		}
-	}
-
 	@Redirect(
 		method = "renderPlayerHealth",
 		at = @At(

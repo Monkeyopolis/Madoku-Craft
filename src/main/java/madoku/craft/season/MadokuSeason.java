@@ -17,7 +17,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -63,9 +62,6 @@ public final class MadokuSeason {
 	private static volatile boolean seasonScanTaskScheduled = false;
 	private static volatile boolean seasonProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
-	private static volatile String syncedClientSeasonId = "";
-	private static volatile boolean loggedClientPrecipitationResolution = false;
-	private static volatile boolean loggedServerPrecipitationResolution = false;
 	private static final LinkedHashMap<Long, SeasonWaterWork> PENDING_WATER_WORK = new LinkedHashMap<>();
 	private static final ArrayList<Long> PENDING_WATER_WORK_ORDER = new ArrayList<>();
 
@@ -120,7 +116,7 @@ public final class MadokuSeason {
 				}
 
 				loadPendingWaterWork(data);
-					lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+				lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 			}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -147,24 +143,8 @@ public final class MadokuSeason {
 		return settings.enabled;
 	}
 
-	public static void setSyncedClientSeason(String seasonId) {
-		syncedClientSeasonId = normalizeKey(seasonId);
-	}
-
-	public static void clearSyncedClientSeason() {
-		syncedClientSeasonId = "";
-	}
-
-	public static boolean hasSyncedClientSeason() {
-		return !syncedClientSeasonId.isBlank();
-	}
-
-	public static String getSyncedClientSeasonId() {
-		return syncedClientSeasonId;
-	}
-
 	public static SeasonState getCurrentState() {
-		return resolveCurrentState();
+		return resolveDisplayState();
 	}
 
 	public static SeasonState getCurrentState(ServerLevel world) {
@@ -291,86 +271,10 @@ public final class MadokuSeason {
 			return SeasonalPrecipitation.DRY;
 		}
 
-		SeasonState state = lastProcessedState;
-		if (state.absoluteDay() < 0L) {
-			state = getCurrentState();
-		}
-		if (hasSyncedClientSeason()) {
-			Season syncedSeason = Season.fromId(getSyncedClientSeasonId());
-			if (syncedSeason != null) {
-				state = new SeasonState(
-					state.absoluteDay(),
-					state.cycleDay(),
-					syncedSeason,
-					state.seasonDay(),
-					state.week(),
-					state.dayInWeek(),
-					state.progress()
-				);
-			}
-		}
+		SeasonState state = getCurrentState();
 		BiomeClimate climate = resolveBiomeClimate(biome);
 		BiomeMoisture moisture = resolveBiomeMoisture(biome);
-		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
-		if (!loggedClientPrecipitationResolution && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_resolver_client")) {
-			loggedClientPrecipitationResolution = true;
-			MadokuDebug.event("season.precipitation_resolver_client", MadokuDebug.Domain.SEASON)
-				.side(MadokuDebug.Side.CLIENT)
-				.tick(MadokuTicks.getGameplayTicks())
-				.subject("precipitation")
-				.field("season", state.season().id)
-				.field("climate", climate.name())
-				.field("moisture", moisture.name())
-				.field("result", precipitation.name())
-				.log();
-		}
-		return precipitation;
-	}
-
-	public static SeasonalPrecipitation resolveSeasonalPrecipitation(Level level, Biome biome) {
-		if (biome == null) {
-			return SeasonalPrecipitation.DRY;
-		}
-
-		if (level instanceof ServerLevel serverLevel) {
-			return resolveSeasonalPrecipitation(serverLevel, biome);
-		}
-
-		SeasonState state = resolveCurrentState();
-		BiomeClimate climate = resolveBiomeClimate(biome);
-		BiomeMoisture moisture = resolveBiomeMoisture(biome);
-		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
-		if (hasSyncedClientSeason()) {
-			Season syncedSeason = Season.fromId(getSyncedClientSeasonId());
-			if (syncedSeason != null) {
-				precipitation = resolveSeasonalPrecipitation(syncedSeason, climate, moisture);
-			}
-		}
-		return precipitation;
-	}
-
-	public static SeasonalPrecipitation resolveSeasonalPrecipitation(ServerLevel world, Biome biome) {
-		if (biome == null) {
-			return SeasonalPrecipitation.DRY;
-		}
-
-		SeasonState state = world == null ? getCurrentState() : getCurrentState(world);
-		BiomeClimate climate = resolveBiomeClimate(biome);
-		BiomeMoisture moisture = resolveBiomeMoisture(biome);
-		SeasonalPrecipitation precipitation = resolveSeasonalPrecipitation(state.season(), climate, moisture);
-		if (!loggedServerPrecipitationResolution && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_resolver_server")) {
-			loggedServerPrecipitationResolution = true;
-			MadokuDebug.event("season.precipitation_resolver_server", MadokuDebug.Domain.SEASON)
-				.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuTicks.getGameplayTicks())
-				.subject("precipitation")
-				.field("season", state.season().id)
-				.field("climate", climate.name())
-				.field("moisture", moisture.name())
-				.field("result", precipitation.name())
-				.log();
-		}
-		return precipitation;
+		return resolveSeasonalPrecipitation(state.season(), climate, moisture);
 	}
 
 	public static SeasonalPrecipitation resolveSeasonalPrecipitation(Season season, BiomeClimate climate, BiomeMoisture moisture) {
@@ -565,7 +469,7 @@ public final class MadokuSeason {
 
 		MadokuDebug.event("season.transition", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.subject("season")
 			.field("from", previousState.season().id)
 			.field("to", currentState.season().id)
@@ -592,7 +496,7 @@ public final class MadokuSeason {
 
 		MadokuDebug.event("season.queue_scan", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject("season_water_scan")
 			.field("season", state == null ? "unknown" : state.season().id)
@@ -619,7 +523,7 @@ public final class MadokuSeason {
 		BlockPos pos = BlockPos.of(work.blockPosLong());
 		MadokuDebug.event("season.queue_process", MadokuDebug.Domain.SEASON)
 			.side(MadokuDebug.Side.SERVER)
-				.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject("block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
 			.field("season", state == null ? "unknown" : state.season().id)
@@ -724,17 +628,17 @@ public final class MadokuSeason {
 		int minBlockX = chunkX << 4;
 		int minBlockZ = chunkZ << 4;
 		BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
-			int worldX = minBlockX + localX;
-			int worldZ = minBlockZ + localZ;
-			int columnTopY = Math.min(
-				world.getMaxBuildHeight() - 1,
-				world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1
-			);
-			int columnBottomY = Math.max(world.getMinBuildHeight(), columnTopY - WATER_UPDATE_VERTICAL_SCAN_DEPTH);
+		int worldX = minBlockX + localX;
+		int worldZ = minBlockZ + localZ;
+		int columnTopY = Math.min(
+			world.getMaxBuildHeight() - 1,
+			world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1
+		);
+		int columnBottomY = Math.max(world.getMinBuildHeight(), columnTopY - WATER_UPDATE_VERTICAL_SCAN_DEPTH);
 
-			for (int worldY = columnTopY; worldY >= columnBottomY; worldY--) {
-				mutablePos.set(worldX, worldY, worldZ);
-				BlockState blockState = world.getBlockState(mutablePos);
+		for (int worldY = columnTopY; worldY >= columnBottomY; worldY--) {
+			mutablePos.set(worldX, worldY, worldZ);
+			BlockState blockState = world.getBlockState(mutablePos);
 				if (!isSeasonalWaterCandidate(blockState)) {
 					continue;
 				}
@@ -746,9 +650,9 @@ public final class MadokuSeason {
 				double freezeProgress = resolveWaterFreezeProgress(state.season(), climate, state.seasonDay());
 				boolean shouldFreeze = shouldFreezeColumn(worldX, worldZ, freezeProgress);
 				SeasonWaterAction action = resolveSeasonWaterAction(blockState, shouldFreeze);
-				if (action == null) {
-					return null;
-				}
+			if (action == null) {
+				return null;
+			}
 
 			long packedPos = BlockPos.asLong(worldX, worldY, worldZ);
 			if (PENDING_WATER_WORK.containsKey(packedPos)) {
@@ -1005,6 +909,14 @@ public final class MadokuSeason {
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
 	}
 
+	private static SeasonState resolveDisplayState() {
+		SeasonState snapshot = lastProcessedState;
+		if (!MadokuTime.isEnabled() && snapshot.absoluteDay() >= 0L) {
+			return snapshot;
+		}
+		return resolveCurrentState();
+	}
+
 	private static SeasonState resolveCurrentState() {
 		return resolveCurrentState(null);
 	}
@@ -1158,13 +1070,13 @@ public final class MadokuSeason {
 
 	private static ResourceLocation resolveBiomeId(ServerLevel world, net.minecraft.core.BlockPos pos) {
 		try {
-				Holder<Biome> biomeEntry = world.getBiome(pos);
-				return biomeEntry.unwrapKey()
-					.map(ResourceKey::location)
-					.orElseGet(() -> {
-						Registry<Biome> biomeRegistry = world.registryAccess().registryOrThrow(Registries.BIOME);
-						return biomeRegistry.getKey(biomeEntry.value());
-					});
+			Holder<Biome> biomeEntry = world.getBiome(pos);
+			return biomeEntry.unwrapKey()
+				.map(ResourceKey::location)
+				.orElseGet(() -> {
+					Registry<Biome> biomeRegistry = world.registryAccess().registryOrThrow(Registries.BIOME);
+					return biomeRegistry.getKey(biomeEntry.value());
+				});
 		} catch (RuntimeException exception) {
 			return null;
 		}
@@ -1405,25 +1317,6 @@ public final class MadokuSeason {
 			}
 			return values[index];
 		}
-
-		private static Season fromId(String value) {
-			if (value == null) {
-				return null;
-			}
-
-			String normalized = value.trim().toLowerCase();
-			if (normalized.isEmpty()) {
-				return null;
-			}
-
-			for (Season season : values()) {
-				if (season.id.equals(normalized)) {
-					return season;
-				}
-			}
-
-			return null;
-		}
 	}
 
 	public enum BiomeClimate {
@@ -1549,3 +1442,5 @@ public final class MadokuSeason {
 		return element.getAsBoolean();
 	}
 }
+
+

@@ -42,9 +42,9 @@ public abstract class GuiGraphicsStackCountMixin {
 
 		int width = font.width(text);
 		this.pose.pushPose();
-		this.pose.translate((float) (x + width), (float) y, 0.0f);
-		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE, 1.0f);
-		this.pose.translate((float) (-x - width), (float) (-y), 0.0f);
+		this.pose.translate((float) (x + width), (float) y, 0.0F);
+		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE, 1.0F);
+		this.pose.translate((float) (-x - width), (float) (-y), 0.0F);
 		int drawResult = this.drawString(font, text, x, y, color, shadow);
 		this.pose.popPose();
 		return drawResult;

@@ -1,7 +1,5 @@
 package madoku.craft.network;
 
-import madoku.craft.clock.MadokuTicks;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.season.MadokuSeason;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -28,17 +26,9 @@ public final class WorldSeasonSync {
 				if (payload == null || !ServerPlayNetworking.canSend(handler, WorldSeasonPayload.TYPE)) {
 					return;
 				}
-				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.sync_send_join")) {
-					MadokuDebug.event("season.sync_send_join", MadokuDebug.Domain.SEASON)
-						.side(MadokuDebug.Side.SERVER)
-						.tick(MadokuTicks.getGameplayTicks())
-						.subject("world_season")
-						.field("season", payload.season())
-						.log();
-				}
 				sender.sendPacket(payload);
 			});
-			initialized = true;
+		initialized = true;
 	}
 
 	public static void reset() {
@@ -73,24 +63,14 @@ public final class WorldSeasonSync {
 			return;
 		}
 
-			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
-					ServerPlayNetworking.send(player, payload);
-				}
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
+				ServerPlayNetworking.send(player, payload);
 			}
-			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.sync_broadcast")) {
-				MadokuDebug.event("season.sync_broadcast", MadokuDebug.Domain.SEASON)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(MadokuTicks.getGameplayTicks())
-					.subject("world_season")
-					.field("season", season)
-					.field("force", force)
-					.field("players", server.getPlayerList().getPlayerCount())
-					.log();
-			}
-
-			lastBroadcastSeason = season;
 		}
+
+		lastBroadcastSeason = season;
+	}
 
 	private static void broadcastSeasonCleared(MinecraftServer server, boolean force) {
 		if (server == null) {
@@ -102,23 +82,14 @@ public final class WorldSeasonSync {
 		}
 
 		WorldSeasonPayload payload = new WorldSeasonPayload("");
-			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
-					ServerPlayNetworking.send(player, payload);
-				}
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
+				ServerPlayNetworking.send(player, payload);
 			}
-			if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.sync_clear")) {
-				MadokuDebug.event("season.sync_clear", MadokuDebug.Domain.SEASON)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(MadokuTicks.getGameplayTicks())
-					.subject("world_season")
-					.field("force", force)
-					.field("players", server.getPlayerList().getPlayerCount())
-					.log();
-			}
-
-			lastBroadcastSeason = "";
 		}
+
+		lastBroadcastSeason = "";
+	}
 
 	private static WorldSeasonPayload currentPayload(MinecraftServer server) {
 		if (!MadokuSeason.isEnabled()) {

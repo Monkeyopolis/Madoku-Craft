@@ -1,25 +1,26 @@
 package madoku.craft;
 
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.world.InteractionResult;
-
 import madoku.craft.armor.MadokuArmor;
+import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.health.MadokuHealth;
 import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.levels.MadokuLevels;
+import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuPlacedBlocks;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.HungerHudSync;
+import madoku.craft.network.PetAbilityHudSync;
+import madoku.craft.network.PetSoundStateSync;
 import madoku.craft.network.WorldDifficultySync;
 import madoku.craft.network.WorldSeasonSync;
 import madoku.craft.network.WorldTimeSync;
@@ -30,6 +31,11 @@ import madoku.craft.season.MadokuSeason;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.time.MadokuSleep;
 import madoku.craft.time.MadokuTime;
+import madoku.craft.pet.PlayerEntitiesSystem;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 public class MadokuCraft implements ModInitializer {
 	public static final String MOD_ID = "madoku-craft";
@@ -42,53 +48,61 @@ public class MadokuCraft implements ModInitializer {
 		MadokuDifficulty.initialize();
 		MadokuTime.initialize();
 		MadokuSeason.initialize();
+		MadokuEntities.initialize();
 		MadokuItem.initialize();
 		MadokuComposter.initialize();
 		MadokuFarming.initialize();
 		MadokuMob.initialize();
 		MadokuRarity.initialize();
 		MadokuItemStack.initialize();
+		MadokuAttributes.initialize();
+		MadokuPlacedBlocks.initialize();
 		MadokuArmor.initialize();
 		MadokuHealth.initialize();
 		MadokuHunger.initialize();
 		MadokuOxygen.initialize();
-		EntitySleepEvents.ALLOW_SLEEP_TIME.register((player, sleepingPos, vanillaResult) -> {
-			if (!MadokuTime.isEnabled()) {
-				return InteractionResult.PASS;
-			}
-
-			return MadokuSleep.canStartSleeping(player)
-				? InteractionResult.SUCCESS
-				: InteractionResult.FAIL;
-		});
+		MadokuLevels.initialize();
+		MadokuLuck.initialize();
+		PlayerEntitiesSystem.initialize();
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
 		WorldTimeSync.initialize();
 		WorldDifficultySync.initialize();
 		WorldSeasonSync.initialize();
 		HungerHudSync.initialize();
-			ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-				MadokuDebug.resetSession();
-				MadokuClock.reset();
-				MadokuTicks.reset();
-				MadokuSleep.reset();
+		PetAbilityHudSync.initialize();
+		PetSoundStateSync.initialize();
+
+		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			MadokuDebug.resetSession();
+			MadokuTicks.reset();
+			MadokuClock.reset();
+			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
+			MadokuEntities.reset();
 			MadokuFarming.reset();
 			MadokuItemStack.reset();
+			MadokuPlacedBlocks.reset();
 			MadokuHealth.reset();
 			MadokuHunger.reset();
 			MadokuOxygen.reset();
-			MadokuTime.loadPersistedData(server);
-			MadokuSeason.loadPersistedData(server);
-			MadokuFarming.loadPersistedData(server);
+			MadokuLevels.reset();
+			PlayerEntitiesSystem.reset();
 			MadokuScheduler.reset();
 			MadokuScheduler.loadPersistedData(server);
+			MadokuTime.loadPersistedData(server);
+			MadokuSeason.loadPersistedData(server);
+			MadokuEntities.loadPersistedData(server);
+			MadokuFarming.loadPersistedData(server);
+			MadokuPlacedBlocks.loadPersistedData(server);
 			MadokuSeason.onServerStarted(server);
 			MadokuFarming.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
 			MadokuHealth.loadPersistedData(server);
 			MadokuHunger.loadPersistedData(server);
 			MadokuOxygen.loadPersistedData(server);
+			MadokuLevels.loadPersistedData(server);
+			PlayerEntitiesSystem.loadPersistedData(server);
 			MadokuItemStack.loadPersistedData(server);
 			MadokuItem.onServerStarted();
 			MadokuMob.onServerStarted(server);
@@ -101,52 +115,68 @@ public class MadokuCraft implements ModInitializer {
 			WorldDifficultySync.broadcastNow(server);
 			WorldSeasonSync.broadcastNow(server);
 		});
-			ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			MadokuSeason.savePersistedData(server);
-			MadokuFarming.savePersistedData(server);
+
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			MadokuTime.savePersistedData(server);
+			MadokuSeason.savePersistedData(server);
+			MadokuEntities.savePersistedData(server);
+			MadokuFarming.savePersistedData(server);
 			MadokuScheduler.savePersistedData(server);
+			MadokuPlacedBlocks.savePersistedData(server);
 			MadokuHealth.savePersistedData(server);
 			MadokuHunger.savePersistedData(server);
 			MadokuOxygen.savePersistedData(server);
-				MadokuItemStack.savePersistedData(server);
-				MadokuClock.reset();
-				MadokuTicks.reset();
-				MadokuSleep.reset();
+			MadokuLevels.savePersistedData(server);
+			PlayerEntitiesSystem.savePersistedData(server);
+			MadokuItemStack.savePersistedData(server);
+			MadokuClock.reset();
+			MadokuTicks.reset();
+			MadokuSleep.reset();
 			MadokuTime.reset();
 			MadokuSeason.reset();
+			MadokuEntities.reset();
 			MadokuFarming.reset();
 			MadokuScheduler.reset();
+			MadokuPlacedBlocks.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuDifficulty.onServerStopped();
 			MadokuMob.onServerStopped();
 			MadokuHealth.reset();
 			MadokuHunger.reset();
 			MadokuOxygen.reset();
+			MadokuLevels.reset();
+			PlayerEntitiesSystem.reset();
 			MadokuItemStack.reset();
 			WorldTimeSync.reset();
 			WorldDifficultySync.reset();
 			WorldSeasonSync.reset();
 		});
-			ServerTickEvents.END_SERVER_TICK.register(server -> {
-				long tickIncrement = MadokuSleep.getTickIncrement(server);
-				// Remap sleep / time-command jumps before any time-based tasks consume this tick.
-				MadokuTime.update(server);
-				MadokuSmeltingManager.onServerTickIncrement(tickIncrement);
-				MadokuFarming.onServerTickIncrement(server, tickIncrement);
-				MadokuTicks.advance(server, tickIncrement);
-				MadokuScheduler.autosavePersistedData(server);
-				MadokuTime.autosavePersistedData(server);
-			MadokuSeason.autosavePersistedData(server);
-			MadokuFarming.autosavePersistedData(server);
+
+		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			long tickIncrement = MadokuSleep.getTickIncrement(server);
+			// Remap sleep / time-command jumps before any time-based tasks consume this tick.
+			MadokuTime.update(server);
+			MadokuTicks.advance(server, tickIncrement);
+			MadokuFarming.onServerTickIncrement(server, tickIncrement);
+			MadokuScheduler.autosavePersistedData(server);
+			MadokuTime.autosavePersistedData(server);
 			MadokuHealth.autosavePersistedData(server);
 			MadokuHunger.autosavePersistedData(server);
-				MadokuOxygen.autosavePersistedData(server);
-				MadokuItemStack.autosavePersistedData(server);
-				MadokuTime.update(server);
+			MadokuSeason.autosavePersistedData(server);
+			MadokuEntities.autosavePersistedData(server);
+			MadokuFarming.autosavePersistedData(server);
+			MadokuPlacedBlocks.autosavePersistedData(server);
+			MadokuOxygen.autosavePersistedData(server);
+			MadokuLevels.autosavePersistedData(server);
+			PlayerEntitiesSystem.autosavePersistedData(server);
+			MadokuItemStack.autosavePersistedData(server);
+			MadokuTime.update(server);
 			MadokuSeason.onServerTick(server);
+			MadokuEntities.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
 			MadokuMob.onServerTick(server);
+			PlayerEntitiesSystem.onServerTick(server);
+			MadokuLevels.flushDirtySyncs(server);
 			WorldTimeSync.broadcastIfChanged(server);
 			WorldDifficultySync.broadcastIfChanged(server);
 			WorldSeasonSync.broadcastIfChanged(server);

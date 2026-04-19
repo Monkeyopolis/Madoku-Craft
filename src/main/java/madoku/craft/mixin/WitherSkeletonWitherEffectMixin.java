@@ -26,3 +26,4 @@ public abstract class WitherSkeletonWitherEffectMixin {
 		return target.addEffect(new MobEffectInstance(MobEffects.WITHER, 5 * 20), attacker);
 	}
 }
+

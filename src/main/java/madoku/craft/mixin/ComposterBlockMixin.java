@@ -5,7 +5,7 @@ import madoku.craft.composter.system.MadokuComposter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -37,7 +37,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		Player player,
 		InteractionHand hand,
 		BlockHitResult hit,
-		CallbackInfoReturnable<ItemInteractionResult> cir
+		CallbackInfoReturnable<InteractionResult> cir
 	) {
 		BlockState state = asState();
 		if (!(state.getBlock() instanceof ComposterBlock)) {
@@ -50,7 +50,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 			return;
 		}
 		if (!MadokuComposter.isComposterItem(stack)) {
-			cir.setReturnValue(ItemInteractionResult.FAIL);
+			cir.setReturnValue(InteractionResult.FAIL);
 			return;
 		}
 
@@ -64,7 +64,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		}
 
 		if (world.isClientSide()) {
-			cir.setReturnValue(ItemInteractionResult.SUCCESS);
+			cir.setReturnValue(InteractionResult.SUCCESS);
 			return;
 		}
 
@@ -83,7 +83,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 			madokuCraft$playEffects(world, pos, true);
 		}
 
-		cir.setReturnValue(ItemInteractionResult.SUCCESS);
+		cir.setReturnValue(InteractionResult.SUCCESS);
 	}
 
 	@Unique
@@ -120,3 +120,4 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		world.levelEvent(1500, pos, fill ? 1 : 0);
 	}
 }
+

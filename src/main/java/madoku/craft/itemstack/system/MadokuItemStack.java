@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
-import madoku.craft.clock.MadokuClock;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
@@ -37,6 +37,7 @@ public final class MadokuItemStack {
 	private static final String DATA_KEPT_STACKS_KEY = "kept_stacks";
 	private static final String DATA_ENTRY_SLOT_KEY = "slot";
 	private static final String DATA_ENTRY_STACK_KEY = "stack";
+	private static final String DATA_ENTRY_COUNT_KEY = "count";
 	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 
 	private static final MadokuItemStackConfig configuration = new MadokuItemStackConfig();
@@ -63,14 +64,14 @@ public final class MadokuItemStack {
 		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		applyPersistedData(server, data);
-		lastAutosaveBucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
-		long bucket = Math.floorDiv(MadokuClock.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -86,6 +87,14 @@ public final class MadokuItemStack {
 
 	public static boolean isEnabled() {
 		return configuration.enableFeature;
+	}
+
+	public static boolean usesManagedDeathDrop() {
+		return isEnabled() && configuration.deathDropEnabled;
+	}
+
+	public static int getDeathDropStackPercent() {
+		return configuration.deathDropStackPercent;
 	}
 
 	public static int getStackLimit() {
@@ -114,6 +123,22 @@ public final class MadokuItemStack {
 			return maximum;
 		}
 		return Math.max(maximum, getMaxStackCap());
+	}
+
+	public static DataResult<Integer> validateCodecCount(int minimum, int maximum, int value) {
+		int upper = shouldExtendCodecRange(minimum, maximum)
+			? getCodecUpperBound(maximum)
+			: maximum;
+
+		if (value < minimum) {
+			return DataResult.error(() -> "Value must be within range [" + minimum + ";" + upper + "]: " + value);
+		}
+
+		if (value > upper) {
+			return DataResult.success(upper);
+		}
+
+		return DataResult.success(value);
 	}
 
 	public static boolean handleInventoryDrop(Inventory inventory) {
@@ -211,8 +236,7 @@ public final class MadokuItemStack {
 				}
 
 				int slot = slotElement.getAsInt();
-				DataResult<ItemStack> decoded = ItemStack.CODEC.parse(ops, stackElement);
-				ItemStack stack = decoded.result().orElse(ItemStack.EMPTY);
+				ItemStack stack = decodeStoredStack(ops, entryObject, stackElement);
 				if (stack.isEmpty()) {
 					continue;
 				}
@@ -246,14 +270,14 @@ public final class MadokuItemStack {
 				if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
 					continue;
 				}
-				DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, keptStack.stack());
-				JsonElement stackElement = encoded.result().orElse(null);
+				JsonElement stackElement = encodeStoredStack(ops, keptStack.stack());
 				if (stackElement == null) {
 					continue;
 				}
 
 				JsonObject encodedEntry = new JsonObject();
 				encodedEntry.addProperty(DATA_ENTRY_SLOT_KEY, keptStack.slot());
+				encodedEntry.addProperty(DATA_ENTRY_COUNT_KEY, keptStack.stack().getCount());
 				encodedEntry.add(DATA_ENTRY_STACK_KEY, stackElement);
 				encodedStacks.add(encodedEntry);
 			}
@@ -429,6 +453,35 @@ public final class MadokuItemStack {
 		return directory.resolve(normalized);
 	}
 
+	private static ItemStack decodeStoredStack(RegistryOps<JsonElement> ops, JsonObject entryObject, JsonElement stackElement) {
+		DataResult<ItemStack> decoded = ItemStack.CODEC.parse(ops, stackElement);
+		ItemStack stack = decoded.result().orElse(ItemStack.EMPTY);
+		if (stack.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+
+		int storedCount = stack.getCount();
+		JsonElement countElement = entryObject.get(DATA_ENTRY_COUNT_KEY);
+		if (countElement != null && countElement.isJsonPrimitive() && countElement.getAsJsonPrimitive().isNumber()) {
+			storedCount = countElement.getAsInt();
+		}
+
+		stack.setCount(Math.max(1, storedCount));
+		return stack;
+	}
+
+	private static JsonElement encodeStoredStack(RegistryOps<JsonElement> ops, ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return null;
+		}
+
+		int safeCount = Math.max(1, Math.min(stack.getCount(), 99));
+		DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, stack.copyWithCount(safeCount));
+		return encoded.result().orElse(null);
+	}
+
 	private record KeptStack(int slot, ItemStack stack) {
 	}
 }
+
+

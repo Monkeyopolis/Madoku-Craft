@@ -78,11 +78,11 @@ public final class MadokuTime {
 			)
 		);
 
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		if (data == null) {
-			lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
-			return;
-		}
+			JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+			if (data == null) {
+				lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+				return;
+			}
 
 		long day = getLong(data, "day", 0L);
 		int hour = (int) getLong(data, "hour", currentSettings.clockDayStartMinutes / 60);
@@ -234,11 +234,19 @@ public final class MadokuTime {
 		if (settings.enabled) {
 			return getCurrentAbsoluteDayTime();
 		}
-		return world == null ? MadokuTicks.getGameplayTicks() : world.getDayTime();
+			return world == null ? MadokuTicks.getGameplayTicks() : world.getDayTime();
 	}
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	public static long getGameplayTicksPerDay() {
+		TimeSettings currentSettings = settings;
+		if (!currentSettings.enabled) {
+			return MINECRAFT_TICKS_PER_CYCLE;
+		}
+		return Math.max(1L, currentSettings.serverTicksPerCycle);
 	}
 
 	public static long toAbsoluteDayTime(long day, int hour, int minute) {
@@ -282,6 +290,10 @@ public final class MadokuTime {
 		return isSleepTime(getTotalMinutes(absoluteDayTime));
 	}
 
+	private static long getSessionTicks() {
+		return MadokuTicks.getGameplayTicks() + sessionTickOffset;
+	}
+
 	private static boolean isDaytime(int totalMinutes) {
 		TimeSettings currentSettings = settings;
 		return isWithinWrappedRange(
@@ -293,10 +305,6 @@ public final class MadokuTime {
 
 	private static boolean isSleepTime(int totalMinutes) {
 		return !isDaytime(totalMinutes);
-	}
-
-	private static long getSessionTicks() {
-		return MadokuTicks.getGameplayTicks() + sessionTickOffset;
 	}
 
 	private static long getAbsoluteDayTime(long sessionTicks, TimeSettings timeSettings) {
@@ -534,14 +542,14 @@ public final class MadokuTime {
 	private static long safeServerTicksFromMinutes(long minutes, long fallbackMinutes) {
 		long safeMinutes = Math.max(1L, minutes);
 		try {
-			return Math.multiplyExact(
-				safeMinutes,
-				MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND
-			);
-		} catch (ArithmeticException exception) {
-			return fallbackMinutes * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
+				return Math.multiplyExact(
+					safeMinutes,
+					MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND
+				);
+			} catch (ArithmeticException exception) {
+				return fallbackMinutes * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
+			}
 		}
-	}
 
 	private static long sanitizePositive(long value, long fallback) {
 		return value > 0L ? value : fallback;
@@ -710,3 +718,5 @@ public final class MadokuTime {
 		}
 	}
 }
+
+

@@ -1,8 +1,8 @@
 package madoku.craft.mixin;
 
+import madoku.craft.debug.MadokuDebug;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,7 +21,23 @@ public abstract class AbstractFurnaceServerTickMixin {
 		AbstractFurnaceBlockEntity furnace,
 		CallbackInfo ci
 	) {
-		if (level instanceof ServerLevel serverLevel) {
+		if (MadokuSmeltingManager.isEnabled() && furnace != null) {
+			int currentTotal = ((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$getCookingTotalTime();
+			int desiredTotal = MadokuSmeltingManager.getCookTimeTicks(furnace, currentTotal);
+			if (currentTotal > 0 && desiredTotal > 0 && currentTotal != desiredTotal) {
+				((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$setCookingTotalTime(desiredTotal);
+				furnace.setChanged();
+				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.cook_time_sync")) {
+					MadokuDebug.event("smelting.cook_time_sync", MadokuDebug.Domain.SMELTING)
+						.side(MadokuDebug.Side.SERVER)
+						.subject("furnace:" + furnace.getClass().getSimpleName())
+						.field("current_ticks", currentTotal)
+						.field("desired_ticks", desiredTotal)
+						.log();
+				}
+			}
+		}
+		if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
 			MadokuSmeltingManager.onFurnaceServerTick(serverLevel, blockPos, blockState, furnace);
 		}
 	}

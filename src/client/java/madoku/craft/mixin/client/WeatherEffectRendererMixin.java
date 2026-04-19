@@ -38,7 +38,7 @@ public abstract class WeatherEffectRendererMixin {
 			return biome == null ? Precipitation.NONE : biome.getPrecipitationAt(pos);
 		}
 
-		Precipitation precipitation = MadokuSeason.resolveSeasonalPrecipitation(level, biome).vanilla();
+		Precipitation precipitation = MadokuSeason.resolveSeasonalPrecipitation(biome).vanilla();
 		if (!loggedWeatherRendererHook && MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.precipitation_renderer_client")) {
 			loggedWeatherRendererHook = true;
 			MadokuDebug.event("season.precipitation_renderer_client", MadokuDebug.Domain.SEASON)

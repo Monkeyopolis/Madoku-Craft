@@ -4,8 +4,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.config.StaticJsonSystem;
 import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.mixin.client.GuiAccessor;
 import madoku.craft.oxygen.MadokuOxygen;
+import madoku.craft.pet.PlayerEntitiesHolder;
+import madoku.craft.pet.PlayerEntitiesInventory;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
@@ -18,17 +20,23 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 
 public final class MadokuHud {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHud.class);
+	private static final ResourceLocation ABILITY_SLOT_TEXTURE =
+		ResourceLocation.fromNamespaceAndPath(MadokuCraft.MOD_ID, "textures/gui/interface/ability_slot.png");
+	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final ResourceLocation HEART_EMPTY_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container");
 	private static final ResourceLocation HEART_EMPTY_BLINKING_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container_blinking");
 	private static final ResourceLocation HEART_EMPTY_HARDCORE_TEXTURE = ResourceLocation.withDefaultNamespace("hud/heart/container_hardcore");
@@ -83,6 +91,19 @@ public final class MadokuHud {
 	private static final float ARMOR_TEXT_SCALE = 0.8F;
 	private static final float OXYGEN_TEXT_SCALE = 0.8F;
 	private static final long HUNGER_DISPLAY_STEP_TICKS = 10L;
+	private static final int HOTBAR_HALF_WIDTH = 91;
+	private static final int HOTBAR_SLOT_ROW_HEIGHT = 22;
+	private static final int OFFHAND_SLOT_WIDTH = 29;
+	private static final int OFFHAND_TO_ABILITY_SPACING = 7;
+	private static final int ABILITY_SLOT_SIZE = 16;
+	private static final int ABILITY_SLOT_SPACING = 1;
+	private static final int ABILITY_SLOT_Y_OFFSET = (HOTBAR_SLOT_ROW_HEIGHT - ABILITY_SLOT_SIZE) / 2;
+	private static final int ABILITY_ITEM_RENDER_SIZE = 12;
+	private static final float ABILITY_ITEM_SCALE = 0.75F;
+	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
+	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.75F;
+	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
+	private static final int ABILITY_COOLDOWN_TEXT_Y_SPACING = 2;
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
 	private static final float ARMOR_STEP = 0.25F;
@@ -114,6 +135,7 @@ public final class MadokuHud {
 	private static volatile long lastHungerDisplayTarget = -1L;
 	private static volatile boolean smoothUpFromPendingIncrease = false;
 	private static volatile boolean smoothDownFromPendingDecrease = false;
+	private static final long[] petAbilityCooldownEndTicks = new long[PlayerEntitiesSystem.SLOT_COUNT];
 	private static volatile int cachedAirSupply = 300;
 	private static volatile int cachedMaxAirSupply = 300;
 	private static volatile int cachedOxygenPoints = 10;
@@ -144,6 +166,7 @@ public final class MadokuHud {
 		renderHungerHud(context);
 		renderArmorHud(context);
 		renderOxygenHud(context);
+		renderAbilityHud(context);
 	}
 
 	private static void renderWorldHud(GuiGraphics context) {
@@ -336,9 +359,9 @@ public final class MadokuHud {
 			Math.round(textY / HUNGER_TEXT_SCALE),
 			COLOR,
 			true
-			);
-			context.pose().popPose();
-		}
+		);
+		context.pose().popPose();
+	}
 
 	private static void renderArmorHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
@@ -361,7 +384,7 @@ public final class MadokuHud {
 			context.blitSprite(fillTexture, armorX, armorY, ARMOR_SIZE, ARMOR_SIZE);
 		}
 
-		float armorPoints = roundToStep((float) Math.max(0.0d, player.getAttributeValue(Attributes.ARMOR)), ARMOR_STEP);
+		float armorPoints = roundToStep((float) Math.max(0.0D, player.getAttributeValue(Attributes.ARMOR)), ARMOR_STEP);
 		String armorText = "Armor: " + formatHealth(armorPoints);
 		int textX = armorX + ARMOR_SIZE + ARMOR_TEXT_SPACING;
 		int textY = armorY + 1;
@@ -375,8 +398,8 @@ public final class MadokuHud {
 			COLOR,
 			true
 		);
-			context.pose().popPose();
-		}
+		context.pose().popPose();
+	}
 
 	private static void renderOxygenHud(GuiGraphics context) {
 		Minecraft client = Minecraft.getInstance();
@@ -412,6 +435,56 @@ public final class MadokuHud {
 			true
 		);
 		context.pose().popPose();
+	}
+
+	private static void renderAbilityHud(GuiGraphics context) {
+		Minecraft client = Minecraft.getInstance();
+		LocalPlayer player = client.player;
+		if (player == null || client.level == null || client.options.hideGui || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
+			return;
+		}
+		if (!(player instanceof PlayerEntitiesHolder holder)) {
+			return;
+		}
+
+		PlayerEntitiesInventory inventory = holder.madokuCraft$getPlayerEntitiesInventory();
+		if (inventory == null) {
+			return;
+		}
+
+		int slotY = context.guiHeight() - HOTBAR_SLOT_ROW_HEIGHT + ABILITY_SLOT_Y_OFFSET;
+		List<Integer> visibleSlots = visibleAbilitySlots(inventory);
+		if (visibleSlots.isEmpty()) {
+			return;
+		}
+
+		int[] slotXs = computeAbilitySlotXs(context, player, visibleSlots.size());
+		for (int index = 0; index < visibleSlots.size(); index++) {
+			int slot = visibleSlots.get(index);
+			int slotX = slotXs[index];
+			context.blit(
+				ABILITY_SLOT_TEXTURE,
+				slotX,
+				slotY,
+				0.0F,
+				0.0F,
+				ABILITY_SLOT_SIZE,
+				ABILITY_SLOT_SIZE,
+				ABILITY_SLOT_TEXTURE_SIZE,
+				ABILITY_SLOT_TEXTURE_SIZE
+			);
+
+			ItemStack stack = inventory.getItem(slot);
+			if (stack == null || stack.isEmpty()) {
+				continue;
+			}
+
+			int itemOffset = (ABILITY_SLOT_SIZE - ABILITY_ITEM_RENDER_SIZE) / 2;
+			int itemX = slotX + itemOffset;
+			int itemY = slotY + itemOffset;
+			renderScaledAbilityItem(context, stack, itemX, itemY);
+			renderAbilityCooldownOverlay(context, client, stack, slot, slotX, slotY, itemX, itemY);
+		}
 	}
 
 	private static int lineOffset(Minecraft client, int lines) {
@@ -484,7 +557,7 @@ public final class MadokuHud {
 	}
 
 	private static boolean isBlinking(Gui gui, int ticks) {
-		long healthBlinkTime = ((GuiAccessor) gui).madokuCraft$getHealthBlinkTime();
+		long healthBlinkTime = ((madoku.craft.mixin.client.GuiAccessor) gui).madokuCraft$getHealthBlinkTime();
 		long currentTicks = ticks;
 		return healthBlinkTime > currentTicks && ((healthBlinkTime - currentTicks) / 3L) % 2L == 1L;
 	}
@@ -542,6 +615,116 @@ public final class MadokuHud {
 
 	private static int computeArmorY(GuiGraphics context) {
 		return statusBarRowY(context) - ARMOR_ROW_SPACING;
+	}
+
+	private static List<Integer> visibleAbilitySlots(PlayerEntitiesInventory inventory) {
+		List<Integer> visible = new java.util.ArrayList<>(PlayerEntitiesSystem.SLOT_COUNT);
+		for (int slot = 0; slot < Math.min(PlayerEntitiesSystem.SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			if (stack == null || stack.isEmpty() || !PlayerEntitiesSystem.hasAbility(stack)) {
+				continue;
+			}
+			visible.add(slot);
+		}
+		return visible;
+	}
+
+	private static void renderAbilityCooldownOverlay(
+		GuiGraphics context,
+		Minecraft client,
+		ItemStack stack,
+		int slot,
+		int slotX,
+		int slotY,
+		int itemX,
+		int itemY
+	) {
+		if (client == null || client.level == null || stack == null || stack.isEmpty()) {
+			return;
+		}
+
+		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(client.player, slot, stack);
+		if (totalCooldownTicks <= 0 || slot < 0 || slot >= petAbilityCooldownEndTicks.length) {
+			return;
+		}
+
+		long remainingTicks = Math.max(0L, petAbilityCooldownEndTicks[slot] - client.level.getGameTime());
+		if (remainingTicks <= 0L) {
+			return;
+		}
+
+		float cooldownPercent = Math.min(1.0F, remainingTicks / (float) totalCooldownTicks);
+		int overlayTop = itemY + net.minecraft.util.Mth.floor(ABILITY_ITEM_RENDER_SIZE * (1.0F - cooldownPercent));
+		int overlayBottom = overlayTop + net.minecraft.util.Mth.ceil(ABILITY_ITEM_RENDER_SIZE * cooldownPercent);
+		context.fill(itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
+		renderAbilityCooldownLabel(context, client, slotX, slotY, remainingTicks);
+	}
+
+	private static void renderAbilityCooldownLabel(
+		GuiGraphics context,
+		Minecraft client,
+		int slotX,
+		int slotY,
+		long remainingTicks
+	) {
+		if (client == null || remainingTicks <= 0L) {
+			return;
+		}
+
+		String cooldownText = Integer.toString(Math.max(1, net.minecraft.util.Mth.ceil(remainingTicks / 20.0F)));
+		int textWidth = client.font.width(cooldownText);
+		float centerX = slotX + (ABILITY_SLOT_SIZE / 2.0F);
+		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
+		context.pose().pushPose();
+		context.pose().translate(centerX, textY, 0.0F);
+		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE, 1.0F);
+		context.drawString(
+			client.font,
+			cooldownText,
+			Math.round(-textWidth / 2.0F),
+			0,
+			ABILITY_COOLDOWN_TEXT_COLOR,
+			true
+		);
+		context.pose().popPose();
+	}
+
+	private static void renderScaledAbilityItem(GuiGraphics context, ItemStack stack, int x, int y) {
+		if (context == null || stack == null || stack.isEmpty()) {
+			return;
+		}
+		context.pose().pushPose();
+		context.pose().translate(x, y, 0.0F);
+		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE, 1.0F);
+		context.renderItem(stack, 0, 0);
+		context.pose().popPose();
+	}
+
+	private static int[] computeAbilitySlotXs(GuiGraphics context, LocalPlayer player, int slotCount) {
+		int[] xs = new int[Math.max(0, slotCount)];
+		if (slotCount <= 0) {
+			return xs;
+		}
+		int centerX = context.guiWidth() / 2;
+		boolean offhandOnLeft = player.getMainArm() == HumanoidArm.RIGHT;
+		boolean offhandVisible = !player.getOffhandItem().isEmpty();
+		int hotbarLeftEdge = centerX - HOTBAR_HALF_WIDTH;
+		int hotbarRightEdge = centerX + HOTBAR_HALF_WIDTH;
+		if (offhandOnLeft) {
+			int anchorX = offhandVisible ? hotbarLeftEdge - OFFHAND_SLOT_WIDTH : hotbarLeftEdge;
+			int startX = anchorX - OFFHAND_TO_ABILITY_SPACING - ABILITY_SLOT_SIZE;
+			for (int slot = 0; slot < xs.length; slot++) {
+				xs[slot] = startX - (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
+			}
+			return xs;
+		}
+
+		int anchorX = offhandVisible ? hotbarRightEdge + OFFHAND_SLOT_WIDTH : hotbarRightEdge;
+		int startX = anchorX + OFFHAND_TO_ABILITY_SPACING;
+		for (int slot = 0; slot < xs.length; slot++) {
+			xs[slot] = startX + (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
+		}
+		return xs;
 	}
 
 	private static ResourceLocation selectHeartTexture(LocalPlayer player, float health, float maxHealth, boolean hardcore, boolean blinking) {
@@ -768,11 +951,26 @@ public final class MadokuHud {
 		return serverSeason;
 	}
 
+	public static void setPetAbilityCooldowns(int[] remainingTicks) {
+		Minecraft client = Minecraft.getInstance();
+		ClientLevel level = client.level;
+		long now = level == null ? 0L : level.getGameTime();
+		for (int slot = 0; slot < petAbilityCooldownEndTicks.length; slot++) {
+			int remaining = remainingTicks != null && slot < remainingTicks.length ? Math.max(0, remainingTicks[slot]) : 0;
+			petAbilityCooldownEndTicks[slot] = remaining <= 0 ? 0L : now + remaining;
+		}
+	}
+
+	public static void clearPetAbilityHudState() {
+		for (int slot = 0; slot < petAbilityCooldownEndTicks.length; slot++) {
+			petAbilityCooldownEndTicks[slot] = 0L;
+		}
+	}
+
 	public static void setServerHunger(int current, int pending, int max) {
 		int normalizedCurrent = Math.max(0, current);
 		int normalizedPending = Math.max(0, pending);
 		if (normalizedCurrent < serverHungerCurrent) {
-			// Immediate drops (e.g. hunger drained for health) should not be smoothed.
 			smoothUpFromPendingIncrease = false;
 			smoothDownFromPendingDecrease = false;
 		} else if (normalizedPending > serverHungerPending) {
@@ -899,5 +1097,3 @@ public final class MadokuHud {
 		}
 	}
 }
-
-

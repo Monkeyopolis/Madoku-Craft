@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.config.DynamicJsonSystem;
 import madoku.craft.config.StaticJsonSystem;
@@ -75,8 +76,7 @@ public final class MadokuSmeltingManager {
 	private static final Set<FurnaceKey> scheduledFurnaces = new HashSet<>();
 	private static final Map<FurnaceKey, Long> lastProcessedMadokuTickByFurnace = new HashMap<>();
 	private static final Map<FurnaceKey, Long> lastProcessedGameTimeByFurnace = new HashMap<>();
-	private static long previousServerTickIncrement = 1L;
-	private static long currentServerTickIncrement = 1L;
+	private static Map<RecipeType<?>, FurnaceBehavior> furnaceBehaviorByRecipeType = Map.of();
 
 	private MadokuSmeltingManager() {
 	}
@@ -121,6 +121,17 @@ public final class MadokuSmeltingManager {
 		return Math.max(MINIMUM_COOK_TICKS, toTicks(behavior.smeltingSpeed));
 	}
 
+	public static int getCookTimeTicks(RecipeType<?> recipeType, int originalTicks) {
+		if (!isEnabled() || recipeType == null) {
+			return originalTicks;
+		}
+		FurnaceBehavior behavior = furnaceBehaviorByRecipeType.get(recipeType);
+		if (behavior == null) {
+			return originalTicks;
+		}
+		return Math.max(MINIMUM_COOK_TICKS, toTicks(behavior.smeltingSpeed));
+	}
+
 	public static int getAdjustedFuelTicks(AbstractFurnaceBlockEntity furnace, ItemStack stack, int originalTicks) {
 		if (!isEnabled() || furnace == null || stack == null || stack.isEmpty() || originalTicks <= 0) {
 			return originalTicks;
@@ -134,7 +145,22 @@ public final class MadokuSmeltingManager {
 		int baseCookTicks = getBaseCookTicks(furnace);
 		double speedFactor = behavior.smeltingSpeed / (double) baseCookTicks;
 		double adjusted = originalTicks * speedFactor * behavior.fuelEfficiency;
-		return Math.max(1, toTicks(adjusted));
+		int result = Math.max(1, toTicks(adjusted));
+		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.fuel_adjusted")) {
+			MadokuDebug.event("smelting.fuel_adjusted", MadokuDebug.Domain.SMELTING)
+				.side(MadokuDebug.Side.SERVER)
+				.subject("furnace:" + describeBlockEntityType(furnace))
+				.field("furnace", describeBlockEntityType(furnace))
+				.field("fuel_item", describeItem(stack))
+				.field("input_ticks", originalTicks)
+				.field("base_cook_ticks", baseCookTicks)
+				.field("smelting_speed", behavior.smeltingSpeed)
+				.field("speed_factor", speedFactor)
+				.field("fuel_efficiency", behavior.fuelEfficiency)
+				.field("adjusted_ticks", result)
+				.log();
+		}
+		return result;
 	}
 
 	public static boolean shouldWrapRecipeType(RecipeType<?> recipeType) {
@@ -147,11 +173,6 @@ public final class MadokuSmeltingManager {
 
 	public static void onServerStopped() {
 		resetRuntimeState();
-	}
-
-	public static void onServerTickIncrement(long tickIncrement) {
-		previousServerTickIncrement = Math.max(1L, currentServerTickIncrement);
-		currentServerTickIncrement = Math.max(1L, tickIncrement);
 	}
 
 	public static void onFurnaceServerTick(
@@ -212,21 +233,60 @@ public final class MadokuSmeltingManager {
 		long tickDelta = nowMadokuTick - lastTick;
 		lastProcessedMadokuTickByFurnace.put(key, nowMadokuTick);
 
-		long gameTime = level.getGameTime();
-		long lastProcessedGameTime = lastProcessedGameTimeByFurnace.getOrDefault(key, Long.MIN_VALUE);
-		if (lastProcessedGameTime != gameTime) {
-			lastProcessedGameTimeByFurnace.put(key, gameTime);
-			long expectedDeltaFromScheduling = Math.max(1L, previousServerTickIncrement);
-			long extraTicksFromClockJump = Math.max(0L, tickDelta - expectedDeltaFromScheduling);
-			long extraTicksFromSleep = Math.max(0L, currentServerTickIncrement - 1L);
-			long extraTicks = extraTicksFromClockJump + extraTicksFromSleep;
-			if (extraTicks <= 0L) {
-				extraTicks = Math.max(0L, MadokuClock.getLastWorldTimeDelta());
+			long gameTime = level.getGameTime();
+			long lastProcessedGameTime = lastProcessedGameTimeByFurnace.getOrDefault(key, Long.MIN_VALUE);
+			if (lastProcessedGameTime != gameTime) {
+				lastProcessedGameTimeByFurnace.put(key, gameTime);
+				BlockState beforeState = level.getBlockState(blockPos);
+				int beforeInputCount = furnace.getItem(0).getCount();
+				int beforeFuelCount = furnace.getItem(1).getCount();
+				int beforeOutputCount = furnace.getItem(2).getCount();
+				boolean beforeLit = beforeState.hasProperty(BlockStateProperties.LIT) && Boolean.TRUE.equals(beforeState.getValue(BlockStateProperties.LIT));
+					long extraTicksFromScheduling = Math.max(0L, tickDelta - 1L);
+					// Ignore the normal 1-tick world-time drift; only jump-sized changes
+					// should fast-forward furnaces.
+					long extraTicksFromWorldTimeJump = Math.max(0L, MadokuClock.getLastWorldTimeDelta() - 1L);
+					long extraTicks = extraTicksFromScheduling + extraTicksFromWorldTimeJump;
+					if (extraTicks > 0L && MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.catch_up")) {
+						MadokuDebug.event("smelting.catch_up", MadokuDebug.Domain.SMELTING)
+							.side(MadokuDebug.Side.SERVER)
+							.subject("furnace:" + describeBlockEntityType(furnace))
+							.world(key.levelId())
+							.field("scheduler_id", context.getSchedulerId())
+							.field("block_pos", Long.toString(blockPos.asLong()))
+							.field("madoku_tick", nowMadokuTick)
+							.field("game_time", gameTime)
+							.field("tick_delta", tickDelta)
+							.field("world_time_delta", MadokuClock.getLastWorldTimeDelta())
+							.field("scheduling_extra_ticks", extraTicksFromScheduling)
+							.field("world_jump_extra_ticks", extraTicksFromWorldTimeJump)
+							.field("total_extra_ticks", extraTicks)
+							.log();
+					}
+					if (extraTicks > 0L) {
+						advanceSingleFurnaceTicks(level, blockPos, extraTicks);
+						BlockEntity afterBlockEntity = level.getBlockEntity(blockPos);
+						if (afterBlockEntity instanceof AbstractFurnaceBlockEntity afterFurnace && MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.catch_up_state")) {
+							BlockState afterState = level.getBlockState(blockPos);
+							MadokuDebug.event("smelting.catch_up_state", MadokuDebug.Domain.SMELTING)
+								.side(MadokuDebug.Side.SERVER)
+								.subject("furnace:" + describeBlockEntityType(afterFurnace))
+								.world(key.levelId())
+								.field("scheduler_id", context.getSchedulerId())
+								.field("block_pos", Long.toString(blockPos.asLong()))
+								.field("extra_ticks", extraTicks)
+								.field("before_input", beforeInputCount)
+								.field("before_fuel", beforeFuelCount)
+								.field("before_output", beforeOutputCount)
+								.field("before_lit", beforeLit)
+								.field("after_input", afterFurnace.getItem(0).getCount())
+								.field("after_fuel", afterFurnace.getItem(1).getCount())
+								.field("after_output", afterFurnace.getItem(2).getCount())
+								.field("after_lit", afterState.hasProperty(BlockStateProperties.LIT) && Boolean.TRUE.equals(afterState.getValue(BlockStateProperties.LIT)))
+								.log();
+						}
+					}
 			}
-			if (extraTicks > 0L) {
-				advanceSingleFurnaceTicks(level, blockPos, extraTicks);
-			}
-		}
 
 		BlockState currentState = level.getBlockState(blockPos);
 		if (!shouldTrackFurnace(furnace, currentState)) {
@@ -275,7 +335,7 @@ public final class MadokuSmeltingManager {
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.TIME
+			MadokuScheduler.TickDomain.GAMEPLAY
 		);
 		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
 			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
@@ -344,8 +404,6 @@ public final class MadokuSmeltingManager {
 		scheduledFurnaces.clear();
 		lastProcessedMadokuTickByFurnace.clear();
 		lastProcessedGameTimeByFurnace.clear();
-		previousServerTickIncrement = 1L;
-		currentServerTickIncrement = 1L;
 	}
 
 	public static boolean isAdditionalInput(RecipeType<?> recipeType, ItemStack stack) {
@@ -635,7 +693,26 @@ public final class MadokuSmeltingManager {
 		Map<String, FurnaceBehaviorDefinition> behaviorByBlockEntityId
 	) {
 		additionalInputsByRecipeType = buildRecipeTypeRules(recipeTypeInputs);
-		furnaceBehaviorByBlockEntityType = buildFurnaceBehaviorRules(behaviorByBlockEntityId);
+		Map<BlockEntityType<?>, FurnaceBehavior> byBlockEntityType = new LinkedHashMap<>();
+		Map<RecipeType<?>, FurnaceBehavior> byRecipeType = new LinkedHashMap<>();
+		for (Map.Entry<String, FurnaceBehaviorDefinition> entry : behaviorByBlockEntityId.entrySet()) {
+			BlockEntityType<?> blockEntityType = resolveBlockEntityType(entry.getKey());
+			RecipeType<?> recipeType = resolveRecipeTypeForBlockEntity(entry.getKey());
+			if (blockEntityType == null && recipeType == null) {
+				continue;
+			}
+			FurnaceBehaviorDefinition definition = entry.getValue();
+			Set<Item> items = buildItemSet(definition.additionalInputs);
+			FurnaceBehavior behavior = new FurnaceBehavior(items, definition.smeltingSpeed, definition.fuelEfficiency);
+			if (blockEntityType != null) {
+				byBlockEntityType.put(blockEntityType, behavior);
+			}
+			if (recipeType != null) {
+				byRecipeType.put(recipeType, behavior);
+			}
+		}
+		furnaceBehaviorByBlockEntityType = Map.copyOf(byBlockEntityType);
+		furnaceBehaviorByRecipeType = Map.copyOf(byRecipeType);
 	}
 
 	private static Map<RecipeType<?>, Set<Item>> buildRecipeTypeRules(Map<String, List<String>> raw) {
@@ -653,20 +730,16 @@ public final class MadokuSmeltingManager {
 		return Map.copyOf(resolved);
 	}
 
-	private static Map<BlockEntityType<?>, FurnaceBehavior> buildFurnaceBehaviorRules(
-		Map<String, FurnaceBehaviorDefinition> raw
-	) {
-		Map<BlockEntityType<?>, FurnaceBehavior> resolved = new LinkedHashMap<>();
-		for (Map.Entry<String, FurnaceBehaviorDefinition> entry : raw.entrySet()) {
-			BlockEntityType<?> type = resolveBlockEntityType(entry.getKey());
-			if (type == null) {
-				continue;
-			}
-			FurnaceBehaviorDefinition definition = entry.getValue();
-			Set<Item> items = buildItemSet(definition.additionalInputs);
-			resolved.put(type, new FurnaceBehavior(items, definition.smeltingSpeed, definition.fuelEfficiency));
+	private static RecipeType<?> resolveRecipeTypeForBlockEntity(String key) {
+		if (key == null || key.isBlank()) {
+			return null;
 		}
-		return Map.copyOf(resolved);
+		return switch (key) {
+			case "minecraft:furnace" -> RecipeType.SMELTING;
+			case "minecraft:smoker" -> RecipeType.SMOKING;
+			case "minecraft:blast_furnace" -> RecipeType.BLASTING;
+			default -> null;
+		};
 	}
 
 	private static Set<Item> buildItemSet(List<String> entries) {
@@ -783,6 +856,30 @@ public final class MadokuSmeltingManager {
 		return Math.max(1, (int) Math.round(value));
 	}
 
+	private static String describeBlockEntityType(AbstractFurnaceBlockEntity furnace) {
+		if (furnace == null) {
+			return "unknown";
+		}
+		ResourceLocation key = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(furnace.getType());
+		return key == null ? "unknown" : key.toString();
+	}
+
+	public static String describeRecipeType(RecipeType<?> recipeType) {
+		if (recipeType == null) {
+			return "unknown";
+		}
+		ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(recipeType);
+		return key == null ? "unknown" : key.toString();
+	}
+
+	private static String describeItem(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return "empty";
+		}
+		ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
+		return key == null ? "unknown" : key.toString();
+	}
+
 	private static int getBaseCookTicks(AbstractFurnaceBlockEntity furnace) {
 		if (furnace instanceof SmokerBlockEntity) {
 			return BASE_SMOKER_COOK_TICKS;
@@ -856,3 +953,6 @@ public final class MadokuSmeltingManager {
 	) {
 	}
 }
+
+
+

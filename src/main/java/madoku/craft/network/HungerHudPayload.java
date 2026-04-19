@@ -26,3 +26,4 @@ public record HungerHudPayload(int current, int pending, int max) implements Cus
 		return TYPE;
 	}
 }
+

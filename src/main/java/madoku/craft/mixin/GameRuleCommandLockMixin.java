@@ -36,3 +36,5 @@ public abstract class GameRuleCommandLockMixin {
 		cir.setReturnValue(0);
 	}
 }
+
+

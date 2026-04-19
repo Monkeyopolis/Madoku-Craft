@@ -29,13 +29,13 @@ public final class MadokuTicks {
 		gameplayTicks = Math.max(0L, value);
 	}
 
-	public static void advance(MinecraftServer server, long amount) {
+	public static void advance(MinecraftServer server, long ignoredAmount) {
 		if (server == null) {
 			return;
 		}
 
 		tickGameplay();
-		MadokuTime.advanceSkippedTimeTicks(Math.max(1L, amount));
-		MadokuScheduler.tick(server, true, true);
+		MadokuTime.advanceSkippedTimeTicks(Math.max(1L, ignoredAmount));
+		MadokuScheduler.tick(server, true);
 	}
 }

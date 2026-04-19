@@ -22,3 +22,4 @@ public record WorldDifficultyPayload(int level) implements CustomPacketPayload {
 		return TYPE;
 	}
 }
+

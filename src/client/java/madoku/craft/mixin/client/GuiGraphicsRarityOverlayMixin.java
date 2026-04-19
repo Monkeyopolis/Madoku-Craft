@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class GuiGraphicsRarityOverlayMixin {
 	private static final int INDICATOR_X_OFFSET = -1;
 	private static final int INDICATOR_Y_OFFSET = 5;
-	private static final float DECORATION_DEPTH = 200.0f;
+	private static final float DECORATION_DEPTH = 200.0F;
 	private static final int SLOT_SIZE = 16;
 	private static final int DURABILITY_BAR_Y_OFFSET = 1;
 	private static final int DURABILITY_BAR_MAX_WIDTH = 14;
@@ -68,7 +68,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		boolean managedRarityItem = MadokuItem.isRarityCategoryItem(stack);
 		GuiGraphics context = (GuiGraphics) (Object) this;
 		this.pose.pushPose();
-		this.pose.translate(0.0f, 0.0f, DECORATION_DEPTH);
+		this.pose.translate(0.0F, 0.0F, DECORATION_DEPTH);
 		try {
 			if (managedRarityItem && stack.isBarVisible()) {
 				drawTopDurabilityBar(context, stack, x, y);
@@ -112,5 +112,4 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		context.fill(barX, barY, barX + DURABILITY_BAR_MAX_WIDTH, barY + DURABILITY_BAR_BG_HEIGHT, DURABILITY_BAR_BG_COLOR);
 		context.fill(barX, barY, barX + fillWidth, barY + DURABILITY_BAR_FILL_HEIGHT, fillColor);
 	}
-
 }

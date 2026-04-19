@@ -2,6 +2,7 @@ package madoku.craft.armor;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.config.StaticJsonSystem;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -26,7 +27,7 @@ public final class MadokuArmor {
 	private static final int DEFAULT_ARMOR_TOUGHNESS_POINTS_CLAMP_LIMIT = 100;
 	private static final double DEFAULT_FALL_DAMAGE_ARMOR_EFFECTIVENESS = 0.5d;
 
-	private static final String ARMOR_CONFIG_FOLDER_NAME = "madoku-craft-armor";
+	private static final String ARMOR_CONFIG_DIRECTORY_NAME = "madoku-armor";
 	private static final String ARMOR_CONFIG_FILE_NAME = "madoku-armor";
 
 	private static volatile Settings settings = Settings.defaults();
@@ -74,27 +75,15 @@ public final class MadokuArmor {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(ARMOR_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, ARMOR_CONFIG_FILE_NAME);
+			Path configFile = MadokuAttributes.prepareSystemConfigFile(ARMOR_CONFIG_DIRECTORY_NAME, ARMOR_CONFIG_FILE_NAME);
 			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
-			Settings loaded = Settings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
-			settings = loaded;
+			Settings configured = Settings.fromJson(normalized);
+			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			settings = configured.withEnabled(MadokuAttributes.isEnabled());
 		} catch (IOException | RuntimeException exception) {
-			settings = fallback;
+			settings = fallback.withEnabled(MadokuAttributes.isEnabled());
 			LOGGER.error("Failed to load MadokuArmor static config; using defaults.", exception);
 		}
-	}
-
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
 	}
 
 	private static double clampToLimit(double value, int limit) {
@@ -230,6 +219,15 @@ public final class MadokuArmor {
 			root.addProperty("armor_toughness_points_clamp_limit", armorToughnessPointsClampLimit);
 			root.addProperty("fall_damage_armor_effectiveness", fallDamageArmorEffectiveness);
 			return root;
+		}
+
+		private Settings withEnabled(boolean attributesEnabled) {
+			return new Settings(
+				attributesEnabled && enabled,
+				armorPointsClampLimit,
+				armorToughnessPointsClampLimit,
+				fallDamageArmorEffectiveness
+			);
 		}
 	}
 }

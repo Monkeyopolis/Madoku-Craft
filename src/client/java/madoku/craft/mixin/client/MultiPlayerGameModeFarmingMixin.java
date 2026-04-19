@@ -1,10 +1,10 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.MadokuHud;
 import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.MadokuHud;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;

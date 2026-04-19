@@ -46,27 +46,27 @@ public abstract class ItemStackFarmingMixin {
 			madokuCraft$preUseOnCount = stack.getCount();
 		}
 
-		BlockState state = level.getBlockState(pos);
-		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isManagedCrop(state)) {
-			cir.setReturnValue(InteractionResult.FAIL);
-			return;
-		}
-
-		BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
-		ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
-		if (MadokuFarming.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarming.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarming.canPlantCrop(stack, serverLevel)) {
-			if (serverLevel != null && context.getPlayer() != null) {
-				context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)), true);
+			BlockState state = level.getBlockState(pos);
+			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isManagedCrop(state)) {
+				cir.setReturnValue(InteractionResult.FAIL);
+				return;
 			}
-			madokuCraft$restoreUseOnCount(stack);
-			cir.setReturnValue(InteractionResult.FAIL);
-			return;
-		}
 
-		if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
-			if (serverLevel != null && MadokuFarming.isFertilized(serverLevel, pos)) {
+			BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
+			ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
+			if (MadokuFarming.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarming.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarming.canPlantCrop(stack, serverLevel)) {
+				if (serverLevel != null && context.getPlayer() != null) {
+					context.getPlayer().displayClientMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)), true);
+				}
+				madokuCraft$restoreUseOnCount(stack);
+				cir.setReturnValue(InteractionResult.FAIL);
+				return;
+			}
+
+			if (stack.is(Items.BONE_MEAL) && MadokuFarming.isFarmland(state)) {
+				if (serverLevel != null && MadokuFarming.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
-					context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);
+						context.getPlayer().displayClientMessage(Component.literal("Farmland is already fertilized."), true);
 				}
 				cir.setReturnValue(InteractionResult.FAIL);
 				return;
@@ -84,6 +84,7 @@ public abstract class ItemStackFarmingMixin {
 			cir.setReturnValue(InteractionResult.SUCCESS);
 			return;
 		}
+
 	}
 
 	@Unique

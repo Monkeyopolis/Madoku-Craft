@@ -11,6 +11,8 @@ import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -89,6 +91,8 @@ public final class MadokuDifficulty {
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		refreshCachedTimeAdjustment(server, snapshot);
+		timeSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(TIME_SCHEDULER_OWNER_ID));
+		MadokuScheduler.clearQueuedRequests(timeSchedulerId);
 		requestTimeProcessing(server, 1L);
 	}
 
@@ -584,7 +588,10 @@ public final class MadokuDifficulty {
 			Holder<Biome> biomeEntry = world.getBiome(pos);
 			return biomeEntry.unwrapKey()
 				.map(ResourceKey::location)
-				.orElse(null);
+				.orElseGet(() -> {
+					Registry<Biome> biomeRegistry = world.registryAccess().registryOrThrow(Registries.BIOME);
+					return biomeRegistry.getKey(biomeEntry.value());
+				});
 		} catch (RuntimeException exception) {
 			return null;
 		}
@@ -702,11 +709,11 @@ public final class MadokuDifficulty {
 			return StructureContext.NONE;
 		}
 
-			if (!configuredAdjustments.isEmpty()) {
-				Predicate<Holder<Structure>> configuredPredicate = entry -> entry.unwrapKey()
-					.map(ResourceKey::location)
-					.map(configuredAdjustments::containsKey)
-					.orElse(false);
+		if (!configuredAdjustments.isEmpty()) {
+			Predicate<Holder<Structure>> configuredPredicate = entry -> entry.unwrapKey()
+				.map(ResourceKey::location)
+				.map(configuredAdjustments::containsKey)
+				.orElse(false);
 			StructureStart configuredStart = findStructureContaining(world, pos, configuredPredicate);
 			if (isValidStructureStart(configuredStart)) {
 				ResourceLocation structureId = resolveStructureId(world, configuredStart);
@@ -740,7 +747,11 @@ public final class MadokuDifficulty {
 	}
 
 	private static ResourceLocation resolveStructureId(ServerLevel world, StructureStart start) {
-		return null;
+		if (world == null || start == null) {
+			return null;
+		}
+		Registry<Structure> structureRegistry = world.registryAccess().registryOrThrow(Registries.STRUCTURE);
+		return structureRegistry.getKey(start.getStructure());
 	}
 
 	private static StructureContext structureContextFromId(
@@ -783,23 +794,23 @@ public final class MadokuDifficulty {
 		if (mob == null || resolvedIncrements == null || totalAdjustment <= 0) {
 			return null;
 		}
-		StatIncrements increments = resolvedIncrements.increments();
-		double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
-		double healthAddition = resolveHealthScalingAmount(mob, increments, totalAdjustment);
-		double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, totalAdjustment) : 0.0D;
-		double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(increments, totalAdjustment) : 0.0D;
-		double armorAddition = fullStatScaling ? resolveArmorScalingAmount(increments, totalAdjustment) : 0.0D;
-		double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, totalAdjustment) : 0.0D;
-		double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(increments, totalAdjustment) : 0.0D;
-		int experienceBaseBefore = resolveMobExperienceDrop(mob);
-		int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, totalAdjustment);
+			StatIncrements increments = resolvedIncrements.increments();
+			double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
+			double healthAddition = resolveHealthScalingAmount(mob, increments, totalAdjustment);
+			double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, totalAdjustment) : 0.0D;
+			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(increments, totalAdjustment) : 0.0D;
+			double armorAddition = fullStatScaling ? resolveArmorScalingAmount(increments, totalAdjustment) : 0.0D;
+			double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, totalAdjustment) : 0.0D;
+			double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(increments, totalAdjustment) : 0.0D;
+			int experienceBaseBefore = resolveMobExperienceDrop(mob);
+			int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, totalAdjustment);
 
-		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
-		if (fullStatScaling) {
-			addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
-			addAttribute(mob, Attributes.SCALE, scaleAddition);
-			addAttribute(mob, Attributes.ARMOR, armorAddition);
-			addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
+			boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
+			if (fullStatScaling) {
+				addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
+				addAttribute(mob, Attributes.SCALE, scaleAddition);
+				addAttribute(mob, Attributes.ARMOR, armorAddition);
+				addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
 			addAttribute(mob, Attributes.KNOCKBACK_RESISTANCE, knockbackResistanceAddition);
 		}
 		int experienceBaseAfter = applyExperienceDropScaling(mob, experienceBaseBefore, experienceDropAddition);
@@ -1163,10 +1174,10 @@ public final class MadokuDifficulty {
 			);
 		}
 
-		private ResolvedIncrements resolveIncrements(Mob mob) {
-			if (!MadokuMob.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
-				return new ResolvedIncrements(increments, "global");
-			}
+			private ResolvedIncrements resolveIncrements(Mob mob) {
+				if (!MadokuMob.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
+					return new ResolvedIncrements(increments, "global");
+				}
 			for (String key : resolveMobScalingFileKeys(mob.getType())) {
 				StatIncrements specific = mobScalingIncrements.get(key);
 				if (specific != null) {
@@ -1254,7 +1265,10 @@ public final class MadokuDifficulty {
 		}
 	}
 
-	private record StructureContext(ResourceLocation structureId, int adjustment) {
-		private static final StructureContext NONE = new StructureContext(null, 0);
+		private record StructureContext(ResourceLocation structureId, int adjustment) {
+			private static final StructureContext NONE = new StructureContext(null, 0);
+		}
 	}
-}
+
+
+

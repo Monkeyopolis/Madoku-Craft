@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.health.MadokuHealth;
+import madoku.craft.luck.MadokuLuck;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -26,7 +27,10 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		MobEffectInstance effectInstance,
 		Entity source
 	) {
-		if (MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)) {
+		if (
+			MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuck.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+		) {
 			return;
 		}
 		effect.addAttributeModifiers(attributes, amplifier);
@@ -46,7 +50,10 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		boolean reapplyEffect,
 		Entity source
 	) {
-		if (MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)) {
+		if (
+			MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuck.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+		) {
 			return;
 		}
 		effect.removeAttributeModifiers(attributes);
@@ -67,7 +74,10 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		boolean reapplyEffect,
 		Entity source
 	) {
-		if (MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)) {
+		if (
+			MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuck.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+		) {
 			return;
 		}
 		effect.addAttributeModifiers(attributes, amplifier);
@@ -80,12 +90,15 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 			target = "Lnet/minecraft/world/effect/MobEffect;removeAttributeModifiers(Lnet/minecraft/world/entity/ai/attributes/AttributeMap;)V"
 		)
 	)
-	private void madokuCraft$overrideOnEffectsRemovedAttributes(
+	private void madokuCraft$overrideOnEffectRemovedAttributes(
 		MobEffect effect,
 		AttributeMap attributes,
 		MobEffectInstance effectInstance
 	) {
-		if (MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)) {
+		if (
+			MadokuHealth.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuck.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+		) {
 			return;
 		}
 		effect.removeAttributeModifiers(attributes);
