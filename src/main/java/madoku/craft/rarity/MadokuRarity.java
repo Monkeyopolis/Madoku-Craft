@@ -1,7 +1,8 @@
 package madoku.craft.rarity;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
 import net.minecraft.ChatFormatting;
@@ -53,12 +54,12 @@ public final class MadokuRarity {
 		JsonObject defaults = MadokuRarityConfig.buildDefaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(RARITY_CONFIG_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(RARITY_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, RARITY_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			boolean changed = config.update(normalized);
 			if (changed) {
-				StaticJsonSystem.writeManagedFile(configFile, normalized, defaults);
+				JsonStaticSystem.writeManagedFile(configFile, normalized, defaults);
 			}
 			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {

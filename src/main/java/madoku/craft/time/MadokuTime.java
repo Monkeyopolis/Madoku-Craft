@@ -4,7 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.core.registries.Registries;
@@ -515,12 +516,12 @@ public final class MadokuTime {
 		TimeSettings fallback = TimeSettings.defaults();
 
 		try {
-			Path configDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
+			Path configDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(configDirectory, TIME_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			TimeSettings loaded = TimeSettings.fromJson(normalized);
 			JsonObject cleaned = loaded.toConfigJson();
-			StaticJsonSystem.writeManagedFile(configFile, cleaned, defaults);
+			JsonStaticSystem.writeManagedFile(configFile, cleaned, defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;

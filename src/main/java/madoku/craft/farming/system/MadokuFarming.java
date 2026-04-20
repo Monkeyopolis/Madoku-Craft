@@ -4,7 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
@@ -1093,12 +1094,12 @@ public final class MadokuFarming {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, FARMING_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
 			JsonObject cleaned = loaded.toConfigJson();
-			StaticJsonSystem.writeManagedFile(configFile, cleaned, defaults);
+			JsonStaticSystem.writeManagedFile(configFile, cleaned, defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -1113,12 +1114,12 @@ public final class MadokuFarming {
 		Map<String, JsonObject> defaultFiles = MadokuCropConfig.buildDefaultCropFileDefaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(CROP_CONFIG_ROOT_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CROP_CONFIG_ROOT_FOLDER_NAME);
 			for (Map.Entry<String, JsonObject> entry : defaultFiles.entrySet()) {
 				String fileKey = entry.getKey();
 				JsonObject defaults = entry.getValue();
 				Path file = resolveJsonFile(directory, fileKey);
-				JsonObject normalized = StaticJsonSystem.ensureManagedFile(file, defaults);
+				JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
 				CropRule rule = CropRule.fromJson(fileKey, normalized);
 				if (rule == null) {
 					rule = CropRule.fromJson(fileKey, defaults);
@@ -1131,7 +1132,7 @@ public final class MadokuFarming {
 					}
 
 					JsonObject cleaned = rule.toJson();
-					StaticJsonSystem.writeManagedFile(file, cleaned, defaults);
+					JsonStaticSystem.writeManagedFile(file, cleaned, defaults);
 					plantingRules.put(rule.plantingItemId(), rule);
 					blockRules.put(rule.cropBlockId(), rule);
 					if (rule.usesDistinctMatureBlock()) {

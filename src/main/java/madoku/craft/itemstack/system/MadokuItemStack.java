@@ -6,7 +6,8 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -294,12 +295,12 @@ public final class MadokuItemStack {
 	private static void loadStaticConfig() {
 		JsonObject defaults = MadokuItemStackConfig.buildItemStackDefaults();
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, ITEMSTACK_CONFIG_FILE_NAME);
-			JsonObject root = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject root = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			boolean changed = configuration.updateItemStack(root);
 			if (changed) {
-				StaticJsonSystem.writeManagedFile(configFile, root, defaults);
+				JsonStaticSystem.writeManagedFile(configFile, root, defaults);
 			}
 			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {

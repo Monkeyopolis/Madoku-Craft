@@ -3,8 +3,9 @@ package madoku.craft.difficulty.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.DynamicJsonSystem;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.DynamicStaticSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.mob.system.MadokuMob;
@@ -309,9 +310,9 @@ public final class MadokuDifficulty {
 
 	private static void loadConfig() {
 		try {
-			Path rootDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(DIFFICULTY_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(DIFFICULTY_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, DIFFICULTY_CONFIG_SETTINGS_FILE_NAME);
-				JsonObject settingsRoot = StaticJsonSystem.ensureManagedFile(
+				JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(
 					settingsFile,
 					MadokuDifficultyConfig.buildSettingsDefaults()
 				);
@@ -352,28 +353,28 @@ public final class MadokuDifficulty {
 			Path structureDirectory = rulesDirectory.resolve(STRUCTURE_RULES_FOLDER_NAME);
 			Path timeDirectory = rulesDirectory.resolve(TIME_RULES_FOLDER_NAME);
 
-			Map<String, JsonObject> normalizedBiomes = DynamicJsonSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedBiomes = DynamicStaticSystem.ensureManagedFolder(
 				biomeDirectory,
 				MadokuDifficultyConfig.buildDefaultBiomeFileDefaults(),
 				ignored -> MadokuDifficultyConfig.buildBiomeRuleDefaults(0, List.of()),
 				MadokuDifficulty::isSupportedBiomeRuleFile,
 				null
 			);
-			Map<String, JsonObject> normalizedStructures = DynamicJsonSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedStructures = DynamicStaticSystem.ensureManagedFolder(
 				structureDirectory,
 				MadokuDifficultyConfig.buildDefaultStructureFileDefaults(),
 				ignored -> MadokuDifficultyConfig.buildStructureRuleDefaults(0, List.of()),
 				MadokuDifficulty::isSupportedStructureRuleFile,
 				null
 			);
-			Map<String, JsonObject> normalizedTime = DynamicJsonSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedTime = DynamicStaticSystem.ensureManagedFolder(
 				timeDirectory,
 				MadokuDifficultyConfig.buildDefaultTimeFileDefaults(),
 				ignored -> MadokuDifficultyConfig.buildTimeRuleDefaults(0, MadokuDifficultyConfig.TIME_UNBOUNDED_MAX_DAY, 0),
 				MadokuDifficulty::isSupportedTimeRuleFile,
 				null
 			);
-				Map<String, JsonObject> normalizedMobScaling = DynamicJsonSystem.ensureManagedFolder(
+				Map<String, JsonObject> normalizedMobScaling = DynamicStaticSystem.ensureManagedFolder(
 					rootDirectory.resolve(DIFFICULTY_CONFIG_MOB_SCALING_FOLDER_NAME),
 						MadokuDifficultyConfig.buildDefaultMobScalingFileDefaults(
 							defaultHealthIncrement,

@@ -6,8 +6,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuClock;
-import madoku.craft.config.DynamicJsonSystem;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.DynamicStaticSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
 import madoku.craft.scheduler.MadokuScheduler;
 import net.minecraft.core.BlockPos;
@@ -87,13 +88,13 @@ public final class MadokuSmeltingManager {
 		JsonObject smeltingDefaults = MadokuSmeltingConfig.buildSmeltingDefaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
 			Path smeltingFile = resolveJsonFile(directory, SMELTING_CONFIG_FILE_NAME);
 
-			JsonObject smeltingRoot = StaticJsonSystem.ensureManagedFile(smeltingFile, smeltingDefaults);
+			JsonObject smeltingRoot = JsonStaticSystem.ensureManagedFile(smeltingFile, smeltingDefaults);
 			boolean smeltingChanged = configuration.updateSmelting(smeltingRoot);
 			if (smeltingChanged) {
-				StaticJsonSystem.writeManagedFile(smeltingFile, smeltingRoot, smeltingDefaults);
+				JsonStaticSystem.writeManagedFile(smeltingFile, smeltingRoot, smeltingDefaults);
 			}
 
 			FurnaceLoadResult furnaceLoadResult = loadFurnaceRules(directory);
@@ -429,7 +430,7 @@ public final class MadokuSmeltingManager {
 		Path furnacesFolder = smeltingRootDirectory.resolve(FURNACES_DIRECTORY_NAME);
 
 		Map<String, JsonObject> defaultFiles = buildDefaultFurnaceFiles();
-		Map<String, JsonObject> loadedFiles = DynamicJsonSystem.ensureManagedFolder(
+		Map<String, JsonObject> loadedFiles = DynamicStaticSystem.ensureManagedFolder(
 			furnacesFolder,
 			defaultFiles,
 			ignored -> buildGenericFurnaceDefaults(),
@@ -468,7 +469,7 @@ public final class MadokuSmeltingManager {
 
 			if (changed) {
 				JsonObject fileDefaults = defaultFiles.getOrDefault(fileKey, buildGenericFurnaceDefaults());
-				DynamicJsonSystem.writeManagedFile(
+				DynamicStaticSystem.writeManagedFile(
 					furnacesFolder.resolve(fileKey + ".json"),
 					root,
 					fileDefaults,

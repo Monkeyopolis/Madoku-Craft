@@ -5,8 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.DynamicJsonSystem;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.DynamicStaticSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.itemstack.system.MadokuItemStack;
@@ -750,12 +751,12 @@ public final class PlayerEntitiesSystem {
 
 	private static void loadStaticConfig() {
 		try {
-			Path rootDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, PET_CONFIG_FILE_NAME);
 			JsonObject defaults = PetSettings.defaults().toConfigJson();
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			PetSettings configured = PetSettings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			settings = configured;
 		} catch (IOException exception) {
 			settings = PetSettings.defaults();
@@ -765,9 +766,9 @@ public final class PlayerEntitiesSystem {
 
 	private static void loadPetRules() {
 		try {
-			Path rootDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
 			Path rulesDirectory = rootDirectory.resolve(PET_RULES_FOLDER_NAME);
-			Map<String, JsonObject> normalizedFiles = DynamicJsonSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFiles = DynamicStaticSystem.ensureManagedFolder(
 				rulesDirectory,
 				buildDefaultPetRuleFiles(),
 				PlayerEntitiesSystem::buildDynamicPetRuleDefaults,
@@ -786,7 +787,7 @@ public final class PlayerEntitiesSystem {
 				String abilityType = normalizeKey(getString(sourceRoot, "ability", defaultAbilityForItem(itemId)));
 				JsonObject abilityDefaults = PetRule.defaultsForItem(itemId, abilityType);
 				Path file = resolveJsonFile(rulesDirectory, fileKey);
-				JsonObject normalized = DynamicJsonSystem.writeManagedFile(file, sourceRoot, abilityDefaults, null);
+				JsonObject normalized = DynamicStaticSystem.writeManagedFile(file, sourceRoot, abilityDefaults, null);
 				abilityNormalizedFiles.put(fileKey, normalized);
 			}
 			Map<String, PetRule> resolved = new LinkedHashMap<>();

@@ -3,7 +3,6 @@ package madoku.craft.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
@@ -21,19 +20,24 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public final class StaticJsonSystem {
-	private static final Logger LOGGER = LoggerFactory.getLogger(StaticJsonSystem.class);
+public final class JsonManagerSystem {
+	private static final Logger LOGGER = LoggerFactory.getLogger(JsonManagerSystem.class);
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+	private static final String FIELD_GENERAL = "general";
+	private static final String FIELD_MAIN = "main";
+	private static final String FIELD_VERSION = "version";
+	private static final String FIELD_TYPE = "type";
+	private static final String FIELD_ENABLED = "enabled";
 	private static volatile String cachedModVersion;
 
-	private StaticJsonSystem() {
+	private JsonManagerSystem() {
 	}
 
 	public static void initialize() {
 		try {
 			Files.createDirectories(getGlobalRootDirectory());
 		} catch (IOException exception) {
-			LOGGER.error("Failed to initialize static config root directory at {}", getGlobalRootDirectory(), exception);
+			LOGGER.error("Failed to initialize JSON root directory at {}", getGlobalRootDirectory(), exception);
 		}
 	}
 
@@ -78,21 +82,6 @@ public final class StaticJsonSystem {
 		return directory;
 	}
 
-	public static JsonObject ensureManagedFile(Path file, JsonObject defaults) throws IOException {
-		JsonObject fallbackDefaults = defaults == null ? new JsonObject() : defaults;
-		JsonObject source = readJsonFile(file);
-		JsonObject normalized = normalizeObject(source, fallbackDefaults);
-		writeJsonFile(file, normalized);
-		return normalized;
-	}
-
-	public static JsonObject writeManagedFile(Path file, JsonObject source, JsonObject defaults) throws IOException {
-		JsonObject fallbackDefaults = defaults == null ? new JsonObject() : defaults;
-		JsonObject normalized = normalizeObject(source == null ? new JsonObject() : source, fallbackDefaults);
-		writeJsonFile(file, normalized);
-		return normalized;
-	}
-
 	public static String getCurrentModVersion() {
 		String cached = cachedModVersion;
 		if (cached != null && !cached.isBlank()) {
@@ -115,47 +104,23 @@ public final class StaticJsonSystem {
 		writeJsonObject(file, json == null ? new JsonObject() : json);
 	}
 
-	private static JsonObject normalizeObject(JsonObject source, JsonObject defaults) {
-		JsonObject normalized = new JsonObject();
-		for (var entry : defaults.entrySet()) {
-			String key = entry.getKey();
-			JsonElement defaultValue = entry.getValue();
-			JsonElement sourceValue = source == null ? null : source.get(key);
-			normalized.add(key, normalizeElement(sourceValue, defaultValue));
-		}
-		return normalized;
+	static ManagedJsonDocument readManagedDocument(Path file, ManagedJsonType type, JsonObject defaults) throws IOException {
+		JsonObject raw = readJsonObject(file);
+		JsonObject main = readObject(raw, FIELD_MAIN);
+		JsonObject general = readObject(raw, FIELD_GENERAL);
+		boolean enabled = resolveManagedEnabled(main, general, defaults);
+		return new ManagedJsonDocument(createGeneral(type, enabled), main);
 	}
 
-	private static JsonElement normalizeElement(JsonElement source, JsonElement defaults) {
-		if (defaults == null || defaults.isJsonNull()) {
-			return JsonNull.INSTANCE;
-		}
-
-		if (defaults.isJsonObject()) {
-			if (source != null && source.isJsonObject()) {
-				return normalizeObject(source.getAsJsonObject(), defaults.getAsJsonObject());
-			}
-			return defaults.deepCopy();
-		}
-
-		if (defaults.isJsonArray()) {
-			if (source != null && source.isJsonArray()) {
-				return source.deepCopy();
-			}
-			return defaults.deepCopy();
-		}
-
-		if (defaults.isJsonPrimitive()) {
-			if (source != null && source.isJsonPrimitive() && samePrimitiveType(source.getAsJsonPrimitive(), defaults.getAsJsonPrimitive())) {
-				return source.deepCopy();
-			}
-			return defaults.deepCopy();
-		}
-
-		return defaults.deepCopy();
+	static void writeManagedDocument(Path file, ManagedJsonType type, JsonObject main, JsonObject defaults) throws IOException {
+		JsonObject payload = new JsonObject();
+		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
+		payload.add(FIELD_GENERAL, createGeneral(type, resolveManagedEnabled(safeMain, null, defaults)));
+		payload.add(FIELD_MAIN, safeMain);
+		writeJsonObject(file, payload);
 	}
 
-	private static boolean samePrimitiveType(JsonPrimitive source, JsonPrimitive defaults) {
+	static boolean samePrimitiveType(JsonPrimitive source, JsonPrimitive defaults) {
 		if (defaults.isBoolean()) {
 			return source.isBoolean();
 		}
@@ -166,6 +131,58 @@ public final class StaticJsonSystem {
 			return source.isString();
 		}
 		return false;
+	}
+
+	private static JsonObject createGeneral(ManagedJsonType type, boolean enabled) {
+		JsonObject general = new JsonObject();
+		general.addProperty(FIELD_VERSION, getCurrentModVersion());
+		general.addProperty(FIELD_TYPE, type.id());
+		general.addProperty(FIELD_ENABLED, enabled);
+		return general;
+	}
+
+	private static boolean resolveManagedEnabled(JsonObject main, JsonObject general, JsonObject defaults) {
+		Boolean mainEnabled = readBoolean(main, FIELD_ENABLED);
+		if (mainEnabled != null) {
+			return mainEnabled;
+		}
+
+		Boolean generalEnabled = readBoolean(general, FIELD_ENABLED);
+		if (generalEnabled != null) {
+			return generalEnabled;
+		}
+
+		Boolean defaultEnabled = readBoolean(defaults, FIELD_ENABLED);
+		if (defaultEnabled != null) {
+			return defaultEnabled;
+		}
+
+		return true;
+	}
+
+	private static Boolean readBoolean(JsonObject root, String key) {
+		if (root == null || key == null) {
+			return null;
+		}
+
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return null;
+		}
+
+		try {
+			return element.getAsBoolean();
+		} catch (RuntimeException ignored) {
+			return null;
+		}
+	}
+
+	private static JsonObject readObject(JsonObject root, String key) {
+		if (root == null || key == null) {
+			return new JsonObject();
+		}
+		JsonElement element = root.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject().deepCopy() : new JsonObject();
 	}
 
 	private static JsonObject readJsonObject(Path file) throws IOException {
@@ -191,11 +208,41 @@ public final class StaticJsonSystem {
 			Files.createDirectories(parent);
 		}
 
-		JsonObject payload = json == null ? new JsonObject() : json.deepCopy();
-		payload.addProperty("version", getCurrentModVersion());
-
 		try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-			GSON.toJson(payload, writer);
+			GSON.toJson(json == null ? new JsonObject() : json.deepCopy(), writer);
+		}
+	}
+
+	enum ManagedJsonType {
+		STATIC("static"),
+		DYNAMIC("dynamic");
+
+		private final String id;
+
+		ManagedJsonType(String id) {
+			this.id = id;
+		}
+
+		String id() {
+			return id;
+		}
+	}
+
+	static final class ManagedJsonDocument {
+		private final JsonObject general;
+		private final JsonObject main;
+
+		private ManagedJsonDocument(JsonObject general, JsonObject main) {
+			this.general = general == null ? new JsonObject() : general.deepCopy();
+			this.main = main == null ? new JsonObject() : main.deepCopy();
+		}
+
+		JsonObject general() {
+			return general.deepCopy();
+		}
+
+		JsonObject main() {
+			return main.deepCopy();
 		}
 	}
 }

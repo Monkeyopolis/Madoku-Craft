@@ -8,7 +8,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
@@ -836,9 +836,9 @@ public final class MadokuHealth {
 
 		try {
 			Path configFile = MadokuAttributes.prepareSystemConfigFile(HEALTH_CONFIG_DIRECTORY_NAME, HEALTH_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			settings = configured.withEnabled(MadokuAttributes.isEnabled());
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback.withEnabled(MadokuAttributes.isEnabled());

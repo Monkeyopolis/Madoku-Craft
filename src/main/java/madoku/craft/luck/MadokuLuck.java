@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributes;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.farming.system.MadokuFarming;
@@ -909,9 +909,9 @@ public final class MadokuLuck {
 
 		try {
 			var configFile = MadokuAttributes.prepareSystemConfigFile(LUCK_CONFIG_DIRECTORY_NAME, LUCK_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			StaticJsonSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;

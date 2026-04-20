@@ -5,7 +5,7 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.MadokuDifficulty;
 import madoku.craft.entity.MadokuEntities;
@@ -42,7 +42,7 @@ public class MadokuCraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		StaticJsonSystem.initialize();
+		JsonManagerSystem.initialize();
 		MadokuSmeltingManager.initialize();
 		MadokuDebug.initialize();
 		MadokuDifficulty.initialize();

@@ -3,7 +3,8 @@ package madoku.craft.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.MadokuData;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -970,12 +971,12 @@ public final class MadokuSeason {
 		);
 
 		try {
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(file, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
 			BiomeClimateRecord parsed = parseBiomeClimateRecord(normalized, biomeId, nativeClimate, temperature, precipitation);
 			if (parsed != null) {
 				return parsed;
 			}
-			StaticJsonSystem.writeManagedFile(file, defaults, defaults);
+			JsonStaticSystem.writeManagedFile(file, defaults, defaults);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to load MadokuSeason biome climate file {}", file, exception);
 		}
@@ -1034,7 +1035,7 @@ public final class MadokuSeason {
 				precipitationText
 			);
 			Path file = resolveBiomeFile(biomeId);
-			StaticJsonSystem.writeManagedFile(file, cleaned, cleaned);
+			JsonStaticSystem.writeManagedFile(file, cleaned, cleaned);
 		}
 
 		return new BiomeClimateRecord(biomeId, normalizedDefault, classification, (float) recordedTemperature, precipitation);
@@ -1089,7 +1090,7 @@ public final class MadokuSeason {
 	}
 
 	private static Path resolveBiomeDirectory() {
-		Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(SEASON_CONFIG_FOLDER_NAME).resolve(BIOME_FOLDER_NAME);
+		Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(SEASON_CONFIG_FOLDER_NAME).resolve(BIOME_FOLDER_NAME);
 		try {
 			Files.createDirectories(directory);
 		} catch (IOException exception) {
@@ -1176,12 +1177,12 @@ public final class MadokuSeason {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(SEASON_CONFIG_FOLDER_NAME);
+			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(SEASON_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, SEASON_CONFIG_FILE_NAME);
-			JsonObject normalized = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
 			JsonObject cleaned = loaded.toConfigJson();
-			StaticJsonSystem.writeManagedFile(configFile, cleaned, defaults);
+			JsonStaticSystem.writeManagedFile(configFile, cleaned, defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;

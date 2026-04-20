@@ -3,7 +3,6 @@ package madoku.craft.config;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +13,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public final class DynamicJsonSystem {
+public final class DynamicStaticSystem {
 	@FunctionalInterface
 	public interface DynamicEntryNormalizer {
 		JsonElement normalize(String key, JsonElement sourceValue);
@@ -25,14 +24,18 @@ public final class DynamicJsonSystem {
 		boolean isSupported(String fileKey, JsonObject sourceRoot);
 	}
 
-	private DynamicJsonSystem() {
+	private DynamicStaticSystem() {
 	}
 
 	public static JsonObject ensureManagedFile(Path file, JsonObject defaults, DynamicEntryNormalizer dynamicEntryNormalizer) throws IOException {
 		JsonObject fallbackDefaults = defaults == null ? new JsonObject() : defaults;
-		JsonObject source = StaticJsonSystem.readJsonFile(file);
-		JsonObject normalized = normalizeObject(source, fallbackDefaults, dynamicEntryNormalizer);
-		StaticJsonSystem.writeJsonFile(file, normalized);
+		JsonManagerSystem.ManagedJsonDocument source = JsonManagerSystem.readManagedDocument(
+			file,
+			JsonManagerSystem.ManagedJsonType.DYNAMIC,
+			fallbackDefaults
+		);
+		JsonObject normalized = normalizeObject(source.main(), fallbackDefaults, dynamicEntryNormalizer);
+		JsonManagerSystem.writeManagedDocument(file, JsonManagerSystem.ManagedJsonType.DYNAMIC, normalized, fallbackDefaults);
 		return normalized;
 	}
 
@@ -44,7 +47,7 @@ public final class DynamicJsonSystem {
 	) throws IOException {
 		JsonObject fallbackDefaults = defaults == null ? new JsonObject() : defaults;
 		JsonObject normalized = normalizeObject(source == null ? new JsonObject() : source, fallbackDefaults, dynamicEntryNormalizer);
-		StaticJsonSystem.writeJsonFile(file, normalized);
+		JsonManagerSystem.writeManagedDocument(file, JsonManagerSystem.ManagedJsonType.DYNAMIC, normalized, fallbackDefaults);
 		return normalized;
 	}
 
@@ -81,16 +84,21 @@ public final class DynamicJsonSystem {
 					}
 
 					try {
-						JsonObject source = StaticJsonSystem.readJsonFile(path);
-						if (!supportPredicate.test(fileKey, source)) {
+						JsonManagerSystem.ManagedJsonDocument source = JsonManagerSystem.readManagedDocument(
+							path,
+							JsonManagerSystem.ManagedJsonType.DYNAMIC,
+							new JsonObject()
+						);
+						JsonObject sourceRoot = source.main();
+						if (!supportPredicate.test(fileKey, sourceRoot)) {
 							Files.deleteIfExists(path);
 							return;
 						}
 
 						JsonObject defaults = defaultsProvider.apply(fileKey);
 						JsonObject safeDefaults = defaults == null ? new JsonObject() : defaults;
-						JsonObject normalized = normalizeObject(source, safeDefaults, dynamicEntryNormalizer);
-						StaticJsonSystem.writeJsonFile(path, normalized);
+						JsonObject normalized = normalizeObject(sourceRoot, safeDefaults, dynamicEntryNormalizer);
+						JsonManagerSystem.writeManagedDocument(path, JsonManagerSystem.ManagedJsonType.DYNAMIC, normalized, safeDefaults);
 						normalizedFiles.put(fileKey, normalized);
 					} catch (IOException exception) {
 						throw new RuntimeException(exception);
@@ -126,7 +134,7 @@ public final class DynamicJsonSystem {
 		if (source != null && dynamicEntryNormalizer != null) {
 			for (var entry : source.entrySet()) {
 				String key = entry.getKey();
-				if ("version".equals(key) || normalized.has(key)) {
+				if ("general".equals(key) || "main".equals(key) || "version".equals(key) || normalized.has(key)) {
 					continue;
 				}
 
@@ -161,25 +169,14 @@ public final class DynamicJsonSystem {
 		}
 
 		if (defaults.isJsonPrimitive()) {
-			if (source != null && source.isJsonPrimitive() && samePrimitiveType(source.getAsJsonPrimitive(), defaults.getAsJsonPrimitive())) {
+			if (source != null
+				&& source.isJsonPrimitive()
+				&& JsonManagerSystem.samePrimitiveType(source.getAsJsonPrimitive(), defaults.getAsJsonPrimitive())) {
 				return source.deepCopy();
 			}
 			return defaults.deepCopy();
 		}
 
 		return defaults.deepCopy();
-	}
-
-	private static boolean samePrimitiveType(JsonPrimitive source, JsonPrimitive defaults) {
-		if (defaults.isBoolean()) {
-			return source.isBoolean();
-		}
-		if (defaults.isNumber()) {
-			return source.isNumber();
-		}
-		if (defaults.isString()) {
-			return source.isString();
-		}
-		return false;
 	}
 }

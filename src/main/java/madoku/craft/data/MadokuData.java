@@ -2,7 +2,7 @@ package madoku.craft.data;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.config.StaticJsonSystem;
+import madoku.craft.config.JsonManagerSystem;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +25,7 @@ public final class MadokuData {
 		}
 
 		try {
-			StaticJsonSystem.writeJsonFile(file, initialData == null ? new JsonObject() : initialData);
+			JsonManagerSystem.writeJsonFile(file, initialData == null ? new JsonObject() : initialData);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to create world data file {}", file, exception);
 		}
@@ -40,7 +40,7 @@ public final class MadokuData {
 		}
 
 		try {
-			return StaticJsonSystem.readJsonFile(file);
+			return JsonManagerSystem.readJsonFile(file);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to load world data file {}", file, exception);
 			return null;
@@ -52,7 +52,7 @@ public final class MadokuData {
 		Path file = resolveJsonFile(directory, jsonName);
 
 		try {
-			StaticJsonSystem.writeJsonFile(file, data == null ? new JsonObject() : data);
+			JsonManagerSystem.writeJsonFile(file, data == null ? new JsonObject() : data);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to save world data file {}", file, exception);
 		}
@@ -88,7 +88,7 @@ public final class MadokuData {
 			throw new IllegalArgumentException("Folder name must not be blank.");
 		}
 
-		Path root = StaticJsonSystem.getWorldRootDirectory(server);
+		Path root = JsonManagerSystem.getWorldRootDirectory(server);
 		boolean useRoot = MadokuCraft.MOD_ID.equals(normalizedName);
 		Path directory = useRoot ? root : root.resolve(normalizedName);
 		if (createDirectories) {
