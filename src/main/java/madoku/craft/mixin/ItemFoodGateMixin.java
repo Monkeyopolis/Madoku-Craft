@@ -4,7 +4,7 @@ import madoku.craft.hunger.MadokuHunger;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.entity.player.Player;
@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Item.class)
 public abstract class ItemFoodGateMixin {
 	@Inject(method = "use", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$gateFoodUse(Level level, Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+	private void madokuCraft$gateFoodUse(Level level, Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir) {
 		if (level == null || level.isClientSide() || !(player instanceof ServerPlayer serverPlayer)) {
 			return;
 		}
@@ -30,7 +30,7 @@ public abstract class ItemFoodGateMixin {
 		}
 
 		if (!MadokuHunger.canConsumeFood(serverPlayer, false)) {
-			cir.setReturnValue(InteractionResult.FAIL);
+			cir.setReturnValue(InteractionResultHolder.fail(stack));
 		}
 	}
 

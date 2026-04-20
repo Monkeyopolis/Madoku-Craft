@@ -9,7 +9,10 @@ import madoku.craft.debug.MadokuDebug;
 import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.mixin.ArmorItemDefaultModifiersAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponents;
@@ -21,6 +24,7 @@ import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
@@ -72,6 +76,8 @@ public final class MadokuItem {
 
 	public static void initialize() {
 		loadStaticConfig();
+		ServerPlayerEvents.JOIN.register(MadokuItem::handlePlayerJoin);
+		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> refreshConfiguredPlayerStacks(newPlayer));
 	}
 
 	public static void onServerStarted() {
@@ -87,6 +93,24 @@ public final class MadokuItem {
 		}
 		applyToolProfiles(toolProfilesByItem);
 		applyArmorProfiles(armorProfilesByItem);
+	}
+
+	public static boolean refreshConfiguredStackMetadata(ItemStack stack) {
+		if (!enabled || stack == null || stack.isEmpty()) {
+			return false;
+		}
+
+		MadokuToolProfile toolProfile = toolProfilesByItem.get(stack.getItem());
+		if (toolProfile != null && toolProfile.hasDurability()) {
+			return refreshConfiguredMaxDamage(stack, toolProfile.durability());
+		}
+
+		MadokuArmorProfile armorProfile = armorProfilesByItem.get(stack.getItem());
+		if (armorProfile != null && armorProfile.hasDurability()) {
+			return refreshConfiguredMaxDamage(stack, armorProfile.durability());
+		}
+
+		return false;
 	}
 
 	public static boolean isEnabled() {
@@ -916,16 +940,85 @@ public final class MadokuItem {
 			changed = true;
 		}
 
-		ItemAttributeModifiers attributes = base.get(DataComponents.ATTRIBUTE_MODIFIERS);
-		ItemAttributeModifiers updatedAttributes = applyArmorStats(attributes, profile);
-		if (updatedAttributes != null && !Objects.equals(attributes, updatedAttributes)) {
-			builder.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedAttributes);
-			changed = true;
+		ItemAttributeModifiers baseAttributes = base.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		if (item instanceof ArmorItem armorItem) {
+			ItemAttributeModifiers currentDefaults = armorItem.getDefaultAttributeModifiers();
+			ItemAttributeModifiers updatedDefaults = applyArmorStats(currentDefaults, profile);
+			if (updatedDefaults != null && !Objects.equals(currentDefaults, updatedDefaults)) {
+				((ArmorItemDefaultModifiersAccessor) armorItem).madokuCraft$setDefaultModifiers(() -> updatedDefaults);
+			}
+			if (baseAttributes != null) {
+				ItemAttributeModifiers updatedBaseAttributes = applyArmorStats(baseAttributes, profile);
+				if (updatedBaseAttributes != null && !Objects.equals(baseAttributes, updatedBaseAttributes)) {
+					builder.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedBaseAttributes);
+					changed = true;
+				}
+			}
+		} else {
+			ItemAttributeModifiers updatedAttributes = applyArmorStats(baseAttributes, profile);
+			if (updatedAttributes != null && !Objects.equals(baseAttributes, updatedAttributes)) {
+				builder.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedAttributes);
+				changed = true;
+			}
 		}
 
 		if (changed) {
 			((ItemComponentsAccessor) item).madokuCraft$setComponents(builder.build());
 		}
+	}
+
+	private static void handlePlayerJoin(net.minecraft.server.level.ServerPlayer player) {
+		refreshConfiguredPlayerStacks(player);
+	}
+
+	private static void refreshConfiguredPlayerStacks(net.minecraft.server.level.ServerPlayer player) {
+		if (player == null || !enabled) {
+			return;
+		}
+
+		boolean changed = false;
+		for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+			changed |= refreshConfiguredStackMetadata(player.getInventory().getItem(slot));
+		}
+
+		changed |= refreshConfiguredStackMetadata(player.containerMenu.getCarried());
+
+		if (!changed) {
+			return;
+		}
+
+		player.getInventory().setChanged();
+		player.inventoryMenu.broadcastChanges();
+		if (player.containerMenu != player.inventoryMenu) {
+			player.containerMenu.broadcastChanges();
+		}
+	}
+
+	private static boolean refreshConfiguredMaxDamage(ItemStack stack, int configuredBaseMaxDamage) {
+		if (configuredBaseMaxDamage <= 0) {
+			return false;
+		}
+
+		int targetMaxDamage = MadokuRarity.resolveConfiguredMaxDamage(stack, configuredBaseMaxDamage);
+		Integer currentMaxDamageComponent = stack.get(DataComponents.MAX_DAMAGE);
+		int currentMaxDamage = stack.getMaxDamage();
+		boolean hasDamageComponent = stack.has(DataComponents.DAMAGE);
+		int currentDamage = hasDamageComponent ? stack.getDamageValue() : 0;
+
+		if (Objects.equals(currentMaxDamageComponent, targetMaxDamage) && hasDamageComponent) {
+			return false;
+		}
+
+		int updatedDamage = 0;
+		if (hasDamageComponent && currentMaxDamage > 0) {
+			updatedDamage = (int) Math.round(currentDamage * (targetMaxDamage / (double) currentMaxDamage));
+		}
+		updatedDamage = Math.max(0, Math.min(updatedDamage, targetMaxDamage));
+
+		stack.set(DataComponents.MAX_DAMAGE, targetMaxDamage);
+		stack.set(DataComponents.DAMAGE, updatedDamage);
+		MadokuRarity.updateDurabilityLore(stack);
+		return true;
 	}
 
 	private static ItemAttributeModifiers applyArmorStats(ItemAttributeModifiers current, MadokuArmorProfile profile) {

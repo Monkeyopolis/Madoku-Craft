@@ -187,6 +187,24 @@ public final class MadokuRarity {
 		stack.set(DataComponents.LORE, new ItemLore(updatedLines));
 	}
 
+	public static int resolveConfiguredMaxDamage(ItemStack stack, int configuredBaseMaxDamage) {
+		if (configuredBaseMaxDamage <= 0) {
+			return configuredBaseMaxDamage;
+		}
+
+		MadokuRarityTier rarity = detectAppliedRarity(stack);
+		if (rarity == null || rarity == MadokuRarityTier.COMMON) {
+			return configuredBaseMaxDamage;
+		}
+
+		double buffPercent = getRarityStatBuffPercent(rarity);
+		if (buffPercent <= 0.0D) {
+			return configuredBaseMaxDamage;
+		}
+
+		return roundToWhole(configuredBaseMaxDamage * multiplierFromBuffPercent(buffPercent));
+	}
+
 	private static void rollAndApplySingle(ServerPlayer player, ItemStack stack) {
 		rollAndApplySingle(player.getRandom(), stack);
 	}

@@ -58,7 +58,7 @@ public final class MadokuEntities {
 			.sized(0.6F, 1.95F)
 			.eyeHeight(1.62F)
 			.clientTrackingRange(8)
-			.build(HAG_ID.toString())
+			.build(null)
 	);
 	public static final Item HAG_SPAWN_EGG = Registry.register(
 		BuiltInRegistries.ITEM,

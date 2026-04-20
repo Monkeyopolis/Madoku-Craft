@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -38,6 +39,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public final class MadokuSeason {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuSeason.class);
+	private static final Field BIOME_CLIMATE_SETTINGS_FIELD = findBiomeClimateSettingsField();
+	private static final Field BIOME_CLIMATE_HAS_PRECIPITATION_FIELD = findBiomeClimateHasPrecipitationField();
 
 	private static final String SEASON_CONFIG_FOLDER_NAME = "madoku-craft-season";
 	private static final String SEASON_CONFIG_FILE_NAME = "madoku-season";
@@ -272,6 +275,17 @@ public final class MadokuSeason {
 		}
 
 		SeasonState state = getCurrentState();
+		BiomeClimate climate = resolveBiomeClimate(biome);
+		BiomeMoisture moisture = resolveBiomeMoisture(biome);
+		return resolveSeasonalPrecipitation(state.season(), climate, moisture);
+	}
+
+	public static SeasonalPrecipitation resolveSeasonalPrecipitation(ServerLevel world, Biome biome) {
+		if (biome == null) {
+			return SeasonalPrecipitation.DRY;
+		}
+
+		SeasonState state = world == null ? getCurrentState() : getCurrentState(world);
 		BiomeClimate climate = resolveBiomeClimate(biome);
 		BiomeMoisture moisture = resolveBiomeMoisture(biome);
 		return resolveSeasonalPrecipitation(state.season(), climate, moisture);
@@ -1059,13 +1073,50 @@ public final class MadokuSeason {
 			return Biome.Precipitation.RAIN;
 		}
 
-		if (!biome.hasPrecipitation()) {
+		if (!biomeSupportsNativePrecipitation(biome)) {
 			return Biome.Precipitation.NONE;
 		}
 		if (biome.getBaseTemperature() <= settings.coldTemperatureThreshold) {
 			return Biome.Precipitation.SNOW;
 		}
 		return Biome.Precipitation.RAIN;
+	}
+
+	private static boolean biomeSupportsNativePrecipitation(Biome biome) {
+		if (biome == null) {
+			return true;
+		}
+		if (BIOME_CLIMATE_SETTINGS_FIELD == null || BIOME_CLIMATE_HAS_PRECIPITATION_FIELD == null) {
+			return true;
+		}
+
+		try {
+			Object climateSettings = BIOME_CLIMATE_SETTINGS_FIELD.get(biome);
+			return climateSettings == null || BIOME_CLIMATE_HAS_PRECIPITATION_FIELD.getBoolean(climateSettings);
+		} catch (IllegalAccessException | RuntimeException exception) {
+			return true;
+		}
+	}
+
+	private static Field findBiomeClimateSettingsField() {
+		try {
+			Field field = Biome.class.getDeclaredField("climateSettings");
+			field.setAccessible(true);
+			return field;
+		} catch (ReflectiveOperationException exception) {
+			return null;
+		}
+	}
+
+	private static Field findBiomeClimateHasPrecipitationField() {
+		try {
+			Class<?> climateSettingsClass = Class.forName("net.minecraft.world.level.biome.Biome$ClimateSettings");
+			Field field = climateSettingsClass.getDeclaredField("hasPrecipitation");
+			field.setAccessible(true);
+			return field;
+		} catch (ReflectiveOperationException exception) {
+			return null;
+		}
 	}
 
 	private static ResourceLocation resolveBiomeId(ServerLevel world, net.minecraft.core.BlockPos pos) {

@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "AbstractArrowDamageMixin",
+    "ArmorItemDefaultModifiersAccessor",
     "BatPetBehaviorMixin",
     "BatTargetAccessor",
     "AbstractFurnaceBlockEntityMixin",
@@ -62,6 +63,7 @@
     "PlayerEatGateMixin",
     "PlayerLuckCriticalHitMixin",
     "PlayerExperienceMadokuLevelsMixin",
+    "PlayerLevelsHealthPersistenceMixin",
     "PlayerInventoryDeathDropMixin",
     "PlayerEntitiesInventoryMixin",
     "PlayerSprintGateMixin",
@@ -99,7 +101,8 @@
     "client.MerchantScreenAccessor",
     "client.MultiPlayerGameModeFarmingMixin",
     "client.PlayerEatClientGateMixin",
-    "client.SlotAccessor"
+    "client.SlotAccessor",
+    "client.WeatherEffectRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

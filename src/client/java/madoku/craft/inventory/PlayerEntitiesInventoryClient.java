@@ -19,6 +19,8 @@ import net.minecraft.world.inventory.Slot;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class PlayerEntitiesInventoryClient {
 	private static final ResourceLocation SURVIVAL_INVENTORY_TEXTURE =
@@ -64,6 +66,7 @@ public final class PlayerEntitiesInventoryClient {
 	private static final int CREATIVE_PLAYER_PREVIEW_BOTTOM = 48;
 	private static final int CREATIVE_PLAYER_PREVIEW_SCALE = 20;
 	private static final float CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET = 0.0F;
+	private static final Map<CreativeModeInventoryScreen, CreativeLayoutSnapshot> CREATIVE_LAYOUTS = new WeakHashMap<>();
 	private static Method playerPreviewRenderMethod;
 	private static boolean lookedUpPlayerPreviewRenderMethod;
 
@@ -80,7 +83,7 @@ public final class PlayerEntitiesInventoryClient {
 			}
 
 			if (screen instanceof CreativeModeInventoryScreen creativeScreen) {
-				applyCreativeLayout(creativeScreen);
+				syncCreativeLayout(creativeScreen);
 			}
 		});
 	}
@@ -119,7 +122,6 @@ public final class PlayerEntitiesInventoryClient {
 			return;
 		}
 
-		applyCreativeLayout(screen);
 		int leftPos = leftPos(screen);
 		int topPos = topPos(screen);
 		graphics.blit(
@@ -146,6 +148,20 @@ public final class PlayerEntitiesInventoryClient {
 			CREATIVE_PLAYER_PREVIEW_VERTICAL_OFFSET
 		);
 		drawEntityPlaceholders(screen, graphics);
+	}
+
+	public static void syncCreativeLayout(CreativeModeInventoryScreen screen) {
+		if (screen == null) {
+			return;
+		}
+
+		boolean inventoryOpen = ((CreativeModeInventoryScreenAccessor) screen).madokuCraft$isInventoryOpen();
+		if (inventoryOpen) {
+			applyCreativeLayout(screen);
+			return;
+		}
+		rememberCreativeLayout(screen);
+		restoreCreativeLayout(screen);
 	}
 
 	private static boolean allowInventoryMouseClick(InventoryScreen screen, double mouseX, double mouseY, int button) {
@@ -181,6 +197,23 @@ public final class PlayerEntitiesInventoryClient {
 		moveCreativeArmorSlots(screen);
 		moveCreativeOffhandSlot(screen);
 		moveCreativePetSlots(screen);
+	}
+
+	private static void rememberCreativeLayout(CreativeModeInventoryScreen screen) {
+		if (screen == null
+			|| ((CreativeModeInventoryScreenAccessor) screen).madokuCraft$isInventoryOpen()
+			|| CREATIVE_LAYOUTS.containsKey(screen)) {
+			return;
+		}
+		CREATIVE_LAYOUTS.put(screen, CreativeLayoutSnapshot.capture(screen));
+	}
+
+	private static void restoreCreativeLayout(CreativeModeInventoryScreen screen) {
+		CreativeLayoutSnapshot snapshot = CREATIVE_LAYOUTS.get(screen);
+		if (screen == null || snapshot == null) {
+			return;
+		}
+		snapshot.restore(screen);
 	}
 
 	private static void moveCreativeArmorSlots(CreativeModeInventoryScreen screen) {
@@ -418,5 +451,65 @@ public final class PlayerEntitiesInventoryClient {
 			&& mouseX < widget.getRight()
 			&& mouseY >= widget.getY()
 			&& mouseY < widget.getBottom();
+	}
+
+	private record CreativeLayoutSnapshot(int[] armorXs, int[] armorYs, int offhandX, int offhandY, int[] petXs, int[] petYs) {
+		private static CreativeLayoutSnapshot capture(CreativeModeInventoryScreen screen) {
+			int armorCount = Math.min(CREATIVE_ARMOR_SLOT_XS.length, Math.max(0, screen.getMenu().slots.size() - 5));
+			int[] armorXs = new int[armorCount];
+			int[] armorYs = new int[armorCount];
+			for (int index = 0; index < armorCount; index++) {
+				Slot slot = screen.getMenu().slots.get(5 + index);
+				armorXs[index] = slot.x;
+				armorYs[index] = slot.y;
+			}
+
+			int offhandX = 0;
+			int offhandY = 0;
+			if (OFFHAND_SLOT_INDEX >= 0 && OFFHAND_SLOT_INDEX < screen.getMenu().slots.size()) {
+				Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
+				offhandX = offhandSlot.x;
+				offhandY = offhandSlot.y;
+			}
+
+			int petCount = Math.min(PlayerEntitiesSystem.SLOT_COUNT, Math.max(0, screen.getMenu().slots.size() - PlayerEntitiesSystem.FIRST_SLOT_INDEX));
+			int[] petXs = new int[petCount];
+			int[] petYs = new int[petCount];
+			for (int slot = 0; slot < petCount; slot++) {
+				Slot petSlot = screen.getMenu().slots.get(PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot);
+				petXs[slot] = petSlot.x;
+				petYs[slot] = petSlot.y;
+			}
+
+			return new CreativeLayoutSnapshot(armorXs, armorYs, offhandX, offhandY, petXs, petYs);
+		}
+
+		private void restore(CreativeModeInventoryScreen screen) {
+			for (int index = 0; index < armorXs.length; index++) {
+				int slotIndex = 5 + index;
+				if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+					break;
+				}
+				Slot slot = screen.getMenu().slots.get(slotIndex);
+				((SlotAccessor) slot).madokuCraft$setX(armorXs[index]);
+				((SlotAccessor) slot).madokuCraft$setY(armorYs[index]);
+			}
+
+			if (OFFHAND_SLOT_INDEX >= 0 && OFFHAND_SLOT_INDEX < screen.getMenu().slots.size()) {
+				Slot offhandSlot = screen.getMenu().slots.get(OFFHAND_SLOT_INDEX);
+				((SlotAccessor) offhandSlot).madokuCraft$setX(offhandX);
+				((SlotAccessor) offhandSlot).madokuCraft$setY(offhandY);
+			}
+
+			for (int slot = 0; slot < petXs.length; slot++) {
+				int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot;
+				if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
+					break;
+				}
+				Slot petSlot = screen.getMenu().slots.get(slotIndex);
+				((SlotAccessor) petSlot).madokuCraft$setX(petXs[slot]);
+				((SlotAccessor) petSlot).madokuCraft$setY(petYs[slot]);
+			}
+		}
 	}
 }

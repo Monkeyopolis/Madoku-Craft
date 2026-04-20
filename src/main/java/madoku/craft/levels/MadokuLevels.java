@@ -16,6 +16,7 @@ import madoku.craft.pet.PlayerEntitiesSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -63,8 +64,10 @@ public final class MadokuLevels {
 		ResourceLocation.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_luck_bonus");
 	private static final ResourceLocation MOVEMENT_SPEED_BONUS_MODIFIER_ID =
 		ResourceLocation.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels_movement_speed_bonus");
+	private static final String SAVED_HEALTH_TAG = "madokuCraftLevels.savedHealth";
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
+	private static final Map<UUID, Float> PENDING_SAVED_HEALTH = new HashMap<>();
 	private static final Set<UUID> DIRTY_PLAYERS = new HashSet<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static boolean initialized = false;
@@ -91,6 +94,7 @@ public final class MadokuLevels {
 
 	public static void reset() {
 		PLAYER_STATES.clear();
+		PENDING_SAVED_HEALTH.clear();
 		DIRTY_PLAYERS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
@@ -217,6 +221,7 @@ public final class MadokuLevels {
 
 		ensurePlayerState(player);
 		applyPlayerAttributes(player);
+		restoreSavedHealthIfPresent(player);
 		markDirty(player.getUUID());
 	}
 
@@ -305,6 +310,39 @@ public final class MadokuLevels {
 		if (player.getHealth() > player.getMaxHealth()) {
 			player.setHealth(player.getMaxHealth());
 		}
+	}
+
+	public static void writeSavedHealthTag(ServerPlayer player, CompoundTag output) {
+		if (player == null || output == null) {
+			return;
+		}
+		float health = player.getHealth();
+		if (Float.isFinite(health) && health > 0.0F) {
+			output.putFloat(SAVED_HEALTH_TAG, health);
+		}
+	}
+
+	public static void queueSavedHealthTag(ServerPlayer player, CompoundTag input) {
+		if (player == null || input == null || !input.contains(SAVED_HEALTH_TAG)) {
+			return;
+		}
+
+		float savedHealth = input.getFloat(SAVED_HEALTH_TAG);
+		if (!Float.isFinite(savedHealth) || savedHealth <= 0.0F) {
+			PENDING_SAVED_HEALTH.remove(player.getUUID());
+			return;
+		}
+
+		PENDING_SAVED_HEALTH.put(player.getUUID(), savedHealth);
+	}
+
+	private static void restoreSavedHealthIfPresent(ServerPlayer player) {
+		Float savedHealth = PENDING_SAVED_HEALTH.remove(player.getUUID());
+		if (savedHealth == null || !Float.isFinite(savedHealth) || savedHealth <= 0.0F) {
+			return;
+		}
+
+		player.setHealth(Math.min(player.getMaxHealth(), savedHealth));
 	}
 
 	public static int getPlayerHungerBonusPoints(ServerPlayer player) {

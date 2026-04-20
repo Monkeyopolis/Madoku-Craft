@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -1345,11 +1346,13 @@ public final class PlayerEntitiesSystem {
 		}
 
 		if (!anyActive) {
+			removeOrphanedPets(server, player.getUUID(), Set.of());
 			PET_IDS_BY_PLAYER.remove(player.getUUID());
 			pruneCooldowns(player.getUUID(), inventory);
 			return -1L;
 		}
 
+		removeOrphanedPets(server, player.getUUID(), trackedPetIds(petIds));
 		return Math.max(1L, nextDelay);
 	}
 
@@ -2114,14 +2117,17 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static void removeAllPets(MinecraftServer server, UUID playerId) {
-		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
-		if (petIds == null) {
+		if (server == null || playerId == null) {
 			return;
 		}
 
-		for (UUID petId : petIds) {
-			removePet(server, petId);
+		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
+		if (petIds != null) {
+			for (UUID petId : petIds) {
+				removePet(server, petId);
+			}
 		}
+		removeOrphanedPets(server, playerId, Set.of());
 	}
 
 	private static void removePet(MinecraftServer server, UUID petId) {
@@ -2218,6 +2224,36 @@ public final class PlayerEntitiesSystem {
 
 	private static String ownerTag(UUID ownerId) {
 		return MANAGED_PET_OWNER_PREFIX + ownerId;
+	}
+
+	private static Set<UUID> trackedPetIds(UUID[] petIds) {
+		if (petIds == null || petIds.length == 0) {
+			return Set.of();
+		}
+
+		Set<UUID> tracked = new HashSet<>();
+		Arrays.stream(petIds).filter(id -> id != null).forEach(tracked::add);
+		return tracked;
+	}
+
+	private static void removeOrphanedPets(MinecraftServer server, UUID ownerId, Set<UUID> retainedPetIds) {
+		if (server == null || ownerId == null) {
+			return;
+		}
+
+		String ownerTag = ownerTag(ownerId);
+		Set<UUID> retained = retainedPetIds == null ? Set.of() : retainedPetIds;
+		for (ServerLevel level : server.getAllLevels()) {
+			for (Entity entity : level.getAllEntities()) {
+				if (!(entity instanceof Mob pet) || !pet.getTags().contains(ownerTag)) {
+					continue;
+				}
+				if (retained.contains(pet.getUUID())) {
+					continue;
+				}
+				removePet(server, pet.getUUID());
+			}
+		}
 	}
 
 	private static PlayerEntitiesInventory playerEntitiesInventory(Player player) {
