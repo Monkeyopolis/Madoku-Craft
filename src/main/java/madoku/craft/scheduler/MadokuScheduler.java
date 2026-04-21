@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -40,7 +40,6 @@ public final class MadokuScheduler {
 	private static final long IDLE_TIMEOUT_TICKS = 60L * 20L;
 	private static final long WEEK_TIMEOUT_TICKS = 7L * MINECRAFT_DAY_TICKS;
 	private static final long MONTH_TIMEOUT_TICKS = 30L * MINECRAFT_DAY_TICKS;
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long INACTIVE_SCAN_INTERVAL_TICKS = 10L;
 	private static final int MAX_QUEUE_SIZE_PER_SCHEDULER = 2048;
 	private static final int MAX_TASK_RETRY_ATTEMPTS = 3;
@@ -486,9 +485,7 @@ public final class MadokuScheduler {
 
 	public static void loadPersistedData(MinecraftServer server) {
 		reset();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME, createDefaultMetadata());
-
-		JsonObject metadata = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME);
+		JsonObject metadata = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME, createDefaultMetadata());
 		if (metadata != null) {
 			long persistedGameplayTick = getLong(metadata, "gameplay_ticks", 0L);
 			MadokuTicks.setGameplayTicks(persistedGameplayTick);
@@ -498,7 +495,8 @@ public final class MadokuScheduler {
 		DIRTY_SCHEDULER_IDS.clear();
 		REMOVED_SCHEDULER_IDS.clear();
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, META_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -506,7 +504,8 @@ public final class MadokuScheduler {
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, META_FILE_NAME);
+		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (currentBucket == lastAutosaveBucket) {
 			return;
 		}
@@ -525,11 +524,11 @@ public final class MadokuScheduler {
 	}
 
 	private static void flushPersistedData(MinecraftServer server, boolean writeAllSchedulers) {
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME, toMetadataJson());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, META_FILE_NAME, toMetadataJson());
 
 		if (writeAllSchedulers) {
 			for (SchedulerState scheduler : SCHEDULERS.values()) {
-				MadokuData.saveWorldData(
+				DataManagerSystem.saveWorldData(
 					server,
 					DATA_FOLDER_NAME,
 					schedulerFileName(scheduler.schedulerId),
@@ -543,7 +542,7 @@ public final class MadokuScheduler {
 				if (scheduler == null) {
 					continue;
 				}
-				MadokuData.saveWorldData(
+				DataManagerSystem.saveWorldData(
 					server,
 					DATA_FOLDER_NAME,
 					schedulerFileName(scheduler.schedulerId),
@@ -555,14 +554,15 @@ public final class MadokuScheduler {
 		if (!REMOVED_SCHEDULER_IDS.isEmpty()) {
 			List<String> removedIds = new ArrayList<>(REMOVED_SCHEDULER_IDS);
 			for (String schedulerId : removedIds) {
-				MadokuData.deleteWorldData(server, DATA_FOLDER_NAME, schedulerFileName(schedulerId));
+				DataManagerSystem.deleteWorldData(server, DATA_FOLDER_NAME, schedulerFileName(schedulerId));
 			}
 		}
 
 		DIRTY_SCHEDULER_IDS.clear();
 		REMOVED_SCHEDULER_IDS.clear();
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, META_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	private static void loadSchedulersFromMetadata(MinecraftServer server, JsonObject metadata) {
@@ -576,7 +576,7 @@ public final class MadokuScheduler {
 		}
 
 		for (String schedulerId : loadSchedulerIdsFromMetadata(idsElement.getAsJsonArray())) {
-			JsonObject source = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, schedulerFileName(schedulerId));
+			JsonObject source = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, schedulerFileName(schedulerId));
 			if (source == null) {
 				continue;
 			}

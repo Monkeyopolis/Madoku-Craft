@@ -3,7 +3,7 @@ package madoku.craft.entity;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
@@ -37,7 +37,6 @@ public final class MadokuEntities {
 	private static final String ENTITY_DATA_FILE_NAME = "madoku-entities";
 	private static final String DATA_NEXT_HAG_SPAWN_DAY = "next_hag_spawn_day";
 	private static final String DATA_LAST_HAG_CHECK_DAY = "last_hag_check_day";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long DAYS_PER_WEEK = 7L;
 	private static final long MIN_HAG_SPAWN_WEEKS = 1L;
 	private static final long MAX_HAG_SPAWN_WEEKS = 2L;
@@ -98,22 +97,23 @@ public final class MadokuEntities {
 			return;
 		}
 		JsonObject defaults = createDefaultData();
-		MadokuData.createWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
-		JsonObject data = MadokuData.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
 		nextWanderingHagSpawnDay = Math.max(-1L, getLong(data, DATA_NEXT_HAG_SPAWN_DAY, -1L));
 		lastProcessedWanderingHagDay = getLong(data, DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
 		long currentDay = currentAbsoluteDay(server);
 		if (nextWanderingHagSpawnDay < 0L) {
 			nextWanderingHagSpawnDay = currentDay + randomSpawnIntervalDays(server);
 		}
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -124,7 +124,7 @@ public final class MadokuEntities {
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerTick(MinecraftServer server) {

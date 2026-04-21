@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.MadokuScheduler;
 import net.minecraft.core.Holder;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -39,7 +39,6 @@ public final class MadokuOxygen {
 	private static final String DATA_FILE_NAME = "madoku-oxygen";
 	private static final String TASK_TYPE_OXYGEN_TICK = "oxygen_tick";
 	private static final String VANILLA_BREATH_OF_THE_NAUTILUS_DESCRIPTION_ID = "effect.minecraft.breath_of_the_nautilus";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuTicks.TICKS_PER_SECOND);
 	private static final double MIN_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 0.1d;
 	private static final double MAX_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 100.0d;
@@ -81,10 +80,10 @@ public final class MadokuOxygen {
 		}
 
 		loadStaticConfig();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -92,7 +91,8 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -103,7 +103,7 @@ public final class MadokuOxygen {
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static boolean shouldSuppressVanillaDrowningDamage(ServerPlayer player, DamageSource source) {

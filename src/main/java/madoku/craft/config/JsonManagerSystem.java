@@ -112,10 +112,28 @@ public final class JsonManagerSystem {
 		return new ManagedJsonDocument(createGeneral(type, enabled), main);
 	}
 
+	static ManagedJsonDocument readManagedDocument(Path file, ManagedJsonType type) throws IOException {
+		JsonObject raw = readJsonObject(file);
+		JsonObject main = readObject(raw, FIELD_MAIN);
+		JsonObject general = readObject(raw, FIELD_GENERAL);
+		boolean enabled = resolveManagedEnabled(main, general, null);
+		return new ManagedJsonDocument(createGeneral(type, enabled, general), main);
+	}
+
 	static void writeManagedDocument(Path file, ManagedJsonType type, JsonObject main, JsonObject defaults) throws IOException {
 		JsonObject payload = new JsonObject();
 		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
 		payload.add(FIELD_GENERAL, createGeneral(type, resolveManagedEnabled(safeMain, null, defaults)));
+		payload.add(FIELD_MAIN, safeMain);
+		writeJsonObject(file, payload);
+	}
+
+	static void writeManagedDocumentWithGeneral(Path file, ManagedJsonType type, JsonObject general, JsonObject main) throws IOException {
+		JsonObject payload = new JsonObject();
+		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
+		JsonObject safeGeneral = general == null ? new JsonObject() : general.deepCopy();
+		boolean enabled = resolveManagedEnabled(safeMain, safeGeneral, null);
+		payload.add(FIELD_GENERAL, createGeneral(type, enabled, safeGeneral));
 		payload.add(FIELD_MAIN, safeMain);
 		writeJsonObject(file, payload);
 	}
@@ -134,7 +152,16 @@ public final class JsonManagerSystem {
 	}
 
 	private static JsonObject createGeneral(ManagedJsonType type, boolean enabled) {
+		return createGeneral(type, enabled, null);
+	}
+
+	private static JsonObject createGeneral(ManagedJsonType type, boolean enabled, JsonObject source) {
 		JsonObject general = new JsonObject();
+		if (source != null) {
+			for (var entry : source.entrySet()) {
+				general.add(entry.getKey(), entry.getValue() == null ? null : entry.getValue().deepCopy());
+			}
+		}
 		general.addProperty(FIELD_VERSION, getCurrentModVersion());
 		general.addProperty(FIELD_TYPE, type.id());
 		general.addProperty(FIELD_ENABLED, enabled);

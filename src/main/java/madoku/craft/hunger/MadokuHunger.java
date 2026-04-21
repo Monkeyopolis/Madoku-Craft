@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
@@ -46,7 +46,6 @@ private static final int DEFAULT_TIME_GOAL_CLOCK_TICKS = 6 * MINECRAFT_TICKS_PER
 private static final double RESPAWN_HUNGER_RATIO = 0.5d;
 private static final long HUNGER_EFFECT_INTERVAL_TICKS = 20L;
 private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
-private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 
 	private static final String HUNGER_CONFIG_DIRECTORY_NAME = "madoku-hunger";
 	private static final String HUNGER_CONFIG_FILE_NAME = "madoku-hunger";
@@ -86,10 +85,10 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 		}
 
 		loadStaticConfig();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -97,7 +96,8 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -108,7 +108,7 @@ private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static boolean isEnabled() {

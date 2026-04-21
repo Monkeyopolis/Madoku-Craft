@@ -6,7 +6,7 @@ import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
@@ -39,8 +39,6 @@ public final class MadokuTime {
 	private static final String TIME_CONFIG_FILE_NAME = "madoku-time";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-time";
 	private static final String DATA_FILE_NAME = "madoku-time";
-	private static final long AUTOSAVE_INTERVAL_TICKS =
-		MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
 
 	private static volatile TimeSettings settings = TimeSettings.defaults();
 	private static boolean hasAppliedDayTime = false;
@@ -70,7 +68,7 @@ public final class MadokuTime {
 		loadStaticConfig();
 		TimeSettings currentSettings = settings;
 
-		MadokuData.createWorldData(
+		JsonObject data = DataManagerSystem.loadWorldData(
 			server,
 			DATA_FOLDER_NAME,
 			DATA_FILE_NAME,
@@ -81,12 +79,6 @@ public final class MadokuTime {
 			)
 		);
 
-			JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-			if (data == null) {
-				lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
-				return;
-			}
-
 		long day = getLong(data, "day", 0L);
 		int hour = (int) getLong(data, "hour", currentSettings.clockDayStartMinutes / 60);
 		int minute = (int) getLong(data, "minute", currentSettings.clockDayStartMinutes % 60);
@@ -94,11 +86,13 @@ public final class MadokuTime {
 			setClockFromAbsoluteDayTime(toAbsoluteDayTime(day, hour, minute));
 		}
 
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (currentBucket != lastAutosaveBucket) {
 			lastAutosaveBucket = currentBucket;
 			savePersistedData(server);
@@ -111,7 +105,7 @@ public final class MadokuTime {
 		int totalMinutes = getTotalMinutes(absoluteDayTime);
 		int hour = totalMinutes / 60;
 		int minute = totalMinutes % 60;
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createData(day, hour, minute));
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createData(day, hour, minute));
 	}
 
 	public static void update(MinecraftServer server) {

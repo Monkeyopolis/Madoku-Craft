@@ -9,7 +9,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -49,7 +49,6 @@ public final class MadokuHealth {
 	private static final String DATA_FILE_NAME = "madoku-health";
 	private static final String TASK_TYPE_HEALTH_TICK = "health_tick";
 	private static final float DEATH_RESPAWN_HEALTH_RATIO = 0.5f;
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final Identifier LOW_HUNGER_MAX_HEALTH_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_low_hunger_max_health");
 	private static final Identifier HEALTH_BOOST_MAX_HEALTH_MODIFIER_ID =
@@ -97,10 +96,10 @@ public final class MadokuHealth {
 		}
 
 		loadStaticConfig();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -108,7 +107,8 @@ public final class MadokuHealth {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -119,7 +119,7 @@ public final class MadokuHealth {
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	private static void runHealthTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {

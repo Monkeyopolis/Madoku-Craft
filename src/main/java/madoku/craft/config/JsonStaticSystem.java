@@ -10,6 +10,21 @@ public final class JsonStaticSystem {
 	private JsonStaticSystem() {
 	}
 
+	public static ManagedStaticDocument readManagedDocument(Path file) throws IOException {
+		JsonManagerSystem.ManagedJsonDocument source = JsonManagerSystem.readManagedDocument(
+			file,
+			JsonManagerSystem.ManagedJsonType.STATIC
+		);
+		return new ManagedStaticDocument(source.general(), source.main());
+	}
+
+	public static ManagedStaticDocument writeManagedDocument(Path file, JsonObject main, JsonObject general) throws IOException {
+		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
+		JsonObject safeGeneral = general == null ? new JsonObject() : general.deepCopy();
+		JsonManagerSystem.writeManagedDocumentWithGeneral(file, JsonManagerSystem.ManagedJsonType.STATIC, safeGeneral, safeMain);
+		return new ManagedStaticDocument(safeGeneral, safeMain);
+	}
+
 	public static JsonObject ensureManagedFile(Path file, JsonObject defaults) throws IOException {
 		JsonObject fallbackDefaults = defaults == null ? new JsonObject() : defaults;
 		JsonManagerSystem.ManagedJsonDocument source = JsonManagerSystem.readManagedDocument(
@@ -69,5 +84,23 @@ public final class JsonStaticSystem {
 		}
 
 		return defaults.deepCopy();
+	}
+
+	public static final class ManagedStaticDocument {
+		private final JsonObject general;
+		private final JsonObject main;
+
+		private ManagedStaticDocument(JsonObject general, JsonObject main) {
+			this.general = general == null ? new JsonObject() : general.deepCopy();
+			this.main = main == null ? new JsonObject() : main.deepCopy();
+		}
+
+		public JsonObject general() {
+			return general.deepCopy();
+		}
+
+		public JsonObject main() {
+			return main.deepCopy();
+		}
 	}
 }

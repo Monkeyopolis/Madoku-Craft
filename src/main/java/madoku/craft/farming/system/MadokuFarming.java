@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.scheduler.MadokuScheduler;
@@ -80,7 +80,6 @@ public final class MadokuFarming {
 	private static final String FIELD_LAST_PARTICLE_EMISSION_TICKS = "last_particle_emission_ticks";
 	private static final String FIELD_PLOTS = "plots";
 
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long FERTILIZATION_DECAY_TICKS = 3L * 24000L;
 	private static final long CROP_MISSING_GRACE_TICKS = 20L;
 	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
@@ -145,11 +144,11 @@ public final class MadokuFarming {
 
 		loadStaticConfig();
 		loadCropConfigs();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		lastProcessedAbsoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(server.overworld());
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
 	}
 
@@ -158,7 +157,8 @@ public final class MadokuFarming {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
 		}
@@ -174,7 +174,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 	}
 

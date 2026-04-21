@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.time.MadokuTime;
@@ -48,7 +48,6 @@ public final class MadokuSeason {
 	private static final String TASK_TYPE_SEASON_SCAN = "season_scan";
 	private static final String TASK_TYPE_SEASON_PROCESS = "season_process";
 	private static final String SEASON_SCHEDULER_OWNER_ID = "madoku-season";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final long SEASON_YEAR_DAYS = MadokuSeasonConfig.DEFAULT_SEASON_LENGTH_DAYS * 4L;
 	private static final int WATER_SCAN_RADIUS_CHUNKS = 2;
 	private static final int WATER_QUEUE_MAX_SIZE = 640000;
@@ -106,26 +105,27 @@ public final class MadokuSeason {
 			return;
 		}
 
-			loadStaticConfig();
-			MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-			JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-			SeasonState persistedState = parsePersistedState(data);
-				if (persistedState != null) {
-					lastProcessedState = persistedState;
-				} else {
-					lastProcessedState = resolveCurrentState(server.overworld());
-				}
+		loadStaticConfig();
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		SeasonState persistedState = parsePersistedState(data);
+		if (persistedState != null) {
+			lastProcessedState = persistedState;
+		} else {
+			lastProcessedState = resolveCurrentState(server.overworld());
+		}
 
-				loadPendingWaterWork(data);
-				lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
-			}
+		loadPendingWaterWork(data);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -137,7 +137,7 @@ public final class MadokuSeason {
 			return;
 		}
 
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static boolean isEnabled() {

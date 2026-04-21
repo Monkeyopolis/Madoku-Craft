@@ -8,7 +8,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
@@ -100,7 +100,6 @@ public final class PlayerEntitiesSystem {
 	static final String PET_RARITY_RARE = "rare";
 	static final String PET_RARITY_EPIC = "epic";
 	static final String PET_RARITY_MYTHIC = "mythic";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
 	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
@@ -206,11 +205,11 @@ public final class PlayerEntitiesSystem {
 		}
 
 		loadConfig();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		removeTaggedPets(server);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -218,7 +217,8 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -230,7 +230,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerTick(MinecraftServer server) {

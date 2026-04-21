@@ -8,7 +8,7 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.MadokuData;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.hunger.MadokuHunger;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.network.MadokuLevelUpPayload;
@@ -39,7 +39,6 @@ public final class MadokuLevels {
 	private static final String CONFIG_FILE_NAME = "madoku-levels";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-levels";
 	private static final String DATA_FILE_NAME = "madoku-levels";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 	private static final double DEFAULT_BASE_XP_REQUIREMENT = 5.0d;
 	private static final double DEFAULT_BASE_XP_MULTIPLIER = 0.10d;
 	private static final int DEFAULT_MAX_PLAYER_LEVEL_ATTRIBUTES = 60;
@@ -134,10 +133,10 @@ public final class MadokuLevels {
 		}
 
 		loadStaticConfig();
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ensurePlayerState(player);
 			applyPlayerAttributes(player);
@@ -150,7 +149,8 @@ public final class MadokuLevels {
 			return;
 		}
 
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -162,7 +162,7 @@ public final class MadokuLevels {
 			return;
 		}
 
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {
