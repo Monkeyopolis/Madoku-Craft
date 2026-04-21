@@ -7,7 +7,7 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.Holder;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
@@ -60,7 +60,7 @@ public final class MadokuOxygen {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_OXYGEN_TICK, MadokuOxygen::runOxygenTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_OXYGEN_TICK, MadokuOxygen::runOxygenTask);
 		ServerPlayerEvents.JOIN.register(MadokuOxygen::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuOxygen::handlePlayerRespawn);
 	}
@@ -131,12 +131,12 @@ public final class MadokuOxygen {
 		return Math.max(1, (int) Math.round(boostedMaximum));
 	}
 
-	private static void runOxygenTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runOxygenTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
 		}
 
-		MadokuScheduler.SchedulerOwner owner = context.getOwner();
+		SchedulerManagerSystem.SchedulerOwner owner = context.getOwner();
 		if (owner == null || !"player".equals(owner.getKind())) {
 			return;
 		}
@@ -404,8 +404,8 @@ public final class MadokuOxygen {
 
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuScheduler.createScheduler(
-				MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+			schedulerId = SchedulerManagerSystem.createScheduler(
+				SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 			);
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
@@ -423,8 +423,8 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		String created = MadokuScheduler.createScheduler(
-			MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+		String created = SchedulerManagerSystem.createScheduler(
+			SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 		);
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueueOxygenTask(created, delay)) {
@@ -439,15 +439,15 @@ public final class MadokuOxygen {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_OXYGEN_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static JsonObject createDefaultData() {

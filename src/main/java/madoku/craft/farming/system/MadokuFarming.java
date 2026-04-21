@@ -9,7 +9,7 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.season.MadokuSeasonConfig;
 import madoku.craft.time.MadokuTime;
@@ -105,7 +105,7 @@ public final class MadokuFarming {
 	public static void initialize() {
 		loadStaticConfig();
 		loadCropConfigs();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_FARMING_TICK, MadokuFarming::runFarmingTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_TICK, MadokuFarming::runFarmingTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -128,8 +128,8 @@ public final class MadokuFarming {
 	public static void onServerStarted(MinecraftServer server) {
 		applyCropItemMetadata();
 		lastProcessedAbsoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(server.overworld());
-		farmingSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
-		MadokuScheduler.clearQueuedRequests(farmingSchedulerId);
+		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+		SchedulerManagerSystem.clearQueuedRequests(farmingSchedulerId);
 		requestFarmingProcessing(server, FARMING_SCHEDULER_INTERVAL_TICKS);
 	}
 
@@ -486,7 +486,7 @@ public final class MadokuFarming {
 		return true;
 	}
 
-	private static void runFarmingTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runFarmingTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			farmingSchedulerId = context.getSchedulerId();
 		}
@@ -801,7 +801,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		farmingSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
 		if (enqueueFarmingTask(farmingSchedulerId, delayTicks)) {
 			farmingTaskScheduled = true;
 		} else {
@@ -811,7 +811,7 @@ public final class MadokuFarming {
 
 	private static String ensureFarmingSchedulerExists() {
 		if (farmingSchedulerId == null || farmingSchedulerId.isBlank()) {
-			farmingSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+			farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
 		}
 		return farmingSchedulerId;
 	}
@@ -821,15 +821,15 @@ public final class MadokuFarming {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_FARMING_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void processFertilizationDecayOnly(MinecraftServer server, long currentAbsoluteDayTime) {
@@ -1028,7 +1028,7 @@ public final class MadokuFarming {
 		if (world == null) {
 			return "";
 		}
-		return MadokuScheduler.normalizeLevelIdentifier(world.dimension().toString());
+		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
 	private static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
@@ -1036,7 +1036,7 @@ public final class MadokuFarming {
 			return null;
 		}
 
-		String normalizedLevelId = MadokuScheduler.normalizeLevelIdentifier(levelId);
+		String normalizedLevelId = SchedulerManagerSystem.normalizeLevelIdentifier(levelId);
 		Identifier identifier = Identifier.tryParse(normalizedLevelId == null ? "" : normalizedLevelId);
 		if (identifier == null) {
 			return null;

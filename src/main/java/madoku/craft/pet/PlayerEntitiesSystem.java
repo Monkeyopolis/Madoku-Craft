@@ -14,7 +14,7 @@ import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -146,8 +146,8 @@ public final class PlayerEntitiesSystem {
 
 	public static void initialize() {
 		loadConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_PET_TICK, PlayerEntitiesSystem::runPetTick);
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_TICK, PlayerEntitiesSystem::runPetTick);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof ServerPlayer player)) {
 				return;
@@ -1172,7 +1172,7 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static void runPetTick(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runPetTick(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
 		}
@@ -1231,7 +1231,7 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static void runPetAttack(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runPetAttack(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null || payload == null) {
 			return;
 		}
@@ -1906,7 +1906,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		String created = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null));
+		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (!enqueuePetAttackTask(created, slot, target, spawnPosition, delayTicks)) {
 			LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
@@ -1928,7 +1928,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		String created = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null));
+		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueuePetTick(created, delayTicks)) {
 			SCHEDULED_PLAYERS.add(playerId);
@@ -1949,7 +1949,7 @@ public final class PlayerEntitiesSystem {
 	private static String ensureSchedulerExists(UUID playerId) {
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null));
+			schedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
 		return schedulerId;
@@ -1960,14 +1960,14 @@ public final class PlayerEntitiesSystem {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_PET_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED || status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED || status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static boolean enqueuePetAttackTask(String schedulerId, int slot, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
@@ -1981,14 +1981,14 @@ public final class PlayerEntitiesSystem {
 		payload.addProperty(FIELD_SPAWN_X, spawnPosition.x);
 		payload.addProperty(FIELD_SPAWN_Y, spawnPosition.y);
 		payload.addProperty(FIELD_SPAWN_Z, spawnPosition.z);
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_PET_ATTACK,
 			payload,
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED;
 	}
 
 	private static boolean canPetSlotShoot(ServerPlayer player, int slot, long gameplayTicks, ItemStack stack) {
@@ -2258,7 +2258,7 @@ public final class PlayerEntitiesSystem {
 		return petRulesByItemId.get(normalizedItemId);
 	}
 
-	private static UUID parsePlayerOwner(MadokuScheduler.SchedulerOwner owner) {
+	private static UUID parsePlayerOwner(SchedulerManagerSystem.SchedulerOwner owner) {
 		if (owner == null || !"player".equals(owner.getKind())) {
 			return null;
 		}

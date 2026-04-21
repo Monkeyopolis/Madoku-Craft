@@ -12,7 +12,7 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -76,7 +76,7 @@ public final class MadokuHealth {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_HEALTH_TICK, MadokuHealth::runHealthTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_TICK, MadokuHealth::runHealthTask);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealth::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealth::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealth::handlePlayerRespawn);
@@ -122,12 +122,12 @@ public final class MadokuHealth {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	private static void runHealthTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runHealthTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
 		}
 
-		MadokuScheduler.SchedulerOwner owner = context.getOwner();
+		SchedulerManagerSystem.SchedulerOwner owner = context.getOwner();
 		if (owner == null || !"player".equals(owner.getKind())) {
 			return;
 		}
@@ -560,8 +560,8 @@ public final class MadokuHealth {
 
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuScheduler.createScheduler(
-				MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+			schedulerId = SchedulerManagerSystem.createScheduler(
+				SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 			);
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
@@ -579,8 +579,8 @@ public final class MadokuHealth {
 			return;
 		}
 
-		String created = MadokuScheduler.createScheduler(
-			MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+		String created = SchedulerManagerSystem.createScheduler(
+			SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 		);
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueueHealthTask(created, delay)) {
@@ -596,15 +596,15 @@ public final class MadokuHealth {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_HEALTH_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void disableVanillaNaturalRegen(MinecraftServer server, long gameplayTick) {

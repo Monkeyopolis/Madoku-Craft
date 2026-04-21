@@ -14,7 +14,7 @@ import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
 import madoku.craft.mixin.MobExperienceAccessor;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -107,7 +107,7 @@ public final class MadokuMob {
 
 	public static void initialize() {
 		loadConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MadokuMob::runRuntimeTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MadokuMob::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
 			if (entity instanceof LivingEntity livingEntity) {
@@ -131,8 +131,8 @@ public final class MadokuMob {
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
-		runtimeSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
-		MadokuScheduler.clearQueuedRequests(runtimeSchedulerId);
+		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+		SchedulerManagerSystem.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, 1L);
 	}
 
@@ -1284,7 +1284,7 @@ public final class MadokuMob {
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
 	}
 
-	private static void runRuntimeTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runRuntimeTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			runtimeSchedulerId = context.getSchedulerId();
 		}
@@ -1306,7 +1306,7 @@ public final class MadokuMob {
 			runtimeTaskScheduled = true;
 			return;
 		}
-		runtimeSchedulerId = MadokuScheduler.createScheduler(MadokuScheduler.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+		runtimeSchedulerId = SchedulerManagerSystem.createScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
 		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
 			runtimeTaskScheduled = true;
 		}
@@ -1314,7 +1314,7 @@ public final class MadokuMob {
 
 	private static String ensureRuntimeSchedulerExists() {
 		if (runtimeSchedulerId == null || runtimeSchedulerId.isBlank()) {
-			runtimeSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+			runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
 		}
 		return runtimeSchedulerId;
 	}
@@ -1323,14 +1323,14 @@ public final class MadokuMob {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_MOB_RUNTIME_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED || status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED || status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void tickHomingProjectiles(MinecraftServer server) {

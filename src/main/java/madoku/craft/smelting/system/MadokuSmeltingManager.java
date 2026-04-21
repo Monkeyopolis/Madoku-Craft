@@ -10,7 +10,7 @@ import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -83,7 +83,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	public static void initialize() {
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
 		JsonObject smeltingDefaults = MadokuSmeltingConfig.buildSmeltingDefaults();
 
@@ -204,7 +204,7 @@ public final class MadokuSmeltingManager {
 		requestFurnaceProcessing(server, key, 0L);
 	}
 
-	private static void runScheduledFurnaceTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runScheduledFurnaceTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null || !isEnabled()) {
 			return;
 		}
@@ -307,7 +307,7 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		String created = MadokuScheduler.createOrGetScheduler(key.toOwner());
+		String created = SchedulerManagerSystem.createOrGetScheduler(key.toOwner());
 		furnaceSchedulerIds.put(key, created);
 		if (enqueueFurnaceTask(created, delay)) {
 			scheduledFurnaces.add(key);
@@ -320,7 +320,7 @@ public final class MadokuSmeltingManager {
 	private static String ensureSchedulerExists(FurnaceKey key) {
 		String schedulerId = furnaceSchedulerIds.get(key);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuScheduler.createOrGetScheduler(key.toOwner());
+			schedulerId = SchedulerManagerSystem.createOrGetScheduler(key.toOwner());
 			furnaceSchedulerIds.put(key, schedulerId);
 		}
 		return schedulerId;
@@ -331,15 +331,15 @@ public final class MadokuSmeltingManager {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void advanceSingleFurnaceTicks(ServerLevel level, BlockPos blockPos, long extraTicks) {
@@ -373,7 +373,7 @@ public final class MadokuSmeltingManager {
 		}
 		Identifier location = Identifier.tryParse(levelId);
 		if (location == null) {
-			location = Identifier.tryParse(MadokuScheduler.normalizeLevelIdentifier(levelId));
+			location = Identifier.tryParse(SchedulerManagerSystem.normalizeLevelIdentifier(levelId));
 		}
 		if (location == null) {
 			return null;
@@ -907,14 +907,14 @@ public final class MadokuSmeltingManager {
 			if (level == null || blockPos == null) {
 				return null;
 			}
-			String normalizedLevelId = MadokuScheduler.normalizeLevelIdentifier(level.dimension().toString());
+			String normalizedLevelId = SchedulerManagerSystem.normalizeLevelIdentifier(level.dimension().toString());
 			if (normalizedLevelId == null || normalizedLevelId.isBlank()) {
 				return null;
 			}
 			return new FurnaceKey(normalizedLevelId, blockPos.asLong());
 		}
 
-		private static FurnaceKey from(MadokuScheduler.SchedulerOwner owner) {
+		private static FurnaceKey from(SchedulerManagerSystem.SchedulerOwner owner) {
 			if (owner == null || !"blockentity".equals(owner.getKind())) {
 				return null;
 			}
@@ -929,8 +929,8 @@ public final class MadokuSmeltingManager {
 			return new FurnaceKey(levelId, blockPosLong);
 		}
 
-		private MadokuScheduler.SchedulerOwner toOwner() {
-			return MadokuScheduler.SchedulerOwner.of("blockentity", Long.toString(blockPosLong), levelId);
+		private SchedulerManagerSystem.SchedulerOwner toOwner() {
+			return SchedulerManagerSystem.SchedulerOwner.of("blockentity", Long.toString(blockPosLong), levelId);
 		}
 	}
 

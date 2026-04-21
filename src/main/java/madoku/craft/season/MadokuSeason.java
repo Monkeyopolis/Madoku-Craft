@@ -7,7 +7,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -70,8 +70,8 @@ public final class MadokuSeason {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_SEASON_SCAN, MadokuSeason::runSeasonScanTask);
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_SEASON_PROCESS, MadokuSeason::runSeasonProcessTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_SCAN, MadokuSeason::runSeasonScanTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_PROCESS, MadokuSeason::runSeasonProcessTask);
 	}
 
 	public static void reset() {
@@ -89,8 +89,8 @@ public final class MadokuSeason {
 		seasonSchedulerId = "";
 		seasonScanTaskScheduled = false;
 		seasonProcessTaskScheduled = false;
-		seasonSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
-		MadokuScheduler.clearQueuedRequests(seasonSchedulerId);
+		seasonSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
+		SchedulerManagerSystem.clearQueuedRequests(seasonSchedulerId);
 		requestSeasonScanProcessing(server, 1L);
 		requestSeasonProcessProcessing(server, 1L);
 	}
@@ -364,7 +364,7 @@ public final class MadokuSeason {
 		};
 	}
 
-	private static void runSeasonScanTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runSeasonScanTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			seasonSchedulerId = context.getSchedulerId();
 		}
@@ -398,7 +398,7 @@ public final class MadokuSeason {
 		);
 	}
 
-	private static void runSeasonProcessTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runSeasonProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			seasonSchedulerId = context.getSchedulerId();
 		}
@@ -455,7 +455,7 @@ public final class MadokuSeason {
 
 		String schedulerId = ensureSeasonSchedulerExists();
 		if (schedulerId != null && !schedulerId.isBlank()) {
-			MadokuScheduler.clearQueuedRequests(schedulerId);
+			SchedulerManagerSystem.clearQueuedRequests(schedulerId);
 		}
 
 		savePersistedData(server);
@@ -874,7 +874,7 @@ public final class MadokuSeason {
 			return;
 		}
 
-		seasonSchedulerId = MadokuScheduler.createScheduler(MadokuScheduler.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
+		seasonSchedulerId = SchedulerManagerSystem.createScheduler(SchedulerManagerSystem.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
 		if (enqueueSeasonTask(seasonSchedulerId, delay, taskType)) {
 			if (scanTask) {
 				seasonScanTaskScheduled = true;
@@ -889,7 +889,7 @@ public final class MadokuSeason {
 
 	private static String ensureSeasonSchedulerExists() {
 		if (seasonSchedulerId == null || seasonSchedulerId.isBlank()) {
-			seasonSchedulerId = MadokuScheduler.createOrGetScheduler(MadokuScheduler.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
+			seasonSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(SEASON_SCHEDULER_OWNER_ID));
 		}
 		return seasonSchedulerId;
 	}
@@ -899,15 +899,15 @@ public final class MadokuSeason {
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 				schedulerId,
 				Math.max(0L, delay),
 				taskType,
 				new JsonObject(),
-				MadokuScheduler.TickDomain.GAMEPLAY
+				SchedulerManagerSystem.TickDomain.GAMEPLAY
 			);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static SeasonState resolveDisplayState() {

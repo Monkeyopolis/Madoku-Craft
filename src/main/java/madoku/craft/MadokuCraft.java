@@ -26,7 +26,7 @@ import madoku.craft.network.WorldSeasonSync;
 import madoku.craft.network.WorldTimeSync;
 import madoku.craft.oxygen.MadokuOxygen;
 import madoku.craft.rarity.MadokuRarity;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.time.MadokuSleep;
@@ -88,8 +88,8 @@ public class MadokuCraft implements ModInitializer {
 			MadokuOxygen.reset();
 			MadokuLevels.reset();
 			PlayerEntitiesSystem.reset();
-			MadokuScheduler.reset();
-			MadokuScheduler.loadPersistedData(server);
+			SchedulerManagerSystem.reset();
+			SchedulerManagerSystem.loadPersistedData(server);
 			MadokuTime.loadPersistedData(server);
 			MadokuSeason.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
@@ -121,7 +121,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.savePersistedData(server);
 			MadokuEntities.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
-			MadokuScheduler.savePersistedData(server);
+			SchedulerManagerSystem.savePersistedData(server);
 			MadokuPlacedBlocks.savePersistedData(server);
 			MadokuHealth.savePersistedData(server);
 			MadokuHunger.savePersistedData(server);
@@ -136,7 +136,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
-			MadokuScheduler.reset();
+			SchedulerManagerSystem.reset();
 			MadokuPlacedBlocks.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuDifficulty.onServerStopped();
@@ -157,8 +157,13 @@ public class MadokuCraft implements ModInitializer {
 			// Remap sleep / time-command jumps before any time-based tasks consume this tick.
 			MadokuTime.update(server);
 			MadokuTicks.advance(server, tickIncrement);
+			if (MadokuTime.isEnabled()) {
+				SchedulerManagerSystem.onClockTick(server);
+			} else {
+				SchedulerManagerSystem.onServerTick(server);
+			}
 			MadokuFarming.onServerTickIncrement(server, tickIncrement);
-			MadokuScheduler.autosavePersistedData(server);
+			SchedulerManagerSystem.autosavePersistedData(server);
 			MadokuTime.autosavePersistedData(server);
 			MadokuHealth.autosavePersistedData(server);
 			MadokuHunger.autosavePersistedData(server);

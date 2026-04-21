@@ -10,7 +10,7 @@ import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -65,7 +65,7 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuScheduler.registerTaskHandler(TASK_TYPE_HUNGER_TICK, MadokuHunger::runHungerTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HUNGER_TICK, MadokuHunger::runHungerTask);
 		ServerPlayerEvents.JOIN.register(MadokuHunger::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHunger::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -350,12 +350,12 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) serverPlayer.level()).getServer(), serverPlayer.getUUID(), 1L);
 	}
 
-	private static void runHungerTask(MinecraftServer server, MadokuScheduler.TaskContext context, JsonObject payload) {
+	private static void runHungerTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (server == null || context == null) {
 			return;
 		}
 
-		MadokuScheduler.SchedulerOwner owner = context.getOwner();
+		SchedulerManagerSystem.SchedulerOwner owner = context.getOwner();
 		if (owner == null || !"player".equals(owner.getKind())) {
 			return;
 		}
@@ -435,8 +435,8 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuScheduler.createScheduler(
-				MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+			schedulerId = SchedulerManagerSystem.createScheduler(
+				SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 			);
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
@@ -454,8 +454,8 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 			return;
 		}
 
-		String created = MadokuScheduler.createScheduler(
-			MadokuScheduler.SchedulerOwner.of("player", playerId.toString(), null)
+		String created = SchedulerManagerSystem.createScheduler(
+			SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
 		);
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueueHungerTask(created, delay)) {
@@ -470,15 +470,15 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 			return false;
 		}
 
-		MadokuScheduler.EnqueueStatus status = MadokuScheduler.enqueue(
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_HUNGER_TICK,
 			new JsonObject(),
-			MadokuScheduler.TickDomain.GAMEPLAY
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
-		return status == MadokuScheduler.EnqueueStatus.ACCEPTED
-			|| status == MadokuScheduler.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void processFoodChanges(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {

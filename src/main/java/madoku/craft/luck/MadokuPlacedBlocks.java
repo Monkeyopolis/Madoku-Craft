@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.scheduler.MadokuScheduler;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -174,7 +174,7 @@ public final class MadokuPlacedBlocks {
 		if (world == null) {
 			return "";
 		}
-		return MadokuScheduler.normalizeLevelIdentifier(world.dimension().toString());
+		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
 	private static JsonObject createDefaultData() {

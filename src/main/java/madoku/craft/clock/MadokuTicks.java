@@ -1,6 +1,5 @@
 package madoku.craft.clock;
 
-import madoku.craft.scheduler.MadokuScheduler;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.server.MinecraftServer;
 
@@ -36,6 +35,5 @@ public final class MadokuTicks {
 
 		tickGameplay();
 		MadokuTime.advanceSkippedTimeTicks(Math.max(1L, ignoredAmount));
-		MadokuScheduler.tick(server, true);
 	}
 }
