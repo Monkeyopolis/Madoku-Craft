@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -35,7 +36,8 @@ import java.util.UUID;
 
 public final class SchedulerManagerSystem {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerManagerSystem.class);
-	private static final String DATA_FOLDER_NAME = "madoku-craft-scheduler";
+	private static final String DATA_FOLDER_NAME = "madoku-craft-schedulers";
+	private static final String LEGACY_DATA_FOLDER_NAME = "madoku-craft-scheduler";
 	private static final String META_FILE_NAME = "scheduler-manager";
 	private static final String FIELD_AUTO_SAVE = "autoSave";
 	private static final String FIELD_RESET_TIME = "resetTime";
@@ -155,6 +157,29 @@ public final class SchedulerManagerSystem {
 
 		entry.tasks.clear();
 		markDirty(entry);
+	}
+
+	public static boolean hasQueuedTask(String schedulerId, String taskType) {
+		if (schedulerId == null || schedulerId.isBlank()) {
+			return false;
+		}
+
+		SchedulerEntry entry = SCHEDULERS.get(schedulerId);
+		if (entry == null || entry.tasks.isEmpty()) {
+			return false;
+		}
+
+		String normalizedTaskType = normalizeKey(taskType);
+		if (normalizedTaskType.isEmpty()) {
+			return false;
+		}
+
+		for (ScheduledTask task : entry.tasks) {
+			if (task != null && normalizedTaskType.equals(task.taskType)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static String createScheduler(SchedulerOwner owner) {
@@ -589,7 +614,7 @@ public final class SchedulerManagerSystem {
 		BlockPos blockPos = BlockPos.of(packedPos);
 		int chunkX = blockPos.getX() >> 4;
 		int chunkZ = blockPos.getZ() >> 4;
-		if (!level.getChunkSource().hasChunk(chunkX, chunkZ)) {
+		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
 			return false;
 		}
 		return level.getBlockEntity(blockPos) != null;
@@ -606,7 +631,7 @@ public final class SchedulerManagerSystem {
 		}
 		Integer chunkX = parseInt(owner.ownerId.substring(0, separator).trim());
 		Integer chunkZ = parseInt(owner.ownerId.substring(separator + 1).trim());
-		return chunkX != null && chunkZ != null && level.getChunkSource().hasChunk(chunkX, chunkZ);
+		return chunkX != null && chunkZ != null && ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ);
 	}
 
 	private static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
@@ -646,7 +671,17 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static Path resolveSchedulerRoot(MinecraftServer server) {
-		Path root = JsonManagerSystem.getWorldRootDirectory(server).resolve(DATA_FOLDER_NAME);
+		Path worldRoot = JsonManagerSystem.getWorldRootDirectory(server);
+		Path root = worldRoot.resolve(DATA_FOLDER_NAME);
+		Path legacyRoot = worldRoot.resolve(LEGACY_DATA_FOLDER_NAME);
+		if (!Files.exists(root) && Files.isDirectory(legacyRoot)) {
+			try {
+				Files.move(legacyRoot, root);
+			} catch (IOException exception) {
+				LOGGER.warn("Failed to migrate legacy scheduler root {} to {}", legacyRoot, root, exception);
+				root = legacyRoot;
+			}
+		}
 		try {
 			Files.createDirectories(root);
 		} catch (IOException exception) {
