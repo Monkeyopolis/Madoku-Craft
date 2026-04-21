@@ -131,7 +131,7 @@ public final class MadokuMob {
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
-		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		SchedulerManagerSystem.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, 1L);
 	}
@@ -1306,7 +1306,7 @@ public final class MadokuMob {
 			runtimeTaskScheduled = true;
 			return;
 		}
-		runtimeSchedulerId = SchedulerManagerSystem.createScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
 			runtimeTaskScheduled = true;
 		}
@@ -1314,7 +1314,7 @@ public final class MadokuMob {
 
 	private static String ensureRuntimeSchedulerExists() {
 		if (runtimeSchedulerId == null || runtimeSchedulerId.isBlank()) {
-			runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(MOB_SCHEDULER_OWNER_ID));
+			runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		}
 		return runtimeSchedulerId;
 	}

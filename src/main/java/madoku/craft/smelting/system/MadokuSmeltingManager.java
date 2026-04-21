@@ -209,7 +209,7 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		FurnaceKey key = FurnaceKey.from(context.getOwner());
+		FurnaceKey key = FurnaceKey.from(context.getBinding());
 		if (key == null) {
 			return;
 		}
@@ -307,7 +307,7 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		String created = SchedulerManagerSystem.createOrGetScheduler(key.toOwner());
+		String created = SchedulerManagerSystem.createOrGetScheduler(key.toBinding());
 		furnaceSchedulerIds.put(key, created);
 		if (enqueueFurnaceTask(created, delay)) {
 			scheduledFurnaces.add(key);
@@ -320,7 +320,7 @@ public final class MadokuSmeltingManager {
 	private static String ensureSchedulerExists(FurnaceKey key) {
 		String schedulerId = furnaceSchedulerIds.get(key);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(key.toOwner());
+			schedulerId = SchedulerManagerSystem.createOrGetScheduler(key.toBinding());
 			furnaceSchedulerIds.put(key, schedulerId);
 		}
 		return schedulerId;
@@ -380,14 +380,6 @@ public final class MadokuSmeltingManager {
 		}
 		ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, location);
 		return server.getLevel(key);
-	}
-
-	private static Long parseLong(String value) {
-		try {
-			return Long.parseLong(value);
-		} catch (NumberFormatException exception) {
-			return null;
-		}
 	}
 
 	private static void clearFurnaceRuntimeState(FurnaceKey key) {
@@ -914,23 +906,23 @@ public final class MadokuSmeltingManager {
 			return new FurnaceKey(normalizedLevelId, blockPos.asLong());
 		}
 
-		private static FurnaceKey from(SchedulerManagerSystem.SchedulerOwner owner) {
-			if (owner == null || !"blockentity".equals(owner.getKind())) {
+		private static FurnaceKey from(SchedulerManagerSystem.SchedulerBinding binding) {
+			if (binding == null || binding.getEventType() != SchedulerManagerSystem.EventType.BLOCK_ENTITY) {
 				return null;
 			}
-			String levelId = owner.getLevelId();
+			String levelId = binding.getLevelId();
 			if (levelId == null || levelId.isBlank()) {
 				return null;
 			}
-			Long blockPosLong = parseLong(owner.getOwnerId());
+			Long blockPosLong = binding.getBlockPosLong();
 			if (blockPosLong == null) {
 				return null;
 			}
 			return new FurnaceKey(levelId, blockPosLong);
 		}
 
-		private SchedulerManagerSystem.SchedulerOwner toOwner() {
-			return SchedulerManagerSystem.SchedulerOwner.of("blockentity", Long.toString(blockPosLong), levelId);
+		private SchedulerManagerSystem.SchedulerBinding toBinding() {
+			return SchedulerManagerSystem.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
 		}
 	}
 

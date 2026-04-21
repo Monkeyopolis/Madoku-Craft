@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class ChunkManagerSystem {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-chunks";
@@ -32,6 +33,7 @@ public final class ChunkManagerSystem {
 	private static final String FIELD_STATUS = "status";
 
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
+	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
 
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
@@ -40,6 +42,12 @@ public final class ChunkManagerSystem {
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 
 	private ChunkManagerSystem() {
+	}
+
+	public interface ChunkLifecycleListener {
+		void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ);
+
+		void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ);
 	}
 
 	public static void initialize() {
@@ -55,6 +63,13 @@ public final class ChunkManagerSystem {
 		serverStopping = false;
 		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
+	}
+
+	public static void registerChunkLifecycleListener(ChunkLifecycleListener listener) {
+		if (listener == null || CHUNK_LIFECYCLE_LISTENERS.contains(listener)) {
+			return;
+		}
+		CHUNK_LIFECYCLE_LISTENERS.add(listener);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -79,7 +94,7 @@ public final class ChunkManagerSystem {
 		serverStopping = false;
 		seedLoadedChunks(server);
 		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerOwner.global(CHUNK_SCHEDULER_OWNER_ID)
+			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 		);
 		refreshTaskScheduled = SchedulerManagerSystem.hasQueuedTask(chunkSchedulerId, TASK_TYPE_CHUNK_REFRESH);
 		if (!refreshTaskScheduled) {
@@ -182,11 +197,26 @@ public final class ChunkManagerSystem {
 		return getStoredChunkStatus(level, chunkX, chunkZ);
 	}
 
+	public static List<Long> getLoadedChunkPositions(ServerLevel level) {
+		if (level == null) {
+			return List.of();
+		}
+
+		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId(level));
+		if (chunks == null || chunks.isEmpty()) {
+			return List.of();
+		}
+
+		return new ArrayList<>(chunks.keySet());
+	}
+
 	private static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
 		if (level == null || chunk == null) {
 			return;
 		}
-		putChunkStatus(levelId(level), chunk.getPos().pack(), FullChunkStatus.FULL);
+		ChunkPos chunkPos = chunk.getPos();
+		putChunkStatus(levelId(level), chunkPos.pack(), FullChunkStatus.FULL);
+		notifyChunkLoaded(level, chunkPos.x(), chunkPos.z());
 	}
 
 	private static void onChunkUnload(ServerLevel level, LevelChunk chunk) {
@@ -196,7 +226,9 @@ public final class ChunkManagerSystem {
 		if (serverStopping) {
 			return;
 		}
-		removeChunk(levelId(level), chunk.getPos().pack());
+		ChunkPos chunkPos = chunk.getPos();
+		removeChunk(levelId(level), chunkPos.pack());
+		notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 	}
 
 	private static void runChunkRefreshTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -257,6 +289,7 @@ public final class ChunkManagerSystem {
 				if (resolved == null) {
 					chunks.remove(packedChunk);
 					dirty = true;
+					notifyChunkUnloaded(level, unpackChunkX(packedChunk), unpackChunkZ(packedChunk));
 					continue;
 				}
 
@@ -290,8 +323,8 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		chunkSchedulerId = SchedulerManagerSystem.createScheduler(
-			SchedulerManagerSystem.SchedulerOwner.global(CHUNK_SCHEDULER_OWNER_ID)
+		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 		);
 		if (enqueueChunkRefresh(chunkSchedulerId, delayTicks)) {
 			refreshTaskScheduled = true;
@@ -301,7 +334,7 @@ public final class ChunkManagerSystem {
 	private static String ensureChunkSchedulerExists() {
 		if (chunkSchedulerId == null || chunkSchedulerId.isBlank()) {
 			chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerOwner.global(CHUNK_SCHEDULER_OWNER_ID)
+				SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 			);
 		}
 		return chunkSchedulerId;
@@ -364,6 +397,18 @@ public final class ChunkManagerSystem {
 			CHUNK_STATUSES_BY_LEVEL.remove(levelId);
 		}
 		dirty = true;
+	}
+
+	private static void notifyChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+		for (ChunkLifecycleListener listener : CHUNK_LIFECYCLE_LISTENERS) {
+			listener.onChunkLoaded(level, chunkX, chunkZ);
+		}
+	}
+
+	private static void notifyChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+		for (ChunkLifecycleListener listener : CHUNK_LIFECYCLE_LISTENERS) {
+			listener.onChunkUnloaded(level, chunkX, chunkZ);
+		}
 	}
 
 	private static JsonObject createDefaultData() {

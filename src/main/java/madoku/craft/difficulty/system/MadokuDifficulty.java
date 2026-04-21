@@ -92,7 +92,7 @@ public final class MadokuDifficulty {
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		refreshCachedTimeAdjustment(server, snapshot);
-		timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(TIME_SCHEDULER_OWNER_ID));
+		timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		SchedulerManagerSystem.clearQueuedRequests(timeSchedulerId);
 		requestTimeProcessing(server, 1L);
 	}
@@ -659,7 +659,7 @@ public final class MadokuDifficulty {
 			return;
 		}
 
-		timeSchedulerId = SchedulerManagerSystem.createScheduler(SchedulerManagerSystem.SchedulerOwner.global(TIME_SCHEDULER_OWNER_ID));
+		timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		if (enqueueTimeTask(timeSchedulerId, delay)) {
 			timeTaskScheduled = true;
 			return;
@@ -669,7 +669,7 @@ public final class MadokuDifficulty {
 
 	private static String ensureTimeSchedulerExists() {
 		if (timeSchedulerId == null || timeSchedulerId.isBlank()) {
-			timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(TIME_SCHEDULER_OWNER_ID));
+			timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		}
 		return timeSchedulerId;
 	}

@@ -82,6 +82,7 @@ public final class PlayerEntitiesSystem {
 	private static final String DATA_FILE_NAME = "madoku-pets";
 	private static final String TASK_TYPE_PET_TICK = "pet_tick";
 	private static final String TASK_TYPE_PET_ATTACK = "pet_attack";
+	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
 	private static final String LEGACY_SAVE_KEY = "PlayerPets";
 	private static final String MANAGED_PET_TAG = "madoku-craft.pet";
 	private static final String MANAGED_PET_OWNER_PREFIX = "madoku-craft.pet.owner:";
@@ -1177,7 +1178,8 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		UUID playerId = parsePlayerOwner(context.getOwner());
+		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
+		UUID playerId = binding == null ? null : binding.getEntityUuid();
 		if (playerId == null) {
 			return;
 		}
@@ -1236,7 +1238,8 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		UUID playerId = parsePlayerOwner(context.getOwner());
+		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
+		UUID playerId = binding == null ? null : binding.getEntityUuid();
 		if (playerId == null) {
 			return;
 		}
@@ -1906,7 +1909,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
+		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (!enqueuePetAttackTask(created, slot, target, spawnPosition, delayTicks)) {
 			LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
@@ -1928,7 +1931,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
+		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueuePetTick(created, delayTicks)) {
 			SCHEDULED_PLAYERS.add(playerId);
@@ -1949,7 +1952,7 @@ public final class PlayerEntitiesSystem {
 	private static String ensureSchedulerExists(UUID playerId) {
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null));
+			schedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
 		return schedulerId;
@@ -2258,13 +2261,6 @@ public final class PlayerEntitiesSystem {
 		return petRulesByItemId.get(normalizedItemId);
 	}
 
-	private static UUID parsePlayerOwner(SchedulerManagerSystem.SchedulerOwner owner) {
-		if (owner == null || !"player".equals(owner.getKind())) {
-			return null;
-		}
-		return parseUuid(owner.getOwnerId());
-	}
-
 	private static UUID parseUuid(String value) {
 		if (value == null || value.isBlank()) {
 			return null;
@@ -2279,24 +2275,12 @@ public final class PlayerEntitiesSystem {
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
 		root.addProperty("version", 1);
-		root.add("schedulers", new JsonArray());
 		root.add("slot_cooldowns", new JsonArray());
 		return root;
 	}
 
 	private static JsonObject toPersistedData() {
 		JsonObject root = createDefaultData();
-		JsonArray schedulers = new JsonArray();
-		for (Map.Entry<UUID, String> entry : PLAYER_SCHEDULER_IDS.entrySet()) {
-			if (entry.getKey() == null || entry.getValue() == null || entry.getValue().isBlank()) {
-				continue;
-			}
-			JsonObject scheduler = new JsonObject();
-			scheduler.addProperty("uuid", entry.getKey().toString());
-			scheduler.addProperty("scheduler_id", entry.getValue().trim());
-			schedulers.add(scheduler);
-		}
-		root.add("schedulers", schedulers);
 
 		JsonArray cooldowns = new JsonArray();
 		for (Map.Entry<UUID, long[]> entry : PLAYER_SLOT_COOLDOWNS.entrySet()) {
@@ -2322,22 +2306,6 @@ public final class PlayerEntitiesSystem {
 		PLAYER_SLOT_COOLDOWNS.clear();
 		if (source == null) {
 			return;
-		}
-
-		JsonArray schedulers = getArray(source, "schedulers");
-		if (schedulers != null) {
-			for (JsonElement element : schedulers) {
-				if (!element.isJsonObject()) {
-					continue;
-				}
-				JsonObject schedulerData = element.getAsJsonObject();
-				UUID playerId = parseUuid(getString(schedulerData, "uuid", ""));
-				String schedulerId = getString(schedulerData, "scheduler_id", "");
-				if (playerId == null || schedulerId.isBlank()) {
-					continue;
-				}
-				PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
-			}
 		}
 
 		JsonArray slotCooldowns = getArray(source, "slot_cooldowns");

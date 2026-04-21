@@ -128,7 +128,7 @@ public final class MadokuFarming {
 	public static void onServerStarted(MinecraftServer server) {
 		applyCropItemMetadata();
 		lastProcessedAbsoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(server.overworld());
-		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID));
 		SchedulerManagerSystem.clearQueuedRequests(farmingSchedulerId);
 		requestFarmingProcessing(server, FARMING_SCHEDULER_INTERVAL_TICKS);
 	}
@@ -801,7 +801,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID));
 		if (enqueueFarmingTask(farmingSchedulerId, delayTicks)) {
 			farmingTaskScheduled = true;
 		} else {
@@ -811,7 +811,7 @@ public final class MadokuFarming {
 
 	private static String ensureFarmingSchedulerExists() {
 		if (farmingSchedulerId == null || farmingSchedulerId.isBlank()) {
-			farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerOwner.global(FARMING_SCHEDULER_OWNER_ID));
+			farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID));
 		}
 		return farmingSchedulerId;
 	}

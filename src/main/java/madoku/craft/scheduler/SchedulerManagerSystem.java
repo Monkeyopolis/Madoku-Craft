@@ -8,6 +8,7 @@ import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.data.DataManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -15,61 +16,57 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.UUID;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public final class SchedulerManagerSystem {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerManagerSystem.class);
 	private static final String DATA_FOLDER_NAME = "madoku-craft-schedulers";
-	private static final String LEGACY_DATA_FOLDER_NAME = "madoku-craft-scheduler";
-	private static final String META_FILE_NAME = "scheduler-manager";
-	private static final String FIELD_AUTO_SAVE = "autoSave";
-	private static final String FIELD_RESET_TIME = "resetTime";
-	private static final long DEFAULT_AUTO_SAVE_MINUTES = 5L;
-	private static final long VANILLA_DAY_TICKS = 24000L;
+	private static final String DATA_FILE_NAME = "madoku-schedulers";
+	private static final String LEGACY_DATA_FILE_NAME = "scheduler-manager";
+	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
+	private static final String GROUP_GENERAL = "general";
+	private static final String FIELD_EXPIRATION = "expiration";
+	private static final String FIELD_LAST_TOUCHED_DAY = "last_touched_day";
+	private static final int DEFAULT_EXPIRATION_DAYS = 14;
+	private static final long INACTIVE_EXPIRATION_TICKS =
+		5L * 60L * MadokuTicks.TICKS_PER_SECOND;
 	private static final Comparator<ScheduledTask> TASK_COMPARATOR =
 		Comparator.comparingLong((ScheduledTask task) -> task.dueTick)
 			.thenComparingLong(task -> task.requestId);
 
 	private static final Map<String, SchedulerEntry> SCHEDULERS = new LinkedHashMap<>();
-	private static final Map<String, String> SCHEDULER_IDS_BY_OWNER = new HashMap<>();
+	private static final Map<String, String> SCHEDULER_IDS_BY_BINDING = new HashMap<>();
 	private static final Map<String, TaskHandler> TASK_HANDLERS = new HashMap<>();
-	private static final Set<String> DIRTY_SCHEDULER_IDS = new HashSet<>();
-	private static final Map<String, SchedulerTier> REMOVED_SCHEDULERS = new LinkedHashMap<>();
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static boolean dirty;
-	private static volatile MinecraftServer activeServer;
-	private static volatile JsonObject metadataGeneral = createMetadataGeneral();
 
 	private SchedulerManagerSystem() {
 	}
 
 	public static void reset() {
 		SCHEDULERS.clear();
-		SCHEDULER_IDS_BY_OWNER.clear();
-		DIRTY_SCHEDULER_IDS.clear();
-		REMOVED_SCHEDULERS.clear();
+		SCHEDULER_IDS_BY_BINDING.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
-		activeServer = null;
-		metadataGeneral = createMetadataGeneral();
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -78,22 +75,13 @@ public final class SchedulerManagerSystem {
 		}
 
 		reset();
-		activeServer = server;
-		ManagedDocument metadata = loadManagedDocument(resolveMetadataFile(server));
-		metadataGeneral = normalizeMetadataGeneral(metadata.general);
-		JsonObject metadataMain = normalizeMetadataMain(metadata.main);
-		writeManagedDocument(resolveMetadataFile(server), metadataGeneral, metadataMain);
-
-		MadokuTicks.setGameplayTicks(getLong(metadataMain, "gameplay_ticks", 0L));
-		long currentDay = resolveCurrentDay(server);
-		GlobalSchedulerSystem.load(server, getArray(metadataMain, SchedulerTier.GLOBAL.metadataField()), currentDay);
-		WorldSchedulerSystem.load(server, getArray(metadataMain, SchedulerTier.WORLD.metadataField()), currentDay);
-		SchedulerSystem.load(server, getArray(metadataMain, SchedulerTier.LOCAL.metadataField()), currentDay);
-
-		DIRTY_SCHEDULER_IDS.clear();
-		REMOVED_SCHEDULERS.clear();
+		JsonObject persistedData = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		applyPersistedData(server, persistedData);
+		if (SCHEDULERS.isEmpty() && legacySchedulerDataExists(server)) {
+			applyPersistedData(server, DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME, createDefaultData()));
+		}
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks());
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -101,8 +89,11 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		activeServer = server;
-		flushPersistedData(server, true);
+		saveSchedulerFiles(server);
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.deleteWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME);
+		dirty = false;
+		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -110,17 +101,20 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		activeServer = server;
-		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks());
+		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 		if (currentBucket == lastAutosaveBucket) {
 			return;
 		}
-		if (!dirty && DIRTY_SCHEDULER_IDS.isEmpty() && REMOVED_SCHEDULERS.isEmpty()) {
+		if (!dirty) {
 			lastAutosaveBucket = currentBucket;
 			return;
 		}
 
-		flushPersistedData(server, false);
+		saveSchedulerFiles(server);
+		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataManagerSystem.deleteWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME);
+		dirty = false;
+		lastAutosaveBucket = currentBucket;
 	}
 
 	public static void onClockTick(MinecraftServer server) {
@@ -128,10 +122,7 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		activeServer = server;
-		long nowTick = MadokuTicks.getGameplayTicks();
-		long currentDay = resolveCurrentDay(server);
-		GlobalSchedulerSystem.processDue(server, nowTick, currentDay);
+		processDue(server);
 	}
 
 	public static void onServerTick(MinecraftServer server) {
@@ -139,10 +130,7 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		activeServer = server;
-		long nowTick = MadokuTicks.getGameplayTicks();
-		long currentDay = resolveCurrentDay(server);
-		GlobalSchedulerSystem.processDue(server, nowTick, currentDay);
+		processDue(server);
 	}
 
 	public static void clearQueuedRequests(String schedulerId) {
@@ -156,7 +144,8 @@ public final class SchedulerManagerSystem {
 		}
 
 		entry.tasks.clear();
-		markDirty(entry);
+		entry.touch(resolveCurrentSchedulerDay(null));
+		markDirty();
 	}
 
 	public static boolean hasQueuedTask(String schedulerId, String taskType) {
@@ -182,36 +171,36 @@ public final class SchedulerManagerSystem {
 		return false;
 	}
 
-	public static String createScheduler(SchedulerOwner owner) {
-		SchedulerOwner normalizedOwner = normalizeOwner(owner);
-		long currentDay = resolveCurrentDay(activeServer);
-		SchedulerTier tier = routeTier(normalizedOwner);
-		String schedulerId = UUID.randomUUID().toString();
-		SchedulerEntry entry = new SchedulerEntry(
-			schedulerId,
-			normalizedOwner,
-			tier,
-			currentDay,
-			0L
-		);
-		SCHEDULERS.put(schedulerId, entry);
-		indexOwner(entry);
-		markDirty(entry);
-		return schedulerId;
+	public static String createOrGetScheduler(SchedulerBinding binding) {
+		return createOrGetScheduler(binding, DEFAULT_EXPIRATION_DAYS);
 	}
 
-	public static String createOrGetScheduler(SchedulerOwner owner) {
-		SchedulerOwner normalizedOwner = normalizeOwner(owner);
-		String ownerKey = ownerKey(normalizedOwner);
-		String existingId = SCHEDULER_IDS_BY_OWNER.get(ownerKey);
+	public static String createOrGetScheduler(SchedulerBinding binding, int expirationDays) {
+		SchedulerBinding normalizedBinding = normalizeBinding(binding);
+		int normalizedExpirationDays = normalizeExpirationDays(expirationDays);
+		long currentDay = resolveCurrentSchedulerDay(null);
+		String bindingKey = bindingKey(normalizedBinding);
+		String existingId = SCHEDULER_IDS_BY_BINDING.get(bindingKey);
 		if (existingId != null) {
 			SchedulerEntry existing = SCHEDULERS.get(existingId);
-			if (existing != null && sameOwner(existing.owner, normalizedOwner)) {
+			if (existing != null && existing.binding.sameTarget(normalizedBinding)) {
+				existing.setExpirationDays(normalizedExpirationDays);
+				existing.touch(currentDay);
 				return existing.schedulerId;
 			}
-			SCHEDULER_IDS_BY_OWNER.remove(ownerKey, existingId);
+			SCHEDULER_IDS_BY_BINDING.remove(bindingKey);
 		}
-		return createScheduler(normalizedOwner);
+
+		SchedulerEntry created = new SchedulerEntry(
+			UUID.randomUUID().toString(),
+			normalizedBinding,
+			normalizedExpirationDays,
+			currentDay
+		);
+		SCHEDULERS.put(created.schedulerId, created);
+		SCHEDULER_IDS_BY_BINDING.put(bindingKey, created.schedulerId);
+		markDirty();
+		return created.schedulerId;
 	}
 
 	public static EnqueueStatus enqueue(
@@ -231,22 +220,18 @@ public final class SchedulerManagerSystem {
 			return EnqueueStatus.INVALID_TASK_TYPE;
 		}
 
-		long currentDay = resolveCurrentDay(activeServer);
-		if (isExpired(entry, currentDay)) {
-			removeScheduler(entry);
-			return EnqueueStatus.SCHEDULER_EXPIRED;
-		}
-
-		long dueTick = Math.max(0L, MadokuTicks.getGameplayTicks() + Math.max(0L, delayTicks));
+		long nowTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		entry.touch(resolveCurrentSchedulerDay(null));
+		long dueTick = Math.max(0L, nowTick + Math.max(0L, delayTicks));
 		entry.tasks.add(new ScheduledTask(
 			entry.nextRequestId++,
-			MadokuTicks.getGameplayTicks(),
+			nowTick,
 			dueTick,
 			Objects.requireNonNullElse(domain, TickDomain.GAMEPLAY),
 			normalizedTaskType,
 			payload == null ? new JsonObject() : payload.deepCopy()
 		));
-		markDirty(entry);
+		markDirty();
 		return EnqueueStatus.ACCEPTED;
 	}
 
@@ -270,61 +255,40 @@ public final class SchedulerManagerSystem {
 		return normalizeLevelId(levelId);
 	}
 
-	static void loadTier(MinecraftServer server, JsonArray ids, SchedulerTier tier, long currentDay) {
-		if (ids == null) {
-			return;
-		}
-
-		for (String schedulerId : loadIds(ids)) {
-			Path file = resolveSchedulerFile(server, tier, schedulerId);
-			if (!Files.isRegularFile(file)) {
-				continue;
-			}
-
-			ManagedDocument document = loadManagedDocument(file);
-			long resetTime = Math.max(0L, getLong(document.general, FIELD_RESET_TIME, 0L));
-			SchedulerEntry entry = SchedulerEntry.fromJson(document.main, tier, resetTime);
+	private static void processDue(MinecraftServer server) {
+		long nowTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		long currentDay = resolveCurrentSchedulerDay(server);
+		List<SchedulerEntry> snapshot = new ArrayList<>(SCHEDULERS.values());
+		for (SchedulerEntry entry : snapshot) {
 			if (entry == null) {
 				continue;
 			}
-			if (isExpired(entry, currentDay)) {
-				REMOVED_SCHEDULERS.put(entry.schedulerId, entry.tier);
-				dirty = true;
-				continue;
-			}
-			SCHEDULERS.put(entry.schedulerId, entry);
-			indexOwner(entry);
-		}
-	}
-
-	static void processTier(MinecraftServer server, SchedulerTier tier, String levelId, long nowTick, long currentDay) {
-		List<SchedulerEntry> snapshot = new ArrayList<>(SCHEDULERS.values());
-		for (SchedulerEntry entry : snapshot) {
-			if (entry.tier != tier) {
-				continue;
-			}
-			if (levelId != null && !levelId.equals(entry.owner.levelId)) {
-				continue;
-			}
-			if (isExpired(entry, currentDay)) {
-				removeScheduler(entry);
-				continue;
-			}
 			if (entry.tasks.isEmpty()) {
 				removeScheduler(entry);
 				continue;
 			}
-			if (!isOwnerValid(server, entry.owner)) {
+			if (entry.isExpiredForStaleness(currentDay)) {
+				removeExpiredScheduler(entry, "stale", nowTick, currentDay);
 				continue;
 			}
-			processDueTasks(server, entry, nowTick);
+
+			boolean runnable = isRunnable(server, entry.binding);
+			if (!runnable) {
+				if (entry.isExpiredForInactivity(nowTick)) {
+					removeExpiredScheduler(entry, "inactive", nowTick, currentDay);
+				}
+				continue;
+			}
+
+			entry.markRunnable(nowTick);
+			processDueTasks(server, entry, nowTick, currentDay);
 			if (entry.tasks.isEmpty()) {
 				removeScheduler(entry);
 			}
 		}
 	}
 
-	private static void processDueTasks(MinecraftServer server, SchedulerEntry entry, long nowTick) {
+	private static void processDueTasks(MinecraftServer server, SchedulerEntry entry, long nowTick, long currentDay) {
 		boolean changed = false;
 		while (true) {
 			ScheduledTask next = entry.tasks.peek();
@@ -334,13 +298,14 @@ public final class SchedulerManagerSystem {
 
 			entry.tasks.poll();
 			changed = true;
+			entry.touch(currentDay);
 			TaskHandler handler = TASK_HANDLERS.get(next.taskType);
 			if (handler == null) {
 				LOGGER.warn(
-					"Scheduler task type '{}' has no handler: scheduler={} owner={}",
+					"Scheduler task type '{}' has no handler: scheduler={} binding={}",
 					next.taskType,
 					entry.schedulerId,
-					describeOwner(entry.owner)
+					describeBinding(entry.binding)
 				);
 				continue;
 			}
@@ -348,7 +313,7 @@ public final class SchedulerManagerSystem {
 			try {
 				handler.execute(
 					server,
-					new TaskContext(entry.schedulerId, next.requestId, nowTick, entry.owner, next.domain),
+					new TaskContext(entry.schedulerId, next.requestId, nowTick, entry.binding, next.domain),
 					next.payload.deepCopy()
 				);
 			} catch (RuntimeException exception) {
@@ -363,275 +328,319 @@ public final class SchedulerManagerSystem {
 		}
 
 		if (changed) {
-			markDirty(entry);
+			markDirty();
 		}
 	}
 
-	private static void flushPersistedData(MinecraftServer server, boolean writeAllSchedulers) {
-		writeManagedDocument(resolveMetadataFile(server), metadataGeneral, createMetadataMain());
+	private static boolean isRunnable(MinecraftServer server, SchedulerBinding binding) {
+		if (server == null || binding == null) {
+			return false;
+		}
 
-		if (writeAllSchedulers) {
-			for (SchedulerEntry entry : SCHEDULERS.values()) {
-				saveScheduler(entry, server);
+		return switch (binding.type) {
+			case GLOBAL -> true;
+			case CHUNK -> isChunkRunnable(server, binding);
+			case EVENT -> isEventRunnable(server, binding);
+		};
+	}
+
+	private static boolean isChunkRunnable(MinecraftServer server, SchedulerBinding binding) {
+		ServerLevel level = resolveLevel(server, binding.levelId);
+		return level != null
+			&& ChunkManagerSystem.isChunkLoaded(level, binding.chunkX, binding.chunkZ)
+			&& ChunkManagerSystem.isChunkBlockTicking(level, binding.chunkX, binding.chunkZ);
+	}
+
+	private static boolean isEventRunnable(MinecraftServer server, SchedulerBinding binding) {
+		if (binding.eventType == null || binding.eventId == null || binding.eventId.isBlank()) {
+			return false;
+		}
+
+		return switch (binding.eventType) {
+			case ENTITY -> findEntity(server, binding.eventId) != null;
+			case BLOCK -> isBlockValid(server, binding);
+			case BLOCK_ENTITY -> isBlockEntityValid(server, binding);
+		};
+	}
+
+	private static boolean isBlockValid(MinecraftServer server, SchedulerBinding binding) {
+		ServerLevel level = resolveLevel(server, binding.levelId);
+		Long packedPos = parseLong(binding.eventId);
+		if (level == null || packedPos == null) {
+			return false;
+		}
+
+		BlockPos blockPos = BlockPos.of(packedPos);
+		int chunkX = blockPos.getX() >> 4;
+		int chunkZ = blockPos.getZ() >> 4;
+		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ) || !ChunkManagerSystem.isChunkBlockTicking(level, chunkX, chunkZ)) {
+			return false;
+		}
+		return !level.isEmptyBlock(blockPos);
+	}
+
+	private static boolean isBlockEntityValid(MinecraftServer server, SchedulerBinding binding) {
+		ServerLevel level = resolveLevel(server, binding.levelId);
+		Long packedPos = parseLong(binding.eventId);
+		if (level == null || packedPos == null) {
+			return false;
+		}
+
+		BlockPos blockPos = BlockPos.of(packedPos);
+		int chunkX = blockPos.getX() >> 4;
+		int chunkZ = blockPos.getZ() >> 4;
+		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ) || !ChunkManagerSystem.isChunkBlockTicking(level, chunkX, chunkZ)) {
+			return false;
+		}
+		return level.getBlockEntity(blockPos) != null;
+	}
+
+	private static Entity findEntity(MinecraftServer server, String entityId) {
+		UUID uuid = parseUuid(entityId);
+		if (uuid == null) {
+			return null;
+		}
+
+		Entity player = server.getPlayerList().getPlayer(uuid);
+		if (player != null && player.isAlive()) {
+			return player;
+		}
+
+		for (ServerLevel level : server.getAllLevels()) {
+			Entity entity = level.getEntity(uuid);
+			if (entity != null && entity.isAlive()) {
+				return entity;
 			}
-		} else {
-			for (String schedulerId : new ArrayList<>(DIRTY_SCHEDULER_IDS)) {
-				SchedulerEntry entry = SCHEDULERS.get(schedulerId);
-				if (entry != null) {
-					saveScheduler(entry, server);
-				}
-			}
 		}
-
-		for (Map.Entry<String, SchedulerTier> removed : new ArrayList<>(REMOVED_SCHEDULERS.entrySet())) {
-			deleteSchedulerFile(server, removed.getValue(), removed.getKey());
-		}
-
-		DIRTY_SCHEDULER_IDS.clear();
-		REMOVED_SCHEDULERS.clear();
-		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks());
+		return null;
 	}
 
-	private static void saveScheduler(SchedulerEntry entry, MinecraftServer server) {
-		if (entry == null || server == null) {
-			return;
-		}
-		writeManagedDocument(
-			resolveSchedulerFile(server, entry.tier, entry.schedulerId),
-			createSchedulerGeneral(entry.resetTime),
-			entry.toJson()
-		);
+	private static JsonObject createDefaultData() {
+		JsonObject root = new JsonObject();
+		root.addProperty("gameplay_ticks", 0L);
+		root.add("schedulers", new JsonArray());
+		return root;
 	}
 
-	private static void deleteSchedulerFile(MinecraftServer server, SchedulerTier tier, String schedulerId) {
-		Path file = resolveSchedulerFile(server, tier, schedulerId);
-		try {
-			Files.deleteIfExists(file);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to delete scheduler file {}", file, exception);
-		}
-	}
-
-	private static ManagedDocument loadManagedDocument(Path file) {
-		try {
-			JsonStaticSystem.ManagedStaticDocument document = JsonStaticSystem.readManagedDocument(file);
-			return new ManagedDocument(document.general(), document.main());
-		} catch (IOException exception) {
-			LOGGER.error("Failed to read scheduler document {}", file, exception);
-			return new ManagedDocument(new JsonObject(), new JsonObject());
-		}
-	}
-
-	private static void writeManagedDocument(Path file, JsonObject general, JsonObject main) {
-		try {
-			JsonStaticSystem.writeManagedDocument(file, main, general);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to write scheduler document {}", file, exception);
-		}
-	}
-
-	private static JsonObject normalizeMetadataGeneral(JsonObject source) {
-		JsonObject general = source == null ? new JsonObject() : source.deepCopy();
-		long autoSave = Math.max(1L, getLong(general, FIELD_AUTO_SAVE, DEFAULT_AUTO_SAVE_MINUTES));
-		general.addProperty(FIELD_AUTO_SAVE, autoSave);
-		return general;
-	}
-
-	private static JsonObject normalizeMetadataMain(JsonObject source) {
-		JsonObject main = new JsonObject();
-		main.addProperty("gameplay_ticks", Math.max(0L, getLong(source, "gameplay_ticks", 0L)));
-		main.add(SchedulerTier.GLOBAL.metadataField(), copyArray(source, SchedulerTier.GLOBAL.metadataField()));
-		main.add(SchedulerTier.WORLD.metadataField(), copyArray(source, SchedulerTier.WORLD.metadataField()));
-		main.add(SchedulerTier.LOCAL.metadataField(), copyArray(source, SchedulerTier.LOCAL.metadataField()));
-		return main;
-	}
-
-	private static JsonObject createMetadataMain() {
-		JsonObject main = new JsonObject();
-		main.addProperty("gameplay_ticks", Math.max(0L, MadokuTicks.getGameplayTicks()));
-		main.add(SchedulerTier.GLOBAL.metadataField(), collectIds(SchedulerTier.GLOBAL));
-		main.add(SchedulerTier.WORLD.metadataField(), collectIds(SchedulerTier.WORLD));
-		main.add(SchedulerTier.LOCAL.metadataField(), collectIds(SchedulerTier.LOCAL));
-		return main;
-	}
-
-	private static JsonObject createMetadataGeneral() {
-		JsonObject general = new JsonObject();
-		general.addProperty(FIELD_AUTO_SAVE, DEFAULT_AUTO_SAVE_MINUTES);
-		return general;
-	}
-
-	private static JsonObject createSchedulerGeneral(long resetTime) {
-		JsonObject general = new JsonObject();
-		general.addProperty(FIELD_RESET_TIME, Math.max(0L, resetTime));
-		return general;
-	}
-
-	private static JsonArray collectIds(SchedulerTier tier) {
-		JsonArray ids = new JsonArray();
+	private static JsonObject toPersistedData() {
+		JsonObject root = createDefaultData();
+		root.addProperty("gameplay_ticks", Math.max(0L, MadokuTicks.getGameplayTicks()));
+		JsonArray schedulers = new JsonArray();
 		for (SchedulerEntry entry : SCHEDULERS.values()) {
-			if (entry.tier == tier) {
-				ids.add(entry.schedulerId);
+			if (entry != null && !entry.tasks.isEmpty()) {
+				schedulers.add(entry.schedulerId);
 			}
 		}
-		return ids;
+		root.add("schedulers", schedulers);
+		return root;
 	}
 
-	private static JsonArray copyArray(JsonObject object, String key) {
-		JsonElement element = object == null ? null : object.get(key);
-		return element != null && element.isJsonArray() ? element.getAsJsonArray().deepCopy() : new JsonArray();
-	}
-
-	private static List<String> loadIds(JsonArray ids) {
-		List<String> values = new ArrayList<>();
-		for (JsonElement element : ids) {
-			if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-				continue;
-			}
-			String schedulerId = element.getAsString();
-			if (schedulerId == null || schedulerId.isBlank()) {
-				continue;
-			}
-			values.add(schedulerId.trim());
-		}
-		return values;
-	}
-
-	private static void markDirty(SchedulerEntry entry) {
-		if (entry == null) {
+	private static void applyPersistedData(MinecraftServer server, JsonObject source) {
+		SCHEDULERS.clear();
+		SCHEDULER_IDS_BY_BINDING.clear();
+		if (source == null) {
 			return;
 		}
-		DIRTY_SCHEDULER_IDS.add(entry.schedulerId);
-		REMOVED_SCHEDULERS.remove(entry.schedulerId);
-		dirty = true;
+
+		MadokuTicks.setGameplayTicks(Math.max(0L, getLong(source, "gameplay_ticks", 0L)));
+		JsonArray schedulers = getArray(source, "schedulers");
+		if (schedulers == null) {
+			return;
+		}
+
+		for (JsonElement element : schedulers) {
+			SchedulerEntry entry = null;
+			if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+				entry = loadSchedulerEntry(server, element.getAsString());
+			} else {
+				entry = SchedulerEntry.fromJson(element);
+			}
+			if (entry == null || entry.tasks.isEmpty()) {
+				continue;
+			}
+			SCHEDULERS.put(entry.schedulerId, entry);
+			SCHEDULER_IDS_BY_BINDING.put(bindingKey(entry.binding), entry.schedulerId);
+		}
+	}
+
+	private static long getAutoSaveIntervalTicks(MinecraftServer server) {
+		return DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+	}
+
+	private static boolean legacySchedulerDataExists(MinecraftServer server) {
+		if (server == null) {
+			return false;
+		}
+		Path legacyFile = JsonManagerSystem.getWorldRootDirectory(server)
+			.resolve(DATA_FOLDER_NAME)
+			.resolve(LEGACY_DATA_FILE_NAME + ".json");
+		return Files.isRegularFile(legacyFile);
+	}
+
+	private static SchedulerEntry loadSchedulerEntry(MinecraftServer server, String schedulerId) {
+		String normalizedSchedulerId = schedulerId == null ? "" : schedulerId.trim();
+		if (server == null || normalizedSchedulerId.isBlank()) {
+			return null;
+		}
+
+		Path file = resolveSchedulerFile(server, normalizedSchedulerId, false);
+		if (file == null || !Files.isRegularFile(file)) {
+			return null;
+		}
+
+		try {
+			return SchedulerEntry.fromJson(JsonStaticSystem.readManagedDocument(file).main());
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.error("Failed to load scheduler data file {}", file, exception);
+			return null;
+		}
+	}
+
+	private static void saveSchedulerFiles(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+
+		Set<String> activeSchedulerIds = new LinkedHashSet<>();
+		for (SchedulerEntry entry : SCHEDULERS.values()) {
+			if (entry == null || entry.tasks.isEmpty()) {
+				continue;
+			}
+
+			activeSchedulerIds.add(entry.schedulerId);
+			Path file = resolveSchedulerFile(server, entry.schedulerId, true);
+			if (file == null) {
+				continue;
+			}
+
+			try {
+				JsonObject general = new JsonObject();
+				general.addProperty("scheduler_id", entry.schedulerId);
+				JsonStaticSystem.writeManagedDocument(file, entry.toJson(), general);
+			} catch (IOException | RuntimeException exception) {
+				LOGGER.error("Failed to save scheduler data file {}", file, exception);
+			}
+		}
+
+		deleteStaleSchedulerFiles(server, activeSchedulerIds);
+	}
+
+	private static void deleteStaleSchedulerFiles(MinecraftServer server, Set<String> activeSchedulerIds) {
+		Path schedulerDirectory = resolveSchedulerDirectory(server, false);
+		if (schedulerDirectory == null || !Files.isDirectory(schedulerDirectory)) {
+			return;
+		}
+
+		try (var files = Files.list(schedulerDirectory)) {
+			files.filter(Files::isRegularFile)
+				.filter(path -> path.getFileName().toString().endsWith(".json"))
+				.forEach(path -> {
+					String fileName = path.getFileName().toString();
+					String schedulerId = fileName.substring(0, fileName.length() - ".json".length());
+					if (activeSchedulerIds.contains(schedulerId)) {
+						return;
+					}
+
+					try {
+						Files.deleteIfExists(path);
+					} catch (IOException exception) {
+						LOGGER.error("Failed to delete stale scheduler data file {}", path, exception);
+					}
+				});
+		} catch (IOException exception) {
+			LOGGER.error("Failed to enumerate scheduler data directory {}", schedulerDirectory, exception);
+		}
+	}
+
+	private static Path resolveSchedulerDirectory(MinecraftServer server, boolean createDirectories) {
+		if (server == null) {
+			return null;
+		}
+
+		Path schedulerDirectory = JsonManagerSystem.getWorldRootDirectory(server)
+			.resolve(DATA_FOLDER_NAME)
+			.resolve(SCHEDULER_FILES_DIRECTORY);
+		if (!createDirectories) {
+			return schedulerDirectory;
+		}
+
+		try {
+			Files.createDirectories(schedulerDirectory);
+			return schedulerDirectory;
+		} catch (IOException exception) {
+			throw new IllegalStateException("Failed to create scheduler directory: " + schedulerDirectory, exception);
+		}
+	}
+
+	private static Path resolveSchedulerFile(MinecraftServer server, String schedulerId, boolean createDirectories) {
+		String normalizedSchedulerId = schedulerId == null ? "" : schedulerId.trim();
+		if (normalizedSchedulerId.isBlank()) {
+			return null;
+		}
+
+		Path schedulerDirectory = resolveSchedulerDirectory(server, createDirectories);
+		return schedulerDirectory == null ? null : schedulerDirectory.resolve(normalizedSchedulerId + ".json");
 	}
 
 	private static void removeScheduler(SchedulerEntry entry) {
 		if (entry == null) {
 			return;
 		}
+
 		SCHEDULERS.remove(entry.schedulerId);
-		String ownerKey = ownerKey(entry.owner);
-		if (!ownerKey.isEmpty()) {
-			SCHEDULER_IDS_BY_OWNER.remove(ownerKey, entry.schedulerId);
+		SCHEDULER_IDS_BY_BINDING.remove(bindingKey(entry.binding), entry.schedulerId);
+		markDirty();
+	}
+
+	private static void removeExpiredScheduler(SchedulerEntry entry, String reason, long nowTick, long currentDay) {
+		if (entry == null) {
+			return;
 		}
-		DIRTY_SCHEDULER_IDS.remove(entry.schedulerId);
-		REMOVED_SCHEDULERS.put(entry.schedulerId, entry.tier);
+
+		LOGGER.debug(
+			"Expiring scheduler {} reason={} binding={} now_tick={} current_day={} expiration_days={}",
+			entry.schedulerId,
+			reason,
+			describeBinding(entry.binding),
+			nowTick,
+			currentDay,
+			entry.expirationDays
+		);
+		removeScheduler(entry);
+	}
+
+	private static void markDirty() {
 		dirty = true;
 	}
 
-	private static void indexOwner(SchedulerEntry entry) {
-		String ownerKey = ownerKey(entry.owner);
-		if (!ownerKey.isEmpty()) {
-			SCHEDULER_IDS_BY_OWNER.put(ownerKey, entry.schedulerId);
+	private static SchedulerBinding normalizeBinding(SchedulerBinding binding) {
+		if (binding == null) {
+			throw new IllegalArgumentException("Scheduler binding must not be null.");
 		}
+		return binding.normalized();
 	}
 
-	private static boolean isExpired(SchedulerEntry entry, long currentDay) {
-		if (entry == null || entry.resetTime <= 0L) {
-			return false;
+	private static String bindingKey(SchedulerBinding binding) {
+		if (binding == null) {
+			return "";
 		}
-		return currentDay - entry.createdDay >= entry.resetTime;
+		String levelId = binding.levelId == null ? "" : binding.levelId;
+		String eventType = binding.eventType == null ? "" : binding.eventType.id;
+		String eventId = binding.eventId == null ? "" : binding.eventId;
+		return binding.type.id + '\u0000'
+			+ binding.key + '\u0000'
+			+ levelId + '\u0000'
+			+ binding.chunkX + '\u0000'
+			+ binding.chunkZ + '\u0000'
+			+ eventType + '\u0000'
+			+ eventId;
 	}
 
-	private static long getAutoSaveIntervalTicks() {
-		long minutes = Math.max(1L, getLong(metadataGeneral, FIELD_AUTO_SAVE, DEFAULT_AUTO_SAVE_MINUTES));
-		try {
-			return Math.multiplyExact(minutes, MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND);
-		} catch (ArithmeticException exception) {
-			return DEFAULT_AUTO_SAVE_MINUTES * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
+	private static String describeBinding(SchedulerBinding binding) {
+		if (binding == null) {
+			return "unknown";
 		}
-	}
-
-	private static long resolveCurrentDay(MinecraftServer server) {
-		ServerLevel overworld = server == null ? null : server.overworld();
-		if (overworld == null) {
-			return 0L;
-		}
-		if (MadokuTime.isEnabled()) {
-			return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(overworld)));
-		}
-		return Math.max(0L, Math.floorDiv(overworld.getOverworldClockTime(), VANILLA_DAY_TICKS));
-	}
-
-	private static SchedulerTier routeTier(SchedulerOwner owner) {
-		if (owner == null) {
-			throw new IllegalArgumentException("Scheduler owner must not be null.");
-		}
-		if ("blockentity".equals(owner.kind) || "chunk".equals(owner.kind)) {
-			return SchedulerTier.LOCAL;
-		}
-		if (owner.levelId != null && !owner.levelId.isBlank()) {
-			return SchedulerTier.WORLD;
-		}
-		return SchedulerTier.GLOBAL;
-	}
-
-	private static SchedulerOwner normalizeOwner(SchedulerOwner owner) {
-		if (owner == null) {
-			throw new IllegalArgumentException("Scheduler owner must not be null.");
-		}
-		return owner.normalized();
-	}
-
-	private static boolean sameOwner(SchedulerOwner left, SchedulerOwner right) {
-		return left != null
-			&& right != null
-			&& left.kind.equals(right.kind)
-			&& left.ownerId.equals(right.ownerId)
-			&& Objects.equals(left.levelId, right.levelId);
-	}
-
-	private static boolean isOwnerValid(MinecraftServer server, SchedulerOwner owner) {
-		if (server == null || owner == null) {
-			return false;
-		}
-
-		return switch (owner.kind) {
-			case "global" -> true;
-			case "player" -> playerExists(server, owner);
-			case "blockentity" -> blockEntityExists(server, owner);
-			case "chunk" -> chunkExists(server, owner);
-			default -> owner.levelId != null && !owner.levelId.isBlank() && resolveLevel(server, owner.levelId) != null;
-		};
-	}
-
-	private static boolean playerExists(MinecraftServer server, SchedulerOwner owner) {
-		UUID playerId = parseUuid(owner.ownerId);
-		return playerId != null && server.getPlayerList().getPlayer(playerId) != null;
-	}
-
-	private static boolean blockEntityExists(MinecraftServer server, SchedulerOwner owner) {
-		ServerLevel level = resolveLevel(server, owner.levelId);
-		if (level == null) {
-			return false;
-		}
-		Long packedPos = parseLong(owner.ownerId);
-		if (packedPos == null) {
-			return false;
-		}
-		BlockPos blockPos = BlockPos.of(packedPos);
-		int chunkX = blockPos.getX() >> 4;
-		int chunkZ = blockPos.getZ() >> 4;
-		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
-			return false;
-		}
-		return level.getBlockEntity(blockPos) != null;
-	}
-
-	private static boolean chunkExists(MinecraftServer server, SchedulerOwner owner) {
-		ServerLevel level = resolveLevel(server, owner.levelId);
-		if (level == null) {
-			return false;
-		}
-		int separator = owner.ownerId.indexOf(',');
-		if (separator <= 0 || separator >= owner.ownerId.length() - 1) {
-			return false;
-		}
-		Integer chunkX = parseInt(owner.ownerId.substring(0, separator).trim());
-		Integer chunkZ = parseInt(owner.ownerId.substring(separator + 1).trim());
-		return chunkX != null && chunkZ != null && ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ);
+		return binding.type.id + ":" + binding.key;
 	}
 
 	private static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
@@ -649,58 +658,19 @@ public final class SchedulerManagerSystem {
 		return server.getLevel(key);
 	}
 
-	private static String ownerKey(SchedulerOwner owner) {
-		if (owner == null) {
-			return "";
-		}
-		if (owner.kind.isBlank() || owner.ownerId.isBlank()) {
-			return "";
-		}
-		String levelId = owner.levelId == null ? "" : owner.levelId;
-		return owner.kind + '\u0000' + owner.ownerId + '\u0000' + levelId;
-	}
-
-	private static Path resolveMetadataFile(MinecraftServer server) {
-		return resolveSchedulerRoot(server).resolve(withJsonExtension(META_FILE_NAME));
-	}
-
-	private static Path resolveSchedulerFile(MinecraftServer server, SchedulerTier tier, String schedulerId) {
-		return resolveSchedulerRoot(server)
-			.resolve(tier.directoryName())
-			.resolve(withJsonExtension(schedulerId));
-	}
-
-	private static Path resolveSchedulerRoot(MinecraftServer server) {
-		Path worldRoot = JsonManagerSystem.getWorldRootDirectory(server);
-		Path root = worldRoot.resolve(DATA_FOLDER_NAME);
-		Path legacyRoot = worldRoot.resolve(LEGACY_DATA_FOLDER_NAME);
-		if (!Files.exists(root) && Files.isDirectory(legacyRoot)) {
-			try {
-				Files.move(legacyRoot, root);
-			} catch (IOException exception) {
-				LOGGER.warn("Failed to migrate legacy scheduler root {} to {}", legacyRoot, root, exception);
-				root = legacyRoot;
-			}
-		}
-		try {
-			Files.createDirectories(root);
-		} catch (IOException exception) {
-			throw new IllegalStateException("Failed to create scheduler root directory " + root, exception);
-		}
-		return root;
-	}
-
-	private static String withJsonExtension(String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Scheduler file name must not be blank.");
-		}
-		return normalized.endsWith(".json") ? normalized : normalized + ".json";
+	private static long resolveCurrentSchedulerDay(MinecraftServer server) {
+		ServerLevel level = server == null ? null : server.overworld();
+		return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(level)));
 	}
 
 	private static JsonArray getArray(JsonObject object, String key) {
 		JsonElement element = object == null ? null : object.get(key);
 		return element != null && element.isJsonArray() ? element.getAsJsonArray() : null;
+	}
+
+	private static JsonObject getObject(JsonObject object, String key) {
+		JsonElement element = object == null ? null : object.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
 	}
 
 	private static long getLong(JsonObject object, String key, long fallback) {
@@ -710,6 +680,18 @@ public final class SchedulerManagerSystem {
 		}
 		try {
 			return element.getAsLong();
+		} catch (RuntimeException exception) {
+			return fallback;
+		}
+	}
+
+	private static int getInt(JsonObject object, String key, int fallback) {
+		JsonElement element = object == null ? null : object.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+			return fallback;
+		}
+		try {
+			return element.getAsInt();
 		} catch (RuntimeException exception) {
 			return fallback;
 		}
@@ -736,22 +718,6 @@ public final class SchedulerManagerSystem {
 		return value == null || value.isBlank() ? null : value.trim();
 	}
 
-	private static Integer parseInt(String value) {
-		try {
-			return Integer.parseInt(value);
-		} catch (NumberFormatException exception) {
-			return null;
-		}
-	}
-
-	private static Long parseLong(String value) {
-		try {
-			return Long.parseLong(value);
-		} catch (NumberFormatException exception) {
-			return null;
-		}
-	}
-
 	private static UUID parseUuid(String value) {
 		if (value == null || value.isBlank()) {
 			return null;
@@ -763,8 +729,23 @@ public final class SchedulerManagerSystem {
 		}
 	}
 
+	private static Long parseLong(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return Long.parseLong(value.trim());
+		} catch (NumberFormatException exception) {
+			return null;
+		}
+	}
+
 	private static String normalizeKey(String value) {
 		return value == null ? "" : value.trim().toLowerCase();
+	}
+
+	private static int normalizeExpirationDays(int expirationDays) {
+		return Math.max(0, expirationDays);
 	}
 
 	private static String normalizeLevelId(String levelId) {
@@ -790,15 +771,6 @@ public final class SchedulerManagerSystem {
 		return trimmed;
 	}
 
-	private static String describeOwner(SchedulerOwner owner) {
-		if (owner == null) {
-			return "unknown";
-		}
-		return owner.levelId == null
-			? owner.kind + ":" + owner.ownerId
-			: owner.kind + ":" + owner.ownerId + "@" + owner.levelId;
-	}
-
 	@FunctionalInterface
 	public interface TaskHandler {
 		void execute(MinecraftServer server, TaskContext context, JsonObject payload);
@@ -807,8 +779,6 @@ public final class SchedulerManagerSystem {
 	public enum EnqueueStatus {
 		ACCEPTED,
 		SCHEDULER_NOT_FOUND,
-		SCHEDULER_CLOSED,
-		SCHEDULER_EXPIRED,
 		INVALID_TASK_TYPE,
 		QUEUE_FULL
 	}
@@ -831,18 +801,62 @@ public final class SchedulerManagerSystem {
 		}
 	}
 
+	public enum SchedulerType {
+		GLOBAL("global"),
+		CHUNK("chunk"),
+		EVENT("event");
+
+		private final String id;
+
+		SchedulerType(String id) {
+			this.id = id;
+		}
+
+		static SchedulerType fromId(String value) {
+			String normalized = normalizeKey(value);
+			for (SchedulerType type : values()) {
+				if (type.id.equals(normalized)) {
+					return type;
+				}
+			}
+			return null;
+		}
+	}
+
+	public enum EventType {
+		ENTITY("entity"),
+		BLOCK("block"),
+		BLOCK_ENTITY("blockentity");
+
+		private final String id;
+
+		EventType(String id) {
+			this.id = id;
+		}
+
+		static EventType fromId(String value) {
+			String normalized = normalizeKey(value);
+			for (EventType type : values()) {
+				if (type.id.equals(normalized)) {
+					return type;
+				}
+			}
+			return null;
+		}
+	}
+
 	public static final class TaskContext {
 		private final String schedulerId;
 		private final long requestId;
 		private final long nowTick;
-		private final SchedulerOwner owner;
+		private final SchedulerBinding binding;
 		private final TickDomain domain;
 
-		private TaskContext(String schedulerId, long requestId, long nowTick, SchedulerOwner owner, TickDomain domain) {
+		private TaskContext(String schedulerId, long requestId, long nowTick, SchedulerBinding binding, TickDomain domain) {
 			this.schedulerId = schedulerId;
 			this.requestId = requestId;
 			this.nowTick = nowTick;
-			this.owner = owner;
+			this.binding = binding;
 			this.domain = domain;
 		}
 
@@ -858,8 +872,8 @@ public final class SchedulerManagerSystem {
 			return nowTick;
 		}
 
-		public SchedulerOwner getOwner() {
-			return owner;
+		public SchedulerBinding getBinding() {
+			return binding;
 		}
 
 		public TickDomain getDomain() {
@@ -867,164 +881,274 @@ public final class SchedulerManagerSystem {
 		}
 	}
 
-	public static final class SchedulerOwner {
-		private final String kind;
-		private final String ownerId;
+	public static final class SchedulerBinding {
+		private final SchedulerType type;
+		private final String key;
 		private final String levelId;
+		private final int chunkX;
+		private final int chunkZ;
+		private final EventType eventType;
+		private final String eventId;
 
-		private SchedulerOwner(String kind, String ownerId, String levelId) {
-			this.kind = normalizeKey(kind);
-			this.ownerId = ownerId == null ? "" : ownerId.trim();
+		private SchedulerBinding(
+			SchedulerType type,
+			String key,
+			String levelId,
+			int chunkX,
+			int chunkZ,
+			EventType eventType,
+			String eventId
+		) {
+			this.type = Objects.requireNonNull(type, "Scheduler type must not be null.");
+			this.key = normalizeKey(key);
 			this.levelId = normalizeLevelId(levelId);
-			if (this.kind.isEmpty() || this.ownerId.isEmpty()) {
-				throw new IllegalArgumentException("Scheduler owner must include kind and owner id.");
+			this.chunkX = chunkX;
+			this.chunkZ = chunkZ;
+			this.eventType = eventType;
+			this.eventId = eventId == null || eventId.isBlank() ? null : eventId.trim();
+			validate();
+		}
+
+		public static SchedulerBinding global(String key) {
+			return new SchedulerBinding(SchedulerType.GLOBAL, key, null, 0, 0, null, null);
+		}
+
+		public static SchedulerBinding chunk(String key, String levelId, int chunkX, int chunkZ) {
+			return new SchedulerBinding(SchedulerType.CHUNK, key, levelId, chunkX, chunkZ, null, null);
+		}
+
+		public static SchedulerBinding player(String key, UUID playerId) {
+			return entity(key, playerId);
+		}
+
+		public static SchedulerBinding entity(String key, UUID entityId) {
+			if (entityId == null) {
+				throw new IllegalArgumentException("Entity scheduler must include an entity id.");
+			}
+			return new SchedulerBinding(SchedulerType.EVENT, key, null, 0, 0, EventType.ENTITY, entityId.toString());
+		}
+
+		public static SchedulerBinding block(String key, String levelId, long blockPosLong) {
+			return new SchedulerBinding(SchedulerType.EVENT, key, levelId, 0, 0, EventType.BLOCK, Long.toString(blockPosLong));
+		}
+
+		public static SchedulerBinding blockEntity(String key, String levelId, long blockPosLong) {
+			return new SchedulerBinding(SchedulerType.EVENT, key, levelId, 0, 0, EventType.BLOCK_ENTITY, Long.toString(blockPosLong));
+		}
+
+		private void validate() {
+			if (key.isEmpty()) {
+				throw new IllegalArgumentException("Scheduler binding key must not be blank.");
+			}
+			if (type == SchedulerType.CHUNK && levelId == null) {
+				throw new IllegalArgumentException("Chunk scheduler must include a level id.");
+			}
+			if (type == SchedulerType.EVENT) {
+				if (eventType == null || eventId == null || eventId.isBlank()) {
+					throw new IllegalArgumentException("Event scheduler must include an event type and id.");
+				}
+				if ((eventType == EventType.BLOCK || eventType == EventType.BLOCK_ENTITY) && levelId == null) {
+					throw new IllegalArgumentException("Block-based event scheduler must include a level id.");
+				}
 			}
 		}
 
-		public static SchedulerOwner of(String kind, String ownerId, String levelId) {
-			return new SchedulerOwner(kind, ownerId, levelId);
+		private SchedulerBinding normalized() {
+			return new SchedulerBinding(type, key, levelId, chunkX, chunkZ, eventType, eventId);
 		}
 
-		public static SchedulerOwner global(String ownerId) {
-			return new SchedulerOwner("global", ownerId, null);
+		private boolean sameTarget(SchedulerBinding other) {
+			return other != null
+				&& type == other.type
+				&& key.equals(other.key)
+				&& Objects.equals(levelId, other.levelId)
+				&& chunkX == other.chunkX
+				&& chunkZ == other.chunkZ
+				&& eventType == other.eventType
+				&& Objects.equals(eventId, other.eventId);
 		}
 
-		SchedulerOwner normalized() {
-			return new SchedulerOwner(kind, ownerId, levelId);
+		public SchedulerType getType() {
+			return type;
 		}
 
-		public String getKind() {
-			return kind;
-		}
-
-		public String getOwnerId() {
-			return ownerId;
+		public String getKey() {
+			return key;
 		}
 
 		public String getLevelId() {
 			return levelId;
 		}
 
+		public int getChunkX() {
+			return chunkX;
+		}
+
+		public int getChunkZ() {
+			return chunkZ;
+		}
+
+		public EventType getEventType() {
+			return eventType;
+		}
+
+		public String getEventId() {
+			return eventId;
+		}
+
+		public UUID getEntityUuid() {
+			return eventType == EventType.ENTITY ? parseUuid(eventId) : null;
+		}
+
+		public Long getBlockPosLong() {
+			return eventType == EventType.BLOCK || eventType == EventType.BLOCK_ENTITY ? parseLong(eventId) : null;
+		}
+
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
-			root.addProperty("kind", kind);
-			root.addProperty("owner_id", ownerId);
+			root.addProperty("type", type.id);
+			root.addProperty("key", key);
 			if (levelId == null) {
 				root.add("level_id", JsonNull.INSTANCE);
 			} else {
 				root.addProperty("level_id", levelId);
 			}
+			if (type == SchedulerType.CHUNK) {
+				root.addProperty("chunk_x", chunkX);
+				root.addProperty("chunk_z", chunkZ);
+			}
+			if (type == SchedulerType.EVENT) {
+				root.addProperty("event_type", eventType.id);
+				root.addProperty("event_id", eventId);
+			}
 			return root;
 		}
 
-		private static SchedulerOwner fromJson(JsonObject source) {
+		private static SchedulerBinding fromJson(JsonObject source) {
 			if (source == null) {
 				return null;
 			}
+
+			SchedulerType type = SchedulerType.fromId(getString(source, "type", ""));
+			String key = getString(source, "key", "");
+			String levelId = getNullableString(source, "level_id");
 			try {
-				return of(
-					getString(source, "kind", ""),
-					getString(source, "owner_id", ""),
-					getNullableString(source, "level_id")
-				);
+				if (type == SchedulerType.GLOBAL) {
+					return global(key);
+				}
+				if (type == SchedulerType.CHUNK) {
+					return chunk(key, levelId, getInt(source, "chunk_x", 0), getInt(source, "chunk_z", 0));
+				}
+				if (type == SchedulerType.EVENT) {
+					EventType eventType = EventType.fromId(getString(source, "event_type", ""));
+					String eventId = getString(source, "event_id", "");
+					if (eventType == EventType.ENTITY) {
+						UUID entityId = parseUuid(eventId);
+						return entityId == null ? null : entity(key, entityId);
+					}
+					if (eventType == EventType.BLOCK) {
+						Long blockPos = parseLong(eventId);
+						return blockPos == null ? null : block(key, levelId, blockPos);
+					}
+					if (eventType == EventType.BLOCK_ENTITY) {
+						Long blockPos = parseLong(eventId);
+						return blockPos == null ? null : blockEntity(key, levelId, blockPos);
+					}
+				}
 			} catch (IllegalArgumentException exception) {
 				return null;
 			}
+			return null;
 		}
 	}
 
-	enum SchedulerTier {
-		GLOBAL("global_scheduler_ids", "global-schedulers"),
-		WORLD("world_scheduler_ids", "world-schedulers"),
-		LOCAL("scheduler_ids", "schedulers");
-
-		private final String metadataField;
-		private final String directoryName;
-
-		SchedulerTier(String metadataField, String directoryName) {
-			this.metadataField = metadataField;
-			this.directoryName = directoryName;
-		}
-
-		String metadataField() {
-			return metadataField;
-		}
-
-		String directoryName() {
-			return directoryName;
-		}
-	}
-
-	private static final class ManagedDocument {
-		private final JsonObject general;
-		private final JsonObject main;
-
-		private ManagedDocument(JsonObject general, JsonObject main) {
-			this.general = general == null ? new JsonObject() : general.deepCopy();
-			this.main = main == null ? new JsonObject() : main.deepCopy();
-		}
-	}
-
-	static final class SchedulerEntry {
+	private static final class SchedulerEntry {
 		private final String schedulerId;
-		private final SchedulerOwner owner;
-		private final SchedulerTier tier;
+		private final SchedulerBinding binding;
 		private final PriorityQueue<ScheduledTask> tasks = new PriorityQueue<>(TASK_COMPARATOR);
-		private final long createdDay;
+		private int expirationDays;
+		private long lastTouchedDay;
+		private long lastRunnableGameplayTick;
 		private long nextRequestId = 1L;
-		private long resetTime;
 
-		private SchedulerEntry(
-			String schedulerId,
-			SchedulerOwner owner,
-			SchedulerTier tier,
-			long createdDay,
-			long resetTime
-		) {
+		private SchedulerEntry(String schedulerId, SchedulerBinding binding, int expirationDays, long lastTouchedDay) {
 			this.schedulerId = schedulerId;
-			this.owner = owner;
-			this.tier = tier;
-			this.createdDay = Math.max(0L, createdDay);
-			this.resetTime = Math.max(0L, resetTime);
+			this.binding = binding;
+			this.expirationDays = normalizeExpirationDays(expirationDays);
+			this.lastTouchedDay = Math.max(0L, lastTouchedDay);
+			this.lastRunnableGameplayTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		}
+
+		private void setExpirationDays(int expirationDays) {
+			int normalized = normalizeExpirationDays(expirationDays);
+			if (this.expirationDays != normalized) {
+				this.expirationDays = normalized;
+				markDirty();
+			}
+		}
+
+		private void touch(long currentDay) {
+			long normalizedDay = Math.max(0L, currentDay);
+			if (lastTouchedDay != normalizedDay) {
+				lastTouchedDay = normalizedDay;
+				markDirty();
+			}
+		}
+
+		private void markRunnable(long gameplayTick) {
+			lastRunnableGameplayTick = Math.max(0L, gameplayTick);
+		}
+
+		private boolean isExpiredForStaleness(long currentDay) {
+			return expirationDays > 0
+				&& currentDay >= lastTouchedDay
+				&& currentDay - lastTouchedDay >= expirationDays;
+		}
+
+		private boolean isExpiredForInactivity(long nowTick) {
+			return nowTick >= lastRunnableGameplayTick
+				&& nowTick - lastRunnableGameplayTick >= INACTIVE_EXPIRATION_TICKS;
 		}
 
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("scheduler_id", schedulerId);
-			root.add("owner", owner.toJson());
-			root.addProperty("created_day", createdDay);
+			JsonObject general = new JsonObject();
+			general.addProperty(FIELD_EXPIRATION, expirationDays);
+			general.addProperty(FIELD_LAST_TOUCHED_DAY, Math.max(0L, lastTouchedDay));
+			root.add(GROUP_GENERAL, general);
+			root.add("binding", binding.toJson());
 			root.addProperty("next_request_id", Math.max(1L, nextRequestId));
-			JsonArray requests = new JsonArray();
+			JsonArray tasksArray = new JsonArray();
 			List<ScheduledTask> snapshot = new ArrayList<>(tasks);
 			snapshot.sort(TASK_COMPARATOR);
 			for (ScheduledTask task : snapshot) {
-				requests.add(task.toJson());
+				tasksArray.add(task.toJson());
 			}
-			root.add("requests", requests);
+			root.add("tasks", tasksArray);
 			return root;
 		}
 
-		private static SchedulerEntry fromJson(JsonObject source, SchedulerTier tier, long resetTime) {
-			if (source == null) {
+		private static SchedulerEntry fromJson(JsonElement element) {
+			if (element == null || !element.isJsonObject()) {
 				return null;
 			}
+			JsonObject source = element.getAsJsonObject();
 			String schedulerId = getString(source, "scheduler_id", "");
-			SchedulerOwner owner = SchedulerOwner.fromJson(source.getAsJsonObject("owner"));
-			if (schedulerId.isBlank() || owner == null) {
+			SchedulerBinding binding = SchedulerBinding.fromJson(getObject(source, "binding"));
+			JsonObject general = getObject(source, GROUP_GENERAL);
+			if (schedulerId.isBlank() || binding == null) {
 				return null;
 			}
-			SchedulerEntry entry = new SchedulerEntry(
-				schedulerId.trim(),
-				owner,
-				tier,
-				Math.max(0L, getLong(source, "created_day", 0L)),
-				resetTime
-			);
+
+			int expirationDays = normalizeExpirationDays(getInt(general, FIELD_EXPIRATION, DEFAULT_EXPIRATION_DAYS));
+			long lastTouchedDay = Math.max(0L, getLong(general, FIELD_LAST_TOUCHED_DAY, resolveCurrentSchedulerDay(null)));
+			SchedulerEntry entry = new SchedulerEntry(schedulerId, binding, expirationDays, lastTouchedDay);
 			entry.nextRequestId = Math.max(1L, getLong(source, "next_request_id", 1L));
-			JsonArray requests = getArray(source, "requests");
-			if (requests != null) {
-				for (JsonElement element : requests) {
-					ScheduledTask task = ScheduledTask.fromJson(element);
+			JsonArray tasksArray = getArray(source, "tasks");
+			if (tasksArray != null) {
+				for (JsonElement taskElement : tasksArray) {
+					ScheduledTask task = ScheduledTask.fromJson(taskElement);
 					if (task == null) {
 						continue;
 					}

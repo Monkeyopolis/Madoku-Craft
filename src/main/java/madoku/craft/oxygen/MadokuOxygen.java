@@ -136,12 +136,8 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		SchedulerManagerSystem.SchedulerOwner owner = context.getOwner();
-		if (owner == null || !"player".equals(owner.getKind())) {
-			return;
-		}
-
-		UUID playerId = parseUuid(owner.getOwnerId());
+		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
+		UUID playerId = binding == null ? null : binding.getEntityUuid();
 		if (playerId == null) {
 			return;
 		}
@@ -404,8 +400,8 @@ public final class MadokuOxygen {
 
 		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createScheduler(
-				SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
+			schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+				SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_OXYGEN_TICK, playerId)
 			);
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
@@ -423,8 +419,8 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		String created = SchedulerManagerSystem.createScheduler(
-			SchedulerManagerSystem.SchedulerOwner.of("player", playerId.toString(), null)
+		String created = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_OXYGEN_TICK, playerId)
 		);
 		PLAYER_SCHEDULER_IDS.put(playerId, created);
 		if (enqueueOxygenTask(created, delay)) {
@@ -452,7 +448,6 @@ public final class MadokuOxygen {
 
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
-		root.add("schedulers", new JsonArray());
 		root.add("players", new JsonArray());
 		return root;
 	}
@@ -460,19 +455,7 @@ public final class MadokuOxygen {
 	private static JsonObject toPersistedData() {
 		int oxygenCapTicks = settings.maximumOxygenTicks;
 
-		JsonObject root = new JsonObject();
-		JsonArray schedulers = new JsonArray();
-		for (Map.Entry<UUID, String> entry : PLAYER_SCHEDULER_IDS.entrySet()) {
-			String schedulerId = entry.getValue();
-			if (schedulerId == null || schedulerId.isBlank()) {
-				continue;
-			}
-			JsonObject scheduler = new JsonObject();
-			scheduler.addProperty("uuid", entry.getKey().toString());
-			scheduler.addProperty("scheduler_id", schedulerId.trim());
-			schedulers.add(scheduler);
-		}
-		root.add("schedulers", schedulers);
+		JsonObject root = createDefaultData();
 
 		JsonArray players = new JsonArray();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
@@ -500,22 +483,6 @@ public final class MadokuOxygen {
 		}
 
 		int oxygenCapTicks = settings.maximumOxygenTicks;
-		JsonArray schedulers = getArray(source, "schedulers");
-		if (schedulers != null) {
-			for (JsonElement element : schedulers) {
-				if (element == null || !element.isJsonObject()) {
-					continue;
-				}
-				JsonObject schedulerData = element.getAsJsonObject();
-				UUID playerId = parseUuid(getString(schedulerData, "uuid", ""));
-				String schedulerId = getString(schedulerData, "scheduler_id", "");
-				if (playerId == null || schedulerId.isBlank()) {
-					continue;
-				}
-				PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
-			}
-		}
-
 		JsonArray players = getArray(source, "players");
 		if (players == null) {
 			return;
