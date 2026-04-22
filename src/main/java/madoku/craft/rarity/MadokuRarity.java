@@ -7,12 +7,13 @@ import madoku.craft.item.system.MadokuItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.EquipmentSlotGroup;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -200,6 +201,9 @@ public final class MadokuRarity {
 		if (stack == null || stack.isEmpty() || rarity == null) {
 			return;
 		}
+
+		MadokuItem.applyProfilesToFreshStack(stack);
+
 		if (rarity != MadokuRarityTier.COMMON) {
 			double buffPercent = getRarityStatBuffPercent(rarity);
 			if (buffPercent > 0.0D) {
@@ -279,7 +283,7 @@ public final class MadokuRarity {
 	}
 
 	private static void scaleMaxDurability(ItemStack stack, double multiplier) {
-		Integer maxDamage = stack.get(DataComponents.MAX_DAMAGE);
+		Integer maxDamage = getResolvedComponent(stack, DataComponents.MAX_DAMAGE);
 		if (maxDamage == null || maxDamage <= 0) {
 			return;
 		}
@@ -287,7 +291,7 @@ public final class MadokuRarity {
 	}
 
 	private static void scaleMainHandAttackAttributes(ItemStack stack, double attackDamageMultiplier, double attackSpeedMultiplier) {
-		ItemAttributeModifiers current = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		ItemAttributeModifiers current = getResolvedComponent(stack, DataComponents.ATTRIBUTE_MODIFIERS);
 		if (current == null) {
 			return;
 		}
@@ -325,7 +329,7 @@ public final class MadokuRarity {
 	}
 
 	private static void scaleArmorAttributes(ItemStack stack, double armorMultiplier, double toughnessMultiplier) {
-		ItemAttributeModifiers current = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		ItemAttributeModifiers current = getResolvedComponent(stack, DataComponents.ATTRIBUTE_MODIFIERS);
 		if (current == null) {
 			return;
 		}
@@ -362,13 +366,11 @@ public final class MadokuRarity {
 
 	private static boolean isScaledAttackDamage(ItemAttributeModifiers.Entry entry, AttributeModifier modifier) {
 		return isMainHandAddValue(entry, modifier)
-			&& modifier.id().equals(Item.BASE_ATTACK_DAMAGE_ID)
 			&& isAttribute(entry, Attributes.ATTACK_DAMAGE);
 	}
 
 	private static boolean isScaledAttackSpeed(ItemAttributeModifiers.Entry entry, AttributeModifier modifier) {
 		return isMainHandAddValue(entry, modifier)
-			&& modifier.id().equals(Item.BASE_ATTACK_SPEED_ID)
 			&& isAttribute(entry, Attributes.ATTACK_SPEED);
 	}
 
@@ -383,7 +385,7 @@ public final class MadokuRarity {
 	}
 
 	private static boolean isMainHandAddValue(ItemAttributeModifiers.Entry entry, AttributeModifier modifier) {
-		return entry.slot() == EquipmentSlotGroup.MAINHAND
+		return entry.slot().test(EquipmentSlot.MAINHAND)
 			&& isAddValueModifier(modifier);
 	}
 
@@ -396,7 +398,7 @@ public final class MadokuRarity {
 	}
 
 	private static void scaleMiningSpeed(ItemStack stack, double multiplier) {
-		Tool current = stack.get(DataComponents.TOOL);
+		Tool current = getResolvedComponent(stack, DataComponents.TOOL);
 		if (current == null) {
 			return;
 		}
@@ -479,6 +481,20 @@ public final class MadokuRarity {
 
 	private static double roundToNearestQuarter(double value) {
 		return Math.round(value * 4.0D) / 4.0D;
+	}
+
+	private static <T> T getResolvedComponent(ItemStack stack, DataComponentType<? extends T> componentType) {
+		if (stack == null || stack.isEmpty() || componentType == null) {
+			return null;
+		}
+
+		T stackValue = stack.get(componentType);
+		if (stackValue != null) {
+			return stackValue;
+		}
+
+		Item item = stack.getItem();
+		return item == null ? null : item.components().get(componentType);
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
