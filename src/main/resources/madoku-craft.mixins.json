@@ -33,6 +33,7 @@
     "GameRuleCommandLockMixin",
     "ItemInputRarityMixin",
     "ItemComponentsAccessor",
+    "ItemStackArmorRarityMixin",
     "ItemStackCodecMixin",
     "ItemStackDurabilityLoreMixin",
     "ItemStackFarmingMixin",

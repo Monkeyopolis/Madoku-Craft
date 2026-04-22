@@ -223,6 +223,23 @@ public final class MadokuItem {
 		return configured == null ? 0 : configured;
 	}
 
+	public static void applyProfilesToFreshStack(ItemStack stack) {
+		if (!enabled || stack == null || stack.isEmpty()) {
+			return;
+		}
+
+		Item item = stack.getItem();
+		MadokuToolProfile toolProfile = toolProfilesByItem.get(item);
+		if (toolProfile != null) {
+			applyToolProfileToStack(stack, item, toolProfile);
+		}
+
+		MadokuArmorProfile armorProfile = armorProfilesByItem.get(item);
+		if (armorProfile != null) {
+			applyArmorProfileToStack(stack, item, armorProfile);
+		}
+	}
+
 
 	private static void loadStaticConfig() {
 		try {
@@ -884,6 +901,32 @@ public final class MadokuItem {
 		}
 	}
 
+	private static void applyToolProfileToStack(ItemStack stack, Item item, MadokuToolProfile profile) {
+		if (stack == null || stack.isEmpty() || item == null || profile == null) {
+			return;
+		}
+
+		if (profile.hasDurability()) {
+			stack.set(DataComponents.MAX_DAMAGE, profile.durability());
+		}
+
+		ItemAttributeModifiers baseAttributes = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		ItemAttributeModifiers attributes = baseAttributes != null ? baseAttributes : getDefaultAttributeModifiers(item);
+		ItemAttributeModifiers updatedAttributes = applyAttackStats(attributes, profile);
+		if (updatedAttributes != null && !Objects.equals(baseAttributes, updatedAttributes)) {
+			stack.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedAttributes);
+		}
+
+		Tool toolComponent = stack.get(DataComponents.TOOL);
+		if (toolComponent == null) {
+			toolComponent = item.components().get(DataComponents.TOOL);
+		}
+		Tool updatedTool = applyToolStats(toolComponent, profile);
+		if (updatedTool != null && !Objects.equals(stack.get(DataComponents.TOOL), updatedTool)) {
+			stack.set(DataComponents.TOOL, updatedTool);
+		}
+	}
+
 	private static ItemAttributeModifiers applyAttackStats(ItemAttributeModifiers current, MadokuToolProfile profile) {
 		boolean hasDamage = profile.hasAttackDamage();
 		boolean hasSpeed = profile.hasAttackSpeed();
@@ -967,6 +1010,23 @@ public final class MadokuItem {
 		}
 	}
 
+	private static void applyArmorProfileToStack(ItemStack stack, Item item, MadokuArmorProfile profile) {
+		if (stack == null || stack.isEmpty() || item == null || profile == null) {
+			return;
+		}
+
+		if (profile.hasDurability()) {
+			stack.set(DataComponents.MAX_DAMAGE, profile.durability());
+		}
+
+		ItemAttributeModifiers baseAttributes = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		ItemAttributeModifiers attributes = baseAttributes != null ? baseAttributes : getDefaultAttributeModifiers(item);
+		ItemAttributeModifiers updatedAttributes = applyArmorStats(attributes, profile);
+		if (updatedAttributes != null && !Objects.equals(baseAttributes, updatedAttributes)) {
+			stack.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedAttributes);
+		}
+	}
+
 	private static void handlePlayerJoin(net.minecraft.server.level.ServerPlayer player) {
 		refreshConfiguredPlayerStacks(player);
 	}
@@ -1019,6 +1079,16 @@ public final class MadokuItem {
 		stack.set(DataComponents.DAMAGE, updatedDamage);
 		MadokuRarity.updateDurabilityLore(stack);
 		return true;
+	}
+
+	private static ItemAttributeModifiers getDefaultAttributeModifiers(Item item) {
+		if (item == null) {
+			return null;
+		}
+		if (item instanceof ArmorItem armorItem) {
+			return armorItem.getDefaultAttributeModifiers();
+		}
+		return item.components().get(DataComponents.ATTRIBUTE_MODIFIERS);
 	}
 
 	private static ItemAttributeModifiers applyArmorStats(ItemAttributeModifiers current, MadokuArmorProfile profile) {
