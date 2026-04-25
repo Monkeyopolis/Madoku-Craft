@@ -26,10 +26,10 @@ public final class ChunkManagerSystem {
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
 	private static final long CHUNK_REFRESH_INTERVAL_TICKS = 20L;
 	private static final String FIELD_LEVELS = "levels";
-	private static final String FIELD_LEVEL_ID = "level_id";
+	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_CHUNKS = "chunks";
-	private static final String FIELD_CHUNK_X = "chunk_x";
-	private static final String FIELD_CHUNK_Z = "chunk_z";
+	private static final String FIELD_CHUNK_X = "chunk-x";
+	private static final String FIELD_CHUNK_Z = "chunk-z";
 	private static final String FIELD_STATUS = "status";
 
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();

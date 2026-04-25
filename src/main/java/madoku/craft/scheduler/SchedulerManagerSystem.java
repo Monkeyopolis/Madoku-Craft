@@ -44,7 +44,7 @@ public final class SchedulerManagerSystem {
 	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
 	private static final String GROUP_GENERAL = "general";
 	private static final String FIELD_EXPIRATION = "expiration";
-	private static final String FIELD_LAST_TOUCHED_DAY = "last_touched_day";
+	private static final String FIELD_LAST_TOUCHED_DAY = "last-touched-day";
 	private static final int DEFAULT_EXPIRATION_DAYS = 14;
 	private static final long INACTIVE_EXPIRATION_TICKS =
 		5L * 60L * MadokuTicks.TICKS_PER_SECOND;
@@ -417,14 +417,14 @@ public final class SchedulerManagerSystem {
 
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
-		root.addProperty("gameplay_ticks", 0L);
+		root.addProperty("gameplay-ticks", 0L);
 		root.add("schedulers", new JsonArray());
 		return root;
 	}
 
 	private static JsonObject toPersistedData() {
 		JsonObject root = createDefaultData();
-		root.addProperty("gameplay_ticks", Math.max(0L, MadokuTicks.getGameplayTicks()));
+		root.addProperty("gameplay-ticks", Math.max(0L, MadokuTicks.getGameplayTicks()));
 		JsonArray schedulers = new JsonArray();
 		for (SchedulerEntry entry : SCHEDULERS.values()) {
 			if (entry != null && !entry.tasks.isEmpty()) {
@@ -442,7 +442,7 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		MadokuTicks.setGameplayTicks(Math.max(0L, getLong(source, "gameplay_ticks", 0L)));
+		MadokuTicks.setGameplayTicks(Math.max(0L, getLong(source, "gameplay-ticks", 0L)));
 		JsonArray schedulers = getArray(source, "schedulers");
 		if (schedulers == null) {
 			return;
@@ -515,7 +515,7 @@ public final class SchedulerManagerSystem {
 
 			try {
 				JsonObject general = new JsonObject();
-				general.addProperty("scheduler_id", entry.schedulerId);
+				general.addProperty("scheduler-id", entry.schedulerId);
 				JsonStaticSystem.writeManagedDocument(file, entry.toJson(), general);
 			} catch (IOException | RuntimeException exception) {
 				LOGGER.error("Failed to save scheduler data file {}", file, exception);
@@ -1009,17 +1009,17 @@ public final class SchedulerManagerSystem {
 			root.addProperty("type", type.id);
 			root.addProperty("key", key);
 			if (levelId == null) {
-				root.add("level_id", JsonNull.INSTANCE);
+				root.add("level-id", JsonNull.INSTANCE);
 			} else {
-				root.addProperty("level_id", levelId);
+				root.addProperty("level-id", levelId);
 			}
 			if (type == SchedulerType.CHUNK) {
-				root.addProperty("chunk_x", chunkX);
-				root.addProperty("chunk_z", chunkZ);
+				root.addProperty("chunk-x", chunkX);
+				root.addProperty("chunk-z", chunkZ);
 			}
 			if (type == SchedulerType.EVENT) {
-				root.addProperty("event_type", eventType.id);
-				root.addProperty("event_id", eventId);
+				root.addProperty("event-type", eventType.id);
+				root.addProperty("event-id", eventId);
 			}
 			return root;
 		}
@@ -1031,17 +1031,17 @@ public final class SchedulerManagerSystem {
 
 			SchedulerType type = SchedulerType.fromId(getString(source, "type", ""));
 			String key = getString(source, "key", "");
-			String levelId = getNullableString(source, "level_id");
+			String levelId = getNullableString(source, "level-id");
 			try {
 				if (type == SchedulerType.GLOBAL) {
 					return global(key);
 				}
 				if (type == SchedulerType.CHUNK) {
-					return chunk(key, levelId, getInt(source, "chunk_x", 0), getInt(source, "chunk_z", 0));
+					return chunk(key, levelId, getInt(source, "chunk-x", 0), getInt(source, "chunk-z", 0));
 				}
 				if (type == SchedulerType.EVENT) {
-					EventType eventType = EventType.fromId(getString(source, "event_type", ""));
-					String eventId = getString(source, "event_id", "");
+					EventType eventType = EventType.fromId(getString(source, "event-type", ""));
+					String eventId = getString(source, "event-id", "");
 					if (eventType == EventType.ENTITY) {
 						UUID entityId = parseUuid(eventId);
 						return entityId == null ? null : entity(key, entityId);
@@ -1112,13 +1112,13 @@ public final class SchedulerManagerSystem {
 
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
-			root.addProperty("scheduler_id", schedulerId);
+			root.addProperty("scheduler-id", schedulerId);
 			JsonObject general = new JsonObject();
 			general.addProperty(FIELD_EXPIRATION, expirationDays);
 			general.addProperty(FIELD_LAST_TOUCHED_DAY, Math.max(0L, lastTouchedDay));
 			root.add(GROUP_GENERAL, general);
 			root.add("binding", binding.toJson());
-			root.addProperty("next_request_id", Math.max(1L, nextRequestId));
+			root.addProperty("next-request-id", Math.max(1L, nextRequestId));
 			JsonArray tasksArray = new JsonArray();
 			List<ScheduledTask> snapshot = new ArrayList<>(tasks);
 			snapshot.sort(TASK_COMPARATOR);
@@ -1134,7 +1134,7 @@ public final class SchedulerManagerSystem {
 				return null;
 			}
 			JsonObject source = element.getAsJsonObject();
-			String schedulerId = getString(source, "scheduler_id", "");
+			String schedulerId = getString(source, "scheduler-id", "");
 			SchedulerBinding binding = SchedulerBinding.fromJson(getObject(source, "binding"));
 			JsonObject general = getObject(source, GROUP_GENERAL);
 			if (schedulerId.isBlank() || binding == null) {
@@ -1144,7 +1144,7 @@ public final class SchedulerManagerSystem {
 			int expirationDays = normalizeExpirationDays(getInt(general, FIELD_EXPIRATION, DEFAULT_EXPIRATION_DAYS));
 			long lastTouchedDay = Math.max(0L, getLong(general, FIELD_LAST_TOUCHED_DAY, resolveCurrentSchedulerDay(null)));
 			SchedulerEntry entry = new SchedulerEntry(schedulerId, binding, expirationDays, lastTouchedDay);
-			entry.nextRequestId = Math.max(1L, getLong(source, "next_request_id", 1L));
+			entry.nextRequestId = Math.max(1L, getLong(source, "next-request-id", 1L));
 			JsonArray tasksArray = getArray(source, "tasks");
 			if (tasksArray != null) {
 				for (JsonElement taskElement : tasksArray) {
@@ -1186,11 +1186,11 @@ public final class SchedulerManagerSystem {
 
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
-			root.addProperty("request_id", requestId);
-			root.addProperty("enqueued_tick", enqueuedTick);
-			root.addProperty("due_tick", dueTick);
+			root.addProperty("request-id", requestId);
+			root.addProperty("enqueued-tick", enqueuedTick);
+			root.addProperty("due-tick", dueTick);
 			root.addProperty("domain", domain.id());
-			root.addProperty("task_type", taskType);
+			root.addProperty("task-type", taskType);
 			root.add("payload", payload.deepCopy());
 			return root;
 		}
@@ -1201,7 +1201,7 @@ public final class SchedulerManagerSystem {
 			}
 			JsonObject source = element.getAsJsonObject();
 			TickDomain domain = TickDomain.fromId(getString(source, "domain", ""));
-			String taskType = normalizeKey(getString(source, "task_type", ""));
+			String taskType = normalizeKey(getString(source, "task-type", ""));
 			if (domain == null || taskType.isBlank()) {
 				return null;
 			}
@@ -1210,9 +1210,9 @@ public final class SchedulerManagerSystem {
 				? payloadElement.getAsJsonObject().deepCopy()
 				: new JsonObject();
 			return new ScheduledTask(
-				Math.max(1L, getLong(source, "request_id", 1L)),
-				Math.max(0L, getLong(source, "enqueued_tick", 0L)),
-				Math.max(0L, getLong(source, "due_tick", 0L)),
+				Math.max(1L, getLong(source, "request-id", 1L)),
+				Math.max(0L, getLong(source, "enqueued-tick", 0L)),
+				Math.max(0L, getLong(source, "due-tick", 0L)),
 				domain,
 				taskType,
 				payload
@@ -1220,3 +1220,4 @@ public final class SchedulerManagerSystem {
 		}
 	}
 }
+

@@ -1040,35 +1040,35 @@ public final class MadokuHud {
 		private static Settings defaults() {
 			return new Settings(
 				DEFAULT_WORLD_HUD_ENABLED,
-					DEFAULT_HEALTH_HUD_ENABLED,
-					DEFAULT_HUNGER_HUD_ENABLED,
-					DEFAULT_ARMOR_HUD_ENABLED,
-					DEFAULT_OXYGEN_HUD_ENABLED,
-					DEFAULT_SEASON_HUD_ENABLED
-				);
-			}
+				DEFAULT_HEALTH_HUD_ENABLED,
+				DEFAULT_HUNGER_HUD_ENABLED,
+				DEFAULT_ARMOR_HUD_ENABLED,
+				DEFAULT_OXYGEN_HUD_ENABLED,
+				DEFAULT_SEASON_HUD_ENABLED
+			);
+		}
 
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			return new Settings(
-				getBoolean(source, "world_hud_enabled", defaults.worldHudEnabled),
-					getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled),
-					getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled),
-					getBoolean(source, "armor_hud_enabled", defaults.armorHudEnabled),
-					getBoolean(source, "oxygen_hud_enabled", defaults.oxygenHudEnabled),
-					getBoolean(source, "season_hud_enabled", defaults.seasonHudEnabled)
-				);
-			}
+				getBoolean(source, "world-hud-enabled", getBoolean(source, "world_hud_enabled", defaults.worldHudEnabled)),
+				getBoolean(source, "health-hud-enabled", getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled)),
+				getBoolean(source, "hunger-hud-enabled", getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled)),
+				getBoolean(source, "armor-hud-enabled", getBoolean(source, "armor_hud_enabled", defaults.armorHudEnabled)),
+				getBoolean(source, "oxygen-hud-enabled", getBoolean(source, "oxygen_hud_enabled", defaults.oxygenHudEnabled)),
+				getBoolean(source, "season-hud-enabled", getBoolean(source, "season_hud_enabled", defaults.seasonHudEnabled))
+			);
+		}
 
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
-			root.addProperty("world_hud_enabled", worldHudEnabled);
-			root.addProperty("health_hud_enabled", healthHudEnabled);
-				root.addProperty("hunger_hud_enabled", hungerHudEnabled);
-				root.addProperty("armor_hud_enabled", armorHudEnabled);
-				root.addProperty("oxygen_hud_enabled", oxygenHudEnabled);
-				root.addProperty("season_hud_enabled", seasonHudEnabled);
-				return root;
-			}
+			root.addProperty("world-hud-enabled", worldHudEnabled);
+			root.addProperty("health-hud-enabled", healthHudEnabled);
+			root.addProperty("hunger-hud-enabled", hungerHudEnabled);
+			root.addProperty("armor-hud-enabled", armorHudEnabled);
+			root.addProperty("oxygen-hud-enabled", oxygenHudEnabled);
+			root.addProperty("season-hud-enabled", seasonHudEnabled);
+			return root;
+		}
 	}
 }

@@ -5,13 +5,13 @@ import com.google.gson.JsonObject;
 
 public final class MadokuRarityConfig {
 	private static final String FIELD_ENABLED = "enabled";
-	private static final String FIELD_COMMON_CHANCE_WEIGHT = "common_chance_weight";
-	private static final String FIELD_RARE_CHANCE_WEIGHT = "rare_chance_weight";
-	private static final String FIELD_EPIC_CHANCE_WEIGHT = "epic_chance_weight";
-	private static final String FIELD_MYTHIC_CHANCE_WEIGHT = "mythic_chance_weight";
-	private static final String FIELD_RARE_STAT_BUFF_PERCENT = "rare_stat_buff_percent";
-	private static final String FIELD_EPIC_STAT_BUFF_PERCENT = "epic_stat_buff_percent";
-	private static final String FIELD_MYTHIC_STAT_BUFF_PERCENT = "mythic_stat_buff_percent";
+	private static final String FIELD_COMMON_CHANCE_WEIGHT = "common-chance-weight";
+	private static final String FIELD_RARE_CHANCE_WEIGHT = "rare-chance-weight";
+	private static final String FIELD_EPIC_CHANCE_WEIGHT = "epic-chance-weight";
+	private static final String FIELD_MYTHIC_CHANCE_WEIGHT = "mythic-chance-weight";
+	private static final String FIELD_RARE_STAT_BUFF_PERCENT = "rare-stat-buff-percent";
+	private static final String FIELD_EPIC_STAT_BUFF_PERCENT = "epic-stat-buff-percent";
+	private static final String FIELD_MYTHIC_STAT_BUFF_PERCENT = "mythic-stat-buff-percent";
 
 	private static final double DEFAULT_COMMON_CHANCE_WEIGHT = 84.0;
 	private static final double DEFAULT_RARE_CHANCE_WEIGHT = 10.0;

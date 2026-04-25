@@ -191,8 +191,8 @@ public final class MadokuDebug {
 
 	private static void loadConfig(JsonObject source, JsonObject defaults) {
 		enabled = getBoolean(source, "enabled", false);
-		applyActiveDomains(getArray(source, "active_domains"), defaults);
-		applyDisabledMetrics(getArray(source, "disabled_metrics"));
+		applyActiveDomains(getArray(source, "active-domains"), defaults);
+		applyDisabledMetrics(getArray(source, "disabled-metrics"));
 	}
 
 	private static void applyActiveDomains(JsonArray domains, JsonObject defaults) {
@@ -216,7 +216,7 @@ public final class MadokuDebug {
 		}
 
 		if (!anyEnabled) {
-			JsonArray fallbackDomains = getArray(defaults, "active_domains");
+			JsonArray fallbackDomains = getArray(defaults, "active-domains");
 			if (fallbackDomains != null) {
 				for (JsonElement element : fallbackDomains) {
 					if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
@@ -273,8 +273,8 @@ public final class MadokuDebug {
 				activeDomains.add(Domain.FARMING.id());
 				activeDomains.add(Domain.SEASON.id());
 				activeDomains.add(Domain.PET.id());
-				root.add("active_domains", activeDomains);
-				root.add("disabled_metrics", new JsonArray());
+				root.add("active-domains", activeDomains);
+				root.add("disabled-metrics", new JsonArray());
 				return root;
 	}
 

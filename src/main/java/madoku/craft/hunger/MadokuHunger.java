@@ -10,7 +10,7 @@ import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -28,21 +28,17 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public final class MadokuHunger {
 private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHunger.class);
 
 private static final int VANILLA_MAX_HUNGER_POINTS = 20;
-	private static final int MAX_LEVEL_BONUS_HUNGER_POINTS = 20;
-	private static final int MAX_CONFIG_HUNGER_POINTS = 8192;
-private static final int MADOKU_HOURS_PER_DAY = 24;
-private static final int MINECRAFT_TICKS_PER_DAY = 24000;
-private static final int DEFAULT_TIME_GOAL_CLOCK_TICKS = 6 * MINECRAFT_TICKS_PER_DAY / MADOKU_HOURS_PER_DAY;
+private static final int MAX_LEVEL_BONUS_HUNGER_POINTS = 20;
+private static final int MAX_CONFIG_HUNGER_POINTS = 8192;
+private static final int DEFAULT_TIME_GOAL_CLOCK_TICKS = 7200;
 private static final double RESPAWN_HUNGER_RATIO = 0.5d;
 private static final long HUNGER_EFFECT_INTERVAL_TICKS = 20L;
 private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
@@ -51,12 +47,8 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	private static final String HUNGER_CONFIG_FILE_NAME = "madoku-hunger";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-hunger";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
-	private static final String TASK_TYPE_HUNGER_TICK = "hunger_tick";
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
-	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
-	private static final Set<UUID> SCHEDULED_PLAYERS = new HashSet<>();
-	private static final Map<UUID, Long> LAST_PROCESSED_TICKS_BY_PLAYER = new HashMap<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 
@@ -65,7 +57,7 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HUNGER_TICK, MadokuHunger::runHungerTask);
+		PlayerTickSystem.registerListener("hunger", 10, MadokuHunger::onPlayerTick);
 		ServerPlayerEvents.JOIN.register(MadokuHunger::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHunger::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -73,9 +65,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 	public static void reset() {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
 
@@ -133,7 +122,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
 		syncHudState(player, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 	}
 
 	public static boolean hasEnoughFoodToDoExhaustiveManoeuvres(Player player) {
@@ -189,7 +177,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		scheduleNextPendingAllocation(state, gameplayTick);
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		syncHudState(player, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HUNGER, "hunger.pending_collected")) {
 			MadokuDebug.event("hunger.pending_collected", MadokuDebug.Domain.HUNGER)
@@ -230,7 +217,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
 		syncHudState(player, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 		return drained;
 	}
 
@@ -289,7 +275,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
 		syncHudState(player, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
 	}
 
 	private static void handlePlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -314,7 +299,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
 		syncHudState(newPlayer, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) newPlayer.level()).getServer(), newPlayer.getUUID(), 1L);
 	}
 
 	private static void handleBlockBreak(net.minecraft.world.entity.player.Player player) {
@@ -347,45 +331,18 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		}
 		applyFoodState(serverPlayer, state.hungerPoints, maxHungerPoints);
 		syncHudState(serverPlayer, state, maxHungerPoints);
-		requestHungerProcessing(((net.minecraft.server.level.ServerLevel) serverPlayer.level()).getServer(), serverPlayer.getUUID(), 1L);
 	}
 
-	private static void runHungerTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (server == null || context == null) {
+	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+		if (server == null || player == null) {
 			return;
 		}
-
-		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
-		UUID playerId = binding == null ? null : binding.getEntityUuid();
-		if (playerId == null) {
-			return;
-		}
-
-		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
-		SCHEDULED_PLAYERS.remove(playerId);
-		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && context.getNowTick() == lastProcessed) {
-			return;
-		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
 
 		if (!settings.enabled) {
 			return;
 		}
 
-		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-		if (player == null) {
-			PlayerState state = PLAYER_STATES.get(playerId);
-			if (state != null) {
-				state.clearPosition();
-			}
-			return;
-		}
-
-		boolean stillActive = processPlayer(player, context.getNowTick(), MadokuTime.getCurrentAbsoluteDayTime());
-		if (stillActive) {
-			requestHungerProcessing(server, playerId, 1L);
-		}
+		processPlayer(player, gameplayTick, MadokuTime.getCurrentAbsoluteDayTime());
 	}
 
 	private static boolean processPlayer(ServerPlayer player, long gameplayTick, long currentAbsoluteDayTime) {
@@ -422,59 +379,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		syncHudState(player, state, maxHungerPoints);
 		return true;
-	}
-
-	private static String ensureSchedulerExists(UUID playerId) {
-		if (playerId == null) {
-			return "";
-		}
-
-		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
-		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_HUNGER_TICK, playerId)
-			);
-			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
-		}
-		return schedulerId;
-	}
-
-	private static void requestHungerProcessing(MinecraftServer server, UUID playerId, long delay) {
-		if (server == null || playerId == null || !settings.enabled || SCHEDULED_PLAYERS.contains(playerId)) {
-			return;
-		}
-
-		String schedulerId = ensureSchedulerExists(playerId);
-		if (enqueueHungerTask(schedulerId, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-
-		String created = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_HUNGER_TICK, playerId)
-		);
-		PLAYER_SCHEDULER_IDS.put(playerId, created);
-		if (enqueueHungerTask(created, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-		LOGGER.error("Failed to enqueue MadokuHunger scheduler task for player={}", playerId);
-	}
-
-	private static boolean enqueueHungerTask(String targetSchedulerId, long delay) {
-		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
-			return false;
-		}
-
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
-			targetSchedulerId,
-			Math.max(0L, delay),
-			TASK_TYPE_HUNGER_TICK,
-			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void processFoodChanges(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {
@@ -861,14 +765,14 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 			PlayerState state = entry.getValue();
 			JsonObject player = new JsonObject();
 			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("hunger_points", state.hungerPoints);
-			player.addProperty("pending_hunger", state.pendingHunger);
-			player.addProperty("block_break_progress", state.blockBreakProgress);
-			player.addProperty("travel_progress", state.travelProgress);
-			player.addProperty("time_progress_ticks", state.timeProgressTicks);
-			player.addProperty("last_observed_absolute_day_time", state.lastObservedAbsoluteDayTime);
-			player.addProperty("last_pending_activity_tick", Math.max(0L, state.lastPendingActivityTick));
-			player.addProperty("next_pending_allocation_tick", Math.max(0L, state.nextPendingAllocationTick));
+			player.addProperty("hunger-points", state.hungerPoints);
+			player.addProperty("pending-hunger", state.pendingHunger);
+			player.addProperty("block-break-progress", state.blockBreakProgress);
+			player.addProperty("travel-progress", state.travelProgress);
+			player.addProperty("time-progress-ticks", state.timeProgressTicks);
+			player.addProperty("last-observed-absolute-day-time", state.lastObservedAbsoluteDayTime);
+			player.addProperty("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick));
+			player.addProperty("next-pending-allocation-tick", Math.max(0L, state.nextPendingAllocationTick));
 			players.add(player);
 		}
 		root.add("players", players);
@@ -877,9 +781,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 	private static void applyPersistedData(JsonObject source) {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
 		if (source == null) {
 			return;
 		}
@@ -901,16 +802,16 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 			PlayerState state = new PlayerState();
 			state.hungerPoints = clampInternalHunger(
-				(int) getLong(playerData, "hunger_points", settings.maximumHungerPoints),
+				(int) getLong(playerData, "hunger-points", settings.maximumHungerPoints),
 				MAX_CONFIG_HUNGER_POINTS + MAX_LEVEL_BONUS_HUNGER_POINTS
 			);
-			state.pendingHunger = Math.max(0, (int) getLong(playerData, "pending_hunger", 0L));
-			state.blockBreakProgress = Math.max(0, (int) getLong(playerData, "block_break_progress", 0L));
-			state.travelProgress = Math.max(0.0d, getDouble(playerData, "travel_progress", 0.0d));
-			state.timeProgressTicks = Math.max(0, (int) getLong(playerData, "time_progress_ticks", 0L));
-			state.lastObservedAbsoluteDayTime = getLong(playerData, "last_observed_absolute_day_time", -1L);
-			state.lastPendingActivityTick = Math.max(0L, getLong(playerData, "last_pending_activity_tick", 0L));
-			state.nextPendingAllocationTick = Math.max(0L, getLong(playerData, "next_pending_allocation_tick", 0L));
+			state.pendingHunger = Math.max(0, (int) getLong(playerData, "pending-hunger", 0L));
+			state.blockBreakProgress = Math.max(0, (int) getLong(playerData, "block-break-progress", 0L));
+			state.travelProgress = Math.max(0.0d, getDouble(playerData, "travel-progress", 0.0d));
+			state.timeProgressTicks = Math.max(0, (int) getLong(playerData, "time-progress-ticks", 0L));
+			state.lastObservedAbsoluteDayTime = getLong(playerData, "last-observed-absolute-day-time", -1L);
+			state.lastPendingActivityTick = Math.max(0L, getLong(playerData, "last-pending-activity-tick", 0L));
+			state.nextPendingAllocationTick = Math.max(0L, getLong(playerData, "next-pending-allocation-tick", 0L));
 			PLAYER_STATES.put(playerId, state);
 		}
 	}
@@ -1079,7 +980,7 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 				true,
 				30,
 				10,
-				60L * 20L,
+				1500L,
 				128,
 				150.0d,
 				DEFAULT_TIME_GOAL_CLOCK_TICKS,
@@ -1091,22 +992,14 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 			Settings defaults = defaults();
 
 			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			int maximumHungerPoints = (int) clampLong(getLong(source, "maximum_hunger_points", defaults.maximumHungerPoints), 1L, MAX_CONFIG_HUNGER_POINTS);
-			int pendingAllocationIntervalTicks = (int) clampLong(
-				getLong(source, "pending_allocation_interval_ticks", defaults.pendingAllocationIntervalTicks),
-				1L,
-				200L
-			);
-			long pendingIdleTimeoutTicks = clampLong(
-				getLong(source, "pending_idle_timeout_ticks", defaults.pendingIdleTimeoutTicks),
-				20L,
-				20L * 60L * 10L
-			);
-			int blockBreakGoal = (int) clampLong(getLong(source, "block_break_goal", defaults.blockBreakGoal), 1L, 100000L);
-			double travelGoalDistance = clampDouble(getDouble(source, "travel_goal_distance", defaults.travelGoalDistance), 1.0d, 1000000.0d);
-			int timeGoalTicks = (int) clampLong(getLong(source, "time_goal_ticks", defaults.timeGoalTicks), 1L, 20L * 60L * 60L * 24L);
+			int maximumHungerPoints = (int) clampLong(getLong(source, "maximum-hunger-points", defaults.maximumHungerPoints), 1L, MAX_CONFIG_HUNGER_POINTS);
+			int pendingAllocationIntervalTicks = defaults.pendingAllocationIntervalTicks;
+			long pendingIdleTimeoutTicks = defaults.pendingIdleTimeoutTicks;
+			int blockBreakGoal = (int) clampLong(getLong(source, "block-break-goal", defaults.blockBreakGoal), 1L, 100000L);
+			double travelGoalDistance = clampDouble(getDouble(source, "travel-goal-distance", defaults.travelGoalDistance), 1.0d, 1000000.0d);
+			int timeGoalTicks = (int) clampLong(getLong(source, "time-goal-ticks", defaults.timeGoalTicks), 1L, 20L * 60L * 60L * 24L);
 			double teleportDistanceThreshold = clampDouble(
-				getDouble(source, "teleport_distance_threshold", defaults.teleportDistanceThreshold),
+				getDouble(source, "teleport-distance-threshold", defaults.teleportDistanceThreshold),
 				1.0d,
 				1024.0d
 			);
@@ -1126,13 +1019,11 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("maximum_hunger_points", maximumHungerPoints);
-			root.addProperty("pending_allocation_interval_ticks", pendingAllocationIntervalTicks);
-			root.addProperty("pending_idle_timeout_ticks", pendingIdleTimeoutTicks);
-			root.addProperty("block_break_goal", blockBreakGoal);
-			root.addProperty("travel_goal_distance", travelGoalDistance);
-			root.addProperty("time_goal_ticks", timeGoalTicks);
-			root.addProperty("teleport_distance_threshold", teleportDistanceThreshold);
+			root.addProperty("maximum-hunger-points", maximumHungerPoints);
+			root.addProperty("block-break-goal", blockBreakGoal);
+			root.addProperty("travel-goal-distance", travelGoalDistance);
+			root.addProperty("time-goal-ticks", timeGoalTicks);
+			root.addProperty("teleport-distance-threshold", teleportDistanceThreshold);
 			return root;
 		}
 

@@ -661,33 +661,33 @@ public final class MadokuLevels {
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			return new Settings(
-				clampDouble(getDouble(source, "base_xp_requirement", defaults.baseXpRequirement), 0.1d, 1_000_000.0d),
-				clampDouble(getDouble(source, "base_xp_multiplier", defaults.baseXpMultiplier), 0.0d, 1_000.0d),
-				clampInt(getLong(source, "max_player_level_attributes", defaults.maxPlayerLevelAttributes), 1, 1000),
+				clampDouble(getDouble(source, "base-xp-requirement", defaults.baseXpRequirement), 0.1d, 1_000_000.0d),
+				clampDouble(getDouble(source, "base-xp-multiplier", defaults.baseXpMultiplier), 0.0d, 1_000.0d),
+				clampInt(getLong(source, "max-player-level-attributes", defaults.maxPlayerLevelAttributes), 1, 1000),
 				clampInt(
-					getLong(source, "max_player_level_attributes_partial", defaults.maxPlayerLevelAttributesPartial),
+					getLong(source, "max-player-level-attributes-partial", defaults.maxPlayerLevelAttributesPartial),
 					1,
 					1000
 				),
-				clampInt(getLong(source, "max_player_level_vanilla", defaults.maxPlayerLevelVanilla), 1, 1000),
-				clampInt(getLong(source, "max_stat_level_attributes", defaults.maxStatLevelAttributes), 1, 1000),
-				clampInt(getLong(source, "max_stat_level_vanilla", defaults.maxStatLevelVanilla), 1, 1000),
-				clampDouble(getDouble(source, "health_per_level", defaults.healthPerLevel), 0.0d, 1000.0d),
-				clampDouble(getDouble(source, "player_damage_per_level", defaults.playerDamagePerLevel), 0.0d, 1000.0d),
+				clampInt(getLong(source, "max-player-level-vanilla", defaults.maxPlayerLevelVanilla), 1, 1000),
+				clampInt(getLong(source, "max-stat-level-attributes", defaults.maxStatLevelAttributes), 1, 1000),
+				clampInt(getLong(source, "max-stat-level-vanilla", defaults.maxStatLevelVanilla), 1, 1000),
+				clampDouble(getDouble(source, "health-per-level", defaults.healthPerLevel), 0.0d, 1000.0d),
+				clampDouble(getDouble(source, "player-damage-per-level", defaults.playerDamagePerLevel), 0.0d, 1000.0d),
 				clampDouble(
-					getDouble(source, "player_armor_per_level_attributes", defaults.playerArmorPerLevelAttributes),
+					getDouble(source, "player-armor-per-level-attributes", defaults.playerArmorPerLevelAttributes),
 					0.0d,
 					1000.0d
 				),
 				clampDouble(
-					getDouble(source, "player_armor_per_level_vanilla", defaults.playerArmorPerLevelVanilla),
+					getDouble(source, "player-armor-per-level-vanilla", defaults.playerArmorPerLevelVanilla),
 					0.0d,
 					1000.0d
 				),
-				clampDouble(getDouble(source, "player_luck_per_level", defaults.playerLuckPerLevel), 0.0d, 1000.0d),
-				clampDouble(getDouble(source, "player_hunger_per_level", defaults.playerHungerPerLevel), 0.0d, 1000.0d),
+				clampDouble(getDouble(source, "player-luck-per-level", defaults.playerLuckPerLevel), 0.0d, 1000.0d),
+				clampDouble(getDouble(source, "player-hunger-per-level", defaults.playerHungerPerLevel), 0.0d, 1000.0d),
 				clampDouble(
-					getDouble(source, "player_movement_speed_per_level", defaults.playerMovementSpeedPerLevel),
+					getDouble(source, "player-movement-speed-per-level", defaults.playerMovementSpeedPerLevel),
 					0.0d,
 					1000.0d
 				)
@@ -696,20 +696,20 @@ public final class MadokuLevels {
 
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
-			root.addProperty("base_xp_requirement", baseXpRequirement);
-			root.addProperty("base_xp_multiplier", baseXpMultiplier);
-			root.addProperty("max_player_level_attributes", maxPlayerLevelAttributes);
-			root.addProperty("max_player_level_attributes_partial", maxPlayerLevelAttributesPartial);
-			root.addProperty("max_player_level_vanilla", maxPlayerLevelVanilla);
-			root.addProperty("max_stat_level_attributes", maxStatLevelAttributes);
-			root.addProperty("max_stat_level_vanilla", maxStatLevelVanilla);
-			root.addProperty("health_per_level", healthPerLevel);
-			root.addProperty("player_damage_per_level", playerDamagePerLevel);
-			root.addProperty("player_armor_per_level_attributes", playerArmorPerLevelAttributes);
-			root.addProperty("player_armor_per_level_vanilla", playerArmorPerLevelVanilla);
-			root.addProperty("player_luck_per_level", playerLuckPerLevel);
-			root.addProperty("player_hunger_per_level", playerHungerPerLevel);
-			root.addProperty("player_movement_speed_per_level", playerMovementSpeedPerLevel);
+			root.addProperty("base-xp-requirement", baseXpRequirement);
+			root.addProperty("base-xp-multiplier", baseXpMultiplier);
+			root.addProperty("max-player-level-attributes", maxPlayerLevelAttributes);
+			root.addProperty("max-player-level-attributes-partial", maxPlayerLevelAttributesPartial);
+			root.addProperty("max-player-level-vanilla", maxPlayerLevelVanilla);
+			root.addProperty("max-stat-level-attributes", maxStatLevelAttributes);
+			root.addProperty("max-stat-level-vanilla", maxStatLevelVanilla);
+			root.addProperty("health-per-level", healthPerLevel);
+			root.addProperty("player-damage-per-level", playerDamagePerLevel);
+			root.addProperty("player-armor-per-level-attributes", playerArmorPerLevelAttributes);
+			root.addProperty("player-armor-per-level-vanilla", playerArmorPerLevelVanilla);
+			root.addProperty("player-luck-per-level", playerLuckPerLevel);
+			root.addProperty("player-hunger-per-level", playerHungerPerLevel);
+			root.addProperty("player-movement-speed-per-level", playerMovementSpeedPerLevel);
 			return root;
 		}
 	}

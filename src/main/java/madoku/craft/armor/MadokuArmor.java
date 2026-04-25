@@ -188,18 +188,30 @@ public final class MadokuArmor {
 			Settings defaults = defaults();
 
 			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
+			long maxArmorPointsRaw = getLong(source, "max-armor-points", Long.MIN_VALUE);
+			if (maxArmorPointsRaw == Long.MIN_VALUE) {
+				maxArmorPointsRaw = getLong(source, "armor-points-clamp-limit", defaults.armorPointsClampLimit);
+			}
 			int armorPointsClampLimit = (int) clampLong(
-				getLong(source, "armor_points_clamp_limit", defaults.armorPointsClampLimit),
+				maxArmorPointsRaw,
 				0L,
 				100000L
 			);
+			long maxArmorToughnessPointsRaw = getLong(source, "max-armor-toughness-points", Long.MIN_VALUE);
+			if (maxArmorToughnessPointsRaw == Long.MIN_VALUE) {
+				maxArmorToughnessPointsRaw = getLong(source, "armor-toughness-points-clamp-limit", defaults.armorToughnessPointsClampLimit);
+			}
 			int armorToughnessPointsClampLimit = (int) clampLong(
-				getLong(source, "armor_toughness_points_clamp_limit", defaults.armorToughnessPointsClampLimit),
+				maxArmorToughnessPointsRaw,
 				0L,
 				100000L
 			);
+			double fallDamageArmorReductionRaw = getDouble(source, "fall-damage-armor-reduction", Double.NaN);
+			if (Double.isNaN(fallDamageArmorReductionRaw)) {
+				fallDamageArmorReductionRaw = getDouble(source, "fall-damage-armor-effectiveness", defaults.fallDamageArmorEffectiveness);
+			}
 			double fallDamageArmorEffectiveness = clampDouble(
-				getDouble(source, "fall_damage_armor_effectiveness", defaults.fallDamageArmorEffectiveness),
+				fallDamageArmorReductionRaw,
 				0.0d,
 				1.0d
 			);
@@ -215,9 +227,9 @@ public final class MadokuArmor {
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("armor_points_clamp_limit", armorPointsClampLimit);
-			root.addProperty("armor_toughness_points_clamp_limit", armorToughnessPointsClampLimit);
-			root.addProperty("fall_damage_armor_effectiveness", fallDamageArmorEffectiveness);
+			root.addProperty("max-armor-points", armorPointsClampLimit);
+			root.addProperty("max-armor-toughness-points", armorToughnessPointsClampLimit);
+			root.addProperty("fall-damage-armor-reduction", fallDamageArmorEffectiveness);
 			return root;
 		}
 

@@ -1173,25 +1173,25 @@ public final class MadokuLuck {
 
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
-			double baseLuck = clampDouble(getDouble(source, "base_luck", defaults.baseLuck), 0.0d, 1024.0d);
-			double dropMultiplier = clampDouble(getDouble(source, "drop_multiplier", defaults.dropMultiplier), 0.0d, 1024.0d);
+			double baseLuck = clampDouble(getDouble(source, "base-luck", defaults.baseLuck), 0.0d, 1024.0d);
+			double dropMultiplier = clampDouble(getDouble(source, "drop-multiplier", defaults.dropMultiplier), 0.0d, 1024.0d);
 			double mobDropMultiplier = clampDouble(
-				getDouble(source, "mob_drop_multiplier", defaults.mobDropMultiplier),
+				getDouble(source, "mob-drop-multiplier", defaults.mobDropMultiplier),
 				0.0d,
 				1024.0d
 			);
 			double creeperGriefReductionMultiplier = clampDouble(
-				getDouble(source, "creeper_grief_reduction_multiplier", defaults.creeperGriefReductionMultiplier),
+				getDouble(source, "creeper-grief-reduction-multiplier", defaults.creeperGriefReductionMultiplier),
 				0.0d,
 				1.0d
 			);
 			double rangedAccuracyReductionMultiplier = clampDouble(
-				getDouble(source, "ranged_accuracy_reduction_multiplier", defaults.rangedAccuracyReductionMultiplier),
+				getDouble(source, "ranged-accuracy-reduction-multiplier", defaults.rangedAccuracyReductionMultiplier),
 				0.0d,
 				1.0d
 			);
 			float playerCritDamageMultiplier = (float) clampDouble(
-				getDouble(source, "player_crit_damage_multiplier", defaults.playerCritDamageMultiplier),
+				getDouble(source, "player-crit-damage-multiplier", defaults.playerCritDamageMultiplier),
 				0.0d,
 				1024.0d
 			);
@@ -1209,12 +1209,12 @@ public final class MadokuLuck {
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("base_luck", baseLuck);
-			root.addProperty("drop_multiplier", dropMultiplier);
-			root.addProperty("mob_drop_multiplier", mobDropMultiplier);
-			root.addProperty("creeper_grief_reduction_multiplier", creeperGriefReductionMultiplier);
-			root.addProperty("ranged_accuracy_reduction_multiplier", rangedAccuracyReductionMultiplier);
-			root.addProperty("player_crit_damage_multiplier", playerCritDamageMultiplier);
+			root.addProperty("base-luck", baseLuck);
+			root.addProperty("drop-multiplier", dropMultiplier);
+			root.addProperty("mob-drop-multiplier", mobDropMultiplier);
+			root.addProperty("creeper-grief-reduction-multiplier", creeperGriefReductionMultiplier);
+			root.addProperty("ranged-accuracy-reduction-multiplier", rangedAccuracyReductionMultiplier);
+			root.addProperty("player-crit-damage-multiplier", playerCritDamageMultiplier);
 			return root;
 		}
 	}

@@ -33,6 +33,7 @@ import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.time.MadokuSleep;
 import madoku.craft.time.MadokuTime;
 import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.player.PlayerTickSystem;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -60,6 +61,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuAttributes.initialize();
 		MadokuPlacedBlocks.initialize();
 		MadokuArmor.initialize();
+		PlayerTickSystem.initialize();
 		MadokuHealth.initialize();
 		MadokuHunger.initialize();
 		MadokuOxygen.initialize();
@@ -92,7 +94,9 @@ public class MadokuCraft implements ModInitializer {
 			PlayerEntitiesSystem.reset();
 			ChunkManagerSystem.reset();
 			SchedulerManagerSystem.reset();
+			PlayerTickSystem.reset();
 			SchedulerManagerSystem.loadPersistedData(server);
+			PlayerTickSystem.onServerStarted(server);
 			ChunkManagerSystem.loadPersistedData(server);
 			MadokuTime.loadPersistedData(server);
 			MadokuSeason.loadPersistedData(server);
@@ -146,6 +150,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuFarming.reset();
 			ChunkManagerSystem.reset();
 			SchedulerManagerSystem.reset();
+			PlayerTickSystem.reset();
 			MadokuPlacedBlocks.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuDifficulty.onServerStopped();

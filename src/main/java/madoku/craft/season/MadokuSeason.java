@@ -44,8 +44,7 @@ public final class MadokuSeason {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-season";
 	private static final String DATA_FILE_NAME = "madoku-season";
 	private static final String BIOME_FOLDER_NAME = "biomes";
-	private static final String FIELD_SEASONAL_QUEUE = "seasonal_queue";
-	private static final String LEGACY_FIELD_WATER_QUEUE = "water_queue";
+	private static final String FIELD_SEASONAL_QUEUE = "seasonal-queue";
 	private static final String TASK_TYPE_SEASON_CHUNK_PROCESS = "season_chunk_process";
 	private static final String TASK_TYPE_SEASON_SCAN = "season_scan";
 	private static final String TASK_TYPE_SEASON_PROCESS = "season_process";
@@ -53,6 +52,7 @@ public final class MadokuSeason {
 	private static final long SEASON_YEAR_DAYS = MadokuSeasonConfig.DEFAULT_SEASON_LENGTH_DAYS * 4L;
 	private static final int WATER_QUEUE_MAX_SIZE = 640000;
 	private static final int WATER_UPDATE_VERTICAL_SCAN_DEPTH = 24;
+	private static final double NEAREST_LOADED_CHUNK_SCAN_FRACTION = 0.5d;
 	private static final int TEMPERATE_TRANSITION_START_DAY = MadokuSeasonConfig.DEFAULT_DAYS_PER_WEEK * 2;
 
 	private static final Map<String, BiomeClimateRecord> BIOME_CLIMATE_CACHE = new ConcurrentHashMap<>();
@@ -592,7 +592,79 @@ public final class MadokuSeason {
 		if (world == null) {
 			return List.of();
 		}
-		return ChunkManagerSystem.getLoadedChunkPositions(world);
+
+		List<Long> loadedChunks = ChunkManagerSystem.getLoadedChunkPositions(world);
+		if (loadedChunks.isEmpty()) {
+			return loadedChunks;
+		}
+
+		List<PlayerChunkAnchor> playerAnchors = collectPlayerChunkAnchors(world);
+		if (playerAnchors.isEmpty()) {
+			return List.of();
+		}
+
+		int targetChunkCount = Math.max(
+			1,
+			(int) Math.ceil(loadedChunks.size() * NEAREST_LOADED_CHUNK_SCAN_FRACTION)
+		);
+		if (loadedChunks.size() <= targetChunkCount) {
+			return loadedChunks;
+		}
+
+		ArrayList<ChunkDistance> nearestChunks = new ArrayList<>(loadedChunks.size());
+		for (Long packedChunk : loadedChunks) {
+			if (packedChunk == null) {
+				continue;
+			}
+
+			int chunkX = unpackChunkX(packedChunk);
+			int chunkZ = unpackChunkZ(packedChunk);
+			double nearestDistanceSquared = Double.POSITIVE_INFINITY;
+			for (PlayerChunkAnchor anchor : playerAnchors) {
+				double dx = chunkX - anchor.chunkX();
+				double dz = chunkZ - anchor.chunkZ();
+				double distanceSquared = (dx * dx) + (dz * dz);
+				if (distanceSquared < nearestDistanceSquared) {
+					nearestDistanceSquared = distanceSquared;
+					if (distanceSquared == 0.0d) {
+						break;
+					}
+				}
+			}
+			nearestChunks.add(new ChunkDistance(packedChunk, nearestDistanceSquared));
+		}
+
+		nearestChunks.sort((left, right) -> {
+			int distanceComparison = Double.compare(left.distanceSquared(), right.distanceSquared());
+			if (distanceComparison != 0) {
+				return distanceComparison;
+			}
+			return Long.compare(left.packedChunk(), right.packedChunk());
+		});
+
+		int selectedCount = Math.min(targetChunkCount, nearestChunks.size());
+		ArrayList<Long> selectedChunks = new ArrayList<>(selectedCount);
+		for (int index = 0; index < selectedCount; index++) {
+			selectedChunks.add(nearestChunks.get(index).packedChunk());
+		}
+		return selectedChunks;
+	}
+
+	private static List<PlayerChunkAnchor> collectPlayerChunkAnchors(ServerLevel world) {
+		if (world == null) {
+			return List.of();
+		}
+
+		List<? extends net.minecraft.world.entity.player.Player> players = world.players();
+		if (players.isEmpty()) {
+			return List.of();
+		}
+
+		ArrayList<PlayerChunkAnchor> anchors = new ArrayList<>(players.size());
+		for (net.minecraft.world.entity.player.Player player : players) {
+			anchors.add(new PlayerChunkAnchor(player.getBlockX() >> 4, player.getBlockZ() >> 4));
+		}
+		return anchors;
 	}
 
 	private static SeasonWaterScanResult scanSeasonalWaterChunk(ServerLevel world, int chunkX, int chunkZ, SeasonState state) {
@@ -860,6 +932,12 @@ public final class MadokuSeason {
 	}
 
 	private record SeasonWaterScanResult(int columnsScanned, int enqueuedBlocks) {
+	}
+
+	private record PlayerChunkAnchor(int chunkX, int chunkZ) {
+	}
+
+	private record ChunkDistance(long packedChunk, double distanceSquared) {
 	}
 
 	private enum SeasonWaterAction {
@@ -1190,9 +1268,6 @@ public final class MadokuSeason {
 		}
 
 		JsonElement element = source.get(FIELD_SEASONAL_QUEUE);
-		if ((element == null || !element.isJsonArray()) && source != null) {
-			element = source.get(LEGACY_FIELD_WATER_QUEUE);
-		}
 		if (element == null || !element.isJsonArray()) {
 			return;
 		}
@@ -1203,11 +1278,11 @@ public final class MadokuSeason {
 			}
 
 			JsonObject queueObject = queueElement.getAsJsonObject();
-			Long blockPosLong = getLongObject(queueObject, "block_pos", null);
+			Long blockPosLong = getLongObject(queueObject, "block-pos", null);
 			String actionId = getString(queueObject, "action", "");
-			String queuedSeasonId = getString(queueObject, "queued_season", "unknown");
-			int queuedSeasonDay = getInt(queueObject, "queued_season_day", 0);
-			long queuedAtTick = getLong(queueObject, "queued_at_tick", 0L);
+			String queuedSeasonId = getString(queueObject, "queued-season", "unknown");
+			int queuedSeasonDay = getInt(queueObject, "queued-season-day", 0);
+			long queuedAtTick = getLong(queueObject, "queued-at-tick", 0L);
 			SeasonWaterAction action = SeasonWaterAction.fromId(actionId);
 			if (blockPosLong == null || action == null) {
 				continue;
@@ -1226,11 +1301,11 @@ public final class MadokuSeason {
 		com.google.gson.JsonArray queue = new com.google.gson.JsonArray();
 		for (SeasonWaterWork work : PENDING_WATER_WORK.values()) {
 			JsonObject entry = new JsonObject();
-			entry.addProperty("block_pos", work.blockPosLong());
+			entry.addProperty("block-pos", work.blockPosLong());
 			entry.addProperty("action", work.action().id);
-			entry.addProperty("queued_season", work.queuedSeasonId());
-			entry.addProperty("queued_season_day", work.queuedSeasonDay());
-			entry.addProperty("queued_at_tick", work.queuedAtTick());
+			entry.addProperty("queued-season", work.queuedSeasonId());
+			entry.addProperty("queued-season-day", work.queuedSeasonDay());
+			entry.addProperty("queued-at-tick", work.queuedAtTick());
 			queue.add(entry);
 		}
 		return queue;

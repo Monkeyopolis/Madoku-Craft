@@ -11,9 +11,9 @@ import java.util.Set;
 
 public final class MadokuItemConfig {
 	public static final String FIELD_ITEM_SYSTEM_ENABLED = "itemSystemEnabled";
-	public static final String FIELD_ITEM_ID = "item_id";
-	public static final String FIELD_PRIMARY_CATEGORY = "primary_category";
-	public static final String FIELD_SECONDARY_CATEGORIES = "secondary_categories";
+	public static final String FIELD_ITEM_ID = "item-id";
+	public static final String FIELD_PRIMARY_CATEGORY = "primary-category";
+	public static final String FIELD_SECONDARY_CATEGORIES = "secondary-categories";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
@@ -24,22 +24,22 @@ public final class MadokuItemConfig {
 	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
 	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
 	public static final String SECONDARY_CATEGORY_FARMING = "farming";
-	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
 
-	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
+	public static final String FIELD_FUEL_TICKS = "fuel-ticks";
 	public static final String FIELD_DURABILITY = "durability";
-	public static final String FIELD_ATTACK_DAMAGE = "attack_damage";
-	public static final String FIELD_ATTACK_SPEED = "attack_speed";
-	public static final String FIELD_MINING_SPEED = "mining_speed";
-	public static final String FIELD_MATERIAL_LEVEL = "material_level";
+	public static final String FIELD_ATTACK_DAMAGE = "attack-damage";
+	public static final String FIELD_ATTACK_SPEED = "attack-speed";
+	public static final String FIELD_MINING_SPEED = "mining-speed";
+	public static final String FIELD_MATERIAL_LEVEL = "material-level";
 	public static final String FIELD_ARMOR = "armor";
-	public static final String FIELD_ARMOR_TOUGHNESS = "armor_toughness";
-	public static final String FIELD_REACH_MIN = "reach_min";
-	public static final String FIELD_REACH_MAX = "reach_max";
-	public static final String FIELD_REACH_MIN_CREATIVE = "reach_min_creative";
-	public static final String FIELD_REACH_MAX_CREATIVE = "reach_max_creative";
-	public static final String FIELD_REACH_HITBOX_MARGIN = "reach_hitbox_margin";
-	public static final String FIELD_REACH_MOB_FACTOR = "reach_mob_factor";
+	public static final String FIELD_ARMOR_TOUGHNESS = "armor-toughness";
+	public static final String FIELD_REACH_MIN = "reach-min";
+	public static final String FIELD_REACH_MAX = "reach-max";
+	public static final String FIELD_REACH_MIN_CREATIVE = "reach-min-creative";
+	public static final String FIELD_REACH_MAX_CREATIVE = "reach-max-creative";
+	public static final String FIELD_REACH_HITBOX_MARGIN = "reach-hitbox-margin";
+	public static final String FIELD_REACH_MOB_FACTOR = "reach-mob-factor";
 
 	public static final int TOOL_INT_UNSET = -1;
 	public static final double TOOL_DOUBLE_UNSET = -1.0d;

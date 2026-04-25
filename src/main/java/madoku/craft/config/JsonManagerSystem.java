@@ -108,7 +108,8 @@ public final class JsonManagerSystem {
 		JsonObject raw = readJsonObject(file);
 		JsonObject main = readObject(raw, FIELD_MAIN);
 		JsonObject general = readObject(raw, FIELD_GENERAL);
-		boolean enabled = resolveManagedEnabled(main, general, defaults);
+		boolean enabled = resolveReadEnabled(general, defaults);
+		main.addProperty(FIELD_ENABLED, enabled);
 		return new ManagedJsonDocument(createGeneral(type, enabled), main);
 	}
 
@@ -116,14 +117,17 @@ public final class JsonManagerSystem {
 		JsonObject raw = readJsonObject(file);
 		JsonObject main = readObject(raw, FIELD_MAIN);
 		JsonObject general = readObject(raw, FIELD_GENERAL);
-		boolean enabled = resolveManagedEnabled(main, general, null);
+		boolean enabled = resolveReadEnabled(general, null);
+		main.addProperty(FIELD_ENABLED, enabled);
 		return new ManagedJsonDocument(createGeneral(type, enabled, general), main);
 	}
 
 	static void writeManagedDocument(Path file, ManagedJsonType type, JsonObject main, JsonObject defaults) throws IOException {
 		JsonObject payload = new JsonObject();
 		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
-		payload.add(FIELD_GENERAL, createGeneral(type, resolveManagedEnabled(safeMain, null, defaults)));
+		boolean enabled = resolveWriteEnabled(safeMain, null, defaults);
+		safeMain.remove(FIELD_ENABLED);
+		payload.add(FIELD_GENERAL, createGeneral(type, enabled));
 		payload.add(FIELD_MAIN, safeMain);
 		writeJsonObject(file, payload);
 	}
@@ -132,7 +136,8 @@ public final class JsonManagerSystem {
 		JsonObject payload = new JsonObject();
 		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
 		JsonObject safeGeneral = general == null ? new JsonObject() : general.deepCopy();
-		boolean enabled = resolveManagedEnabled(safeMain, safeGeneral, null);
+		boolean enabled = resolveWriteEnabled(safeMain, safeGeneral, null);
+		safeMain.remove(FIELD_ENABLED);
 		payload.add(FIELD_GENERAL, createGeneral(type, enabled, safeGeneral));
 		payload.add(FIELD_MAIN, safeMain);
 		writeJsonObject(file, payload);
@@ -168,15 +173,29 @@ public final class JsonManagerSystem {
 		return general;
 	}
 
-	private static boolean resolveManagedEnabled(JsonObject main, JsonObject general, JsonObject defaults) {
-		Boolean mainEnabled = readBoolean(main, FIELD_ENABLED);
-		if (mainEnabled != null) {
-			return mainEnabled;
-		}
-
+	private static boolean resolveReadEnabled(JsonObject general, JsonObject defaults) {
 		Boolean generalEnabled = readBoolean(general, FIELD_ENABLED);
 		if (generalEnabled != null) {
 			return generalEnabled;
+		}
+
+		Boolean defaultEnabled = readBoolean(defaults, FIELD_ENABLED);
+		if (defaultEnabled != null) {
+			return defaultEnabled;
+		}
+
+		return true;
+	}
+
+	private static boolean resolveWriteEnabled(JsonObject main, JsonObject general, JsonObject defaults) {
+		Boolean generalEnabled = readBoolean(general, FIELD_ENABLED);
+		if (generalEnabled != null) {
+			return generalEnabled;
+		}
+
+		Boolean mainEnabled = readBoolean(main, FIELD_ENABLED);
+		if (mainEnabled != null) {
+			return mainEnabled;
 		}
 
 		Boolean defaultEnabled = readBoolean(defaults, FIELD_ENABLED);

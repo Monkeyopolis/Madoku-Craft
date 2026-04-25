@@ -14,6 +14,7 @@ import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
+import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -122,18 +123,17 @@ public final class PlayerEntitiesSystem {
 	private static final Identifier PLAYER_ARMOR_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final String FIELD_SLOT = "slot";
-	private static final String FIELD_TARGET_UUID = "target_uuid";
-	private static final String FIELD_SPAWN_X = "spawn_x";
-	private static final String FIELD_SPAWN_Y = "spawn_y";
-	private static final String FIELD_SPAWN_Z = "spawn_z";
+	private static final String FIELD_TARGET_UUID = "target-uuid";
+	private static final String FIELD_SPAWN_X = "spawn-x";
+	private static final String FIELD_SPAWN_Y = "spawn-y";
+	private static final String FIELD_SPAWN_Z = "spawn-z";
 	private static final Map<UUID, UUID[]> PET_IDS_BY_PLAYER = new ConcurrentHashMap<>();
 	private static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
 	private static final Map<UUID, FollowCommand> FOLLOW_COMMANDS_BY_PET = new ConcurrentHashMap<>();
 	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
-	private static final Set<UUID> SCHEDULED_PLAYERS = new HashSet<>();
+	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Set<UUID> DIRTY_ABILITY_HUD_PLAYERS = new HashSet<>();
-	private static final Map<UUID, Long> LAST_PROCESSED_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
@@ -147,6 +147,8 @@ public final class PlayerEntitiesSystem {
 
 	public static void initialize() {
 		loadConfig();
+		PlayerTickSystem.registerListener("pets", 40, PlayerEntitiesSystem::onPlayerTick);
+		// Keep the legacy handler to consume any persisted pre-refactor pet_tick tasks.
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_TICK, PlayerEntitiesSystem::runPetTick);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
@@ -190,9 +192,8 @@ public final class PlayerEntitiesSystem {
 		NEXT_IDLE_MOVE_BY_PET.clear();
 		FOLLOW_COMMANDS_BY_PET.clear();
 		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		DIRTY_ABILITY_HUD_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
 		PLAYER_SLOT_COOLDOWNS.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
@@ -255,24 +256,30 @@ public final class PlayerEntitiesSystem {
 
 		tickManagedWebProjectiles(server);
 		tickManagedExplosiveProjectiles(server);
-
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (player == null || player.isSpectator()) {
-				continue;
-			}
-			PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
-			boolean hasAnyValidPet = hasAnyValidPet(player);
-			if (!hasAnyValidPet && hasAnyConfiguredPetStack(inventory)) {
-				debugPlayerEvent("pet.inventory_invalid", player)
-					.field("inventory", inventorySummary(inventory))
-					.log();
-			}
-			if (!hasAnyValidPet && !PET_IDS_BY_PLAYER.containsKey(player.getUUID())) {
-				continue;
-			}
-			requestPetProcessing(server, player.getUUID(), 0L);
-		}
 		flushAbilityHudSyncs(server);
+	}
+
+	public static void onPlayerEntitiesInventoryChanged(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+
+		markAbilityHudDirty(player.getUUID());
+		applyPlayerMaxHealthAbilityBonus(player);
+		applyPlayerArmorAbilityBonus(player);
+		applyPlayerDamageAbilityBonus(player);
+
+		MinecraftServer server = player.level().getServer();
+		if (server == null) {
+			return;
+		}
+		if (!settings.enabled || !petEntitiesEnabled()) {
+			removeAllPets(server, player.getUUID());
+			return;
+		}
+
+		requestPetProcessing(server, player.getUUID(), 0L);
+		onPlayerTick(server, player, MadokuTicks.getGameplayTicks());
 	}
 
 	public static boolean isValidPlayerEntity(ItemStack stack) {
@@ -703,18 +710,6 @@ public final class PlayerEntitiesSystem {
 			.field("pet_type", entityTypeId(pet.getType()));
 	}
 
-	private static boolean hasAnyConfiguredPetStack(PlayerEntitiesInventory inventory) {
-		if (inventory == null) {
-			return false;
-		}
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			if (!inventory.getItem(slot).isEmpty()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private static String inventorySummary(PlayerEntitiesInventory inventory) {
 		if (inventory == null) {
 			return "null";
@@ -885,9 +880,9 @@ public final class PlayerEntitiesSystem {
 		}
 
 		removeAllPets(server, playerId);
-		SCHEDULED_PLAYERS.remove(playerId);
+		PLAYER_SCHEDULER_IDS.remove(playerId);
+		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		DIRTY_ABILITY_HUD_PLAYERS.remove(playerId);
-		LAST_PROCESSED_TICKS_BY_PLAYER.remove(playerId);
 	}
 
 	private static void handleAfterDamage(
@@ -1173,29 +1168,21 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	private static void runPetTick(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (server == null || context == null) {
+	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+		if (server == null || player == null) {
 			return;
 		}
 
-		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
-		UUID playerId = binding == null ? null : binding.getEntityUuid();
-		if (playerId == null) {
+		UUID playerId = player.getUUID();
+		Long nextProcessTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
+		if (nextProcessTick == null || gameplayTick < nextProcessTick) {
 			return;
 		}
+		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 
-		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
-		SCHEDULED_PLAYERS.remove(playerId);
-		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && lastProcessed == context.getNowTick()) {
-			return;
-		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
-
-		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-		if (player == null || !settings.enabled || !petEntitiesEnabled()) {
+		if (!settings.enabled || !petEntitiesEnabled()) {
 			debugPlayerIdEvent("pet.tick_stopped", playerId)
-				.field("reason", player == null ? "player_missing" : (!settings.enabled ? "system_disabled" : "entities_disabled"))
+				.field("reason", !settings.enabled ? "system_disabled" : "entities_disabled")
 				.log();
 			removeAllPets(server, playerId);
 			return;
@@ -1209,7 +1196,6 @@ public final class PlayerEntitiesSystem {
 		}
 
 		debugPlayerEvent("pet.tick_started", player)
-			.field("scheduler_id", context.getSchedulerId())
 			.field("inventory", inventorySummary(playerEntitiesInventory(player)))
 			.log();
 
@@ -1219,7 +1205,7 @@ public final class PlayerEntitiesSystem {
 			triggerReactivePetAttacks(player, ongoingReactiveTarget);
 			nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
 		}
-		triggerAutomaticPetAbilities(player, context.getNowTick());
+		triggerAutomaticPetAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
 			debugPlayerEvent("pet.tick_completed", player)
 				.field("next_delay", nextDelay)
@@ -1231,6 +1217,33 @@ public final class PlayerEntitiesSystem {
 				.field("reason", "no_active_pets")
 				.log();
 		}
+	}
+
+	private static void runPetTick(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		if (server == null || context == null) {
+			return;
+		}
+
+		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
+		UUID playerId = binding == null ? null : binding.getEntityUuid();
+		if (playerId == null) {
+			return;
+		}
+
+		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
+		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+		if (player == null) {
+			NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
+			removeAllPets(server, playerId);
+			return;
+		}
+
+		long nowTick = context.getNowTick();
+		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
+		if (existingTick == null || nowTick < existingTick) {
+			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, nowTick);
+		}
+		onPlayerTick(server, player, nowTick);
 	}
 
 	private static void runPetAttack(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -1397,7 +1410,7 @@ public final class PlayerEntitiesSystem {
 		debugPetEvent("pet.spawned", pet)
 			.field("owner_uuid", owner.getUUID())
 			.field("slot", slot)
-			.field("item_id", rule == null ? "" : rule.itemId)
+			.field("item-id", rule == null ? "" : rule.itemId)
 			.log();
 		return pet;
 	}
@@ -1917,36 +1930,19 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
-		if (server == null || playerId == null || !petEntitiesEnabled() || SCHEDULED_PLAYERS.contains(playerId)) {
+		if (server == null || playerId == null || !petEntitiesEnabled()) {
 			return;
 		}
 
-		String schedulerId = ensureSchedulerExists(playerId);
-		if (enqueuePetTick(schedulerId, delayTicks)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			debugPlayerIdEvent("pet.tick_requested", playerId)
-				.field("scheduler_id", schedulerId)
-				.field("delay", Math.max(0L, delayTicks))
-				.log();
-			return;
+		long targetTick = MadokuTicks.getGameplayTicks() + Math.max(0L, delayTicks);
+		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
+		if (existingTick == null || targetTick < existingTick) {
+			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
 		}
-
-		String created = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
-		PLAYER_SCHEDULER_IDS.put(playerId, created);
-		if (enqueuePetTick(created, delayTicks)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			debugPlayerIdEvent("pet.tick_requested", playerId)
-				.field("scheduler_id", created)
-				.field("delay", Math.max(0L, delayTicks))
-				.field("scheduler_recreated", true)
-				.log();
-		} else {
-			LOGGER.error("Failed to enqueue pet runtime task for player={}", playerId);
-			debugPlayerIdEvent("pet.tick_request_failed", playerId)
-				.field("scheduler_id", created)
-				.field("delay", Math.max(0L, delayTicks))
-				.log();
-		}
+		debugPlayerIdEvent("pet.tick_requested", playerId)
+			.field("delay", Math.max(0L, delayTicks))
+			.field("target_tick", targetTick)
+			.log();
 	}
 
 	private static String ensureSchedulerExists(UUID playerId) {
@@ -1956,21 +1952,6 @@ public final class PlayerEntitiesSystem {
 			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
 		}
 		return schedulerId;
-	}
-
-	private static boolean enqueuePetTick(String schedulerId, long delayTicks) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
-			schedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE_PET_TICK,
-			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED || status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static boolean enqueuePetAttackTask(String schedulerId, int slot, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
@@ -2061,10 +2042,6 @@ public final class PlayerEntitiesSystem {
 			PLAYER_SLOT_COOLDOWNS.remove(playerId);
 		}
 		markAbilityHudDirty(playerId);
-	}
-
-	private static boolean hasAnyValidPet(ServerPlayer player) {
-		return countPlayerEntities(player) > 0;
 	}
 
 	private static void copyToNewPlayer(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
@@ -2215,7 +2192,7 @@ public final class PlayerEntitiesSystem {
 		ACTIVE_PET_IDS.clear();
 		NEXT_IDLE_MOVE_BY_PET.clear();
 		FOLLOW_COMMANDS_BY_PET.clear();
-		SCHEDULED_PLAYERS.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		PetSoundState.clear();
@@ -2275,7 +2252,7 @@ public final class PlayerEntitiesSystem {
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
 		root.addProperty("version", 1);
-		root.add("slot_cooldowns", new JsonArray());
+		root.add("slot-cooldowns", new JsonArray());
 		return root;
 	}
 
@@ -2297,18 +2274,19 @@ public final class PlayerEntitiesSystem {
 			playerCooldowns.add("cooldowns", values);
 			cooldowns.add(playerCooldowns);
 		}
-		root.add("slot_cooldowns", cooldowns);
+		root.add("slot-cooldowns", cooldowns);
 		return root;
 	}
 
 	private static void applyPersistedData(JsonObject source) {
 		PLAYER_SCHEDULER_IDS.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		PLAYER_SLOT_COOLDOWNS.clear();
 		if (source == null) {
 			return;
 		}
 
-		JsonArray slotCooldowns = getArray(source, "slot_cooldowns");
+		JsonArray slotCooldowns = getArray(source, "slot-cooldowns");
 		if (slotCooldowns == null) {
 			return;
 		}
@@ -2408,7 +2386,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 	static String resolvePetItemId(String fileKey, JsonObject sourceRoot) {
-		String configured = getString(sourceRoot, "item_id", "");
+		String configured = getString(sourceRoot, "item-id", "");
 		if (!configured.isBlank()) {
 			return configured.trim();
 		}
@@ -2602,3 +2580,4 @@ public final class PlayerEntitiesSystem {
 	}
 
 }
+

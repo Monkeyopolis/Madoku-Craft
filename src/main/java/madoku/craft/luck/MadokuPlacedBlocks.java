@@ -20,10 +20,10 @@ public final class MadokuPlacedBlocks {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-luck";
 	private static final String DATA_FILE_NAME = "madoku-placed-blocks";
 	private static final String FIELD_LEVELS = "levels";
-	private static final String FIELD_LEVEL_ID = "level_id";
+	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_POSITIONS = "positions";
 	private static final String FIELD_POSITION = "position";
-	private static final String FIELD_TRACKED_SINCE_GAMEPLAY_TICK = "tracked_since_gameplay_tick";
+	private static final String FIELD_TRACKED_SINCE_GAMEPLAY_TICK = "tracked-since-gameplay-tick";
 	private static final long PLACED_BLOCK_RETENTION_DAYS = 28L;
 
 	private static final Map<String, Set<Long>> PLACED_BLOCKS_BY_LEVEL = new HashMap<>();

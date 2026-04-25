@@ -9,8 +9,8 @@ import java.util.Map;
 
 public final class MadokuComposterConfig {
 	public static final String FIELD_COMPOSTER_SYSTEM_ENABLED = "composterSystemEnabled";
-	public static final String FIELD_ITEM_ID = "item_id";
-	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
+	public static final String FIELD_ITEM_ID = "item-id";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";

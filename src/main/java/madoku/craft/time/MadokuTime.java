@@ -23,8 +23,8 @@ import java.nio.file.Path;
 public final class MadokuTime {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuTime.class);
 
-	private static final long DEFAULT_REAL_MINUTES_PER_DAY = 16L;
-	private static final long DEFAULT_REAL_MINUTES_PER_NIGHT = 8L;
+	private static final long DEFAULT_REAL_MINUTES_PER_DAY = 12L;
+	private static final long DEFAULT_REAL_MINUTES_PER_NIGHT = 12L;
 	private static final int DEFAULT_CLOCK_DAY_START_MINUTES = 6 * 60;
 	private static final int DEFAULT_CLOCK_NIGHT_START_MINUTES = 18 * 60;
 	private static final int DEFAULT_CLOCK_MIDNIGHT_MINUTES = 0;
@@ -643,24 +643,24 @@ public final class MadokuTime {
 		private static TimeSettings fromJson(JsonObject source) {
 			boolean enabled = getBoolean(source, "enabled", true);
 			long dayMinutes = sanitizePositive(
-				getLong(source, "real_minutes_per_day", DEFAULT_REAL_MINUTES_PER_DAY),
+				getLong(source, "real-minutes-per-day", DEFAULT_REAL_MINUTES_PER_DAY),
 				DEFAULT_REAL_MINUTES_PER_DAY
 			);
 			long nightMinutes = sanitizePositive(
-				getLong(source, "real_minutes_per_night", DEFAULT_REAL_MINUTES_PER_NIGHT),
+				getLong(source, "real-minutes-per-night", DEFAULT_REAL_MINUTES_PER_NIGHT),
 				DEFAULT_REAL_MINUTES_PER_NIGHT
 			);
 
 			int dayStart = parseClockMinutes(
-				getString(source, "clock_day_start", formatClockMinutes(DEFAULT_CLOCK_DAY_START_MINUTES)),
+				getString(source, "clock-day-start", formatClockMinutes(DEFAULT_CLOCK_DAY_START_MINUTES)),
 				DEFAULT_CLOCK_DAY_START_MINUTES
 			);
 			int nightStart = parseClockMinutes(
-				getString(source, "clock_night_start", formatClockMinutes(DEFAULT_CLOCK_NIGHT_START_MINUTES)),
+				getString(source, "clock-night-start", formatClockMinutes(DEFAULT_CLOCK_NIGHT_START_MINUTES)),
 				DEFAULT_CLOCK_NIGHT_START_MINUTES
 			);
 			int midnight = parseClockMinutes(
-				getString(source, "clock_midnight", formatClockMinutes(DEFAULT_CLOCK_MIDNIGHT_MINUTES)),
+				getString(source, "clock-midnight", formatClockMinutes(DEFAULT_CLOCK_MIDNIGHT_MINUTES)),
 				DEFAULT_CLOCK_MIDNIGHT_MINUTES
 			);
 
@@ -704,11 +704,11 @@ public final class MadokuTime {
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("real_minutes_per_day", realMinutesPerDay);
-			root.addProperty("real_minutes_per_night", realMinutesPerNight);
-			root.addProperty("clock_day_start", formatClockMinutes(clockDayStartMinutes));
-			root.addProperty("clock_night_start", formatClockMinutes(clockNightStartMinutes));
-			root.addProperty("clock_midnight", formatClockMinutes(clockMidnightMinutes));
+			root.addProperty("real-minutes-per-day", realMinutesPerDay);
+			root.addProperty("real-minutes-per-night", realMinutesPerNight);
+			root.addProperty("clock-day-start", formatClockMinutes(clockDayStartMinutes));
+			root.addProperty("clock-night-start", formatClockMinutes(clockNightStartMinutes));
+			root.addProperty("clock-midnight", formatClockMinutes(clockMidnightMinutes));
 			return root;
 		}
 	}

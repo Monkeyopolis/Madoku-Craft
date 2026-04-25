@@ -70,14 +70,14 @@ public final class MadokuFarming {
 	private static final String FARMING_SCHEDULER_OWNER_ID = "farming_gameplay";
 	private static final String TASK_TYPE_FARMING_TICK = "farming_gameplay_tick";
 	private static final long FARMING_SCHEDULER_INTERVAL_TICKS = 20L;
-	private static final String FIELD_LEVEL_ID = "level_id";
-	private static final String FIELD_SOIL_POS = "soil_pos";
-	private static final String FIELD_CROP_POS = "crop_pos";
-	private static final String FIELD_CROP_ID = "crop_id";
+	private static final String FIELD_LEVEL_ID = "level-id";
+	private static final String FIELD_SOIL_POS = "soil-pos";
+	private static final String FIELD_CROP_POS = "crop-pos";
+	private static final String FIELD_CROP_ID = "crop-id";
 	private static final String FIELD_FERTILIZED = "fertilized";
-	private static final String FIELD_FERTILIZED_AT_ABSOLUTE_DAY_TIME = "fertilized_at_absolute_day_time";
-	private static final String FIELD_GROWTH_PROGRESS = "growth_progress";
-	private static final String FIELD_LAST_PARTICLE_EMISSION_TICKS = "last_particle_emission_ticks";
+	private static final String FIELD_FERTILIZED_AT_ABSOLUTE_DAY_TIME = "fertilized-at-absolute-day-time";
+	private static final String FIELD_GROWTH_PROGRESS = "growth-progress";
+	private static final String FIELD_LAST_PARTICLE_EMISSION_TICKS = "last-particle-emission-ticks";
 	private static final String FIELD_PLOTS = "plots";
 
 	private static final long FERTILIZATION_DECAY_TICKS = 3L * 24000L;

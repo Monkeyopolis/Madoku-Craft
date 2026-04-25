@@ -12,7 +12,7 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.player.PlayerTickSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -32,9 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public final class MadokuHealth {
@@ -47,7 +45,6 @@ public final class MadokuHealth {
 	private static final String HEALTH_CONFIG_FILE_NAME = "madoku-health";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-health";
 	private static final String DATA_FILE_NAME = "madoku-health";
-	private static final String TASK_TYPE_HEALTH_TICK = "health_tick";
 	private static final float DEATH_RESPAWN_HEALTH_RATIO = 0.5f;
 	private static final Identifier LOW_HUNGER_MAX_HEALTH_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_low_hunger_max_health");
@@ -55,7 +52,7 @@ public final class MadokuHealth {
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_health_boost_max_health");
 	private static final long WITHER_TICK_INTERVAL = 20L;
 	private static final long REGEN_TICK_INTERVAL = 20L;
-	private static final long POISON_TICK_INTERVAL = 10L;
+	private static final long POISON_TICK_INTERVAL = 20L;
 	private static final float EFFECT_DAMAGE_AMOUNT = 1.0f;
 	private static final float POISON_DAMAGE_PER_LEVEL = EFFECT_DAMAGE_AMOUNT;
 	private static final float WITHER_DAMAGE_PER_LEVEL = EFFECT_DAMAGE_AMOUNT;
@@ -63,20 +60,23 @@ public final class MadokuHealth {
 	private static final double HEALTH_BOOST_MAX_HEALTH_FRACTION_PER_LEVEL = 0.10d;
 	private static final float ABSORPTION_FRACTION_PER_LEVEL = 0.20f;
 	private static final float POISON_MIN_HEALTH = 1.0f;
+	private static final float LOW_HUNGER_STEP_RATIO = 0.05f;
+	private static final double MAX_HEALTH_REDUCTION_PER_STEP = 0.10d;
+	private static final double PENDING_HEALTH_PER_HUNGER = 1.0d;
+	private static final double PENDING_HEALTH_APPLY_AMOUNT = 1.0d;
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
-	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
-	private static final Set<UUID> SCHEDULED_PLAYERS = new HashSet<>();
-	private static final Map<UUID, Long> LAST_PROCESSED_TICKS_BY_PLAYER = new HashMap<>();
+	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static long lastNaturalRegenDisableTick = Long.MIN_VALUE;
 
 	private MadokuHealth() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_TICK, MadokuHealth::runHealthTask);
+		PlayerTickSystem.registerListener("health", 20, MadokuHealth::onPlayerTick);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealth::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealth::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealth::handlePlayerRespawn);
@@ -84,10 +84,9 @@ public final class MadokuHealth {
 
 	public static void reset() {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
+		lastNaturalRegenDisableTick = Long.MIN_VALUE;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -122,45 +121,30 @@ public final class MadokuHealth {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	private static void runHealthTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (server == null || context == null) {
+	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+		if (server == null || player == null) {
 			return;
 		}
 
-		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
-		UUID playerId = binding == null ? null : binding.getEntityUuid();
-		if (playerId == null) {
-			return;
+		if (gameplayTick != lastNaturalRegenDisableTick) {
+			disableVanillaNaturalRegen(server, gameplayTick);
+			lastNaturalRegenDisableTick = gameplayTick;
 		}
-
-		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
-		SCHEDULED_PLAYERS.remove(playerId);
-		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && context.getNowTick() == lastProcessed) {
-			return;
-		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
-
-		disableVanillaNaturalRegen(server, context.getNowTick());
 		if (!settings.enabled) {
 			return;
 		}
 
-		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-		if (player == null) {
-			PlayerState state = PLAYER_STATES.get(playerId);
-			if (state != null) {
-				state.onlineThisSession = false;
-				state.appliedMaxHealthMultiplier = 1.0d;
-				state.appliedHealthBoostAmount = 0.0d;
-				state.appliedAbsorptionAmount = 0.0f;
-			}
+		UUID playerId = player.getUUID();
+		long nextProcessTick = NEXT_PROCESS_TICKS_BY_PLAYER.getOrDefault(playerId, 0L);
+		if (gameplayTick < nextProcessTick) {
 			return;
 		}
 
-		boolean stillActive = processPlayer(player, context.getNowTick());
+		boolean stillActive = processPlayer(player, gameplayTick);
 		if (stillActive) {
-			requestHealthProcessing(server, playerId, Math.max(1L, settings.schedulerTickInterval));
+			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, gameplayTick + Math.max(1L, settings.schedulerTickInterval));
+		} else {
+			NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		}
 	}
 
@@ -294,10 +278,10 @@ public final class MadokuHealth {
 		float hungerRatio = hungerRatio(player.getFoodData().getFoodLevel());
 		boolean hasRecoveryNeed = missingHealth > EPSILON;
 
-		if (hungerRatio > settings.highHungerStartRatio && hasRecoveryNeed) {
+		if (hungerRatio > settings.hungerDrainRatio && hasRecoveryNeed) {
 			state.highHungerDrainActive = true;
 		}
-		if (hungerRatio <= settings.highHungerStopRatio || !hasRecoveryNeed) {
+		if (hungerRatio <= settings.hungerDrainRatio || !hasRecoveryNeed) {
 			state.highHungerDrainActive = false;
 		}
 		if (!state.highHungerDrainActive) {
@@ -310,9 +294,9 @@ public final class MadokuHealth {
 			return;
 		}
 
-		state.pendingHealth += drained * (float) settings.pendingHealthPerHunger;
+		state.pendingHealth += drained * (float) PENDING_HEALTH_PER_HUNGER;
 		state.lastPendingActivityTick = gameplayTick;
-		if (hungerRatio(player.getFoodData().getFoodLevel()) <= settings.highHungerStopRatio) {
+		if (hungerRatio(player.getFoodData().getFoodLevel()) <= settings.hungerDrainRatio) {
 			state.highHungerDrainActive = false;
 		}
 
@@ -337,10 +321,7 @@ public final class MadokuHealth {
 			return;
 		}
 
-		float healing = Math.min(
-			(float) settings.pendingHealthApplyAmount,
-			Math.min(state.pendingHealth, missingHealth)
-		);
+		float healing = Math.min((float) PENDING_HEALTH_APPLY_AMOUNT, Math.min(state.pendingHealth, missingHealth));
 		if (healing <= EPSILON) {
 			return;
 		}
@@ -529,17 +510,17 @@ public final class MadokuHealth {
 	}
 
 	private static double calculateMaxHealthMultiplier(float hungerRatio) {
-		if (hungerRatio >= settings.lowHungerThresholdRatio) {
+		if (hungerRatio >= settings.hungerPenaltyRatio) {
 			return 1.0d;
 		}
 
-		double belowThreshold = settings.lowHungerThresholdRatio - hungerRatio;
-		int steps = (int) Math.ceil((belowThreshold - EPSILON) / settings.lowHungerStepRatio);
+		double belowThreshold = settings.hungerPenaltyRatio - hungerRatio;
+		int steps = (int) Math.ceil((belowThreshold - EPSILON) / LOW_HUNGER_STEP_RATIO);
 		steps = Math.max(0, steps);
-		double reduction = steps * settings.maxHealthReductionPerStep;
+		double reduction = steps * MAX_HEALTH_REDUCTION_PER_STEP;
 		double multiplier = 1.0d - reduction;
-		if (multiplier < settings.minimumMaxHealthMultiplier) {
-			return settings.minimumMaxHealthMultiplier;
+		if (multiplier < settings.healthPenaltyRatio) {
+			return settings.healthPenaltyRatio;
 		}
 		return Math.min(1.0d, multiplier);
 	}
@@ -547,60 +528,6 @@ public final class MadokuHealth {
 	private static float hungerRatio(int foodLevel) {
 		int clamped = Math.max(0, Math.min(VANILLA_MAX_HUNGER_POINTS, foodLevel));
 		return (float) clamped / (float) VANILLA_MAX_HUNGER_POINTS;
-	}
-
-	private static String ensureSchedulerExists(UUID playerId) {
-		if (playerId == null) {
-			return "";
-		}
-
-		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
-		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_HEALTH_TICK, playerId)
-			);
-			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
-		}
-		return schedulerId;
-	}
-
-	private static void requestHealthProcessing(MinecraftServer server, UUID playerId, long delay) {
-		if (server == null || playerId == null || !settings.enabled || SCHEDULED_PLAYERS.contains(playerId)) {
-			return;
-		}
-
-		String schedulerId = ensureSchedulerExists(playerId);
-		if (enqueueHealthTask(schedulerId, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-
-		String created = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_HEALTH_TICK, playerId)
-		);
-		PLAYER_SCHEDULER_IDS.put(playerId, created);
-		if (enqueueHealthTask(created, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-
-		LOGGER.error("Failed to enqueue MadokuHealth scheduler task for player={}", playerId);
-	}
-
-	private static boolean enqueueHealthTask(String targetSchedulerId, long delay) {
-		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
-			return false;
-		}
-
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
-			targetSchedulerId,
-			Math.max(0L, delay),
-			TASK_TYPE_HEALTH_TICK,
-			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void disableVanillaNaturalRegen(MinecraftServer server, long gameplayTick) {
@@ -635,7 +562,7 @@ public final class MadokuHealth {
 		state.appliedHealthBoostAmount = 0.0d;
 		state.appliedAbsorptionAmount = 0.0f;
 		state.onlineThisSession = true;
-		requestHealthProcessing(((ServerLevel) newPlayer.level()).getServer(), newPlayer.getUUID(), 1L);
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(newPlayer.getUUID(), 0L);
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.respawn_half_health")) {
 			MadokuDebug.event("health.respawn_half_health", MadokuDebug.Domain.HEALTH)
@@ -663,7 +590,7 @@ public final class MadokuHealth {
 		state.onlineThisSession = true;
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
-		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.damage_detected")) {
 			MadokuDebug.event("health.damage_detected", MadokuDebug.Domain.HEALTH)
@@ -686,7 +613,7 @@ public final class MadokuHealth {
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
 		applyImmediateEffectOverrides(player, state, MadokuTicks.getGameplayTicks());
-		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
 	public static void handlePlayerEffectsChanged(ServerPlayer player) {
@@ -699,7 +626,7 @@ public final class MadokuHealth {
 		long gameplayTick = MadokuTicks.getGameplayTicks();
 		state.lastPendingActivityTick = gameplayTick;
 		applyImmediateEffectOverrides(player, state, gameplayTick);
-		requestHealthProcessing(((ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
 	public static boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) {
@@ -759,9 +686,9 @@ public final class MadokuHealth {
 
 			JsonObject player = new JsonObject();
 			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("pending_health", state.pendingHealth);
-			player.addProperty("high_hunger_drain_active", state.highHungerDrainActive);
-			player.addProperty("last_pending_activity_tick", Math.max(0L, state.lastPendingActivityTick));
+			player.addProperty("pending-health", state.pendingHealth);
+			player.addProperty("high-hunger-drain-active", state.highHungerDrainActive);
+			player.addProperty("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick));
 			players.add(player);
 		}
 		root.add("players", players);
@@ -770,9 +697,7 @@ public final class MadokuHealth {
 
 	private static void applyPersistedData(JsonObject source) {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 
 		JsonArray players = getArray(source, "players");
 		if (players == null) {
@@ -790,9 +715,9 @@ public final class MadokuHealth {
 			}
 
 			PlayerState state = new PlayerState();
-			state.pendingHealth = Math.max(0.0f, (float) getDouble(playerData, "pending_health", 0.0d));
-			state.highHungerDrainActive = getBoolean(playerData, "high_hunger_drain_active", false);
-			state.lastPendingActivityTick = Math.max(0L, getLong(playerData, "last_pending_activity_tick", 0L));
+			state.pendingHealth = Math.max(0.0f, (float) getDouble(playerData, "pending-health", 0.0d));
+			state.highHungerDrainActive = getBoolean(playerData, "high-hunger-drain-active", false);
+			state.lastPendingActivityTick = Math.max(0L, getLong(playerData, "last-pending-activity-tick", 0L));
 			PLAYER_STATES.put(playerId, state);
 		}
 	}
@@ -922,14 +847,9 @@ public final class MadokuHealth {
 		private final long schedulerTickInterval;
 		private final int actionIntervalTicks;
 		private final double maximumHealth;
-		private final float highHungerStartRatio;
-		private final float highHungerStopRatio;
-		private final float lowHungerThresholdRatio;
-		private final float lowHungerStepRatio;
-		private final double maxHealthReductionPerStep;
-		private final double minimumMaxHealthMultiplier;
-		private final double pendingHealthPerHunger;
-		private final double pendingHealthApplyAmount;
+		private final float hungerDrainRatio;
+		private final float hungerPenaltyRatio;
+		private final double healthPenaltyRatio;
 		private final long pendingIdleTimeoutTicks;
 
 		private Settings(
@@ -937,28 +857,18 @@ public final class MadokuHealth {
 			long schedulerTickInterval,
 			int actionIntervalTicks,
 			double maximumHealth,
-			float highHungerStartRatio,
-			float highHungerStopRatio,
-			float lowHungerThresholdRatio,
-			float lowHungerStepRatio,
-			double maxHealthReductionPerStep,
-			double minimumMaxHealthMultiplier,
-			double pendingHealthPerHunger,
-			double pendingHealthApplyAmount,
+			float hungerDrainRatio,
+			float hungerPenaltyRatio,
+			double healthPenaltyRatio,
 			long pendingIdleTimeoutTicks
 		) {
 			this.enabled = enabled;
 			this.schedulerTickInterval = schedulerTickInterval;
 			this.actionIntervalTicks = actionIntervalTicks;
 			this.maximumHealth = maximumHealth;
-			this.highHungerStartRatio = highHungerStartRatio;
-			this.highHungerStopRatio = highHungerStopRatio;
-			this.lowHungerThresholdRatio = lowHungerThresholdRatio;
-			this.lowHungerStepRatio = lowHungerStepRatio;
-			this.maxHealthReductionPerStep = maxHealthReductionPerStep;
-			this.minimumMaxHealthMultiplier = minimumMaxHealthMultiplier;
-			this.pendingHealthPerHunger = pendingHealthPerHunger;
-			this.pendingHealthApplyAmount = pendingHealthApplyAmount;
+			this.hungerDrainRatio = hungerDrainRatio;
+			this.hungerPenaltyRatio = hungerPenaltyRatio;
+			this.healthPenaltyRatio = healthPenaltyRatio;
 			this.pendingIdleTimeoutTicks = pendingIdleTimeoutTicks;
 		}
 
@@ -969,14 +879,9 @@ public final class MadokuHealth {
 				10,
 				20.0d,
 				0.75f,
-				0.75f,
 				0.25f,
-				0.05f,
-				0.10d,
 				0.50d,
-				1.0d,
-				1.0d,
-				60L * 20L
+				1500L
 			);
 		}
 
@@ -984,35 +889,34 @@ public final class MadokuHealth {
 			Settings defaults = defaults();
 
 			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			long schedulerTickInterval = clampLong(getLong(source, "scheduler_tick_interval", defaults.schedulerTickInterval), 1L, 20L);
-			int actionIntervalTicks = (int) clampLong(getLong(source, "action_interval_ticks", defaults.actionIntervalTicks), 1L, 200L);
-			double maximumHealth = clampDouble(getDouble(source, "maximum_health", defaults.maximumHealth), 1.0d, 1024.0d);
-			float highHungerStartRatio = (float) clampDouble(getDouble(source, "high_hunger_start_ratio", defaults.highHungerStartRatio), 0.0d, 1.0d);
-			float highHungerStopRatio = (float) clampDouble(getDouble(source, "high_hunger_stop_ratio", defaults.highHungerStopRatio), 0.0d, 1.0d);
-			if (highHungerStopRatio > highHungerStartRatio) {
-				highHungerStopRatio = highHungerStartRatio;
+			long schedulerTickInterval = defaults.schedulerTickInterval;
+			int actionIntervalTicks = defaults.actionIntervalTicks;
+			double maximumHealth = clampDouble(getDouble(source, "maximum-health", defaults.maximumHealth), 1.0d, 1024.0d);
+			double hungerDrainRatioRaw = getDouble(source, "hunger-drain-ratio", Double.NaN);
+			if (Double.isNaN(hungerDrainRatioRaw)) {
+				hungerDrainRatioRaw = getDouble(source, "high-hunger-start-ratio", defaults.hungerDrainRatio);
 			}
-			float lowHungerThresholdRatio = (float) clampDouble(getDouble(source, "low_hunger_threshold_ratio", defaults.lowHungerThresholdRatio), 0.0d, 1.0d);
-			float lowHungerStepRatio = (float) clampDouble(getDouble(source, "low_hunger_step_ratio", defaults.lowHungerStepRatio), 0.01d, 1.0d);
-			double maxHealthReductionPerStep = clampDouble(getDouble(source, "max_health_reduction_per_step", defaults.maxHealthReductionPerStep), 0.0d, 1.0d);
-			double minimumMaxHealthMultiplier = clampDouble(getDouble(source, "minimum_max_health_multiplier", defaults.minimumMaxHealthMultiplier), 0.10d, 1.0d);
-			double pendingHealthPerHunger = clampDouble(getDouble(source, "pending_health_per_hunger", defaults.pendingHealthPerHunger), 0.0d, 8.0d);
-			double pendingHealthApplyAmount = clampDouble(getDouble(source, "pending_health_apply_amount", defaults.pendingHealthApplyAmount), 0.0d, 8.0d);
-			long pendingIdleTimeoutTicks = clampLong(getLong(source, "pending_idle_timeout_ticks", defaults.pendingIdleTimeoutTicks), 20L, 20L * 60L * 10L);
+			float hungerDrainRatio = (float) clampDouble(hungerDrainRatioRaw, 0.0d, 1.0d);
+			double hungerPenaltyRatioRaw = getDouble(source, "hunger-penalty-ratio", Double.NaN);
+			if (Double.isNaN(hungerPenaltyRatioRaw)) {
+				hungerPenaltyRatioRaw = getDouble(source, "low-hunger-threshold-ratio", defaults.hungerPenaltyRatio);
+			}
+			float hungerPenaltyRatio = (float) clampDouble(hungerPenaltyRatioRaw, 0.0d, 1.0d);
+			double healthPenaltyRatioRaw = getDouble(source, "health-penalty-ratio", Double.NaN);
+			if (Double.isNaN(healthPenaltyRatioRaw)) {
+				healthPenaltyRatioRaw = getDouble(source, "minimum-max-health-multiplier", defaults.healthPenaltyRatio);
+			}
+			double healthPenaltyRatio = clampDouble(healthPenaltyRatioRaw, 0.10d, 1.0d);
+			long pendingIdleTimeoutTicks = defaults.pendingIdleTimeoutTicks;
 
 			return new Settings(
 				enabled,
 				schedulerTickInterval,
 				actionIntervalTicks,
 				maximumHealth,
-				highHungerStartRatio,
-				highHungerStopRatio,
-				lowHungerThresholdRatio,
-				lowHungerStepRatio,
-				maxHealthReductionPerStep,
-				minimumMaxHealthMultiplier,
-				pendingHealthPerHunger,
-				pendingHealthApplyAmount,
+				hungerDrainRatio,
+				hungerPenaltyRatio,
+				healthPenaltyRatio,
 				pendingIdleTimeoutTicks
 			);
 		}
@@ -1020,18 +924,10 @@ public final class MadokuHealth {
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("scheduler_tick_interval", schedulerTickInterval);
-			root.addProperty("action_interval_ticks", actionIntervalTicks);
-			root.addProperty("maximum_health", maximumHealth);
-			root.addProperty("high_hunger_start_ratio", highHungerStartRatio);
-			root.addProperty("high_hunger_stop_ratio", highHungerStopRatio);
-			root.addProperty("low_hunger_threshold_ratio", lowHungerThresholdRatio);
-			root.addProperty("low_hunger_step_ratio", lowHungerStepRatio);
-			root.addProperty("max_health_reduction_per_step", maxHealthReductionPerStep);
-			root.addProperty("minimum_max_health_multiplier", minimumMaxHealthMultiplier);
-			root.addProperty("pending_health_per_hunger", pendingHealthPerHunger);
-			root.addProperty("pending_health_apply_amount", pendingHealthApplyAmount);
-			root.addProperty("pending_idle_timeout_ticks", pendingIdleTimeoutTicks);
+			root.addProperty("maximum-health", maximumHealth);
+			root.addProperty("hunger-drain-ratio", hungerDrainRatio);
+			root.addProperty("hunger-penalty-ratio", hungerPenaltyRatio);
+			root.addProperty("health-penalty-ratio", healthPenaltyRatio);
 			return root;
 		}
 
@@ -1041,20 +937,11 @@ public final class MadokuHealth {
 				schedulerTickInterval,
 				actionIntervalTicks,
 				maximumHealth,
-				highHungerStartRatio,
-				highHungerStopRatio,
-				lowHungerThresholdRatio,
-				lowHungerStepRatio,
-				maxHealthReductionPerStep,
-				minimumMaxHealthMultiplier,
-				pendingHealthPerHunger,
-				pendingHealthApplyAmount,
+				hungerDrainRatio,
+				hungerPenaltyRatio,
+				healthPenaltyRatio,
 				pendingIdleTimeoutTicks
 			);
-		}
-
-		private static long clampLong(long value, long min, long max) {
-			return Math.max(min, Math.min(max, value));
 		}
 
 		private static double clampDouble(double value, double min, double max) {

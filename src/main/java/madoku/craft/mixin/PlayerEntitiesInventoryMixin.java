@@ -5,6 +5,7 @@ import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -19,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Player.class)
 public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHolder {
 	@Unique
-	private final PlayerEntitiesInventory madokuCraft$playerEntitiesInventory = new PlayerEntitiesInventory();
+	private final PlayerEntitiesInventory madokuCraft$playerEntitiesInventory = madokuCraft$createPlayerEntitiesInventory();
 
 	@Override
 	public PlayerEntitiesInventory madokuCraft$getPlayerEntitiesInventory() {
@@ -75,5 +76,16 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 	@Unique
 	private static String madokuCraft$legacySlotKey(int slot) {
 		return PlayerEntitiesSystem.legacySaveKey() + "." + slot;
+	}
+
+	@Unique
+	private PlayerEntitiesInventory madokuCraft$createPlayerEntitiesInventory() {
+		PlayerEntitiesInventory inventory = new PlayerEntitiesInventory();
+		inventory.setChangeListener(() -> {
+			if ((Object) this instanceof ServerPlayer serverPlayer) {
+				PlayerEntitiesSystem.onPlayerEntitiesInventoryChanged(serverPlayer);
+			}
+		});
+		return inventory;
 	}
 }

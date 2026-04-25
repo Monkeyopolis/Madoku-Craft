@@ -7,7 +7,7 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.player.PlayerTickSystem;
 import net.minecraft.core.Holder;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
@@ -37,20 +37,15 @@ public final class MadokuOxygen {
 	private static final String OXYGEN_CONFIG_FILE_NAME = "madoku-oxygen";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-oxygen";
 	private static final String DATA_FILE_NAME = "madoku-oxygen";
-	private static final String TASK_TYPE_OXYGEN_TICK = "oxygen_tick";
 	private static final String VANILLA_BREATH_OF_THE_NAUTILUS_DESCRIPTION_ID = "effect.minecraft.breath_of_the_nautilus";
 	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuTicks.TICKS_PER_SECOND);
-	private static final double MIN_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 0.1d;
-	private static final double MAX_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 100.0d;
 	private static final double DEFAULT_MAXIMUM_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 2.0d;
 	private static final double DEFAULT_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 1.0d;
 	private static final long DEFAULT_DROWNING_DAMAGE_INTERVAL_TICKS = 20L;
 	private static final double DEFAULT_DROWNING_DAMAGE_AMOUNT = 1.0d;
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
-	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
-	private static final Set<UUID> SCHEDULED_PLAYERS = new HashSet<>();
-	private static final Map<UUID, Long> LAST_PROCESSED_TICKS_BY_PLAYER = new HashMap<>();
+	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Set<UUID> CUSTOM_DROWNING_DAMAGE_PLAYERS = new HashSet<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
@@ -60,16 +55,14 @@ public final class MadokuOxygen {
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_OXYGEN_TICK, MadokuOxygen::runOxygenTask);
+		PlayerTickSystem.registerListener("oxygen", 30, MadokuOxygen::onPlayerTick);
 		ServerPlayerEvents.JOIN.register(MadokuOxygen::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuOxygen::handlePlayerRespawn);
 	}
 
 	public static void reset() {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		CUSTOM_DROWNING_DAMAGE_PLAYERS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
@@ -131,37 +124,26 @@ public final class MadokuOxygen {
 		return Math.max(1, (int) Math.round(boostedMaximum));
 	}
 
-	private static void runOxygenTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (server == null || context == null) {
+	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+		if (server == null || player == null) {
 			return;
 		}
-
-		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
-		UUID playerId = binding == null ? null : binding.getEntityUuid();
-		if (playerId == null) {
-			return;
-		}
-
-		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
-		SCHEDULED_PLAYERS.remove(playerId);
-		Long lastProcessed = LAST_PROCESSED_TICKS_BY_PLAYER.get(playerId);
-		if (lastProcessed != null && context.getNowTick() == lastProcessed) {
-			return;
-		}
-		LAST_PROCESSED_TICKS_BY_PLAYER.put(playerId, context.getNowTick());
 
 		if (!settings.enabled) {
 			return;
 		}
 
-		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-		if (player == null) {
+		UUID playerId = player.getUUID();
+		long nextProcessTick = NEXT_PROCESS_TICKS_BY_PLAYER.getOrDefault(playerId, 0L);
+		if (gameplayTick < nextProcessTick) {
 			return;
 		}
 
-		boolean stillActive = processPlayer(player, context.getNowTick());
+		boolean stillActive = processPlayer(player, gameplayTick);
 		if (stillActive) {
-			requestOxygenProcessing(server, playerId, Math.max(1L, settings.schedulerTickInterval));
+			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, gameplayTick + Math.max(1L, settings.schedulerTickInterval));
+		} else {
+			NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		}
 	}
 
@@ -376,7 +358,7 @@ public final class MadokuOxygen {
 		if (player.getAirSupply() != state.oxygenTicks) {
 			player.setAirSupply(state.oxygenTicks);
 		}
-		requestOxygenProcessing(((net.minecraft.server.level.ServerLevel) player.level()).getServer(), player.getUUID(), 1L);
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
 	private static void handlePlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -390,60 +372,7 @@ public final class MadokuOxygen {
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(newPlayer);
 		newPlayer.setAirSupply(oxygenCapTicks);
-		requestOxygenProcessing(((net.minecraft.server.level.ServerLevel) newPlayer.level()).getServer(), newPlayer.getUUID(), 1L);
-	}
-
-	private static String ensureSchedulerExists(UUID playerId) {
-		if (playerId == null) {
-			return "";
-		}
-
-		String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
-		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_OXYGEN_TICK, playerId)
-			);
-			PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
-		}
-		return schedulerId;
-	}
-
-	private static void requestOxygenProcessing(MinecraftServer server, UUID playerId, long delay) {
-		if (server == null || playerId == null || !settings.enabled || SCHEDULED_PLAYERS.contains(playerId)) {
-			return;
-		}
-
-		String schedulerId = ensureSchedulerExists(playerId);
-		if (enqueueOxygenTask(schedulerId, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-
-		String created = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.player(TASK_TYPE_OXYGEN_TICK, playerId)
-		);
-		PLAYER_SCHEDULER_IDS.put(playerId, created);
-		if (enqueueOxygenTask(created, delay)) {
-			SCHEDULED_PLAYERS.add(playerId);
-			return;
-		}
-		LOGGER.error("Failed to enqueue MadokuOxygen scheduler task for player={}", playerId);
-	}
-
-	private static boolean enqueueOxygenTask(String targetSchedulerId, long delay) {
-		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
-			return false;
-		}
-
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
-			targetSchedulerId,
-			Math.max(0L, delay),
-			TASK_TYPE_OXYGEN_TICK,
-			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		NEXT_PROCESS_TICKS_BY_PLAYER.put(newPlayer.getUUID(), 0L);
 	}
 
 	private static JsonObject createDefaultData() {
@@ -466,7 +395,7 @@ public final class MadokuOxygen {
 
 			JsonObject player = new JsonObject();
 			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("oxygen_ticks", state.oxygenTicks);
+			player.addProperty("oxygen-ticks", state.oxygenTicks);
 			players.add(player);
 		}
 		root.add("players", players);
@@ -475,9 +404,7 @@ public final class MadokuOxygen {
 
 	private static void applyPersistedData(JsonObject source) {
 		PLAYER_STATES.clear();
-		PLAYER_SCHEDULER_IDS.clear();
-		SCHEDULED_PLAYERS.clear();
-		LAST_PROCESSED_TICKS_BY_PLAYER.clear();
+		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		if (source == null) {
 			return;
 		}
@@ -499,7 +426,7 @@ public final class MadokuOxygen {
 			}
 
 			PlayerState state = new PlayerState();
-			long persistedOxygenTicks = getLong(playerData, "oxygen_ticks", oxygenCapTicks);
+			long persistedOxygenTicks = getLong(playerData, "oxygen-ticks", oxygenCapTicks);
 			if (persistedOxygenTicks < 0L) {
 				persistedOxygenTicks = 0L;
 			}
@@ -549,21 +476,6 @@ public final class MadokuOxygen {
 		}
 		try {
 			return element.getAsLong();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	private static double getDouble(JsonObject object, String key, double fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-		try {
-			return element.getAsDouble();
 		} catch (RuntimeException exception) {
 			return fallback;
 		}
@@ -671,34 +583,18 @@ public final class MadokuOxygen {
 			Settings defaults = defaults();
 
 			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			long schedulerTickInterval = clampLong(getLong(source, "scheduler_tick_interval", defaults.schedulerTickInterval), 1L, 20L);
+			long schedulerTickInterval = defaults.schedulerTickInterval;
 			int maximumOxygenTicks = (int) clampLong(
-				getLong(source, "maximum_oxygen", defaults.maximumOxygenTicks),
+				getLong(source, "maximum-oxygen", defaults.maximumOxygenTicks),
 				1L,
 				20L * 60L * 60L
 			);
-			int oxygenDrainPerTick = (int) clampLong(getLong(source, "oxygen_drain_per_tick", defaults.oxygenDrainPerTick), 1L, 20L);
-			int oxygenRecoveryPerTick = (int) clampLong(getLong(source, "oxygen_recovery_per_tick", defaults.oxygenRecoveryPerTick), 1L, 40L);
-			double oxygenGainPerEffectLevelFraction = clampDouble(
-				getDouble(source, "current_oxygen_gain_per_effect_level", defaults.oxygenGainPerEffectLevelFraction),
-				MIN_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION,
-				MAX_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION
-			);
-			double maximumOxygenGainPerEffectLevelFraction = clampDouble(
-				getDouble(source, "maximum_oxygen_gain_per_effect_level", defaults.maximumOxygenGainPerEffectLevelFraction),
-				MIN_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION,
-				MAX_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION
-			);
-			long drowningDamageIntervalTicks = clampLong(
-				getLong(source, "drowning_damage_interval_ticks", defaults.drowningDamageIntervalTicks),
-				1L,
-				20L * 60L
-			);
-			double drowningDamageAmount = clampDouble(
-				getDouble(source, "drowning_damage_amount", defaults.drowningDamageAmount),
-				0.0d,
-				1024.0d
-			);
+			int oxygenDrainPerTick = defaults.oxygenDrainPerTick;
+			int oxygenRecoveryPerTick = defaults.oxygenRecoveryPerTick;
+			double oxygenGainPerEffectLevelFraction = defaults.oxygenGainPerEffectLevelFraction;
+			double maximumOxygenGainPerEffectLevelFraction = defaults.maximumOxygenGainPerEffectLevelFraction;
+			long drowningDamageIntervalTicks = defaults.drowningDamageIntervalTicks;
+			double drowningDamageAmount = defaults.drowningDamageAmount;
 
 			return new Settings(
 				enabled,
@@ -716,14 +612,7 @@ public final class MadokuOxygen {
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty("enabled", enabled);
-			root.addProperty("scheduler_tick_interval", schedulerTickInterval);
-			root.addProperty("maximum_oxygen", maximumOxygenTicks);
-			root.addProperty("oxygen_drain_per_tick", oxygenDrainPerTick);
-			root.addProperty("oxygen_recovery_per_tick", oxygenRecoveryPerTick);
-			root.addProperty("maximum_oxygen_gain_per_effect_level", maximumOxygenGainPerEffectLevelFraction);
-			root.addProperty("current_oxygen_gain_per_effect_level", oxygenGainPerEffectLevelFraction);
-			root.addProperty("drowning_damage_interval_ticks", drowningDamageIntervalTicks);
-			root.addProperty("drowning_damage_amount", drowningDamageAmount);
+			root.addProperty("maximum-oxygen", maximumOxygenTicks);
 			return root;
 		}
 
@@ -742,10 +631,6 @@ public final class MadokuOxygen {
 		}
 
 		private static long clampLong(long value, long min, long max) {
-			return Math.max(min, Math.min(max, value));
-		}
-
-		private static double clampDouble(double value, double min, double max) {
 			return Math.max(min, Math.min(max, value));
 		}
 	}

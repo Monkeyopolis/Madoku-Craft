@@ -119,80 +119,80 @@ final class PetRule {
 		boolean usesDamageBlock = PlayerEntitiesSystem.PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 		boolean usesMobScan = PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 		root.addProperty("enabled", true);
-		root.addProperty("item_id", resolvedItemId);
+		root.addProperty("item-id", resolvedItemId);
 		root.addProperty("rarity", PlayerEntitiesSystem.defaultRarityForItem(resolvedItemId));
-		root.addProperty("pet_scale", PlayerEntitiesSystem.defaultPetScaleForItem(resolvedItemId));
-		root.addProperty("follow_speed", 1.2D);
-		root.addProperty("idle_move_speed", 0.8D);
-		root.addProperty("idle_distance", 4.0D);
-		root.addProperty("teleport_distance", 8.0D);
-		root.addProperty("idle_wander_radius", 2.0D);
-		root.addProperty("idle_min_interval_ticks", 20L);
-		root.addProperty("idle_max_interval_ticks", 60L);
-		root.addProperty("ambient_sound_interval_multiplier", 3);
-		root.addProperty("sound_volume_multiplier", 0.2D);
+		root.addProperty("pet-scale", PlayerEntitiesSystem.defaultPetScaleForItem(resolvedItemId));
+		root.addProperty("follow-speed", 1.2D);
+		root.addProperty("idle-move-speed", 0.8D);
+		root.addProperty("idle-distance", 4.0D);
+		root.addProperty("teleport-distance", 8.0D);
+		root.addProperty("idle-wander-radius", 2.0D);
+		root.addProperty("idle-min-interval-ticks", 20L);
+		root.addProperty("idle-max-interval-ticks", 60L);
+		root.addProperty("ambient-sound-interval-multiplier", 3);
+		root.addProperty("sound-volume-multiplier", 0.2D);
 		root.addProperty("ability", resolvedAbilityType.isBlank() ? PlayerEntitiesSystem.PET_ABILITY_NONE : resolvedAbilityType);
 		if (usesRangedHomingArrow) {
-			root.addProperty("attack_damage", 3.0D);
-			root.addProperty("attack_speed", 1.5D);
-			root.addProperty("cooldown_ticks", 5L * 20L);
-			root.addProperty("shot_delay_ticks", 10L);
-			root.addProperty("attack_arc_step_degrees", 18.0D);
-			root.addProperty("attack_rear_offset", 0.58D);
-			root.addProperty("attack_rear_spread", 0.20D);
-			root.addProperty("attack_lateral_radius", 0.45D);
-			root.addProperty("attack_vertical_offset", -0.34D);
-			root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
+			root.addProperty("attack-damage", 3.0D);
+			root.addProperty("attack-speed", 1.5D);
+			root.addProperty("cooldown-ticks", 5L * 20L);
+			root.addProperty("shot-delay-ticks", 10L);
+			root.addProperty("attack-arc-step-degrees", 18.0D);
+			root.addProperty("attack-rear-offset", 0.58D);
+			root.addProperty("attack-rear-spread", 0.20D);
+			root.addProperty("attack-lateral-radius", 0.45D);
+			root.addProperty("attack-vertical-offset", -0.34D);
+			root.addProperty("sound-event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString());
 		}
 		if (usesWebProjectile) {
-			root.addProperty("follow_speed", 1.0D);
-			root.addProperty("idle_move_speed", 0.75D);
-			root.addProperty("attack_damage", 1.5D);
-			root.addProperty("attack_speed", 1.0D);
-			root.addProperty("effect_duration_ticks", 100L);
-			root.addProperty("cooldown_ticks", 15L * 20L);
-			root.addProperty("shot_delay_ticks", 10L);
-			root.addProperty("attack_arc_step_degrees", 12.0D);
-			root.addProperty("attack_rear_offset", 0.50D);
-			root.addProperty("attack_rear_spread", 0.15D);
-			root.addProperty("attack_lateral_radius", 0.38D);
-			root.addProperty("attack_vertical_offset", -0.28D);
-			root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString());
+			root.addProperty("follow-speed", 1.0D);
+			root.addProperty("idle-move-speed", 0.75D);
+			root.addProperty("attack-damage", 1.5D);
+			root.addProperty("attack-speed", 1.0D);
+			root.addProperty("effect-duration-ticks", 100L);
+			root.addProperty("cooldown-ticks", 15L * 20L);
+			root.addProperty("shot-delay-ticks", 10L);
+			root.addProperty("attack-arc-step-degrees", 12.0D);
+			root.addProperty("attack-rear-offset", 0.50D);
+			root.addProperty("attack-rear-spread", 0.15D);
+			root.addProperty("attack-lateral-radius", 0.38D);
+			root.addProperty("attack-vertical-offset", -0.28D);
+			root.addProperty("sound-event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString());
 		}
 		if (usesExplosiveProjectile) {
-			root.addProperty("follow_speed", 1.2D);
-			root.addProperty("idle_move_speed", 0.8D);
-			root.addProperty("attack_damage", 12.0D);
-			root.addProperty("attack_speed", 2.0D);
-			root.addProperty("cooldown_ticks", 60L * 20L);
-			root.addProperty("shot_delay_ticks", 10L);
-			root.addProperty("attack_arc_step_degrees", 10.0D);
-			root.addProperty("attack_rear_offset", 0.46D);
-			root.addProperty("attack_rear_spread", 0.12D);
-			root.addProperty("attack_lateral_radius", 0.35D);
-			root.addProperty("attack_vertical_offset", -0.26D);
-			root.addProperty("explosion_radius", 4D);
-			root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString());
+			root.addProperty("follow-speed", 1.2D);
+			root.addProperty("idle-move-speed", 0.8D);
+			root.addProperty("attack-damage", 12.0D);
+			root.addProperty("attack-speed", 2.0D);
+			root.addProperty("cooldown-ticks", 60L * 20L);
+			root.addProperty("shot-delay-ticks", 10L);
+			root.addProperty("attack-arc-step-degrees", 10.0D);
+			root.addProperty("attack-rear-offset", 0.46D);
+			root.addProperty("attack-rear-spread", 0.12D);
+			root.addProperty("attack-lateral-radius", 0.35D);
+			root.addProperty("attack-vertical-offset", -0.26D);
+			root.addProperty("explosion-radius", 4D);
+			root.addProperty("sound-event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString());
 		}
 		if (usesPlayerDamageBonus) {
-			root.addProperty("player_damage_bonus", 1.0D);
+			root.addProperty("player-damage-bonus", 1.0D);
 		}
 		if (usesFallDamageReduction) {
-			root.addProperty("fall_damage_reduction", 0.20D);
+			root.addProperty("fall-damage-reduction", 0.20D);
 		}
 		if (usesMaxHealthBonus) {
-			root.addProperty("max_health_bonus", 0.10D);
+			root.addProperty("max-health-bonus", 0.10D);
 		}
 		if (usesArmorBonus) {
-			root.addProperty("armor_bonus", 2.0D);
+			root.addProperty("armor-bonus", 2.0D);
 		}
 		if (usesDamageBlock) {
-			root.addProperty("damage_block", 4.0D);
-			root.addProperty("cooldown_ticks", 30L * 20L);
+			root.addProperty("damage-block", 4.0D);
+			root.addProperty("cooldown-ticks", 30L * 20L);
 		}
 		if (usesMobScan) {
-			root.addProperty("cooldown_ticks", 3L * 60L * 20L);
-			root.addProperty("sound_event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEACON_ACTIVATE).toString());
+			root.addProperty("cooldown-ticks", 3L * 60L * 20L);
+			root.addProperty("sound-event", BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEACON_ACTIVATE).toString());
 		}
 		return root;
 	}
@@ -210,39 +210,39 @@ final class PetRule {
 			PlayerEntitiesSystem.getString(source, "rarity", PlayerEntitiesSystem.PET_RARITY_COMMON)
 		);
 		double petScale = PetSettings.clampDouble(
-			PlayerEntitiesSystem.getDouble(source, "pet_scale", PlayerEntitiesSystem.defaultPetScaleForItem(itemId)),
+			PlayerEntitiesSystem.getDouble(source, "pet-scale", PlayerEntitiesSystem.defaultPetScaleForItem(itemId)),
 			0.01D,
 			4.0D
 		);
-		double followSpeed = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "follow_speed", 1.2D), 0.05D, 4.0D);
-		double idleMoveSpeed = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle_move_speed", 0.8D), 0.05D, 4.0D);
-		double idleDistance = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle_distance", 4.0D), 0.5D, 32.0D);
-		double teleportDistance = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "teleport_distance", 8.0D), idleDistance, 64.0D);
-		double idleWanderRadius = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle_wander_radius", 2.0D), 0.0D, 16.0D);
-		long idleMinIntervalTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "idle_min_interval_ticks", 20L), 1L, 20L * 60L);
-		long idleMaxIntervalTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "idle_max_interval_ticks", 60L), idleMinIntervalTicks, 20L * 60L);
-		int ambientSoundIntervalMultiplier = (int) PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "ambient_sound_interval_multiplier", 3L), 1L, 20L);
-		float soundVolumeMultiplier = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "sound_volume_multiplier", 0.2D), 0.0D, 4.0D);
+		double followSpeed = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "follow-speed", 1.2D), 0.05D, 4.0D);
+		double idleMoveSpeed = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle-move-speed", 0.8D), 0.05D, 4.0D);
+		double idleDistance = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle-distance", 4.0D), 0.5D, 32.0D);
+		double teleportDistance = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "teleport-distance", 8.0D), idleDistance, 64.0D);
+		double idleWanderRadius = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "idle-wander-radius", 2.0D), 0.0D, 16.0D);
+		long idleMinIntervalTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "idle-min-interval-ticks", 20L), 1L, 20L * 60L);
+		long idleMaxIntervalTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "idle-max-interval-ticks", 60L), idleMinIntervalTicks, 20L * 60L);
+		int ambientSoundIntervalMultiplier = (int) PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "ambient-sound-interval-multiplier", 3L), 1L, 20L);
+		float soundVolumeMultiplier = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "sound-volume-multiplier", 0.2D), 0.0D, 4.0D);
 		String abilityType = PlayerEntitiesSystem.normalizeKey(PlayerEntitiesSystem.getString(source, "ability", PlayerEntitiesSystem.PET_ABILITY_NONE));
-		float attackDamage = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_damage", 0.0D), 0.0D, 1024.0D);
-		float attackSpeed = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_speed", 0.0D), 0.05D, 8.0D);
-		long effectDurationTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "effect_duration_ticks", 0L), 0L, 20L * 60L);
-		double playerDamageBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "player_damage_bonus", 0.0D), 0.0D, 1024.0D);
-		double fallDamageReductionAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "fall_damage_reduction", 0.0D), 0.0D, 1.0D);
-		double maxHealthBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "max_health_bonus", 0.0D), 0.0D, 10.0D);
-		double armorBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "armor_bonus", 0.0D), 0.0D, 1024.0D);
-		double damageBlockAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "damage_block", 0.0D), 0.0D, 1024.0D);
-		long cooldownTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "cooldown_ticks", 0L), 0L, 20L * 60L * 60L);
-		long shotDelayTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "shot_delay_ticks", 0L), 0L, 20L * 60L);
-		double attackArcStepDegrees = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_arc_step_degrees", 18.0D), 0.0D, 90.0D);
-		double attackRearOffset = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_rear_offset", 0.58D), 0.0D, 4.0D);
-		double attackRearSpread = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_rear_spread", 0.20D), 0.0D, 4.0D);
-		double attackLateralRadius = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_lateral_radius", 0.45D), 0.0D, 4.0D);
-		double attackVerticalOffset = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack_vertical_offset", -0.34D), -4.0D, 4.0D);
-		float explosionRadius = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "explosion_radius", 4.0D), 0.25D, 12.0D);
+		float attackDamage = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-damage", 0.0D), 0.0D, 1024.0D);
+		float attackSpeed = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-speed", 0.0D), 0.05D, 8.0D);
+		long effectDurationTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "effect-duration-ticks", 0L), 0L, 20L * 60L);
+		double playerDamageBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "player-damage-bonus", 0.0D), 0.0D, 1024.0D);
+		double fallDamageReductionAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "fall-damage-reduction", 0.0D), 0.0D, 1.0D);
+		double maxHealthBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "max-health-bonus", 0.0D), 0.0D, 10.0D);
+		double armorBonusAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "armor-bonus", 0.0D), 0.0D, 1024.0D);
+		double damageBlockAmount = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "damage-block", 0.0D), 0.0D, 1024.0D);
+		long cooldownTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "cooldown-ticks", 0L), 0L, 20L * 60L * 60L);
+		long shotDelayTicks = PetSettings.clampLong(PlayerEntitiesSystem.getLong(source, "shot-delay-ticks", 0L), 0L, 20L * 60L);
+		double attackArcStepDegrees = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-arc-step-degrees", 18.0D), 0.0D, 90.0D);
+		double attackRearOffset = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-rear-offset", 0.58D), 0.0D, 4.0D);
+		double attackRearSpread = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-rear-spread", 0.20D), 0.0D, 4.0D);
+		double attackLateralRadius = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-lateral-radius", 0.45D), 0.0D, 4.0D);
+		double attackVerticalOffset = PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "attack-vertical-offset", -0.34D), -4.0D, 4.0D);
+		float explosionRadius = (float) PetSettings.clampDouble(PlayerEntitiesSystem.getDouble(source, "explosion-radius", 4.0D), 0.25D, 12.0D);
 		String soundEventId = PlayerEntitiesSystem.getString(
 			source,
-			"sound_event",
+			"sound-event",
 			defaultSoundEventIdForAbility(abilityType)
 		);
 		return new PetRule(
@@ -400,3 +400,4 @@ final class PetRule {
 		return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
 	}
 }
+

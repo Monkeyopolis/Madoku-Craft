@@ -28,9 +28,9 @@ final class PetSettings {
 	static PetSettings fromJson(JsonObject source) {
 		PetSettings defaults = defaults();
 		boolean enabled = PlayerEntitiesSystem.getBoolean(source, "enabled", defaults.enabled);
-		boolean entitiesEnabled = PlayerEntitiesSystem.getBoolean(source, "entities_enabled", defaults.entitiesEnabled);
+		boolean entitiesEnabled = PlayerEntitiesSystem.getBoolean(source, "entities-enabled", defaults.entitiesEnabled);
 		long schedulerTickInterval = clampLong(
-			PlayerEntitiesSystem.getLong(source, "scheduler_tick_interval", defaults.schedulerTickInterval),
+			PlayerEntitiesSystem.getLong(source, "scheduler-tick-interval", defaults.schedulerTickInterval),
 			1L,
 			20L
 		);
@@ -44,8 +44,8 @@ final class PetSettings {
 	JsonObject toConfigJson() {
 		JsonObject root = new JsonObject();
 		root.addProperty("enabled", enabled);
-		root.addProperty("entities_enabled", entitiesEnabled);
-		root.addProperty("scheduler_tick_interval", schedulerTickInterval);
+		root.addProperty("entities-enabled", entitiesEnabled);
+		root.addProperty("scheduler-tick-interval", schedulerTickInterval);
 		return root;
 	}
 
