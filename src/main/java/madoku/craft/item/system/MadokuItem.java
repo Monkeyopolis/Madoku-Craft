@@ -10,14 +10,19 @@ import madoku.craft.debug.MadokuDebug;
 import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EquipmentSlotGroup;
@@ -50,10 +55,12 @@ public final class MadokuItem {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuItem.class);
 	private static final AttackRange DEFAULT_REACH = new AttackRange(0.0F, 3.0F, 0.0F, 5.0F, 0.3F, 1.0F);
 	private static final int MAX_FUEL_TICKS = 201600;
+	private static final long PLAYER_COMPONENT_SYNC_INTERVAL_TICKS = 5L;
 
 	private static final String ITEM_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-items";
 	private static final String ITEM_CONFIG_SETTINGS_FILE_NAME = "madoku-items";
 	private static final String ITEM_CONFIG_ITEMS_FOLDER_NAME = "madoku-items";
+	private static final String FIELD_ENABLED = "enabled";
 	private static final String FARMING_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-farming";
 	private static final String FARMING_CONFIG_SETTINGS_FILE_NAME = "madoku-farming";
 	private static final String FUEL_ITEMS_FOLDER_NAME = "fuel-items";
@@ -69,7 +76,7 @@ public final class MadokuItem {
 	private static volatile Map<Item, MadokuToolProfile> toolProfilesByItem = Map.of();
 	private static volatile Map<Item, MadokuArmorProfile> armorProfilesByItem = Map.of();
 	private static volatile Map<Item, Integer> composterAdjustmentsByItem = Map.of();
-	private static volatile Map<Item, Set<String>> secondaryCategoriesByItem = Map.of();
+	private static volatile Map<Item, Set<String>> categoriesByItem = Map.of();
 	private static volatile Set<Item> toolCategoryItems = Set.of();
 	private static volatile Set<Item> armorCategoryItems = Set.of();
 
@@ -78,6 +85,7 @@ public final class MadokuItem {
 
 	public static void initialize() {
 		loadStaticConfig();
+		PlayerTickSystem.registerListener("item_component_sync", 5, MadokuItem::onPlayerTick);
 	}
 
 	public static void onServerStarted() {
@@ -132,11 +140,94 @@ public final class MadokuItem {
 		return configured != null && configured > 0;
 	}
 
+	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+		if (!enabled || player == null) {
+			return;
+		}
+		if (toolCategoryItems.isEmpty() && armorCategoryItems.isEmpty()) {
+			return;
+		}
+		if (gameplayTick % PLAYER_COMPONENT_SYNC_INTERVAL_TICKS != 0L) {
+			return;
+		}
+		if (!syncInventoryComponents(player)) {
+			return;
+		}
+
+		player.getInventory().setChanged();
+		player.containerMenu.broadcastChanges();
+	}
+
+	private static boolean syncInventoryComponents(ServerPlayer player) {
+		if (player == null) {
+			return false;
+		}
+
+		boolean changed = false;
+		changed |= syncStackComponents(player.getMainHandItem());
+		changed |= syncStackComponents(player.getOffhandItem());
+		changed |= syncStackComponents(player.getItemBySlot(EquipmentSlot.HEAD));
+		changed |= syncStackComponents(player.getItemBySlot(EquipmentSlot.CHEST));
+		changed |= syncStackComponents(player.getItemBySlot(EquipmentSlot.LEGS));
+		changed |= syncStackComponents(player.getItemBySlot(EquipmentSlot.FEET));
+		changed |= syncStackComponents(player.containerMenu.getCarried());
+		return changed;
+	}
+
+	private static boolean syncStackComponents(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return false;
+		}
+
+		Item item = stack.getItem();
+		boolean syncTool = isToolCategoryItem(item);
+		boolean syncArmor = isArmorCategoryItem(item);
+		if (!syncTool && !syncArmor) {
+			return false;
+		}
+
+		int hashBefore = ItemStack.hashItemAndComponents(stack);
+		DataComponentMap prototype = stack.getPrototype();
+		if (prototype == null) {
+			return false;
+		}
+
+		if (syncTool) {
+			syncComponentFromPrototype(stack, prototype, DataComponents.TOOL);
+			syncComponentFromPrototype(stack, prototype, DataComponents.ATTACK_RANGE);
+		}
+		if (syncTool || syncArmor) {
+			syncComponentFromPrototype(stack, prototype, DataComponents.ATTRIBUTE_MODIFIERS);
+			syncComponentFromPrototype(stack, prototype, DataComponents.MAX_DAMAGE);
+		}
+
+		return hashBefore != ItemStack.hashItemAndComponents(stack);
+	}
+
+	private static <T> void syncComponentFromPrototype(
+		ItemStack stack,
+		DataComponentMap prototype,
+		DataComponentType<T> componentType
+	) {
+		if (stack == null || prototype == null || componentType == null) {
+			return;
+		}
+		if (stack.hasNonDefault(componentType)) {
+			return;
+		}
+
+		T prototypeValue = prototype.get(componentType);
+		if (prototypeValue == null) {
+			return;
+		}
+		stack.set(componentType, prototypeValue);
+	}
+
 	public static boolean isToolCategoryItem(Item item) {
 		if (!enabled || item == null) {
 			return false;
 		}
-		return toolCategoryItems.contains(item) || hasSecondaryCategory(item, MadokuItemConfig.PRIMARY_CATEGORY_TOOL);
+		return toolCategoryItems.contains(item) || hasCategory(item, MadokuItemConfig.CATEGORY_TOOL);
 	}
 
 	public static boolean isToolCategoryItem(ItemStack stack) {
@@ -150,7 +241,7 @@ public final class MadokuItem {
 		if (!enabled || item == null) {
 			return false;
 		}
-		return armorCategoryItems.contains(item) || hasSecondaryCategory(item, MadokuItemConfig.PRIMARY_CATEGORY_ARMOR);
+		return armorCategoryItems.contains(item) || hasCategory(item, MadokuItemConfig.CATEGORY_ARMOR);
 	}
 
 	public static boolean isArmorCategoryItem(ItemStack stack) {
@@ -171,15 +262,15 @@ public final class MadokuItem {
 		return isRarityCategoryItem(stack.getItem());
 	}
 
-	public static Set<String> getSecondaryCategories(Item item) {
+	public static Set<String> getCategories(Item item) {
 		if (!enabled || item == null) {
 			return Set.of();
 		}
-		Set<String> categories = secondaryCategoriesByItem.get(item);
+		Set<String> categories = categoriesByItem.get(item);
 		return categories == null || categories.isEmpty() ? Set.of() : Set.copyOf(categories);
 	}
 
-	public static boolean hasSecondaryCategory(Item item, String category) {
+	public static boolean hasCategory(Item item, String category) {
 		if (!enabled || item == null) {
 			return false;
 		}
@@ -187,14 +278,14 @@ public final class MadokuItem {
 		if (normalizedCategory.isEmpty()) {
 			return false;
 		}
-		return getSecondaryCategories(item).contains(normalizedCategory);
+		return getCategories(item).contains(normalizedCategory);
 	}
 
-	public static boolean hasSecondaryCategory(ItemStack stack, String category) {
+	public static boolean hasCategory(ItemStack stack, String category) {
 		if (stack == null || stack.isEmpty()) {
 			return false;
 		}
-		return hasSecondaryCategory(stack.getItem(), category);
+		return hasCategory(stack.getItem(), category);
 	}
 
 	public static int getComposterAdjustment(ItemStack stack) {
@@ -210,15 +301,19 @@ public final class MadokuItem {
 		try {
 			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ITEM_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, ITEM_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(
-				settingsFile,
-				MadokuItemConfig.buildItemSystemDefaults()
-			);
-			boolean itemSystemEnabled = readBoolean(
-				settingsRoot,
-				MadokuItemConfig.FIELD_ITEM_SYSTEM_ENABLED,
-				true
-			);
+			JsonStaticSystem.ManagedStaticDocument settingsDocument = JsonStaticSystem.readManagedDocument(settingsFile);
+			JsonObject rawSettingsRoot = settingsDocument.main();
+			boolean itemSystemEnabled = readBoolean(rawSettingsRoot, FIELD_ENABLED, true);
+			JsonObject settingsRoot = normalizeCategoryFeatureSettings(rawSettingsRoot);
+			JsonObject settingsGeneral = settingsDocument.general();
+			settingsGeneral.addProperty(FIELD_ENABLED, itemSystemEnabled);
+			JsonStaticSystem.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral);
+			boolean fuelCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_FUEL_ENABLED, true);
+			boolean miscCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_MISC_ENABLED, true);
+			boolean farmingCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_FARMING_ENABLED, true);
+			boolean composterCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_COMPOSTER_ENABLED, true);
+			boolean toolCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_TOOL_ENABLED, true);
+			boolean armorCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_ARMOR_ENABLED, true);
 			boolean farmingSystemEnabled = readFarmingSystemEnabled();
 
 			Path itemsDirectory = rootDirectory.resolve(ITEM_CONFIG_ITEMS_FOLDER_NAME);
@@ -255,9 +350,9 @@ public final class MadokuItem {
 
 				Map<String, JsonObject> normalizedComposter = DynamicStaticSystem.ensureManagedFolder(
 					composterDirectory,
-					MadokuComposterConfig.buildDefaultComposterFileDefaults(farmingSystemEnabled),
+					MadokuComposterConfig.buildDefaultComposterFileDefaults(farmingSystemEnabled && farmingCategoryEnabled),
 					MadokuComposterConfig::buildDynamicComposterDefaultsForFile,
-					(fileKey, sourceRoot) -> MadokuItem.isSupportedComposterItemFile(fileKey, sourceRoot, farmingSystemEnabled),
+					(fileKey, sourceRoot) -> MadokuItem.isSupportedComposterItemFile(fileKey, sourceRoot, farmingSystemEnabled && farmingCategoryEnabled),
 					null
 			);
 
@@ -284,14 +379,27 @@ public final class MadokuItem {
 				toolProfilesByItem = Map.of();
 				armorProfilesByItem = Map.of();
 				composterAdjustmentsByItem = Map.of();
-				secondaryCategoriesByItem = Map.of();
+				categoriesByItem = Map.of();
 				toolCategoryItems = Set.of();
 				armorCategoryItems = Set.of();
 				emitConfigLoaded();
 				return;
 			}
 
-			applyResolvedData(normalizedFuel, normalizedMisc, normalizedFarming, normalizedComposter, normalizedTool, normalizedArmor);
+			applyResolvedData(
+				normalizedFuel,
+				normalizedMisc,
+				normalizedFarming,
+				normalizedComposter,
+				normalizedTool,
+				normalizedArmor,
+				fuelCategoryEnabled,
+				miscCategoryEnabled,
+				farmingCategoryEnabled,
+				composterCategoryEnabled,
+				toolCategoryEnabled,
+				armorCategoryEnabled
+			);
 			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
@@ -300,7 +408,7 @@ public final class MadokuItem {
 			toolProfilesByItem = Map.of();
 			armorProfilesByItem = Map.of();
 			composterAdjustmentsByItem = Map.of();
-			secondaryCategoriesByItem = Map.of();
+			categoriesByItem = Map.of();
 			toolCategoryItems = Set.of();
 			armorCategoryItems = Set.of();
 			LOGGER.error("Failed to load MadokuItem folder config; disabling custom item rules.", exception);
@@ -313,128 +421,167 @@ public final class MadokuItem {
 		Map<String, JsonObject> normalizedFarmingFiles,
 		Map<String, JsonObject> normalizedComposterFiles,
 		Map<String, JsonObject> normalizedToolFiles,
-		Map<String, JsonObject> normalizedArmorFiles
+		Map<String, JsonObject> normalizedArmorFiles,
+		boolean fuelCategoryEnabled,
+		boolean miscCategoryEnabled,
+		boolean farmingCategoryEnabled,
+		boolean composterCategoryEnabled,
+		boolean toolCategoryEnabled,
+		boolean armorCategoryEnabled
 	) {
 		Map<Item, Integer> resolvedFuel = new LinkedHashMap<>();
 		Map<Item, StackMode> resolvedStackModes = new LinkedHashMap<>();
 		Map<Item, MadokuToolProfile> resolvedTools = new LinkedHashMap<>();
 		Map<Item, MadokuArmorProfile> resolvedArmor = new LinkedHashMap<>();
 		Map<Item, Integer> resolvedComposterAdjustments = new LinkedHashMap<>();
-		Map<Item, Set<String>> resolvedSecondaryCategories = new LinkedHashMap<>();
+		Map<Item, Set<String>> resolvedCategories = new LinkedHashMap<>();
 		Set<Item> resolvedToolCategoryItems = new LinkedHashSet<>();
 		Set<Item> resolvedArmorCategoryItems = new LinkedHashSet<>();
-
-		for (Map.Entry<String, JsonObject> entry : normalizedFuelFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
-
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
-
-			int fuelTicks = clampFuelTicks(readInt(root, MadokuItemConfig.FIELD_FUEL_TICKS, 0));
-			if (fuelTicks > 0) {
-				resolvedFuel.put(item, fuelTicks);
-			}
-			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
+		Set<String> enabledCategories = new LinkedHashSet<>();
+		if (fuelCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_FUEL);
+		}
+		if (miscCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_MISC);
+		}
+		if (farmingCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_FARMING);
+		}
+		if (composterCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_COMPOSTER);
+		}
+		if (toolCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_TOOL);
+		}
+		if (armorCategoryEnabled) {
+			enabledCategories.add(MadokuItemConfig.CATEGORY_ARMOR);
 		}
 
-		for (Map.Entry<String, JsonObject> entry : normalizedMiscFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
+		if (fuelCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedFuelFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
 
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
 
-			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
-		}
-
-		for (Map.Entry<String, JsonObject> entry : normalizedFarmingFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
-
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
-
-			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
-			resolvedComposterAdjustments.put(item, readComposterAdjustment(root));
-		}
-
-		for (Map.Entry<String, JsonObject> entry : normalizedComposterFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
-
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
-
-			resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
-			resolvedComposterAdjustments.put(item, readComposterAdjustment(root));
-		}
-
-		for (Map.Entry<String, JsonObject> entry : normalizedToolFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
-			}
-
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
-
-			resolvedToolCategoryItems.add(item);
-			resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
-
-			MadokuToolProfile profile = parseToolProfile(root);
-			if (isConfiguredToolProfile(profile)) {
-				resolvedTools.put(item, profile);
+				int fuelTicks = clampFuelTicks(readInt(root, MadokuItemConfig.FIELD_FUEL_TICKS, 0));
+				if (fuelTicks > 0) {
+					resolvedFuel.put(item, fuelTicks);
+				}
+				resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
 			}
 		}
 
-		for (Map.Entry<String, JsonObject> entry : normalizedArmorFiles.entrySet()) {
-			JsonObject root = entry.getValue();
-			if (root == null) {
-				continue;
+		if (miscCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedMiscFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
+
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
+
+				resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
 			}
+		}
 
-			String itemId = resolveItemId(entry.getKey(), root);
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
+		if (farmingCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedFarmingFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
+
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
+
+				resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
+				if (composterCategoryEnabled) {
+					resolvedComposterAdjustments.put(item, readComposterAdjustment(root));
+				}
 			}
+		}
 
-			resolvedArmorCategoryItems.add(item);
-			resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
-			resolvedSecondaryCategories.put(item, readSecondaryCategories(root));
+		if (composterCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedComposterFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
 
-			MadokuArmorProfile profile = parseArmorProfile(root);
-			if (isConfiguredArmorProfile(profile)) {
-				resolvedArmor.put(item, profile);
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
+
+				resolvedStackModes.put(item, readStackMode(root, StackMode.MULTI));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
+				resolvedComposterAdjustments.put(item, readComposterAdjustment(root));
+			}
+		}
+
+		if (toolCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedToolFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
+
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
+
+				resolvedToolCategoryItems.add(item);
+				resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
+
+				MadokuToolProfile profile = parseToolProfile(root);
+				if (isConfiguredToolProfile(profile)) {
+					resolvedTools.put(item, profile);
+				}
+			}
+		}
+
+		if (armorCategoryEnabled) {
+			for (Map.Entry<String, JsonObject> entry : normalizedArmorFiles.entrySet()) {
+				JsonObject root = entry.getValue();
+				if (root == null) {
+					continue;
+				}
+
+				String itemId = resolveItemId(entry.getKey(), root);
+				Item item = resolveItem(itemId);
+				if (item == null) {
+					continue;
+				}
+
+				resolvedArmorCategoryItems.add(item);
+				resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
+				resolvedCategories.put(item, readCategories(root, enabledCategories));
+
+				MadokuArmorProfile profile = parseArmorProfile(root);
+				if (isConfiguredArmorProfile(profile)) {
+					resolvedArmor.put(item, profile);
+				}
 			}
 		}
 
@@ -444,7 +591,7 @@ public final class MadokuItem {
 			toolProfilesByItem = Map.copyOf(resolvedTools);
 			armorProfilesByItem = Map.copyOf(resolvedArmor);
 			composterAdjustmentsByItem = Map.copyOf(resolvedComposterAdjustments);
-			secondaryCategoriesByItem = Map.copyOf(resolvedSecondaryCategories);
+			categoriesByItem = Map.copyOf(resolvedCategories);
 			toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
 			armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
 		}
@@ -493,34 +640,41 @@ public final class MadokuItem {
 	}
 
 	private static boolean isSupportedFuelItemFile(String fileKey, JsonObject sourceRoot) {
-		return resolveItemId(fileKey, sourceRoot) != null;
+		return isSupportedItemFileForCategory(fileKey, sourceRoot, MadokuItemConfig.CATEGORY_FUEL);
 	}
 
 	private static boolean isSupportedToolItemFile(String fileKey, JsonObject sourceRoot) {
-		return resolveItemId(fileKey, sourceRoot) != null;
+		return isSupportedItemFileForCategory(fileKey, sourceRoot, MadokuItemConfig.CATEGORY_TOOL);
 	}
 
 	private static boolean isSupportedMiscItemFile(String fileKey, JsonObject sourceRoot) {
-		return resolveItemId(fileKey, sourceRoot) != null;
+		return isSupportedItemFileForCategory(fileKey, sourceRoot, MadokuItemConfig.CATEGORY_MISC);
 	}
 
 	private static boolean isSupportedFarmingItemFile(String fileKey, JsonObject sourceRoot) {
-		return resolveItemId(fileKey, sourceRoot) != null;
+		return isSupportedItemFileForCategory(fileKey, sourceRoot, MadokuItemConfig.CATEGORY_FARMING);
 	}
 
 	private static boolean isSupportedArmorItemFile(String fileKey, JsonObject sourceRoot) {
-		return resolveItemId(fileKey, sourceRoot) != null;
+		return isSupportedItemFileForCategory(fileKey, sourceRoot, MadokuItemConfig.CATEGORY_ARMOR);
 	}
 
 	private static boolean isSupportedComposterItemFile(String fileKey, JsonObject sourceRoot, boolean farmingSystemEnabled) {
 		String itemId = resolveComposterItemId(fileKey, sourceRoot);
-		if (itemId == null) {
+		if (itemId == null || !hasDominantCategory(sourceRoot, MadokuItemConfig.CATEGORY_COMPOSTER)) {
 			return false;
 		}
 		if (farmingSystemEnabled) {
 			return !MadokuItemConfig.buildDefaultFarmingItems().containsKey(itemId);
 		}
 		return true;
+	}
+
+	private static boolean isSupportedItemFileForCategory(String fileKey, JsonObject sourceRoot, String expectedCategory) {
+		if (resolveItemId(fileKey, sourceRoot) == null) {
+			return false;
+		}
+		return hasDominantCategory(sourceRoot, expectedCategory);
 	}
 
 	private static String resolveItemId(String fileKey, JsonObject sourceRoot) {
@@ -579,6 +733,17 @@ public final class MadokuItem {
 		return element.getAsBoolean();
 	}
 
+	private static JsonObject normalizeCategoryFeatureSettings(JsonObject source) {
+		JsonObject normalized = MadokuItemConfig.buildCategoryFeatureDefaults();
+		normalized.addProperty(MadokuItemConfig.FIELD_FUEL_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_FUEL_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_MISC_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_MISC_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_FARMING_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_FARMING_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_COMPOSTER_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_COMPOSTER_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_TOOL_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_TOOL_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_ARMOR_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_ARMOR_ENABLED, true));
+		return normalized;
+	}
+
 	private static boolean readFarmingSystemEnabled() throws IOException {
 		Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
 		Path settingsFile = resolveJsonFile(rootDirectory, FARMING_CONFIG_SETTINGS_FILE_NAME);
@@ -632,12 +797,12 @@ public final class MadokuItem {
 		return value == null ? fallback : value;
 	}
 
-	private static Set<String> readSecondaryCategories(JsonObject root) {
-		if (root == null) {
+	private static Set<String> readCategories(JsonObject root, Set<String> enabledCategories) {
+		if (root == null || enabledCategories == null || enabledCategories.isEmpty()) {
 			return Set.of();
 		}
 
-		JsonElement element = root.get(MadokuItemConfig.FIELD_SECONDARY_CATEGORIES);
+		JsonElement element = root.get(MadokuItemConfig.FIELD_CATEGORY);
 		if (element == null || !element.isJsonArray()) {
 			return Set.of();
 		}
@@ -645,18 +810,60 @@ public final class MadokuItem {
 		JsonArray array = element.getAsJsonArray();
 		Set<String> categories = new LinkedHashSet<>();
 		for (JsonElement categoryElement : array) {
-			if (categoryElement == null || !categoryElement.isJsonPrimitive() || !categoryElement.getAsJsonPrimitive().isString()) {
+			if (categoryElement == null || !categoryElement.isJsonObject()) {
 				continue;
 			}
 
-			String normalizedCategory = normalizeCategoryValue(categoryElement.getAsString());
-			if (normalizedCategory.isEmpty()) {
+			JsonObject categoryRoot = categoryElement.getAsJsonObject();
+			String normalizedCategory = normalizeCategoryValue(readString(categoryRoot, MadokuItemConfig.FIELD_CATEGORY_NAME, ""));
+			int weight = readInt(categoryRoot, MadokuItemConfig.FIELD_CATEGORY_WEIGHT, 0);
+			if (normalizedCategory.isEmpty() || weight <= 0 || !enabledCategories.contains(normalizedCategory)) {
 				continue;
 			}
 			categories.add(normalizedCategory);
 		}
 
 		return categories.isEmpty() ? Set.of() : Set.copyOf(categories);
+	}
+
+	private static boolean hasDominantCategory(JsonObject root, String expectedCategory) {
+		String dominantCategory = resolveDominantCategory(root);
+		if (dominantCategory == null || expectedCategory == null) {
+			return false;
+		}
+		return dominantCategory.equals(normalizeCategoryValue(expectedCategory));
+	}
+
+	private static String resolveDominantCategory(JsonObject root) {
+		if (root == null) {
+			return null;
+		}
+
+		JsonElement element = root.get(MadokuItemConfig.FIELD_CATEGORY);
+		if (element == null || !element.isJsonArray()) {
+			return null;
+		}
+
+		JsonArray categories = element.getAsJsonArray();
+		String dominantCategory = null;
+		int dominantWeight = Integer.MIN_VALUE;
+		for (JsonElement categoryElement : categories) {
+			if (categoryElement == null || !categoryElement.isJsonObject()) {
+				continue;
+			}
+			JsonObject categoryRoot = categoryElement.getAsJsonObject();
+			String category = normalizeCategoryValue(readString(categoryRoot, MadokuItemConfig.FIELD_CATEGORY_NAME, ""));
+			int weight = readInt(categoryRoot, MadokuItemConfig.FIELD_CATEGORY_WEIGHT, 0);
+			if (category.isEmpty() || weight <= 0) {
+				continue;
+			}
+			if (weight > dominantWeight) {
+				dominantCategory = category;
+				dominantWeight = weight;
+			}
+		}
+
+		return dominantCategory;
 	}
 
 	private static int readComposterAdjustment(JsonObject root) {
@@ -679,7 +886,7 @@ public final class MadokuItem {
 			.field("enabled", enabled)
 			.field("fuel_items", fuelTicksByItem.size())
 			.field("single_stack_items", countSingleStackItems())
-			.field("secondary_category_items", countSecondaryCategoryItems())
+			.field("category_items", countCategoryItems())
 			.field("tool_items", toolProfilesByItem.size())
 			.field("armor_items", armorProfilesByItem.size())
 			.log();
@@ -751,8 +958,8 @@ public final class MadokuItem {
 		return stackModesByItem.values().stream().filter(mode -> mode == StackMode.SINGLE).count();
 	}
 
-	private static long countSecondaryCategoryItems() {
-		return secondaryCategoriesByItem.values().stream()
+	private static long countCategoryItems() {
+		return categoriesByItem.values().stream()
 			.filter(categories -> categories != null && !categories.isEmpty())
 			.count();
 	}

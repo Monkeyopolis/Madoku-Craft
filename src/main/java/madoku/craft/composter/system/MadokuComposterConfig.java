@@ -44,8 +44,8 @@ public final class MadokuComposterConfig {
 		JsonObject defaults = MadokuItemConfig.buildBaseDefaults(
 			itemId,
 			stackValue,
-			MadokuItemConfig.PRIMARY_CATEGORY_MISC,
-			MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER
+			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_COMPOSTER, 100),
+			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_MISC, 90)
 		);
 		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment));
 		return defaults;

@@ -37,7 +37,7 @@ public final class MadokuComposter {
 		if (!isEnabled() || item == null) {
 			return false;
 		}
-		return MadokuItem.hasSecondaryCategory(item, MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER);
+		return MadokuItem.hasCategory(item, MadokuItemConfig.CATEGORY_COMPOSTER);
 	}
 
 	public static boolean isComposterItem(ItemStack stack) {
