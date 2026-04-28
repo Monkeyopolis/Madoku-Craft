@@ -3,6 +3,7 @@ package madoku.craft.difficulty.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -120,6 +121,9 @@ public final class MadokuDifficulty {
 		if (!config.enabled()) {
 			return 1;
 		}
+		if (!isChunkLoadedAt(world, pos)) {
+			return 1;
+		}
 		Identifier biomeId = resolveBiomeId(world, pos);
 		int biomeAdjustment = config.biomeAdjustment(biomeId);
 		int timeAdjustment = resolveTimeAdjustment(world, config);
@@ -177,6 +181,9 @@ public final class MadokuDifficulty {
 
 		ServerLevel world = worldAccess.getLevel();
 		if (world == null || world.isClientSide()) {
+			return;
+		}
+		if (!isChunkLoadedAt(world, mob.blockPosition())) {
 			return;
 		}
 
@@ -709,6 +716,9 @@ public final class MadokuDifficulty {
 		if (world == null || pos == null) {
 			return StructureContext.NONE;
 		}
+		if (!isChunkLoadedAt(world, pos)) {
+			return StructureContext.NONE;
+		}
 
 		if (!configuredAdjustments.isEmpty()) {
 			Predicate<Holder<Structure>> configuredPredicate = entry -> entry.unwrapKey()
@@ -741,6 +751,15 @@ public final class MadokuDifficulty {
 		} catch (RuntimeException exception) {
 			return StructureStart.INVALID_START;
 		}
+	}
+
+	private static boolean isChunkLoadedAt(ServerLevel world, net.minecraft.core.BlockPos pos) {
+		if (world == null || pos == null) {
+			return false;
+		}
+		int chunkX = pos.getX() >> 4;
+		int chunkZ = pos.getZ() >> 4;
+		return ChunkManagerSystem.isChunkLoaded(world, chunkX, chunkZ);
 	}
 
 	private static boolean isValidStructureStart(StructureStart start) {

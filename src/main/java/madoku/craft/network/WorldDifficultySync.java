@@ -1,5 +1,7 @@
 package madoku.craft.network;
 
+import madoku.craft.chunk.ChunkManagerSystem;
+import net.minecraft.core.BlockPos;
 import madoku.craft.difficulty.system.MadokuDifficulty;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -90,15 +92,25 @@ public final class WorldDifficultySync {
 		if (!(player.level() instanceof ServerLevel level)) {
 			return null;
 		}
+		BlockPos pos = player.blockPosition();
+		int chunkX = pos.getX() >> 4;
+		int chunkZ = pos.getZ() >> 4;
+		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
+			return null;
+		}
 		int timeAdjustment = MadokuDifficulty.resolveCurrentTimeAdjustment(level);
 		String levelId = level.dimension().identifier().toString();
-		long blockPos = player.blockPosition().asLong();
-		return new PlayerDifficultyState(levelId, blockPos, timeAdjustment, 1);
+		long chunkPos = packChunk(chunkX, chunkZ);
+		return new PlayerDifficultyState(levelId, chunkPos, timeAdjustment, 1);
+	}
+
+	private static long packChunk(int chunkX, int chunkZ) {
+		return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
 	}
 
 	private record PlayerDifficultyState(
 		String levelId,
-		long blockPos,
+		long chunkPos,
 		int timeAdjustment,
 		int difficultyLevel
 	) {
@@ -106,13 +118,13 @@ public final class WorldDifficultySync {
 			if (other == null) {
 				return false;
 			}
-			return blockPos == other.blockPos
+			return chunkPos == other.chunkPos
 				&& timeAdjustment == other.timeAdjustment
 				&& levelId.equals(other.levelId);
 		}
 
 		private PlayerDifficultyState withDifficultyLevel(int level) {
-			return new PlayerDifficultyState(levelId, blockPos, timeAdjustment, Math.max(1, level));
+			return new PlayerDifficultyState(levelId, chunkPos, timeAdjustment, Math.max(1, level));
 		}
 	}
 }
