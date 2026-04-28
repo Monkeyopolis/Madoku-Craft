@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
+import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
@@ -110,10 +111,9 @@ public final class PlayerEntitiesSystem {
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
 	private static final int BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS = 8;
-	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 2;
+	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 4;
 	private static final int BAT_SCAN_BASE_CHUNK_RADIUS = 1;
-	private static final int BAT_SCAN_ENHANCED_CHUNK_RADIUS = 2;
-	private static final int BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS = 3;
+	private static final int BAT_SCAN_CHUNK_RADIUS_PER_EXTRA_BAT = 1;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
@@ -249,9 +249,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 		if (!petEntitiesEnabled()) {
-			clearAllManagedPetState(server);
-			flushAbilityHudSyncs(server);
-			return;
+			clearManagedPetEntityState(server);
 		}
 
 		tickManagedWebProjectiles(server);
@@ -273,9 +271,12 @@ public final class PlayerEntitiesSystem {
 		if (server == null) {
 			return;
 		}
-		if (!settings.enabled || !petEntitiesEnabled()) {
+		if (!settings.enabled) {
 			removeAllPets(server, player.getUUID());
 			return;
+		}
+		if (!petEntitiesEnabled()) {
+			removeAllPets(server, player.getUUID());
 		}
 
 		requestPetProcessing(server, player.getUUID(), 0L);
@@ -327,6 +328,16 @@ public final class PlayerEntitiesSystem {
 
 	public static boolean areEntitiesEnabled() {
 		return petEntitiesEnabled();
+	}
+
+	public static int petTradeRarityWeight(String petRarity) {
+		String normalized = normalizePetRarity(petRarity);
+		return switch (normalized) {
+			case PET_RARITY_RARE -> settings.petRarityRareChanceWeight;
+			case PET_RARITY_EPIC -> settings.petRarityEpicChanceWeight;
+			case PET_RARITY_MYTHIC -> settings.petRarityMythicChanceWeight;
+			default -> settings.petRarityCommonChanceWeight;
+		};
 	}
 
 	public static String petRarity(ItemStack stack) {
@@ -845,7 +856,7 @@ public final class PlayerEntitiesSystem {
 		applyPlayerArmorAbilityBonus(player);
 		applyPlayerDamageAbilityBonus(player);
 		syncManagedPetSoundStateTo(player, server);
-		if (petEntitiesEnabled()) {
+		if (settings.enabled) {
 			requestPetProcessing(server, player.getUUID(), 0L);
 		}
 	}
@@ -1049,9 +1060,10 @@ public final class PlayerEntitiesSystem {
 			1.15F
 		);
 
-		int horizontalRadius = (batCount >= BAT_SCAN_MIN_BATS_FOR_ENHANCED_RADIUS ? BAT_SCAN_ENHANCED_CHUNK_RADIUS : BAT_SCAN_BASE_CHUNK_RADIUS) * 16;
+		int chunkRadius = BAT_SCAN_BASE_CHUNK_RADIUS + Math.max(0, batCount - 1) * BAT_SCAN_CHUNK_RADIUS_PER_EXTRA_BAT;
+		int horizontalRadius = chunkRadius * 16;
 		int verticalRadius = BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS + Math.max(0, batCount - 1) * BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT;
-		AABB area = new AABB(
+		AABB scanArea = new AABB(
 			player.getX() - horizontalRadius,
 			player.getY() - verticalRadius,
 			player.getZ() - horizontalRadius,
@@ -1059,13 +1071,38 @@ public final class PlayerEntitiesSystem {
 			player.getY() + verticalRadius,
 			player.getZ() + horizontalRadius
 		);
-		for (Mob mob : level.getEntitiesOfClass(Mob.class, area, candidate ->
-			candidate != null
-				&& candidate.isAlive()
-				&& !candidate.isRemoved()
-				&& !isManagedPet(candidate)
-		)) {
-			mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
+
+		int centerChunkX = player.getBlockX() >> 4;
+		int centerChunkZ = player.getBlockZ() >> 4;
+		for (int chunkX = centerChunkX - chunkRadius; chunkX <= centerChunkX + chunkRadius; chunkX++) {
+			for (int chunkZ = centerChunkZ - chunkRadius; chunkZ <= centerChunkZ + chunkRadius; chunkZ++) {
+				if (!ChunkManagerSystem.isChunkAccessible(level, chunkX, chunkZ)) {
+					continue;
+				}
+
+				double minX = chunkX << 4;
+				double minZ = chunkZ << 4;
+				double maxX = minX + 16.0d;
+				double maxZ = minZ + 16.0d;
+				AABB chunkScanArea = new AABB(
+					minX,
+					player.getY() - verticalRadius,
+					minZ,
+					maxX,
+					player.getY() + verticalRadius,
+					maxZ
+				);
+
+				for (Mob mob : level.getEntitiesOfClass(Mob.class, chunkScanArea, candidate ->
+					candidate != null
+						&& candidate.isAlive()
+						&& !candidate.isRemoved()
+						&& !isManagedPet(candidate)
+						&& scanArea.intersects(candidate.getBoundingBox())
+				)) {
+					mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
+				}
+			}
 		}
 	}
 
@@ -1073,6 +1110,10 @@ public final class PlayerEntitiesSystem {
 		long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
 		int additionalBats = Math.max(0, batCount - 1);
 		return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
+	}
+
+	private static boolean hasAutomaticPetAbilities(PlayerEntitiesInventory inventory) {
+		return countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN) > 0;
 	}
 
 	private static int countSlotsWithAbility(PlayerEntitiesInventory inventory, String abilityType) {
@@ -1180,9 +1221,9 @@ public final class PlayerEntitiesSystem {
 		}
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 
-		if (!settings.enabled || !petEntitiesEnabled()) {
+		if (!settings.enabled) {
 			debugPlayerIdEvent("pet.tick_stopped", playerId)
-				.field("reason", !settings.enabled ? "system_disabled" : "entities_disabled")
+				.field("reason", "system_disabled")
 				.log();
 			removeAllPets(server, playerId);
 			return;
@@ -1199,11 +1240,20 @@ public final class PlayerEntitiesSystem {
 			.field("inventory", inventorySummary(playerEntitiesInventory(player)))
 			.log();
 
-		long nextDelay = syncPlayerPets(player);
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		long nextDelay;
+		if (petEntitiesEnabled()) {
+			nextDelay = syncPlayerPets(player);
+		} else {
+			removeAllPets(server, playerId);
+			nextDelay = hasAutomaticPetAbilities(inventory) ? activeSchedulerTickInterval() : -1L;
+		}
 		LivingEntity ongoingReactiveTarget = resolveOngoingReactiveTarget(player);
 		if (ongoingReactiveTarget != null) {
 			triggerReactivePetAttacks(player, ongoingReactiveTarget);
-			nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
+			nextDelay = nextDelay < 0L
+				? activeSchedulerTickInterval()
+				: Math.min(nextDelay, activeSchedulerTickInterval());
 		}
 		triggerAutomaticPetAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
@@ -1930,7 +1980,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
-		if (server == null || playerId == null || !petEntitiesEnabled()) {
+		if (server == null || playerId == null || !settings.enabled) {
 			return;
 		}
 
@@ -2195,6 +2245,17 @@ public final class PlayerEntitiesSystem {
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		PetSoundState.clear();
+	}
+
+	private static void clearManagedPetEntityState(MinecraftServer server) {
+		if (!ACTIVE_PET_IDS.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
+			removeTaggedPets(server);
+		}
+		PET_IDS_BY_PLAYER.clear();
+		ACTIVE_PET_IDS.clear();
+		NEXT_IDLE_MOVE_BY_PET.clear();
+		FOLLOW_COMMANDS_BY_PET.clear();
 		PetSoundState.clear();
 	}
 
@@ -2580,4 +2641,3 @@ public final class PlayerEntitiesSystem {
 	}
 
 }
-

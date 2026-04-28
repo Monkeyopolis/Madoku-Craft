@@ -1688,7 +1688,11 @@ public final class MadokuMob {
 			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(MOB_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, MOB_CONFIG_SETTINGS_FILE_NAME);
 			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(settingsFile, MadokuMobConfig.buildMobSystemDefaults());
-			boolean enabled = readBoolean(settingsRoot, MadokuMobConfig.FIELD_MOB_SYSTEM_ENABLED, true);
+			boolean enabled = readBoolean(
+				settingsRoot,
+				MadokuMobConfig.FIELD_ENABLED,
+				readBoolean(settingsRoot, MadokuMobConfig.FIELD_MOB_SYSTEM_ENABLED, true)
+			);
 			Path mobsDirectory = rootDirectory.resolve(MOB_CONFIG_MOBS_FOLDER_NAME);
 			Map<String, JsonObject> files = DynamicStaticSystem.ensureManagedFolder(
 				mobsDirectory,

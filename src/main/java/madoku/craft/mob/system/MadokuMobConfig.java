@@ -96,7 +96,7 @@ public final class MadokuMobConfig {
 
 	public static JsonObject buildMobSystemDefaults() {
 		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_MOB_SYSTEM_ENABLED, true);
+		defaults.addProperty(FIELD_ENABLED, true);
 		return defaults;
 	}
 

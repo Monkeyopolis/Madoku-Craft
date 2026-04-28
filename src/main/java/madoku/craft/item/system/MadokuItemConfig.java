@@ -40,10 +40,6 @@ public final class MadokuItemConfig {
 	public static final String FIELD_ARMOR_TOUGHNESS = "armor-toughness";
 	public static final String FIELD_REACH_MIN = "reach-min";
 	public static final String FIELD_REACH_MAX = "reach-max";
-	public static final String FIELD_REACH_MIN_CREATIVE = "reach-min-creative";
-	public static final String FIELD_REACH_MAX_CREATIVE = "reach-max-creative";
-	public static final String FIELD_REACH_HITBOX_MARGIN = "reach-hitbox-margin";
-	public static final String FIELD_REACH_MOB_FACTOR = "reach-mob-factor";
 
 	public static final int TOOL_INT_UNSET = -1;
 	public static final double TOOL_DOUBLE_UNSET = -1.0d;
@@ -210,10 +206,6 @@ public final class MadokuItemConfig {
 			TOOL_INT_UNSET,
 			1.0d,
 			4.5d,
-			1.0d,
-			4.5d,
-			0.3d,
-			1.0d,
 			STACK_SINGLE
 		);
 	}
@@ -226,10 +218,6 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		double reachMin,
 		double reachMax,
-		double reachMinCreative,
-		double reachMaxCreative,
-		double reachHitboxMargin,
-		double reachMobFactor,
 		String stackValue
 	) {
 		JsonObject defaults = buildBaseDefaults(itemId, stackValue, category(CATEGORY_TOOL, 100));
@@ -239,10 +227,6 @@ public final class MadokuItemConfig {
 		defaults.addProperty(FIELD_MATERIAL_LEVEL, materialLevel);
 		defaults.addProperty(FIELD_REACH_MIN, reachMin);
 		defaults.addProperty(FIELD_REACH_MAX, reachMax);
-		defaults.addProperty(FIELD_REACH_MIN_CREATIVE, reachMinCreative);
-		defaults.addProperty(FIELD_REACH_MAX_CREATIVE, reachMaxCreative);
-		defaults.addProperty(FIELD_REACH_HITBOX_MARGIN, reachHitboxMargin);
-		defaults.addProperty(FIELD_REACH_MOB_FACTOR, reachMobFactor);
 		return defaults;
 	}
 
@@ -532,10 +516,6 @@ public final class MadokuItemConfig {
 					materialLevel[index],
 					1.0d,
 					4.5d,
-					1.0d,
-					4.5d,
-					0.3d,
-					1.0d,
 					STACK_SINGLE
 				)
 			);

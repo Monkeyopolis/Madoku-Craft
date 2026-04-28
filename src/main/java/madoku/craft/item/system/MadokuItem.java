@@ -948,13 +948,15 @@ public final class MadokuItem {
 		Double miningSpeed = readOptionalDouble(root, MadokuItemConfig.FIELD_MINING_SPEED, MadokuItemConfig.TOOL_DOUBLE_UNSET);
 
 		MadokuToolProfile.ReachProfile reach = null;
+		Double reachMin = readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN, MadokuItemConfig.TOOL_DOUBLE_UNSET);
+		Double reachMax = readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX, MadokuItemConfig.TOOL_DOUBLE_UNSET);
 		MadokuToolProfile.ReachProfile parsedReach = new MadokuToolProfile.ReachProfile(
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN, MadokuItemConfig.TOOL_DOUBLE_UNSET),
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX, MadokuItemConfig.TOOL_DOUBLE_UNSET),
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN_CREATIVE, MadokuItemConfig.TOOL_DOUBLE_UNSET),
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX_CREATIVE, MadokuItemConfig.TOOL_DOUBLE_UNSET),
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_HITBOX_MARGIN, MadokuItemConfig.TOOL_DOUBLE_UNSET),
-			readOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MOB_FACTOR, MadokuItemConfig.TOOL_DOUBLE_UNSET)
+			reachMin,
+			reachMax,
+			reachMin,
+			reachMax,
+			null,
+			null
 		);
 		if (parsedReach.hasValues()) {
 			reach = parsedReach;
@@ -1059,10 +1061,6 @@ public final class MadokuItem {
 		if (reach != null) {
 			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN, reach.minRange());
 			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX, reach.maxRange());
-			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN_CREATIVE, reach.minCreativeRange());
-			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX_CREATIVE, reach.maxCreativeRange());
-			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_HITBOX_MARGIN, reach.hitboxMargin());
-			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MOB_FACTOR, reach.mobFactor());
 		}
 		return root;
 	}
@@ -1187,11 +1185,7 @@ public final class MadokuItem {
 		}
 		return switch (key) {
 			case MadokuItemConfig.FIELD_REACH_MIN,
-				MadokuItemConfig.FIELD_REACH_MAX,
-				MadokuItemConfig.FIELD_REACH_MIN_CREATIVE,
-				MadokuItemConfig.FIELD_REACH_MAX_CREATIVE,
-				MadokuItemConfig.FIELD_REACH_HITBOX_MARGIN,
-				MadokuItemConfig.FIELD_REACH_MOB_FACTOR -> sourceValue.deepCopy();
+				MadokuItemConfig.FIELD_REACH_MAX -> sourceValue.deepCopy();
 			default -> null;
 		};
 	}

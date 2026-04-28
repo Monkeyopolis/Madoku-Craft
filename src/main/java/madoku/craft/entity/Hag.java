@@ -267,13 +267,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private int rarityWeight(Item item) {
-		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 1;
-			case PET_RARITY_EPIC -> 4;
-			case PET_RARITY_RARE -> 10;
-			case PET_RARITY_COMMON -> 25;
-			default -> 25;
-		};
+		return PlayerEntitiesSystem.petTradeRarityWeight(petRarity(item));
 	}
 
 	private int eggCost(Item item) {
