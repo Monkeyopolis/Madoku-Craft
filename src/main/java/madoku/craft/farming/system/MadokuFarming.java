@@ -3,6 +3,7 @@ package madoku.craft.farming.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +71,7 @@ public final class MadokuFarming {
 	private static final String DATA_FILE_NAME = "madoku-farming";
 	private static final String FARMING_SCHEDULER_OWNER_ID = "farming_gameplay";
 	private static final String TASK_TYPE_FARMING_TICK = "farming_gameplay_tick";
-	private static final long FARMING_SCHEDULER_INTERVAL_TICKS = 20L;
+	private static final long FARMING_SCHEDULER_INTERVAL_TICKS = 5L;
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_SOIL_POS = "soil-pos";
 	private static final String FIELD_CROP_POS = "crop-pos";
@@ -528,35 +530,54 @@ public final class MadokuFarming {
 		}
 
 		boolean changed = false;
-		List<String> removedKeys = new ArrayList<>();
-		List<Map.Entry<String, PlotState>> activeEntries = new ArrayList<>(activePlotsByKey.entrySet());
-		for (Map.Entry<String, PlotState> entry : activeEntries) {
+		Map<String, ServerLevel> worldsByLevelId = new LinkedHashMap<>();
+		Map<String, Map<Long, Boolean>> chunkLoadedStateByLevel = new LinkedHashMap<>();
+		for (PlotState activePlot : activePlotsByKey.values()) {
+			if (activePlot == null) {
+				continue;
+			}
+
+			String levelId = activePlot.levelId;
+			ServerLevel world = worldsByLevelId.get(levelId);
+			if (!worldsByLevelId.containsKey(levelId)) {
+				world = resolveLevel(server, levelId);
+				worldsByLevelId.put(levelId, world);
+			}
+
+			long chunkKey = chunkKeyFromBlockPos(activePlot.soilPos);
+			Map<Long, Boolean> chunkLoadedByKey = chunkLoadedStateByLevel.computeIfAbsent(levelId, ignored -> new LinkedHashMap<>());
+			if (!chunkLoadedByKey.containsKey(chunkKey)) {
+				chunkLoadedByKey.put(chunkKey, world != null && isChunkLoadedForChunk(world, chunkKey));
+			}
+		}
+
+		Iterator<Map.Entry<String, PlotState>> iterator = activePlotsByKey.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<String, PlotState> entry = iterator.next();
 			String key = entry.getKey();
 			PlotState plot = entry.getValue();
 			if (plot == null) {
-				removedKeys.add(key);
-				activePlotsByKey.remove(key);
+				iterator.remove();
 				plotsByKey.remove(key);
 				changed = true;
 				continue;
 			}
 
-				ServerLevel world = resolveLevel(server, plot.levelId);
+				ServerLevel world = worldsByLevelId.get(plot.levelId);
 				BlockPos soilPos = BlockPos.of(plot.soilPos);
-						if (world == null) {
-							CropRule rule = plot.hasCrop() ? resolveCropRuleByPlantingItemId(plot.cropId) : null;
-							if (plot.hasCrop() && rule == null) {
-								removedKeys.add(key);
-								activePlotsByKey.remove(key);
-								plotsByKey.remove(key);
-							changed = true;
-							continue;
-						}
+				CropRule offlineRule = plot.hasCrop() ? resolveCropRuleByPlantingItemId(plot.cropId) : null;
+				if (world == null || !isChunkLoadedFromGrouping(chunkLoadedStateByLevel, plot.levelId, plot.soilPos)) {
+					if (plot.hasCrop() && offlineRule == null) {
+						iterator.remove();
+						plotsByKey.remove(key);
+						changed = true;
+						continue;
+					}
 
-					changed |= advancePlotWithoutWorld(plot, currentAbsoluteDayTime, deltaAbsoluteDayTime, rule);
+					changed |= advancePlotWithoutWorld(plot, currentAbsoluteDayTime, deltaAbsoluteDayTime, offlineRule);
 					if (!isActivePlot(plot)) {
-						activePlotsByKey.remove(key);
-						removedKeys.add(key);
+						iterator.remove();
+						plotsByKey.remove(key);
 						changed = true;
 					}
 					continue;
@@ -579,8 +600,7 @@ public final class MadokuFarming {
 									)
 								);
 							}
-						removedKeys.add(key);
-						activePlotsByKey.remove(key);
+						iterator.remove();
 						plotsByKey.remove(key);
 						changed = true;
 						continue;
@@ -605,12 +625,9 @@ public final class MadokuFarming {
 							changed = true;
 						}
 					if (!plot.fertilized) {
-						removedKeys.add(key);
-						activePlotsByKey.remove(key);
+						iterator.remove();
 						plotsByKey.remove(key);
 						changed = true;
-					} else {
-						refreshPlotActivity(world, soilPos, plot);
 					}
 					continue;
 				}
@@ -632,8 +649,7 @@ public final class MadokuFarming {
 									)
 								);
 							}
-						removedKeys.add(key);
-						activePlotsByKey.remove(key);
+						iterator.remove();
 						plotsByKey.remove(key);
 						changed = true;
 						continue;
@@ -657,15 +673,10 @@ public final class MadokuFarming {
 											plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
 										}
 										if (!plot.fertilized) {
-											removedKeys.add(key);
-											activePlotsByKey.remove(key);
+											iterator.remove();
 											plotsByKey.remove(key);
-										} else {
-											refreshPlotActivity(world, soilPos, plot);
 										}
 										changed = true;
-									} else {
-										refreshPlotActivity(world, soilPos, plot);
 									}
 									continue;
 								}
@@ -675,11 +686,8 @@ public final class MadokuFarming {
 									plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
 								}
 								if (!plot.fertilized) {
-									removedKeys.add(key);
-									activePlotsByKey.remove(key);
+									iterator.remove();
 									plotsByKey.remove(key);
-								} else {
-									refreshPlotActivity(world, soilPos, plot);
 								}
 								changed = true;
 								continue;
@@ -707,11 +715,8 @@ public final class MadokuFarming {
 								plot.fertilizedAtAbsoluteDayTime = currentAbsoluteDayTime;
 							}
 							if (!plot.fertilized) {
-								removedKeys.add(key);
-								activePlotsByKey.remove(key);
+								iterator.remove();
 								plotsByKey.remove(key);
-							} else {
-								refreshPlotActivity(world, soilPos, plot);
 							}
 							changed = true;
 							continue;
@@ -776,16 +781,9 @@ public final class MadokuFarming {
 						plot.growthProgress = 1.0d;
 					}
 				}
-
-				refreshPlotActivity(world, soilPos, plot);
 			}
 
-		for (String removedKey : removedKeys) {
-			plotsByKey.remove(removedKey);
-			activePlotsByKey.remove(removedKey);
-		}
-
-		if (changed || !removedKeys.isEmpty()) {
+		if (changed) {
 			dirty = true;
 		}
 	}
@@ -838,28 +836,27 @@ public final class MadokuFarming {
 		}
 
 		boolean changed = false;
-		List<String> removedKeys = new ArrayList<>();
-			for (Map.Entry<String, PlotState> entry : new ArrayList<>(activePlotsByKey.entrySet())) {
-				String key = entry.getKey();
-				PlotState plot = entry.getValue();
-				if (plot == null) {
-					removedKeys.add(key);
-					continue;
-				}
-				if (!isActivePlot(plot)) {
-					removedKeys.add(key);
-				}
+		Iterator<Map.Entry<String, PlotState>> iterator = activePlotsByKey.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<String, PlotState> entry = iterator.next();
+			String key = entry.getKey();
+			PlotState plot = entry.getValue();
+			if (plot == null) {
+				iterator.remove();
+				plotsByKey.remove(key);
+				changed = true;
+				continue;
 			}
-
-		for (String removedKey : removedKeys) {
-			activePlotsByKey.remove(removedKey);
-			PlotState plot = plotsByKey.get(removedKey);
-			if (plot != null && !plot.fertilized && !plot.hasCrop()) {
-				plotsByKey.remove(removedKey);
+			if (!isActivePlot(plot)) {
+				iterator.remove();
+				if (!plot.fertilized && !plot.hasCrop()) {
+					plotsByKey.remove(key);
+				}
+				changed = true;
 			}
 		}
 
-		if (changed || !removedKeys.isEmpty()) {
+		if (changed) {
 			dirty = true;
 		}
 	}
@@ -1029,6 +1026,32 @@ public final class MadokuFarming {
 			return "";
 		}
 		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
+	}
+
+	private static boolean isChunkLoadedForChunk(ServerLevel world, long chunkKey) {
+		if (world == null) {
+			return false;
+		}
+		int chunkX = (int) (chunkKey >> 32);
+		int chunkZ = (int) chunkKey;
+		return ChunkManagerSystem.isChunkLoaded(world, chunkX, chunkZ);
+	}
+
+	private static boolean isChunkLoadedFromGrouping(Map<String, Map<Long, Boolean>> chunkLoadedStateByLevel, String levelId, long soilPos) {
+		if (chunkLoadedStateByLevel == null) {
+			return false;
+		}
+		Map<Long, Boolean> chunkLoadedByKey = chunkLoadedStateByLevel.get(levelId);
+		if (chunkLoadedByKey == null) {
+			return false;
+		}
+		return chunkLoadedByKey.getOrDefault(chunkKeyFromBlockPos(soilPos), false);
+	}
+
+	private static long chunkKeyFromBlockPos(long blockPos) {
+		int chunkX = BlockPos.getX(blockPos) >> 4;
+		int chunkZ = BlockPos.getZ(blockPos) >> 4;
+		return (((long) chunkX) << 32) ^ (chunkZ & 0xFFFFFFFFL);
 	}
 
 	private static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
@@ -2218,33 +2241,18 @@ public final class MadokuFarming {
 				cropId = fallback.cropId;
 			}
 
-			String cropBlockId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_CROP_BLOCK_ID, fallback.cropBlockId));
-			if (cropBlockId.isEmpty()) {
-				cropBlockId = fallback.cropBlockId;
-			}
-
+			String cropBlockId = fallback.cropBlockId;
 			String matureBlockId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_MATURE_BLOCK_ID, fallback.matureBlockId));
 			if (matureBlockId.isEmpty()) {
 				matureBlockId = fallback.matureBlockId;
 			}
 
-			String plantingItemId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_PLANTING_ITEM_ID, fallback.plantingItemId));
-			if (plantingItemId.isEmpty()) {
-				plantingItemId = fallback.plantingItemId;
-			}
-
-			String harvestItemId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_HARVEST_ITEM_ID, fallback.harvestItemId));
-			if (harvestItemId.isEmpty()) {
-				harvestItemId = fallback.harvestItemId;
-			}
-
-			String secondaryHarvestItemId = MadokuCropConfig.normalizeRegistryId(readString(source, MadokuCropConfig.FIELD_SECONDARY_HARVEST_ITEM_ID, fallback.secondaryHarvestItemId));
-			if (secondaryHarvestItemId.isEmpty()) {
-				secondaryHarvestItemId = fallback.secondaryHarvestItemId;
-			}
+			String plantingItemId = fallback.plantingItemId;
+			String harvestItemId = fallback.harvestItemId;
+			String secondaryHarvestItemId = fallback.secondaryHarvestItemId;
 
 			double growthDays = clampDouble(
-				readDouble(source, MadokuCropConfig.FIELD_GROWTH_MINECRAFT_DAYS, fallback.growthMinecraftDays),
+				readDouble(source, MadokuCropConfig.FIELD_GROWTH_TIME, fallback.growthMinecraftDays),
 				fallback.growthMinecraftDays,
 				0.25d,
 				365.0d
@@ -2262,13 +2270,13 @@ public final class MadokuFarming {
 				1024
 			);
 			int secondaryMinHarvestCount = clampInt(
-				readInt(source, MadokuCropConfig.FIELD_SECONDARY_MIN_HARVEST_COUNT, fallback.secondaryMinHarvestCount),
+				readInt(source, MadokuCropConfig.FIELD_MIN_HARVEST_SEEDS, fallback.secondaryMinHarvestCount),
 				fallback.secondaryMinHarvestCount,
 				0,
 				1024
 			);
 			int secondaryMaxHarvestCount = clampInt(
-				readInt(source, MadokuCropConfig.FIELD_SECONDARY_MAX_HARVEST_COUNT, fallback.secondaryMaxHarvestCount),
+				readInt(source, MadokuCropConfig.FIELD_MAX_HARVEST_SEEDS, fallback.secondaryMaxHarvestCount),
 				fallback.secondaryMaxHarvestCount,
 				secondaryMinHarvestCount,
 				1024
@@ -2405,18 +2413,14 @@ public final class MadokuFarming {
 		private JsonObject toJson() {
 			JsonObject root = new JsonObject();
 			root.addProperty(MadokuCropConfig.FIELD_CROP_ID, cropId);
-			root.addProperty(MadokuCropConfig.FIELD_CROP_BLOCK_ID, cropBlockId);
 			if (usesDistinctMatureBlock()) {
 				root.addProperty(MadokuCropConfig.FIELD_MATURE_BLOCK_ID, matureBlockId);
 			}
-			root.addProperty(MadokuCropConfig.FIELD_PLANTING_ITEM_ID, plantingItemId);
-			root.addProperty(MadokuCropConfig.FIELD_HARVEST_ITEM_ID, harvestItemId);
 			if (secondaryHarvestItemId != null && !secondaryHarvestItemId.isBlank() && secondaryHarvestItem != null) {
-				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_HARVEST_ITEM_ID, secondaryHarvestItemId);
-				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_MIN_HARVEST_COUNT, secondaryMinHarvestCount);
-				root.addProperty(MadokuCropConfig.FIELD_SECONDARY_MAX_HARVEST_COUNT, secondaryMaxHarvestCount);
+				root.addProperty(MadokuCropConfig.FIELD_MIN_HARVEST_SEEDS, secondaryMinHarvestCount);
+				root.addProperty(MadokuCropConfig.FIELD_MAX_HARVEST_SEEDS, secondaryMaxHarvestCount);
 			}
-			root.addProperty(MadokuCropConfig.FIELD_GROWTH_MINECRAFT_DAYS, growthMinecraftDays);
+			root.addProperty(MadokuCropConfig.FIELD_GROWTH_TIME, growthMinecraftDays);
 			root.addProperty(MadokuCropConfig.FIELD_MIN_HARVEST_COUNT, minHarvestCount);
 			root.addProperty(MadokuCropConfig.FIELD_MAX_HARVEST_COUNT, maxHarvestCount);
 			JsonArray blockedSeasons = new JsonArray();
@@ -2588,7 +2592,7 @@ public final class MadokuFarming {
 			}
 
 			private static Settings fromJson(JsonObject source) {
-				boolean enabled = readBoolean(source, MadokuFarmingConfig.FIELD_FARMING_SYSTEM_ENABLED, true);
+				boolean enabled = readBoolean(source, MadokuFarmingConfig.FIELD_ENABLED, true);
 				double rainBonus = clampDouble(
 					readDouble(source, MadokuFarmingConfig.FIELD_RAIN_GROWTH_BONUS, MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BONUS),
 					MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BONUS,
@@ -2639,7 +2643,7 @@ public final class MadokuFarming {
 
 			private JsonObject toConfigJson() {
 				JsonObject root = new JsonObject();
-				root.addProperty(MadokuFarmingConfig.FIELD_FARMING_SYSTEM_ENABLED, enabled);
+				root.addProperty(MadokuFarmingConfig.FIELD_ENABLED, enabled);
 				root.addProperty(MadokuFarmingConfig.FIELD_RAIN_GROWTH_BONUS, rainGrowthBonus);
 				root.addProperty(MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BONUS, fertilizedGrowthBonus);
 				root.addProperty(MadokuFarmingConfig.FIELD_OUT_OF_SEASON_GROWTH_MULTIPLIER, outOfSeasonGrowthMultiplier);

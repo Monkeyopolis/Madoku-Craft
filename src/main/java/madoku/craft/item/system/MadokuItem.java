@@ -791,7 +791,7 @@ public final class MadokuItem {
 			settingsFile,
 			MadokuFarmingConfig.buildFarmingDefaults()
 		);
-		return readBoolean(settingsRoot, MadokuFarmingConfig.FIELD_FARMING_SYSTEM_ENABLED, true);
+		return readBoolean(settingsRoot, MadokuFarmingConfig.FIELD_ENABLED, true);
 	}
 
 	private static int readInt(JsonObject root, String key, int fallback) {
