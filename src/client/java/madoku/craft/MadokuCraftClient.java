@@ -6,6 +6,7 @@ import madoku.craft.inventory.PlayerEntitiesInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.network.HungerHudPayload;
+import madoku.craft.network.ItemProfileSyncPayload;
 import madoku.craft.network.PetAbilityHudPayload;
 import madoku.craft.network.PetSoundStatePayload;
 import madoku.craft.network.WorldDifficultyPayload;
@@ -47,6 +48,9 @@ public class MadokuCraftClient implements ClientModInitializer {
 		);
 		ClientPlayNetworking.registerGlobalReceiver(WorldSeasonPayload.TYPE, (payload, context) ->
 			MadokuHud.setServerSeason(payload.season())
+		);
+		ClientPlayNetworking.registerGlobalReceiver(ItemProfileSyncPayload.TYPE, (payload, context) ->
+			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetAbilityHudPayload.TYPE, (payload, context) ->
 			MadokuHud.setPetAbilityCooldowns(payload.asArray())

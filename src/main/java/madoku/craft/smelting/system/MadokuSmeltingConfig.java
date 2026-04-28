@@ -1,9 +1,5 @@
 package madoku.craft.smelting.system;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,19 +8,6 @@ public final class MadokuSmeltingConfig {
 
 	public void resetToDefaults() {
 		enableFeature = true;
-	}
-
-	public boolean updateSmelting(JsonObject root) {
-		boolean changed = false;
-		enableFeature = readBoolean(root, "enableFeature", enableFeature);
-		changed |= setBoolean(root, "enableFeature", enableFeature);
-		return changed;
-	}
-
-	public static JsonObject buildSmeltingDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty("enableFeature", true);
-		return defaults;
 	}
 
 	public static List<String> buildDefaultSmokerAdditionalInputs() {
@@ -119,22 +102,4 @@ public final class MadokuSmeltingConfig {
 		return defaults;
 	}
 
-	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
-		JsonElement element = root.get(key);
-		if (element instanceof JsonPrimitive primitive && primitive.isBoolean()) {
-			return primitive.getAsBoolean();
-		}
-		return fallback;
-	}
-
-	private static boolean setBoolean(JsonObject root, String key, boolean value) {
-		JsonElement element = root.get(key);
-		if (element instanceof JsonPrimitive primitive && primitive.isBoolean()) {
-			if (primitive.getAsBoolean() == value) {
-				return false;
-			}
-		}
-		root.addProperty(key, value);
-		return true;
-	}
 }

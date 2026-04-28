@@ -86,7 +86,7 @@ public final class MadokuItemStack {
 	}
 
 	public static boolean isEnabled() {
-		return configuration.enableFeature;
+		return configuration.enabled;
 	}
 
 	public static boolean usesManagedDeathDrop() {
@@ -293,14 +293,17 @@ public final class MadokuItemStack {
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = MadokuItemStackConfig.buildItemStackDefaults();
 		try {
 			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, ITEMSTACK_CONFIG_FILE_NAME);
-			JsonObject root = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonStaticSystem.ManagedStaticDocument document = JsonStaticSystem.readManagedDocument(configFile);
+			JsonObject root = document.main();
+			JsonObject general = document.general();
+			configuration.enabled = readBoolean(general, "enabled", true);
 			boolean changed = configuration.updateItemStack(root);
-			if (changed) {
-				JsonStaticSystem.writeManagedFile(configFile, root, defaults);
+			general.addProperty("enabled", configuration.enabled);
+			if (changed || !root.equals(document.main()) || !general.equals(document.general())) {
+				JsonStaticSystem.writeManagedDocument(configFile, root, general);
 			}
 			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
@@ -318,7 +321,7 @@ public final class MadokuItemStack {
 		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
 			.side(MadokuDebug.Side.SERVER)
 			.subject("itemstack:global")
-			.field("enabled", configuration.enableFeature)
+			.field("enabled", configuration.enabled)
 			.field("stack_limit", configuration.customStackAmount)
 			.field("death_drop_enabled", configuration.deathDropEnabled)
 			.field("death_drop_percent", configuration.deathDropStackPercent)
@@ -452,6 +455,21 @@ public final class MadokuItemStack {
 			normalized = normalized + ".json";
 		}
 		return directory.resolve(normalized);
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return fallback;
+		}
+		try {
+			return element.getAsBoolean();
+		} catch (RuntimeException exception) {
+			return fallback;
+		}
 	}
 
 	private record KeptStack(int slot, ItemStack stack) {

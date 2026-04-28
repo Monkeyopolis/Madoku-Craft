@@ -51,18 +51,19 @@ public final class MadokuSmeltingManager {
 	private static final String SMELTING_CONFIG_FILE_NAME = "smelting";
 	private static final String FURNACES_DIRECTORY_NAME = "madoku-furnaces";
 	private static final String TASK_TYPE_SMELTING_TICK = "smelting_furnace_tick";
+	private static final String FIELD_ENABLED = "enabled";
 
 	private static final int MINIMUM_COOK_TICKS = 20;
 	private static final int BASE_FURNACE_COOK_TICKS = 200;
 	private static final int BASE_SMOKER_COOK_TICKS = 100;
 	private static final int BASE_BLAST_COOK_TICKS = 100;
 
-	private static final String FIELD_BLOCK_ID = "block_id";
-	private static final String FIELD_BLOCK_ENTITY_ID = "block_entity_id";
-	private static final String FIELD_RECIPE_TYPE_ID = "recipe_type_id";
-	private static final String FIELD_SMELTING_SPEED = "smeltingSpeed";
-	private static final String FIELD_FUEL_EFFICIENCY = "fuelEfficiency";
-	private static final String FIELD_ADDITIONAL_INPUTS = "additional_inputs";
+	private static final String FIELD_BLOCK_ID = "block-id";
+	private static final String FIELD_BLOCK_ENTITY_ID = "block-entity-id";
+	private static final String FIELD_RECIPE_TYPE_ID = "recipe-type-id";
+	private static final String FIELD_SMELTING_SPEED = "smelting-speed";
+	private static final String FIELD_FUEL_EFFICIENCY = "fuel-efficiency";
+	private static final String FIELD_ADDITIONAL_INPUTS = "additional-inputs";
 
 	private static final double SPEED_INCREMENT = 0.125;
 	private static final double MIN_SMELTING_SPEED = 20.0;
@@ -85,17 +86,17 @@ public final class MadokuSmeltingManager {
 	public static void initialize() {
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
-		JsonObject smeltingDefaults = MadokuSmeltingConfig.buildSmeltingDefaults();
 
 		try {
 			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
 			Path smeltingFile = resolveJsonFile(directory, SMELTING_CONFIG_FILE_NAME);
 
-			JsonObject smeltingRoot = JsonStaticSystem.ensureManagedFile(smeltingFile, smeltingDefaults);
-			boolean smeltingChanged = configuration.updateSmelting(smeltingRoot);
-			if (smeltingChanged) {
-				JsonStaticSystem.writeManagedFile(smeltingFile, smeltingRoot, smeltingDefaults);
-			}
+			JsonStaticSystem.ManagedStaticDocument smeltingDocument = JsonStaticSystem.readManagedDocument(smeltingFile);
+			boolean smeltingEnabled = readBoolean(smeltingDocument.main(), FIELD_ENABLED, true);
+			configuration.enableFeature = smeltingEnabled;
+			JsonObject smeltingGeneral = smeltingDocument.general();
+			smeltingGeneral.addProperty(FIELD_ENABLED, smeltingEnabled);
+			JsonStaticSystem.writeManagedDocument(smeltingFile, new JsonObject(), smeltingGeneral);
 
 			FurnaceLoadResult furnaceLoadResult = loadFurnaceRules(directory);
 			rebuildRules(furnaceLoadResult.additionalInputsByRecipeType, furnaceLoadResult.behaviorByBlockEntityId);
@@ -838,6 +839,17 @@ public final class MadokuSmeltingManager {
 		JsonElement element = root.get(key);
 		if (element instanceof JsonPrimitive primitive && primitive.isNumber()) {
 			return primitive.getAsDouble();
+		}
+		return fallback;
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element instanceof JsonPrimitive primitive && primitive.isBoolean()) {
+			return primitive.getAsBoolean();
 		}
 		return fallback;
 	}

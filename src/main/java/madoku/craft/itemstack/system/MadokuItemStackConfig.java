@@ -9,13 +9,13 @@ public final class MadokuItemStackConfig {
 	public static final int MAX_STACK_CAP = 999;
 	public static final int DEFAULT_DEATH_DROP_PERCENT = 50;
 
-	public boolean enableFeature = true;
+	public boolean enabled = true;
 	public int customStackAmount = DEFAULT_STACK_LIMIT;
 	public boolean deathDropEnabled = true;
 	public int deathDropStackPercent = DEFAULT_DEATH_DROP_PERCENT;
 
 	public void resetToDefaults() {
-		enableFeature = true;
+		enabled = true;
 		customStackAmount = DEFAULT_STACK_LIMIT;
 		deathDropEnabled = true;
 		deathDropStackPercent = DEFAULT_DEATH_DROP_PERCENT;
@@ -23,11 +23,9 @@ public final class MadokuItemStackConfig {
 
 	public boolean updateItemStack(JsonObject root) {
 		boolean changed = false;
-		enableFeature = readBoolean(root, "enableFeature", enableFeature);
 		customStackAmount = clampStackAmount(readInteger(root, "customStackAmount", customStackAmount));
 		deathDropEnabled = readBoolean(root, "deathDropEnabled", deathDropEnabled);
 		deathDropStackPercent = clampPercent(readInteger(root, "deathDropStackPercent", deathDropStackPercent));
-		changed |= setBoolean(root, "enableFeature", enableFeature);
 		changed |= setInteger(root, "customStackAmount", customStackAmount);
 		changed |= setBoolean(root, "deathDropEnabled", deathDropEnabled);
 		changed |= setInteger(root, "deathDropStackPercent", deathDropStackPercent);
@@ -36,7 +34,6 @@ public final class MadokuItemStackConfig {
 
 	public static JsonObject buildItemStackDefaults() {
 		JsonObject defaults = new JsonObject();
-		defaults.addProperty("enableFeature", true);
 		defaults.addProperty("customStackAmount", DEFAULT_STACK_LIMIT);
 		defaults.addProperty("deathDropEnabled", true);
 		defaults.addProperty("deathDropStackPercent", DEFAULT_DEATH_DROP_PERCENT);
@@ -94,4 +91,5 @@ public final class MadokuItemStackConfig {
 		root.addProperty(key, value);
 		return true;
 	}
+
 }
