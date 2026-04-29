@@ -45,7 +45,6 @@ public final class MadokuSeason {
 	private static final String DATA_FILE_NAME = "madoku-season";
 	private static final String BIOME_FOLDER_NAME = "biomes";
 	private static final String FIELD_SEASONAL_QUEUE = "seasonal-queue";
-	private static final String TASK_TYPE_SEASON_CHUNK_PROCESS = "season_chunk_process";
 	private static final String TASK_TYPE_SEASON_SCAN = "season_scan";
 	private static final String TASK_TYPE_SEASON_PROCESS = "season_process";
 	private static final String SEASON_SCHEDULER_KEY = "madoku-season";
@@ -84,7 +83,6 @@ public final class MadokuSeason {
 	public static void initialize() {
 		loadStaticConfig();
 		ChunkManagerSystem.registerChunkLifecycleListener(SEASON_CHUNK_LISTENER);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_CHUNK_PROCESS, MadokuSeason::ignoreLegacySeasonTask);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_SCAN, MadokuSeason::runSeasonScanTask);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_PROCESS, MadokuSeason::runSeasonProcessTask);
 	}
@@ -378,9 +376,6 @@ public final class MadokuSeason {
 				case FALL, WINTER -> SeasonalPrecipitation.SNOW;
 			};
 		};
-	}
-
-	private static void ignoreLegacySeasonTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 	}
 
 	private static void runSeasonScanTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {

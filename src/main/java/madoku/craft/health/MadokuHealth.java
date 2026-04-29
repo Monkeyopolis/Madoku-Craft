@@ -12,6 +12,7 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -44,6 +45,9 @@ public final class MadokuHealth {
 	private static final String HEALTH_CONFIG_FILE_NAME = "madoku-health";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-health";
 	private static final String DATA_FILE_NAME = "madoku-health";
+	private static final String TASK_TYPE_HEALTH_PLAYER_TICK = "health_player_tick";
+	private static final String HEALTH_PLAYER_TICK_SCHEDULER_KEY = "health_player_tick";
+	private static final long HEALTH_PLAYER_TICK_DELAY = 1L;
 	private static final float DEATH_RESPAWN_HEALTH_RATIO = 0.5f;
 	private static final Identifier LOW_HUNGER_MAX_HEALTH_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_low_hunger_max_health");
@@ -69,12 +73,15 @@ public final class MadokuHealth {
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static long lastNaturalRegenDisableTick = Long.MIN_VALUE;
+	private static volatile String schedulerId = "";
+	private static volatile boolean tickQueued;
 
 	private MadokuHealth() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealth::runPlayerTickTask);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealth::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealth::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealth::handlePlayerRespawn);
@@ -85,6 +92,8 @@ public final class MadokuHealth {
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		lastNaturalRegenDisableTick = Long.MIN_VALUE;
+		schedulerId = "";
+		tickQueued = false;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -119,15 +128,74 @@ public final class MadokuHealth {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	public static void onServerTick(MinecraftServer server) {
-		if (server == null) {
+	public static void onServerStarted(MinecraftServer server) {
+		ensureQueued(server, HEALTH_PLAYER_TICK_DELAY);
+	}
+
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		tickQueued = false;
+		if (server == null || context == null) {
 			return;
 		}
 
-		long gameplayTick = MadokuTicks.getGameplayTicks();
+		schedulerId = context.getSchedulerId();
+		long gameplayTick = context.getNowTick();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			onPlayerTick(server, player, gameplayTick);
 		}
+		ensureQueued(server, HEALTH_PLAYER_TICK_DELAY);
+	}
+
+	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || tickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureScheduler();
+		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
+			tickQueued = true;
+			return;
+		}
+		if (enqueue(currentSchedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		if (enqueue(schedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		LOGGER.error("Failed to enqueue health player tick task.");
+	}
+
+	private static String ensureScheduler() {
+		String current = schedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		return schedulerId;
+	}
+
+	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
+		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
+			return false;
+		}
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+			targetSchedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_HEALTH_PLAYER_TICK,
+			new JsonObject(),
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
+		);
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {

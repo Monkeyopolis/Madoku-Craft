@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -14,6 +13,7 @@ import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
@@ -57,6 +57,9 @@ public final class MadokuItem {
 	private static final AttackRange DEFAULT_REACH = new AttackRange(0.0F, 3.0F, 0.0F, 5.0F, 0.3F, 1.0F);
 	private static final int MAX_FUEL_TICKS = 201600;
 	private static final long PLAYER_COMPONENT_SYNC_INTERVAL_TICKS = 5L;
+	private static final String TASK_TYPE_ITEM_PLAYER_TICK = "item_player_tick";
+	private static final String ITEM_PLAYER_TICK_SCHEDULER_KEY = "item_player_tick";
+	private static final long ITEM_PLAYER_TICK_DELAY = 1L;
 
 	private static final String ITEM_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-items";
 	private static final String ITEM_CONFIG_SETTINGS_FILE_NAME = "madoku-items";
@@ -82,26 +85,20 @@ public final class MadokuItem {
 	private static volatile Map<Item, Set<String>> categoriesByItem = Map.of();
 	private static volatile Set<Item> toolCategoryItems = Set.of();
 	private static volatile Set<Item> armorCategoryItems = Set.of();
+	private static volatile String schedulerId = "";
+	private static volatile boolean tickQueued;
 
 	private MadokuItem() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, MadokuItem::runPlayerTickTask);
 	}
 
-	public static void onServerStarted() {
+	public static void onServerStarted(MinecraftServer server) {
 		applyConfiguredItemMetadata();
-	}
-
-	public static void onServerTick(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-		long gameplayTick = MadokuTicks.getGameplayTicks();
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
-		}
+		ensureQueued(server, ITEM_PLAYER_TICK_DELAY);
 	}
 
 	public static void applyConfiguredItemMetadata() {
@@ -113,6 +110,77 @@ public final class MadokuItem {
 		}
 		applyToolProfiles(toolProfilesByItem);
 		applyArmorProfiles(armorProfilesByItem);
+	}
+
+	public static void reset() {
+		schedulerId = "";
+		tickQueued = false;
+	}
+
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		tickQueued = false;
+		if (server == null || context == null) {
+			return;
+		}
+
+		schedulerId = context.getSchedulerId();
+		long gameplayTick = context.getNowTick();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
+		ensureQueued(server, ITEM_PLAYER_TICK_DELAY);
+	}
+
+	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || tickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureScheduler();
+		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
+			tickQueued = true;
+			return;
+		}
+		if (enqueue(currentSchedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		if (enqueue(schedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		LOGGER.error("Failed to enqueue item player tick task.");
+	}
+
+	private static String ensureScheduler() {
+		String current = schedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		return schedulerId;
+	}
+
+	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
+		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
+			return false;
+		}
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+			targetSchedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_ITEM_PLAYER_TICK,
+			new JsonObject(),
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
+		);
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static String createClientSyncSnapshot() {

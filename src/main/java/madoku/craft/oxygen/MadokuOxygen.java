@@ -7,6 +7,7 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.Holder;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
@@ -36,6 +37,9 @@ public final class MadokuOxygen {
 	private static final String OXYGEN_CONFIG_FILE_NAME = "madoku-oxygen";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-oxygen";
 	private static final String DATA_FILE_NAME = "madoku-oxygen";
+	private static final String TASK_TYPE_OXYGEN_PLAYER_TICK = "oxygen_player_tick";
+	private static final String OXYGEN_PLAYER_TICK_SCHEDULER_KEY = "oxygen_player_tick";
+	private static final long OXYGEN_PLAYER_TICK_DELAY = 1L;
 	private static final String VANILLA_BREATH_OF_THE_NAUTILUS_DESCRIPTION_ID = "effect.minecraft.breath_of_the_nautilus";
 	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuTicks.TICKS_PER_SECOND);
 	private static final double DEFAULT_MAXIMUM_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 2.0d;
@@ -48,12 +52,15 @@ public final class MadokuOxygen {
 	private static final Set<UUID> CUSTOM_DROWNING_DAMAGE_PLAYERS = new HashSet<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static volatile String schedulerId = "";
+	private static volatile boolean tickQueued;
 
 	private MadokuOxygen() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_OXYGEN_PLAYER_TICK, MadokuOxygen::runPlayerTickTask);
 		ServerPlayerEvents.JOIN.register(MadokuOxygen::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuOxygen::handlePlayerRespawn);
 	}
@@ -63,6 +70,8 @@ public final class MadokuOxygen {
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		CUSTOM_DROWNING_DAMAGE_PLAYERS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
+		schedulerId = "";
+		tickQueued = false;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -97,15 +106,8 @@ public final class MadokuOxygen {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	public static void onServerTick(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-
-		long gameplayTick = MadokuTicks.getGameplayTicks();
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
-		}
+	public static void onServerStarted(MinecraftServer server) {
+		ensureQueued(server, OXYGEN_PLAYER_TICK_DELAY);
 	}
 
 	public static boolean shouldSuppressVanillaDrowningDamage(ServerPlayer player, DamageSource source) {
@@ -116,6 +118,72 @@ public final class MadokuOxygen {
 			return false;
 		}
 		return !CUSTOM_DROWNING_DAMAGE_PLAYERS.contains(player.getUUID());
+	}
+
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		tickQueued = false;
+		if (server == null || context == null) {
+			return;
+		}
+
+		schedulerId = context.getSchedulerId();
+		long gameplayTick = context.getNowTick();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
+		ensureQueued(server, OXYGEN_PLAYER_TICK_DELAY);
+	}
+
+	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || tickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureScheduler();
+		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_OXYGEN_PLAYER_TICK)) {
+			tickQueued = true;
+			return;
+		}
+		if (enqueue(currentSchedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(OXYGEN_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		if (enqueue(schedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		LOGGER.error("Failed to enqueue oxygen player tick task.");
+	}
+
+	private static String ensureScheduler() {
+		String current = schedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(OXYGEN_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		return schedulerId;
+	}
+
+	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
+		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
+			return false;
+		}
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+			targetSchedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_OXYGEN_PLAYER_TICK,
+			new JsonObject(),
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
+		);
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static int getMaximumOxygenTicksForEntity(LivingEntity entity) {

@@ -81,10 +81,11 @@ public final class PlayerEntitiesSystem {
 	private static final String PET_RULES_FOLDER_NAME = "madoku-pets";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-pets";
 	private static final String DATA_FILE_NAME = "madoku-pets";
-	private static final String TASK_TYPE_PET_TICK = "pet_tick";
 	private static final String TASK_TYPE_PET_ATTACK = "pet_attack";
+	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
+	private static final String PET_RUNTIME_SCHEDULER_KEY = "pet_runtime_tick";
+	private static final long PET_RUNTIME_TICK_DELAY = 1L;
 	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
-	private static final String LEGACY_SAVE_KEY = "PlayerPets";
 	private static final String MANAGED_PET_TAG = "madoku-craft.pet";
 	private static final String MANAGED_PET_OWNER_PREFIX = "madoku-craft.pet.owner:";
 	private static final String MANAGED_PET_ITEM_PREFIX = "madoku-craft.pet.item:";
@@ -140,15 +141,16 @@ public final class PlayerEntitiesSystem {
 	private static volatile PetSettings settings = PetSettings.defaults();
 	private static volatile Map<String, PetRule> petRulesByItemId = Map.of();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static volatile String runtimeSchedulerId = "";
+	private static volatile boolean runtimeTickQueued;
 
 	private PlayerEntitiesSystem() {
 	}
 
 	public static void initialize() {
 		loadConfig();
-		// Keep the legacy handler to consume any persisted pre-refactor pet_tick tasks.
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_TICK, PlayerEntitiesSystem::runPetTick);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_RUNTIME_TICK, PlayerEntitiesSystem::runPetRuntimeTick);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof ServerPlayer player)) {
 				return;
@@ -197,6 +199,12 @@ public final class PlayerEntitiesSystem {
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		PetSoundState.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
+		runtimeSchedulerId = "";
+		runtimeTickQueued = false;
+	}
+
+	public static void onServerStarted(MinecraftServer server) {
+		ensureRuntimeQueued(server, PET_RUNTIME_TICK_DELAY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -233,7 +241,7 @@ public final class PlayerEntitiesSystem {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	public static void onPlayerTickPhase(MinecraftServer server) {
+	private static void onPlayerTickPhase(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
@@ -243,7 +251,7 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
-	public static void onServerTick(MinecraftServer server) {
+	private static void onServerTick(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
@@ -263,6 +271,67 @@ public final class PlayerEntitiesSystem {
 		tickManagedWebProjectiles(server);
 		tickManagedExplosiveProjectiles(server);
 		flushAbilityHudSyncs(server);
+	}
+
+	private static void runPetRuntimeTick(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		runtimeTickQueued = false;
+		if (server == null || context == null) {
+			return;
+		}
+
+		runtimeSchedulerId = context.getSchedulerId();
+		onPlayerTickPhase(server);
+		onServerTick(server);
+		ensureRuntimeQueued(server, PET_RUNTIME_TICK_DELAY);
+	}
+
+	private static void ensureRuntimeQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || runtimeTickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureRuntimeSchedulerExists();
+		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_PET_RUNTIME_TICK)) {
+			runtimeTickQueued = true;
+			return;
+		}
+		if (enqueueRuntimeTask(currentSchedulerId, delayTicks)) {
+			runtimeTickQueued = true;
+			return;
+		}
+
+		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(PET_RUNTIME_SCHEDULER_KEY)
+		);
+		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
+			runtimeTickQueued = true;
+		}
+	}
+
+	private static String ensureRuntimeSchedulerExists() {
+		String current = runtimeSchedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(PET_RUNTIME_SCHEDULER_KEY)
+		);
+		return runtimeSchedulerId;
+	}
+
+	private static boolean enqueueRuntimeTask(String schedulerId, long delayTicks) {
+		if (schedulerId == null || schedulerId.isBlank()) {
+			return false;
+		}
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+			schedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_PET_RUNTIME_TICK,
+			new JsonObject(),
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
+		);
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static void onPlayerEntitiesInventoryChanged(ServerPlayer player) {
@@ -630,10 +699,6 @@ public final class PlayerEntitiesSystem {
 		}
 		items.sort((left, right) -> BuiltInRegistries.ITEM.getKey(left).toString().compareTo(BuiltInRegistries.ITEM.getKey(right).toString()));
 		return List.copyOf(items);
-	}
-
-	public static String legacySaveKey() {
-		return LEGACY_SAVE_KEY;
 	}
 
 	public static void dropAll(ServerPlayer player) {
@@ -1275,33 +1340,6 @@ public final class PlayerEntitiesSystem {
 				.field("reason", "no_active_pets")
 				.log();
 		}
-	}
-
-	private static void runPetTick(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (server == null || context == null) {
-			return;
-		}
-
-		SchedulerManagerSystem.SchedulerBinding binding = context.getBinding();
-		UUID playerId = binding == null ? null : binding.getEntityUuid();
-		if (playerId == null) {
-			return;
-		}
-
-		PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
-		ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-		if (player == null) {
-			NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
-			removeAllPets(server, playerId);
-			return;
-		}
-
-		long nowTick = context.getNowTick();
-		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
-		if (existingTick == null || nowTick < existingTick) {
-			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, nowTick);
-		}
-		onPlayerTick(server, player, nowTick);
 	}
 
 	private static void runPetAttack(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -2320,7 +2358,6 @@ public final class PlayerEntitiesSystem {
 
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
-		root.addProperty("version", 1);
 		root.add("slot-cooldowns", new JsonArray());
 		return root;
 	}

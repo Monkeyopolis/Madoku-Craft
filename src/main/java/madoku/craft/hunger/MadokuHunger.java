@@ -10,6 +10,7 @@ import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -46,16 +47,22 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	private static final String HUNGER_CONFIG_FILE_NAME = "madoku-hunger";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-hunger";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
+	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
+	private static final String HUNGER_PLAYER_TICK_SCHEDULER_KEY = "hunger_player_tick";
+	private static final long HUNGER_PLAYER_TICK_DELAY = 1L;
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static volatile Settings settings = Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
+	private static volatile String schedulerId = "";
+	private static volatile boolean tickQueued;
 
 	private MadokuHunger() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHunger::runPlayerTickTask);
 		ServerPlayerEvents.JOIN.register(MadokuHunger::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHunger::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -64,6 +71,8 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	public static void reset() {
 		PLAYER_STATES.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
+		schedulerId = "";
+		tickQueued = false;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -98,19 +107,78 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
-	public static void onServerTick(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-
-		long gameplayTick = MadokuTicks.getGameplayTicks();
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
-		}
+	public static void onServerStarted(MinecraftServer server) {
+		ensureQueued(server, HUNGER_PLAYER_TICK_DELAY);
 	}
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		tickQueued = false;
+		if (server == null || context == null) {
+			return;
+		}
+
+		schedulerId = context.getSchedulerId();
+		long gameplayTick = context.getNowTick();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
+		ensureQueued(server, HUNGER_PLAYER_TICK_DELAY);
+	}
+
+	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+		if (server == null || tickQueued) {
+			return;
+		}
+
+		String currentSchedulerId = ensureScheduler();
+		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_HUNGER_PLAYER_TICK)) {
+			tickQueued = true;
+			return;
+		}
+		if (enqueue(currentSchedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		if (enqueue(schedulerId, delayTicks)) {
+			tickQueued = true;
+			return;
+		}
+
+		LOGGER.error("Failed to enqueue hunger player tick task.");
+	}
+
+	private static String ensureScheduler() {
+		String current = schedulerId;
+		if (current != null && !current.isBlank()) {
+			return current;
+		}
+		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
+		);
+		return schedulerId;
+	}
+
+	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
+		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
+			return false;
+		}
+		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+			targetSchedulerId,
+			Math.max(0L, delayTicks),
+			TASK_TYPE_HUNGER_PLAYER_TICK,
+			new JsonObject(),
+			SchedulerManagerSystem.TickDomain.GAMEPLAY
+		);
+		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
+			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static int getConfiguredMaximumHungerPoints() {

@@ -85,6 +85,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
+			MadokuItem.reset();
 			MadokuItemStack.reset();
 			MadokuPlacedBlocks.reset();
 			MadokuHealth.reset();
@@ -111,7 +112,12 @@ public class MadokuCraft implements ModInitializer {
 			MadokuLevels.loadPersistedData(server);
 			PlayerEntitiesSystem.loadPersistedData(server);
 			MadokuItemStack.loadPersistedData(server);
-			MadokuItem.onServerStarted();
+			MadokuItem.onServerStarted(server);
+			MadokuHunger.onServerStarted(server);
+			MadokuHealth.onServerStarted(server);
+			MadokuOxygen.onServerStarted(server);
+			MadokuEntities.onServerStarted(server);
+			PlayerEntitiesSystem.onServerStarted(server);
 			MadokuMob.onServerStarted(server);
 			MadokuDifficulty.onServerStarted(server);
 			MadokuTime.update(server);
@@ -146,6 +152,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
+			MadokuItem.reset();
 			ChunkManagerSystem.reset();
 			SchedulerManagerSystem.reset();
 			MadokuPlacedBlocks.reset();
@@ -173,11 +180,6 @@ public class MadokuCraft implements ModInitializer {
 			} else {
 				SchedulerManagerSystem.onServerTick(server);
 			}
-			MadokuItem.onServerTick(server);
-			MadokuHunger.onServerTick(server);
-			MadokuHealth.onServerTick(server);
-			MadokuOxygen.onServerTick(server);
-			PlayerEntitiesSystem.onPlayerTickPhase(server);
 			MadokuFarming.onServerTickIncrement(server, tickIncrement);
 			SchedulerManagerSystem.autosavePersistedData(server);
 			ChunkManagerSystem.autosavePersistedData(server);
@@ -194,10 +196,8 @@ public class MadokuCraft implements ModInitializer {
 			MadokuItemStack.autosavePersistedData(server);
 			MadokuTime.update(server);
 			MadokuSeason.onServerTick(server);
-			MadokuEntities.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
 			MadokuMob.onServerTick(server);
-			PlayerEntitiesSystem.onServerTick(server);
 			MadokuLevels.flushDirtySyncs(server);
 			WorldTimeSync.broadcastIfChanged(server);
 			WorldDifficultySync.broadcastIfChanged(server);

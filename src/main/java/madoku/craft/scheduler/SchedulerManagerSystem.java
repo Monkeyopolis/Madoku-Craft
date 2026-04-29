@@ -40,7 +40,6 @@ public final class SchedulerManagerSystem {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerManagerSystem.class);
 	private static final String DATA_FOLDER_NAME = "madoku-craft-schedulers";
 	private static final String DATA_FILE_NAME = "madoku-schedulers";
-	private static final String LEGACY_DATA_FILE_NAME = "scheduler-manager";
 	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
 	private static final String GROUP_GENERAL = "general";
 	private static final String FIELD_EXPIRATION = "expiration";
@@ -77,9 +76,6 @@ public final class SchedulerManagerSystem {
 		reset();
 		JsonObject persistedData = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(server, persistedData);
-		if (SCHEDULERS.isEmpty() && legacySchedulerDataExists(server)) {
-			applyPersistedData(server, DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME, createDefaultData()));
-		}
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
@@ -91,7 +87,6 @@ public final class SchedulerManagerSystem {
 
 		saveSchedulerFiles(server);
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
-		DataManagerSystem.deleteWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME);
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
@@ -112,7 +107,6 @@ public final class SchedulerManagerSystem {
 
 		saveSchedulerFiles(server);
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
-		DataManagerSystem.deleteWorldData(server, DATA_FOLDER_NAME, LEGACY_DATA_FILE_NAME);
 		dirty = false;
 		lastAutosaveBucket = currentBucket;
 	}
@@ -465,16 +459,6 @@ public final class SchedulerManagerSystem {
 
 	private static long getAutoSaveIntervalTicks(MinecraftServer server) {
 		return DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-	}
-
-	private static boolean legacySchedulerDataExists(MinecraftServer server) {
-		if (server == null) {
-			return false;
-		}
-		Path legacyFile = JsonManagerSystem.getWorldRootDirectory(server)
-			.resolve(DATA_FOLDER_NAME)
-			.resolve(LEGACY_DATA_FILE_NAME + ".json");
-		return Files.isRegularFile(legacyFile);
 	}
 
 	private static SchedulerEntry loadSchedulerEntry(MinecraftServer server, String schedulerId) {
