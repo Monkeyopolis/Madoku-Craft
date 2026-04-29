@@ -46,6 +46,7 @@ import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import net.minecraft.world.entity.monster.spider.CaveSpider;
 import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
@@ -58,7 +59,9 @@ import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,6 +87,10 @@ public final class MadokuMob {
 	private static final double ATTACK_ACCURACY_DIFFICULTY_STEP = 0.05D;
 	private static final double CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP = 1.0D;
 	private static final double CREEPER_POWER_PER_DAMAGE = 0.2D;
+	private static final double ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE = 12.0D;
+	private static final double ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE = 4.0D;
+	private static final double ZOMBIFIED_PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
+	private static final double PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
 	private static final double MIN_HOMING_SPEED = 0.75D;
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
@@ -156,6 +163,33 @@ public final class MadokuMob {
 		return snapshot.enabled;
 	}
 
+	public static boolean shouldReplaceVanillaZombifiedPiglinBroadcast() {
+		return snapshot.enabled && isMobFileEnabled(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN);
+	}
+
+	public static boolean shouldReplaceVanillaPiglinZombifiedAvoid() {
+		return snapshot.enabled && isMobFileEnabled(MadokuMobConfig.FILE_PIGLIN);
+	}
+
+	public static void applyCustomZombifiedPiglinAggressionTick(Zombie pigman) {
+		if (pigman == null || !snapshot.enabled || !isMobFileEnabled(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN) || !pigman.isAlive()) {
+			return;
+		}
+		enforceZombifiedPiglinWeaponLoadout(pigman);
+		if (pigman.isBaby()) {
+			pigman.setTarget(null);
+			pigman.setAggressive(false);
+			return;
+		}
+		if (!(pigman.level() instanceof ServerLevel level)) {
+			return;
+		}
+		LivingEntity target = resolveZombifiedPiglinTarget(level, pigman);
+		if (target != null && target.isAlive() && target != pigman) {
+			pigman.setTarget(target);
+		}
+	}
+
 	public static void applyMobSpawnOverridesFromGenericMixin(
 		Mob mob,
 		ServerLevelAccessor world,
@@ -164,6 +198,8 @@ public final class MadokuMob {
 		) {
 			if (mob instanceof Creeper creeper) {
 				applyCreeperSpawnOverrides(creeper, world, difficulty);
+		} else if (mob.getType() == EntityType.ZOMBIFIED_PIGLIN && mob instanceof Zombie zombifiedPiglin) {
+			applyZombifiedPiglinSpawnOverrides(zombifiedPiglin, world);
 		} else if (mob instanceof Piglin piglin) {
 			applyPiglinSpawnOverrides(piglin, world);
 		} else if (mob.getType() == MadokuEntities.HAG) {
@@ -444,6 +480,41 @@ public final class MadokuMob {
 		applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
 	}
 
+	public static void handleMobDamaged(LivingEntity victim, DamageSource source) {
+		if (victim == null || source == null || !snapshot.enabled || victim.level().isClientSide()) {
+			return;
+		}
+		LivingEntity attacker = resolveDamageSourceLivingAttacker(source);
+		if (attacker == null || !attacker.isAlive() || attacker == victim) {
+			return;
+		}
+		if (!(victim.level() instanceof ServerLevel level)) {
+			return;
+		}
+
+		if (victim.getType() == EntityType.ZOMBIFIED_PIGLIN && victim instanceof Zombie pigman) {
+			if (!isMobFileEnabled(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN) || pigman.isBaby()) {
+				return;
+			}
+			pigman.setTarget(attacker);
+			pigman.setAggressive(true);
+			broadcastZombifiedPiglinAnger(level, pigman, attacker);
+			return;
+		}
+		if (victim instanceof Piglin piglin) {
+			if (!isMobFileEnabled(MadokuMobConfig.FILE_PIGLIN) || piglin.isBaby()) {
+				return;
+			}
+			piglin.setTarget(attacker);
+			piglin.setAggressive(true);
+			piglin.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, attacker);
+			clearPiglinFleeMemories(piglin);
+			if (attacker.getType() == EntityType.ZOMBIFIED_PIGLIN) {
+				broadcastPiglinAnger(level, piglin, attacker);
+			}
+		}
+	}
+
 	private static void applyWitherSkeletonHitEffect(LivingEntity target, Entity attacker, int durationTicks) {
 		if (target == null || attacker == null || target.level().isClientSide() || !snapshot.enabled) {
 			return;
@@ -475,6 +546,23 @@ public final class MadokuMob {
 				normalizePiglinWeapon(piglin);
 			}
 			applyUniversalStats(piglin, variant);
+	}
+
+	private static void applyZombifiedPiglinSpawnOverrides(Zombie pigman, ServerLevelAccessor world) {
+		if (pigman == null || world == null || !snapshot.enabled) {
+			return;
+		}
+		JsonObject root = fileMobRoot(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN);
+		if (!isMobFileEnabled(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN)) {
+			return;
+		}
+		boolean baby = rollZombifiedPiglinBabySpawn(root, world);
+		pigman.setBaby(baby);
+		JsonObject variant = zombifiedPiglinVariantRoot(root, baby);
+		clearMobEquipment(pigman);
+		applySpawnArmorLoadout(pigman, variant, world.getRandom());
+		enforceZombifiedPiglinWeaponLoadout(pigman);
+		applyUniversalStats(pigman, variant);
 	}
 
 	public static boolean tickPillagerAttackCooldown(Monster attacker) {
@@ -816,6 +904,16 @@ public final class MadokuMob {
 				JsonObject root = fileMobRoot(MadokuMobConfig.FILE_PILLAGER);
 				return isMobFileEnabled(MadokuMobConfig.FILE_PILLAGER) && applyUniversalStats(pillager, root);
 			}
+			if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
+				JsonObject root = fileMobRoot(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN);
+				if (!isMobFileEnabled(MadokuMobConfig.FILE_ZOMBIFIED_PIGLIN)) {
+					return false;
+				}
+				JsonObject variant = zombifiedPiglinVariantRoot(root, pigman.isBaby());
+				boolean modified = applyUniversalStats(pigman, variant);
+				enforceZombifiedPiglinWeaponLoadout(pigman);
+				return modified;
+			}
 			if (entity instanceof Piglin piglin) {
 				JsonObject root = fileMobRoot(MadokuMobConfig.FILE_PIGLIN);
 				if (!isMobFileEnabled(MadokuMobConfig.FILE_PIGLIN)) {
@@ -1095,6 +1193,33 @@ public final class MadokuMob {
 		return readObject(root, MadokuMobConfig.FIELD_BABY_PIGLIN);
 	}
 
+	private static boolean rollZombifiedPiglinBabySpawn(JsonObject root, ServerLevelAccessor world) {
+		if (root == null || world == null) {
+			return false;
+		}
+		JsonObject adult = zombifiedPiglinAdultRoot(root);
+		JsonObject baby = zombifiedPiglinBabyRoot(root);
+		double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MadokuMobConfig.FIELD_SPAWN_WEIGHT, 90.0D));
+		double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MadokuMobConfig.FIELD_SPAWN_WEIGHT, 10.0D));
+		double total = adultWeight + babyWeight;
+		if (total <= 0.0D) {
+			return false;
+		}
+		return (world.getRandom().nextDouble() * total) < babyWeight;
+	}
+
+	private static JsonObject zombifiedPiglinVariantRoot(JsonObject root, boolean baby) {
+		return baby ? zombifiedPiglinBabyRoot(root) : zombifiedPiglinAdultRoot(root);
+	}
+
+	private static JsonObject zombifiedPiglinAdultRoot(JsonObject root) {
+		return readObject(root, MadokuMobConfig.FIELD_ADULT_ZOMBIFIED_PIGLIN);
+	}
+
+	private static JsonObject zombifiedPiglinBabyRoot(JsonObject root) {
+		return readObject(root, MadokuMobConfig.FIELD_BABY_ZOMBIFIED_PIGLIN);
+	}
+
 	private static void clearPiglinMainHand(Piglin piglin) {
 		if (piglin == null) {
 			return;
@@ -1110,6 +1235,44 @@ public final class MadokuMob {
 		if (mainHand.is(Items.GOLDEN_SWORD)) {
 			stripWeaponAttributeModifiers(mainHand);
 		}
+	}
+
+	private static void equipZombifiedPiglinWeapon(Mob pigman) {
+		if (pigman == null) {
+			return;
+		}
+		pigman.setItemSlot(EquipmentSlot.MAINHAND, zombifiedPiglinSwordStack());
+	}
+
+	private static ItemStack zombifiedPiglinSwordStack() {
+		ItemStack sword = new ItemStack(Items.IRON_SWORD);
+		sword.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
+		return sword;
+	}
+
+	private static void normalizeZombifiedPiglinWeapon(Mob pigman) {
+		if (pigman == null) {
+			return;
+		}
+		ItemStack mainHand = pigman.getMainHandItem();
+		if (mainHand.is(Items.IRON_SWORD)) {
+			stripWeaponAttributeModifiers(mainHand);
+		}
+	}
+
+	private static void enforceZombifiedPiglinWeaponLoadout(Zombie pigman) {
+		if (pigman == null || pigman.getType() != EntityType.ZOMBIFIED_PIGLIN) {
+			return;
+		}
+		if (pigman.isBaby()) {
+			pigman.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+			return;
+		}
+		ItemStack mainHand = pigman.getMainHandItem();
+		if (!mainHand.is(Items.IRON_SWORD)) {
+			equipZombifiedPiglinWeapon(pigman);
+		}
+		normalizeZombifiedPiglinWeapon(pigman);
 	}
 
 	private static void applyWitherSkeletonSpawnOverrides(AbstractSkeleton skeleton, ServerLevelAccessor world) {
@@ -1359,6 +1522,7 @@ public final class MadokuMob {
 		tickManagedMobArrows(server);
 		tickHomingProjectiles(server);
 		processPendingCaveSpiderReplacements(server);
+		suppressBabyPiglinCombat(server);
 		if (!MANAGED_MOB_ARROWS.isEmpty() || !HOMING_ARROWS.isEmpty() || !PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()) {
 			requestRuntimeProcessing(server, 1L);
 		}
@@ -1486,6 +1650,132 @@ public final class MadokuMob {
 		}
 	}
 
+	private static void clearPiglinFleeMemories(Piglin piglin) {
+		if (piglin == null) {
+			return;
+		}
+		piglin.getBrain().eraseMemory(MemoryModuleType.AVOID_TARGET);
+		piglin.getBrain().eraseMemory(MemoryModuleType.NEAREST_VISIBLE_ZOMBIFIED);
+	}
+
+	private static void broadcastPiglinAnger(ServerLevel level, Piglin source, LivingEntity target) {
+		if (level == null || source == null || target == null || !target.isAlive()) {
+			return;
+		}
+		AABB bounds = source.getBoundingBox().inflate(PIGLIN_ANGER_BROADCAST_RANGE);
+		for (Piglin piglin : level.getEntitiesOfClass(Piglin.class, bounds, candidate -> candidate != null && candidate.isAlive() && !candidate.isBaby())) {
+			piglin.setTarget(target);
+			piglin.setAggressive(true);
+			piglin.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, target);
+			clearPiglinFleeMemories(piglin);
+		}
+	}
+
+	private static void broadcastZombifiedPiglinAnger(ServerLevel level, Zombie source, LivingEntity target) {
+		if (level == null || source == null || target == null || !target.isAlive()) {
+			return;
+		}
+		AABB bounds = source.getBoundingBox().inflate(ZOMBIFIED_PIGLIN_ANGER_BROADCAST_RANGE);
+		for (Zombie pigman : level.getEntitiesOfClass(
+			Zombie.class,
+			bounds,
+			candidate -> candidate != null
+				&& candidate.isAlive()
+				&& candidate.getType() == EntityType.ZOMBIFIED_PIGLIN
+				&& !candidate.isBaby()
+		)) {
+			pigman.setTarget(target);
+			pigman.setAggressive(true);
+		}
+	}
+
+	private static LivingEntity resolveZombifiedPiglinTarget(ServerLevel level, Zombie pigman) {
+		if (level == null || pigman == null || !pigman.isAlive()) {
+			return null;
+		}
+		Piglin nearbyPiglin = findNearestPiglin(level, pigman, ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE);
+		if (nearbyPiglin != null) {
+			return nearbyPiglin;
+		}
+		LivingEntity current = pigman.getTarget();
+		if (current != null && current.isAlive()) {
+			return current;
+		}
+		return findNearestUnarmoredPlayer(level, pigman, ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE);
+	}
+
+	private static Player findNearestUnarmoredPlayer(ServerLevel level, Mob pigman, double radius) {
+		AABB bounds = pigman.getBoundingBox().inflate(Math.max(0.0D, radius));
+		Player nearest = null;
+		double nearestDistance = Double.MAX_VALUE;
+		for (Player player : level.getEntitiesOfClass(Player.class, bounds, MadokuMob::isValidAggroPlayerTarget)) {
+			if (isPlayerWearingIronArmor(player)) {
+				continue;
+			}
+			double distance = pigman.distanceToSqr(player);
+			if (distance < nearestDistance) {
+				nearest = player;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
+	}
+
+	private static Piglin findNearestPiglin(ServerLevel level, Mob pigman, double radius) {
+		AABB bounds = pigman.getBoundingBox().inflate(Math.max(0.0D, radius));
+		Piglin nearest = null;
+		double nearestDistance = Double.MAX_VALUE;
+		for (Piglin piglin : level.getEntitiesOfClass(Piglin.class, bounds, candidate -> candidate != null && candidate.isAlive())) {
+			double distance = pigman.distanceToSqr(piglin);
+			if (distance < nearestDistance) {
+				nearest = piglin;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
+	}
+
+	private static void suppressBabyPiglinCombat(MinecraftServer server) {
+		if (server == null || !snapshot.enabled) {
+			return;
+		}
+		for (Entity entity : TRACKED_ENTITIES.values()) {
+			if (entity instanceof Piglin piglin && piglin.isAlive() && piglin.isBaby()) {
+				piglin.setTarget(null);
+				piglin.setAggressive(false);
+				continue;
+			}
+			if (entity instanceof Zombie zombie && zombie.isAlive() && zombie.isBaby() && zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
+				zombie.setTarget(null);
+				zombie.setAggressive(false);
+			}
+		}
+	}
+
+	private static boolean isValidAggroPlayerTarget(Player player) {
+		return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator();
+	}
+
+	private static boolean isPlayerWearingIronArmor(Player player) {
+		if (player == null) {
+			return false;
+		}
+		return isIronArmorPiece(player.getItemBySlot(EquipmentSlot.HEAD))
+			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.CHEST))
+			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.LEGS))
+			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.FEET));
+	}
+
+	private static boolean isIronArmorPiece(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return false;
+		}
+		return stack.is(Items.IRON_HELMET)
+			|| stack.is(Items.IRON_CHESTPLATE)
+			|| stack.is(Items.IRON_LEGGINGS)
+			|| stack.is(Items.IRON_BOOTS);
+	}
+
 	private static Entity findEntity(MinecraftServer server, UUID entityId) {
 		if (server == null || entityId == null) {
 			return null;
@@ -1550,6 +1840,18 @@ public final class MadokuMob {
 			return null;
 		}
 		return serverLevel.getServer();
+	}
+
+	private static LivingEntity resolveDamageSourceLivingAttacker(DamageSource source) {
+		if (source == null) {
+			return null;
+		}
+		Entity owner = source.getEntity();
+		if (owner instanceof LivingEntity livingOwner) {
+			return livingOwner;
+		}
+		Entity direct = source.getDirectEntity();
+		return direct instanceof LivingEntity livingDirect ? livingDirect : null;
 	}
 
 	private static SpawnOutcome rollSpiderSpawnOutcome(RandomSource random, double spiderWeight, double caveWeight, double jockeyWeight) {

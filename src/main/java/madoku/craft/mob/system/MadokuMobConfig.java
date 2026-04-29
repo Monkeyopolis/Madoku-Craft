@@ -28,6 +28,7 @@ public final class MadokuMobConfig {
 	public static final String FILE_DROWNED = "drowned";
 	public static final String FILE_ZOMBIE_VILLAGER = "zombie-villager";
 	public static final String FILE_PIGLIN = "piglin";
+	public static final String FILE_ZOMBIFIED_PIGLIN = "zombified_piglin";
 	public static final String FILE_PILLAGER = "pillager";
 	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
 	public static final String FILE_HAG = "hag";
@@ -50,6 +51,8 @@ public final class MadokuMobConfig {
 	public static final String FIELD_GOLDEN_SWORD_SPAWN_WEIGHT = "golden_sword_spawn_weight";
 	public static final String FIELD_ADULT_PIGLIN = "adult_piglin";
 	public static final String FIELD_BABY_PIGLIN = "baby_piglin";
+	public static final String FIELD_ADULT_ZOMBIFIED_PIGLIN = "adult_zombified_piglin";
+	public static final String FIELD_BABY_ZOMBIFIED_PIGLIN = "baby_zombified_piglin";
 
 	public static final String FIELD_ADULT_ZOMBIE = "adult_zombie";
 	public static final String FIELD_BABY_ZOMBIE = "baby_zombie";
@@ -135,6 +138,7 @@ public final class MadokuMobConfig {
 			buildZombieTypeDefaults(FILE_ZOMBIE_VILLAGER, FIELD_ADULT_ZOMBIE_VILLAGER, FIELD_BABY_ZOMBIE_VILLAGER, 20.0d, 10.0d, 0.0d, 5.0d, 2.5d, 0.25d, 0.25d, 1.0d, 7)
 		);
 		defaults.put(FILE_PIGLIN, buildPiglinDefaults());
+		defaults.put(FILE_ZOMBIFIED_PIGLIN, buildZombifiedPiglinDefaults());
 		defaults.put(FILE_PILLAGER, buildPillagerDefaults());
 		defaults.put(FILE_WITHER_SKELETON, buildWitherSkeletonDefaults());
 		defaults.put(FILE_HAG, buildHagDefaults());
@@ -419,6 +423,16 @@ public final class MadokuMobConfig {
 		return root;
 	}
 
+	private static JsonObject buildZombifiedPiglinDefaults() {
+		JsonObject root = new JsonObject();
+		root.addProperty(FIELD_ENABLED, true);
+		JsonObject pigman = new JsonObject();
+		pigman.add(FIELD_ADULT_ZOMBIFIED_PIGLIN, buildZombifiedPiglinAdultVariant());
+		pigman.add(FIELD_BABY_ZOMBIFIED_PIGLIN, buildZombifiedPiglinBabyVariant());
+		root.add(FILE_ZOMBIFIED_PIGLIN, pigman);
+		return root;
+	}
+
 	private static JsonObject buildPiglinAdultVariant() {
 		JsonObject root = new JsonObject();
 		root.add(
@@ -443,7 +457,7 @@ public final class MadokuMobConfig {
 		JsonObject root = new JsonObject();
 		root.add(
 			FIELD_MOB_STATS,
-			buildMobStatsDefaults(12.0d, 0.0d, 3.5d, 0.25d, 0.0d, 1.0d, 3)
+			buildMobStatsDefaults(12.0d, 0.0d, 3.0d, 0.25d, 0.0d, 1.0d, 3)
 		);
 		JsonObject mobStats = getOrCreateObject(root, FIELD_MOB_STATS);
 		mobStats.addProperty(FIELD_RANGED_DAMAGE, 5.0d);
@@ -452,6 +466,32 @@ public final class MadokuMobConfig {
 		mobStats.addProperty(FIELD_CHARGE_UP_TICKS, 10.0d);
 		addArmorSpawnDefaults(root);
 		applyPiglinGoldArmorDefaults(root);
+		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
+		spawnRules.addProperty(FIELD_SPAWN_WEIGHT, 10.0d);
+		return root;
+	}
+
+	private static JsonObject buildZombifiedPiglinAdultVariant() {
+		JsonObject root = new JsonObject();
+		root.add(
+			FIELD_MOB_STATS,
+			buildMobStatsDefaults(24.0d, 1.0d, 6.0d, 0.25d, 0.1d, 1.0d, 11)
+		);
+		addArmorSpawnDefaults(root);
+		applyIronArmorDefaults(root);
+		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
+		spawnRules.addProperty(FIELD_SPAWN_WEIGHT, 90.0d);
+		return root;
+	}
+
+	private static JsonObject buildZombifiedPiglinBabyVariant() {
+		JsonObject root = new JsonObject();
+		root.add(
+			FIELD_MOB_STATS,
+			buildMobStatsDefaults(12.0d, 0.0d, 3.0d, 0.25d, 0.0d, 1.0d, 3)
+		);
+		addArmorSpawnDefaults(root);
+		applyIronArmorDefaults(root);
 		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
 		spawnRules.addProperty(FIELD_SPAWN_WEIGHT, 10.0d);
 		return root;
@@ -467,6 +507,20 @@ public final class MadokuMobConfig {
 		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 0.0d);
 		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 100.0d);
 		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 0.0d);
+		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 0.0d);
+		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 0.0d);
+	}
+
+	private static void applyIronArmorDefaults(JsonObject root) {
+		if (root == null) {
+			return;
+		}
+		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
+		JsonObject armorRarity = getOrCreateObject(spawnRules, FIELD_ARMOR_RARITY);
+		armorRarity.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 0.0d);
+		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 0.0d);
+		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 0.0d);
+		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 100.0d);
 		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 0.0d);
 		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 0.0d);
 	}

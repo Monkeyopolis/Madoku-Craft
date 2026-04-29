@@ -1,4 +1,6 @@
 {
+  "block.madoku-craft.nether_iron_ore": "Nether Iron Ore",
+  "item.madoku-craft.nether_iron_ore": "Nether Iron Ore",
   "entity.madoku-craft.hag": "Hag",
   "item.madoku-craft.hag_spawn_egg": "Hag Spawn Egg",
   "key.madoku-craft.open_levels": "Open MadokuLevels",

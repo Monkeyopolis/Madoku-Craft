@@ -2,6 +2,7 @@ package madoku.craft;
 
 import madoku.craft.armor.MadokuArmor;
 import madoku.craft.attributes.MadokuAttributes;
+import madoku.craft.block.MadokuBlocks;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
@@ -34,6 +35,7 @@ import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.time.MadokuSleep;
 import madoku.craft.time.MadokuTime;
 import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.worldgen.MadokuWorldgen;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -51,7 +53,9 @@ public class MadokuCraft implements ModInitializer {
 		MadokuDifficulty.initialize();
 		MadokuTime.initialize();
 		MadokuSeason.initialize();
+		MadokuWorldgen.initialize();
 		MadokuEntities.initialize();
+		MadokuBlocks.initialize();
 		MadokuItem.initialize();
 		MadokuComposter.initialize();
 		MadokuFarming.initialize();
