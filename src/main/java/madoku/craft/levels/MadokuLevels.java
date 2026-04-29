@@ -226,7 +226,11 @@ public final class MadokuLevels {
 			return;
 		}
 
-		ensurePlayerState(newPlayer);
+		PlayerState state = ensurePlayerState(newPlayer);
+		if (!alive) {
+			state.currentXp = 0;
+			state.requiredXp = requiredXpForLevel(state.level);
+		}
 		applyPlayerAttributes(newPlayer);
 		markDirty(newPlayer.getUUID());
 	}

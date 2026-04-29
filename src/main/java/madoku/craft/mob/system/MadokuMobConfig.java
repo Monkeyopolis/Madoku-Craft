@@ -28,7 +28,7 @@ public final class MadokuMobConfig {
 	public static final String FILE_DROWNED = "drowned";
 	public static final String FILE_ZOMBIE_VILLAGER = "zombie-villager";
 	public static final String FILE_PIGLIN = "piglin";
-	public static final String FILE_ZOMBIFIED_PIGLIN = "zombified_piglin";
+	public static final String FILE_ZOMBIFIED_PIGLIN = "zombified-piglin";
 	public static final String FILE_PILLAGER = "pillager";
 	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
 	public static final String FILE_HAG = "hag";
