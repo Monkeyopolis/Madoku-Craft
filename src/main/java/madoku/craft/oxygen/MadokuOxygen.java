@@ -7,7 +7,6 @@ import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.player.PlayerTickSystem;
 import net.minecraft.core.Holder;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
@@ -55,7 +54,6 @@ public final class MadokuOxygen {
 
 	public static void initialize() {
 		loadStaticConfig();
-		PlayerTickSystem.registerListener("oxygen", 30, MadokuOxygen::onPlayerTick);
 		ServerPlayerEvents.JOIN.register(MadokuOxygen::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuOxygen::handlePlayerRespawn);
 	}
@@ -97,6 +95,17 @@ public final class MadokuOxygen {
 			return;
 		}
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
 	}
 
 	public static boolean shouldSuppressVanillaDrowningDamage(ServerPlayer player, DamageSource source) {

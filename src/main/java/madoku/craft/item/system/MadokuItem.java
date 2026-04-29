@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -11,7 +12,6 @@ import madoku.craft.debug.MadokuDebug;
 import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
-import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import net.minecraft.core.Holder;
@@ -88,11 +88,20 @@ public final class MadokuItem {
 
 	public static void initialize() {
 		loadStaticConfig();
-		PlayerTickSystem.registerListener("item_component_sync", 5, MadokuItem::onPlayerTick);
 	}
 
 	public static void onServerStarted() {
 		applyConfiguredItemMetadata();
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
 	}
 
 	public static void applyConfiguredItemMetadata() {

@@ -12,7 +12,6 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.player.PlayerTickSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -76,7 +75,6 @@ public final class MadokuHealth {
 
 	public static void initialize() {
 		loadStaticConfig();
-		PlayerTickSystem.registerListener("health", 20, MadokuHealth::onPlayerTick);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealth::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealth::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealth::handlePlayerRespawn);
@@ -119,6 +117,17 @@ public final class MadokuHealth {
 			return;
 		}
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
 	}
 
 	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {

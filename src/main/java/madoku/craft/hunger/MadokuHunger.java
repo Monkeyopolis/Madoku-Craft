@@ -10,7 +10,6 @@ import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
-import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -57,7 +56,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
 	public static void initialize() {
 		loadStaticConfig();
-		PlayerTickSystem.registerListener("hunger", 10, MadokuHunger::onPlayerTick);
 		ServerPlayerEvents.JOIN.register(MadokuHunger::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHunger::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -98,6 +96,17 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 			return;
 		}
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
 	}
 
 	public static boolean isEnabled() {

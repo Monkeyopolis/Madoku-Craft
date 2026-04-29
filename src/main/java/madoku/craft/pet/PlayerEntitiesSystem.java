@@ -15,7 +15,6 @@ import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
-import madoku.craft.player.PlayerTickSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -147,7 +146,6 @@ public final class PlayerEntitiesSystem {
 
 	public static void initialize() {
 		loadConfig();
-		PlayerTickSystem.registerListener("pets", 40, PlayerEntitiesSystem::onPlayerTick);
 		// Keep the legacy handler to consume any persisted pre-refactor pet_tick tasks.
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_TICK, PlayerEntitiesSystem::runPetTick);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
@@ -233,6 +231,16 @@ public final class PlayerEntitiesSystem {
 		}
 
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+	}
+
+	public static void onPlayerTickPhase(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
+		}
 	}
 
 	public static void onServerTick(MinecraftServer server) {
