@@ -45,24 +45,25 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 
 	@Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
 	private void madokuCraft$loadPlayerEntities(ValueInput input, CallbackInfo ci) {
-		for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
-			String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
-			if (itemId.isBlank()) {
-				madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
-				continue;
-			}
+		madokuCraft$playerEntitiesInventory.runBulkUpdate(() -> {
+			for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
+				String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
+				if (itemId.isBlank()) {
+					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					continue;
+				}
 
-			Identifier identifier = Identifier.tryParse(itemId);
-			Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
-			if (item == null) {
-				madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
-				continue;
-			}
+				Identifier identifier = Identifier.tryParse(itemId);
+				Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
+				if (item == null) {
+					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					continue;
+				}
 
-			ItemStack stack = new ItemStack(item);
-			madokuCraft$playerEntitiesInventory.setItem(slot, PlayerEntitiesSystem.isValidPlayerEntity(stack) ? stack : ItemStack.EMPTY);
-		}
-		madokuCraft$playerEntitiesInventory.setChanged();
+				ItemStack stack = new ItemStack(item);
+				madokuCraft$playerEntitiesInventory.setItem(slot, PlayerEntitiesSystem.isValidPlayerEntity(stack) ? stack : ItemStack.EMPTY);
+			}
+		});
 	}
 
 	@Unique

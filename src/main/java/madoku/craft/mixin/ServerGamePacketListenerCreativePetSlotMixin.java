@@ -20,7 +20,7 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 
 	@Inject(method = "handleSetCreativeModeSlot", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleCreativePetSlots(ServerboundSetCreativeModeSlotPacket packet, CallbackInfo ci) {
-		if (player == null || packet == null) {
+		if (player == null || packet == null || !player.isCreative()) {
 			return;
 		}
 
@@ -40,16 +40,132 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 
 		int petSlot = slotNum - PlayerEntitiesSystem.FIRST_SLOT_INDEX;
 		ItemStack packetStack = packet.itemStack();
-		ItemStack resolved = PlayerEntitiesSystem.isValidPlayerEntity(packetStack)
-			? packetStack.copyWithCount(1)
-			: ItemStack.EMPTY;
+		ItemStack carried = player.containerMenu == null ? ItemStack.EMPTY : player.containerMenu.getCarried();
+		ItemStack beforeSlotStack = inventory.getItem(petSlot).copy();
+		ItemStack resolved = ItemStack.EMPTY;
+		boolean validPacketStack = false;
+		boolean canPlaceFromCarried = false;
+		boolean canPlaceFromInventory = false;
+		String action = "ignore_empty_packet";
+		if (packetStack.isEmpty()) {
+			if (beforeSlotStack.isEmpty()) {
+				action = "noop_empty_packet";
+				PlayerEntitiesSystem.debugCreativePetSlotPacket(
+					player,
+					slotNum,
+					petSlot,
+					packetStack,
+					carried,
+					beforeSlotStack,
+					beforeSlotStack,
+					validPacketStack,
+					canPlaceFromCarried,
+					canPlaceFromInventory,
+					action
+				);
+				madokuCraft$resyncMenus();
+				ci.cancel();
+				return;
+			}
+
+			action = "clear_from_empty_packet";
+			inventory.setItem(petSlot, ItemStack.EMPTY);
+			inventory.setChanged();
+			PlayerEntitiesSystem.debugCreativePetSlotPacket(
+				player,
+				slotNum,
+				petSlot,
+				packetStack,
+				carried,
+				beforeSlotStack,
+				ItemStack.EMPTY,
+				validPacketStack,
+				canPlaceFromCarried,
+				canPlaceFromInventory,
+				action
+			);
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		validPacketStack = PlayerEntitiesSystem.isValidPlayerEntity(packetStack);
+		canPlaceFromCarried = PlayerEntitiesSystem.isValidPlayerEntity(carried)
+			&& ItemStack.isSameItemSameComponents(packetStack, carried);
+		canPlaceFromInventory = false;
+		if (!validPacketStack) {
+			action = "reject_auth_failed";
+			PlayerEntitiesSystem.debugCreativePetSlotPacket(
+				player,
+				slotNum,
+				petSlot,
+				packetStack,
+				carried,
+				beforeSlotStack,
+				resolved,
+				validPacketStack,
+				canPlaceFromCarried,
+				canPlaceFromInventory,
+				action
+			);
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		// Creative packet ordering does not reliably preserve carried stack state.
+		// Trust validated packet stack for this custom slot; client-side mixin gates intent.
+		action = "apply_from_packet";
+		resolved = packetStack.copyWithCount(1);
+		if (ItemStack.isSameItemSameComponents(beforeSlotStack, resolved) && beforeSlotStack.getCount() == resolved.getCount()) {
+			action = "noop_same_stack";
+			PlayerEntitiesSystem.debugCreativePetSlotPacket(
+				player,
+				slotNum,
+				petSlot,
+				packetStack,
+				carried,
+				beforeSlotStack,
+				beforeSlotStack,
+				validPacketStack,
+				canPlaceFromCarried,
+				canPlaceFromInventory,
+				action
+			);
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
 
 		inventory.setItem(petSlot, resolved);
 		inventory.setChanged();
+		PlayerEntitiesSystem.debugCreativePetSlotPacket(
+			player,
+			slotNum,
+			petSlot,
+			packetStack,
+			carried,
+			beforeSlotStack,
+			resolved,
+			validPacketStack,
+			canPlaceFromCarried,
+			canPlaceFromInventory,
+			action
+		);
 		player.inventoryMenu.broadcastChanges();
 		if (player.containerMenu != null && player.containerMenu != player.inventoryMenu) {
 			player.containerMenu.broadcastChanges();
 		}
 		ci.cancel();
+	}
+
+	private void madokuCraft$resyncMenus() {
+		if (player == null) {
+			return;
+		}
+		player.inventoryMenu.broadcastChanges();
+		if (player.containerMenu != null && player.containerMenu != player.inventoryMenu) {
+			player.containerMenu.broadcastChanges();
+		}
 	}
 }

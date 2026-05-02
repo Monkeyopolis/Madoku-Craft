@@ -131,6 +131,7 @@ final class PetRule {
 		boolean usesArmorBonus = PlayerEntitiesSystem.PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType);
 		boolean usesDamageBlock = PlayerEntitiesSystem.PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 		boolean usesMobScan = PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
+		boolean usesBeeSwarm = PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
 		root.addProperty("enabled", true);
 		root.addProperty("item-id", resolvedItemId);
 		root.addProperty("rarity", PlayerEntitiesSystem.defaultRarityForItem(resolvedItemId));
@@ -178,6 +179,13 @@ final class PetRule {
 		}
 		if (usesMobScan) {
 			root.addProperty("cooldown-ticks", 3L * 60L * 20L);
+		}
+		if (usesBeeSwarm) {
+			root.addProperty("follow-speed", 1.5D);
+			root.addProperty("idle-move-speed", 1.25D);
+			root.addProperty("idle-wander-radius", 4.0D);
+			root.addProperty("attack-damage", 2.0D);
+			root.addProperty("cooldown-ticks", 0L);
 		}
 		return root;
 	}
@@ -357,6 +365,9 @@ final class PetRule {
 		if (PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
 			return "Automatic: Periodically reveals nearby mobs.";
 		}
+		if (PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(abilityType) && attackDamage > 0.0F) {
+			return "Automatic: Swarms one nearby hostile mob for " + PlayerEntitiesSystem.formatAbilityAmount(attackDamage) + " damage per second.";
+		}
 		return "";
 	}
 
@@ -393,6 +404,9 @@ final class PetRule {
 		if (PlayerEntitiesSystem.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
 			return SoundEvents.CREEPER_PRIMED;
 		}
+		if (PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
+			return SoundEvents.BEE_LOOP;
+		}
 		return SoundEvents.SKELETON_SHOOT;
 	}
 
@@ -406,11 +420,20 @@ final class PetRule {
 		if (PlayerEntitiesSystem.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
 			return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString();
 		}
+		if (PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
+			return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEE_LOOP).toString();
+		}
 		return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
 	}
 
 	private static double defaultIdleMoveSpeedForAbility(String abilityType) {
-		return PlayerEntitiesSystem.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) ? 0.75D : DEFAULT_IDLE_MOVE_SPEED;
+		if (PlayerEntitiesSystem.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+			return 0.75D;
+		}
+		if (PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
+			return 1.2D;
+		}
+		return DEFAULT_IDLE_MOVE_SPEED;
 	}
 
 	private static double defaultAttackArcStepDegreesForAbility(String abilityType) {

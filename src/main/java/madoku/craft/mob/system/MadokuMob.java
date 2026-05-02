@@ -87,7 +87,7 @@ public final class MadokuMob {
 	private static final double ATTACK_ACCURACY_DIFFICULTY_STEP = 0.05D;
 	private static final double CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP = 1.0D;
 	private static final double CREEPER_POWER_PER_DAMAGE = 0.2D;
-	private static final double ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE = 12.0D;
+	private static final double ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE = 8.0D;
 	private static final double ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE = 4.0D;
 	private static final double ZOMBIFIED_PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
 	private static final double PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
@@ -1698,14 +1698,16 @@ public final class MadokuMob {
 			return nearbyPiglin;
 		}
 		LivingEntity current = pigman.getTarget();
-		if (current != null && current.isAlive()) {
+		if (isValidZombifiedPiglinCurrentTarget(pigman, current)) {
 			return current;
 		}
 		return findNearestUnarmoredPlayer(level, pigman, ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE);
 	}
 
 	private static Player findNearestUnarmoredPlayer(ServerLevel level, Mob pigman, double radius) {
-		AABB bounds = pigman.getBoundingBox().inflate(Math.max(0.0D, radius));
+		double safeRadius = Math.max(0.0D, radius);
+		double radiusSqr = safeRadius * safeRadius;
+		AABB bounds = pigman.getBoundingBox().inflate(safeRadius);
 		Player nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 		for (Player player : level.getEntitiesOfClass(Player.class, bounds, MadokuMob::isValidAggroPlayerTarget)) {
@@ -1713,6 +1715,9 @@ public final class MadokuMob {
 				continue;
 			}
 			double distance = pigman.distanceToSqr(player);
+			if (distance > radiusSqr || !pigman.hasLineOfSight(player)) {
+				continue;
+			}
 			if (distance < nearestDistance) {
 				nearest = player;
 				nearestDistance = distance;
@@ -1722,17 +1727,45 @@ public final class MadokuMob {
 	}
 
 	private static Piglin findNearestPiglin(ServerLevel level, Mob pigman, double radius) {
-		AABB bounds = pigman.getBoundingBox().inflate(Math.max(0.0D, radius));
+		double safeRadius = Math.max(0.0D, radius);
+		double radiusSqr = safeRadius * safeRadius;
+		AABB bounds = pigman.getBoundingBox().inflate(safeRadius);
 		Piglin nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 		for (Piglin piglin : level.getEntitiesOfClass(Piglin.class, bounds, candidate -> candidate != null && candidate.isAlive())) {
 			double distance = pigman.distanceToSqr(piglin);
+			if (distance > radiusSqr || !pigman.hasLineOfSight(piglin)) {
+				continue;
+			}
 			if (distance < nearestDistance) {
 				nearest = piglin;
 				nearestDistance = distance;
 			}
 		}
 		return nearest;
+	}
+
+	private static boolean isValidZombifiedPiglinCurrentTarget(Zombie pigman, LivingEntity current) {
+		if (pigman == null || current == null || !current.isAlive()) {
+			return false;
+		}
+		if (current instanceof Piglin) {
+			return isVisibleWithinRange(pigman, current, ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE);
+		}
+		if (current instanceof Player player) {
+			return !isPlayerWearingIronArmor(player)
+				&& isValidAggroPlayerTarget(player)
+				&& isVisibleWithinRange(pigman, player, ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE);
+		}
+		return true;
+	}
+
+	private static boolean isVisibleWithinRange(Mob viewer, LivingEntity target, double range) {
+		if (viewer == null || target == null || !target.isAlive()) {
+			return false;
+		}
+		double safeRange = Math.max(0.0D, range);
+		return viewer.distanceToSqr(target) <= (safeRange * safeRange) && viewer.hasLineOfSight(target);
 	}
 
 	private static void suppressBabyPiglinCombat(MinecraftServer server) {

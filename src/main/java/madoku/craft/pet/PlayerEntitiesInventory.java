@@ -5,6 +5,7 @@ import net.minecraft.world.item.ItemStack;
 
 public final class PlayerEntitiesInventory extends SimpleContainer {
 	private Runnable changeListener = () -> {};
+	private int suppressedChangeDepth;
 
 	public PlayerEntitiesInventory() {
 		super(PlayerEntitiesSystem.SLOT_COUNT);
@@ -17,13 +18,28 @@ public final class PlayerEntitiesInventory extends SimpleContainer {
 	@Override
 	public void setChanged() {
 		super.setChanged();
-		changeListener.run();
+		if (suppressedChangeDepth <= 0) {
+			changeListener.run();
+		}
+	}
+
+	public void runBulkUpdate(Runnable action) {
+		suppressedChangeDepth++;
+		try {
+			if (action != null) {
+				action.run();
+			}
+		} finally {
+			suppressedChangeDepth = Math.max(0, suppressedChangeDepth - 1);
+		}
+		setChanged();
 	}
 
 	public void copyFrom(PlayerEntitiesInventory other) {
-		for (int slot = 0; slot < getContainerSize(); slot++) {
-			setItem(slot, other == null ? ItemStack.EMPTY : other.getItem(slot).copy());
-		}
-		setChanged();
+		runBulkUpdate(() -> {
+			for (int slot = 0; slot < getContainerSize(); slot++) {
+				setItem(slot, other == null ? ItemStack.EMPTY : other.getItem(slot).copy());
+			}
+		});
 	}
 }

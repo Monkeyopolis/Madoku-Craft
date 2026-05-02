@@ -11,6 +11,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
+import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMob;
 import madoku.craft.network.PetAbilityHudSync;
@@ -43,6 +44,7 @@ import net.minecraft.world.entity.ambient.Bat;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.Item;
@@ -99,6 +101,7 @@ public final class PlayerEntitiesSystem {
 	static final String PET_ABILITY_ARMOR_BONUS = "armor_bonus";
 	static final String PET_ABILITY_DAMAGE_BLOCK = "damage_block";
 	static final String PET_ABILITY_MOB_SCAN = "mob_scan";
+	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
 	static final String PET_RARITY_COMMON = "common";
 	static final String PET_RARITY_RARE = "rare";
 	static final String PET_RARITY_EPIC = "epic";
@@ -116,6 +119,15 @@ public final class PlayerEntitiesSystem {
 	private static final int BAT_SCAN_CHUNK_RADIUS_PER_EXTRA_BAT = 1;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
+	private static final double BEE_SWARM_SCAN_RADIUS = 16.0D;
+	private static final double BEE_SWARM_SCAN_VERTICAL_RADIUS = 8.0D;
+	private static final long BEE_SWARM_MAX_TARGET_DURATION_TICKS = 15L * 20L;
+	private static final long BEE_SWARM_DAMAGE_INTERVAL_TICKS = 20L;
+	private static final float BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND = 2.0F;
+	private static final double BEE_SWARM_ORBIT_RADIUS_BASE = 0.70D;
+	private static final double BEE_SWARM_ORBIT_RADIUS_VARIANCE = 0.30D;
+	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
+	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
 	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
 	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
@@ -135,8 +147,10 @@ public final class PlayerEntitiesSystem {
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Set<UUID> DIRTY_ABILITY_HUD_PLAYERS = new HashSet<>();
 	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, ItemStack[]> PENDING_RESPAWN_PET_INVENTORIES = new ConcurrentHashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
+	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
 
 	private static volatile PetSettings settings = PetSettings.defaults();
 	private static volatile Map<String, PetRule> petRulesByItemId = Map.of();
@@ -156,18 +170,24 @@ public final class PlayerEntitiesSystem {
 				return;
 			}
 
+			PENDING_RESPAWN_PET_INVENTORIES.remove(player.getUUID());
 			removeAllPets(player.level().getServer(), player.getUUID());
 			if (player.level().getGameRules().get(GameRules.KEEP_INVENTORY) || player.isSpectator()) {
 				return;
 			}
 
 			dropAll(player);
+			cachePendingRespawnPetInventory(player);
 			clearSlotCooldowns(player.getUUID());
 		});
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(PlayerEntitiesSystem::handleAfterDamage);
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-			copyToNewPlayer(oldPlayer, newPlayer);
 			removeAllPets(newPlayer.level().getServer(), oldPlayer.getUUID());
+			if (alive) {
+				copyToNewPlayer(oldPlayer, newPlayer);
+			} else if (!applyPendingRespawnPetInventory(newPlayer, oldPlayer.getUUID())) {
+				copyToNewPlayer(oldPlayer, newPlayer);
+			}
 			requestPetProcessing(newPlayer.level().getServer(), newPlayer.getUUID(), 0L);
 		});
 		ServerPlayerEvents.JOIN.register(PlayerEntitiesSystem::handlePlayerJoin);
@@ -195,8 +215,10 @@ public final class PlayerEntitiesSystem {
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		DIRTY_ABILITY_HUD_PLAYERS.clear();
 		PLAYER_SLOT_COOLDOWNS.clear();
+		PENDING_RESPAWN_PET_INVENTORIES.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		ACTIVE_BEE_SWARMS.clear();
 		PetSoundState.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		runtimeSchedulerId = "";
@@ -270,6 +292,7 @@ public final class PlayerEntitiesSystem {
 
 		tickManagedWebProjectiles(server);
 		tickManagedExplosiveProjectiles(server);
+		tickManagedBeeSwarms(server);
 		flushAbilityHudSyncs(server);
 	}
 
@@ -794,6 +817,39 @@ public final class PlayerEntitiesSystem {
 			.field("pet_type", entityTypeId(pet.getType()));
 	}
 
+	public static void debugCreativePetSlotPacket(
+		ServerPlayer player,
+		int slotNum,
+		int petSlot,
+		ItemStack packetStack,
+		ItemStack carriedStack,
+		ItemStack beforeSlotStack,
+		ItemStack resolvedStack,
+		boolean validPacketStack,
+		boolean canPlaceFromCarried,
+		boolean canPlaceFromInventory,
+		String action
+	) {
+		if ("noop_same_stack".equals(action) || "noop_empty_packet".equals(action)) {
+			return;
+		}
+		debugPlayerEvent("pet.creative_slot_packet", player)
+			.field("slot_num", slotNum)
+			.field("pet_slot", petSlot)
+			.field("packet_stack", stackSummary(packetStack))
+			.field("packet_count", packetStack == null ? 0 : packetStack.getCount())
+			.field("carried_stack", stackSummary(carriedStack))
+			.field("carried_count", carriedStack == null ? 0 : carriedStack.getCount())
+			.field("before_slot_stack", stackSummary(beforeSlotStack))
+			.field("resolved_stack", stackSummary(resolvedStack))
+			.field("resolved_count", resolvedStack == null ? 0 : resolvedStack.getCount())
+			.field("valid_packet_stack", validPacketStack)
+			.field("can_place_from_carried", canPlaceFromCarried)
+			.field("can_place_from_inventory", canPlaceFromInventory)
+			.field("action", action == null ? "" : action)
+			.log();
+	}
+
 	private static String inventorySummary(PlayerEntitiesInventory inventory) {
 		if (inventory == null) {
 			return "null";
@@ -888,6 +944,7 @@ public final class PlayerEntitiesSystem {
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		defaults.put("bat", PetRule.defaultsForItem("minecraft:bat_spawn_egg", PET_ABILITY_MOB_SCAN));
+		defaults.put("bee", PetRule.defaultsForItem("minecraft:bee_spawn_egg", PET_ABILITY_BEE_SWARM));
 		defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", PET_ABILITY_FALL_DAMAGE_REDUCTION));
 		defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", PET_ABILITY_DAMAGE_BLOCK));
 		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
@@ -964,9 +1021,11 @@ public final class PlayerEntitiesSystem {
 		}
 
 		removeAllPets(server, playerId);
+		stopBeeSwarmsForOwner(playerId);
 		PLAYER_SCHEDULER_IDS.remove(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 		DIRTY_ABILITY_HUD_PLAYERS.remove(playerId);
+		PENDING_RESPAWN_PET_INVENTORIES.remove(playerId);
 	}
 
 	private static void handleAfterDamage(
@@ -1083,6 +1142,7 @@ public final class PlayerEntitiesSystem {
 
 	private static void triggerAutomaticPetAbilities(ServerPlayer player, long gameplayTicks) {
 		triggerAutomaticBatMobScan(player, gameplayTicks);
+		triggerAutomaticBeeSwarm(player, gameplayTicks);
 	}
 
 	private static void triggerAutomaticBatMobScan(ServerPlayer player, long gameplayTicks) {
@@ -1185,8 +1245,177 @@ public final class PlayerEntitiesSystem {
 		return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
 	}
 
+	private static void triggerAutomaticBeeSwarm(ServerPlayer player, long gameplayTicks) {
+		if (player == null || !player.isAlive()) {
+			return;
+		}
+
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		int[] readySlots = new int[SLOT_COUNT];
+		PetRule[] readyRules = new PetRule[SLOT_COUNT];
+		int readyCount = 0;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = resolvePetRule(stack);
+			if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
+				stopBeeSwarmForSlot(player.getUUID(), slot);
+				continue;
+			}
+			if (ACTIVE_BEE_SWARMS.containsKey(beeSwarmKey(player.getUUID(), slot))) {
+				continue;
+			}
+			if (!isPetSlotOffCooldown(player, slot, gameplayTicks)) {
+				continue;
+			}
+			readySlots[readyCount] = slot;
+			readyRules[readyCount] = rule;
+			readyCount++;
+		}
+		if (readyCount <= 0) {
+			return;
+		}
+
+		List<LivingEntity> prioritizedTargets = resolveAutomaticBeeSwarmTargets(player);
+		if (prioritizedTargets.isEmpty()) {
+			return;
+		}
+
+		Set<UUID> claimedTargetIds = collectOwnerActiveBeeSwarmTargetIds(player.getUUID());
+		for (int index = 0; index < readyCount; index++) {
+			int slot = readySlots[index];
+			PetRule rule = readyRules[index];
+			LivingEntity target = selectBeeSwarmTarget(prioritizedTargets, claimedTargetIds);
+			if (target == null) {
+				break;
+			}
+			if (!startBeeSwarm(player, slot, target, rule, gameplayTicks)) {
+				continue;
+			}
+			claimedTargetIds.add(target.getUUID());
+			setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
+		}
+	}
+
+	private static List<LivingEntity> resolveAutomaticBeeSwarmTargets(ServerPlayer player) {
+		if (player == null || !player.isAlive() || !(player.level() instanceof ServerLevel level)) {
+			return List.of();
+		}
+
+		Map<UUID, LivingEntity> prioritizedTargets = new LinkedHashMap<>();
+		addBeeSwarmTargetCandidate(player, player.getLastHurtMob(), prioritizedTargets);
+		addBeeSwarmTargetCandidate(player, player.getLastHurtByMob(), prioritizedTargets);
+
+		AABB scanArea = new AABB(
+			player.getX() - BEE_SWARM_SCAN_RADIUS,
+			player.getY() - BEE_SWARM_SCAN_VERTICAL_RADIUS,
+			player.getZ() - BEE_SWARM_SCAN_RADIUS,
+			player.getX() + BEE_SWARM_SCAN_RADIUS,
+			player.getY() + BEE_SWARM_SCAN_VERTICAL_RADIUS,
+			player.getZ() + BEE_SWARM_SCAN_RADIUS
+		);
+		List<Mob> hostileMobs = level.getEntitiesOfClass(Mob.class, scanArea, candidate -> isValidBeeSwarmTarget(player, candidate));
+		if (!hostileMobs.isEmpty()) {
+			hostileMobs.sort((left, right) -> Double.compare(left.distanceToSqr(player), right.distanceToSqr(player)));
+			for (Mob hostile : hostileMobs) {
+				addBeeSwarmTargetCandidate(player, hostile, prioritizedTargets);
+			}
+		}
+		if (prioritizedTargets.isEmpty()) {
+			return List.of();
+		}
+		return new ArrayList<>(prioritizedTargets.values());
+	}
+
+	private static void addBeeSwarmTargetCandidate(ServerPlayer player, LivingEntity target, Map<UUID, LivingEntity> out) {
+		if (out == null || !isValidBeeSwarmTarget(player, target)) {
+			return;
+		}
+		out.putIfAbsent(target.getUUID(), target);
+	}
+
+	private static Set<UUID> collectOwnerActiveBeeSwarmTargetIds(UUID ownerId) {
+		if (ownerId == null || ACTIVE_BEE_SWARMS.isEmpty()) {
+			return new HashSet<>();
+		}
+		Set<UUID> targetIds = new HashSet<>();
+		for (BeeSwarmState state : ACTIVE_BEE_SWARMS.values()) {
+			if (state == null || !ownerId.equals(state.ownerUuid) || state.targetUuid == null) {
+				continue;
+			}
+			targetIds.add(state.targetUuid);
+		}
+		return targetIds;
+	}
+
+	private static LivingEntity selectBeeSwarmTarget(List<LivingEntity> prioritizedTargets, Set<UUID> claimedTargetIds) {
+		if (prioritizedTargets == null || prioritizedTargets.isEmpty()) {
+			return null;
+		}
+		for (LivingEntity candidate : prioritizedTargets) {
+			if (candidate == null || !candidate.isAlive()) {
+				continue;
+			}
+			if (claimedTargetIds != null && claimedTargetIds.contains(candidate.getUUID())) {
+				continue;
+			}
+			return candidate;
+		}
+		for (LivingEntity candidate : prioritizedTargets) {
+			if (candidate != null && candidate.isAlive()) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private static boolean isValidBeeSwarmTarget(ServerPlayer player, LivingEntity target) {
+		if (!canReactiveAttackTarget(player, target)) {
+			return false;
+		}
+		if (target instanceof Hag) {
+			return false;
+		}
+		if (!(target instanceof Enemy) || isManagedPet(target)) {
+			return false;
+		}
+		return target.distanceToSqr(player) <= (BEE_SWARM_SCAN_RADIUS * BEE_SWARM_SCAN_RADIUS);
+	}
+
+	private static boolean startBeeSwarm(ServerPlayer player, int slot, LivingEntity target, PetRule rule, long gameplayTicks) {
+		if (player == null || target == null || rule == null || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType) || !(player.level() instanceof ServerLevel level)) {
+			return false;
+		}
+		if (!isValidBeeSwarmTarget(player, target)) {
+			return false;
+		}
+
+		Vec3 startPosition = resolveBeeSwarmOrbitPosition(target, player.getRandom().nextDouble() * Math.PI * 2.0D, BEE_SWARM_ORBIT_RADIUS_BASE, 0.05D);
+		emitBeeSwarmLaunch(level, startPosition, rule.resolveSoundEvent(), Math.max(0.12F, rule.soundVolumeMultiplier), 1.2F);
+		ACTIVE_BEE_SWARMS.put(
+			beeSwarmKey(player.getUUID(), slot),
+			new BeeSwarmState(
+				player.getUUID(),
+				slot,
+				level.dimension().toString(),
+				target.getUUID(),
+				gameplayTicks,
+				player.getLastHurtMobTimestamp(),
+				player.getLastHurtByMobTimestamp(),
+				gameplayTicks + BEE_SWARM_DAMAGE_INTERVAL_TICKS,
+				player.getRandom().nextDouble() * Math.PI * 2.0D,
+				startPosition
+			)
+		);
+		return true;
+	}
+
 	private static boolean hasAutomaticPetAbilities(PlayerEntitiesInventory inventory) {
-		return countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN) > 0;
+		return countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN) > 0
+			|| countSlotsWithAbility(inventory, PET_ABILITY_BEE_SWARM) > 0;
 	}
 
 	private static int countSlotsWithAbility(PlayerEntitiesInventory inventory, String abilityType) {
@@ -1445,18 +1674,31 @@ public final class PlayerEntitiesSystem {
 			if (pet != null) {
 				ACTIVE_PET_IDS.add(pet.getUUID());
 				ensurePetConfiguration(pet, rule);
-				nextDelay = Math.min(nextDelay, PetMovementController.updatePetPosition(
-					player,
-					pet,
-					slot,
-					rule,
-					settings,
-					NEXT_IDLE_MOVE_BY_PET,
-					FOLLOW_COMMANDS_BY_PET
-				));
+				boolean beeSwarmActive = PET_ABILITY_BEE_SWARM.equals(rule.abilityType) && isBeeSwarmActive(player.getUUID(), slot);
+				if (beeSwarmActive) {
+					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
+				} else {
+					nextDelay = Math.min(nextDelay, PetMovementController.updatePetPosition(
+						player,
+						pet,
+						slot,
+						rule,
+						settings,
+						NEXT_IDLE_MOVE_BY_PET,
+						FOLLOW_COMMANDS_BY_PET
+					));
+				}
 				anyActive = true;
 			}
 		}
+
+		Set<UUID> expectedPetIds = new HashSet<>();
+		for (UUID petId : petIds) {
+			if (petId != null) {
+				expectedPetIds.add(petId);
+			}
+		}
+		removeStrayManagedPetsForOwner(server, player.getUUID(), expectedPetIds);
 
 		if (!anyActive) {
 			PET_IDS_BY_PLAYER.remove(player.getUUID());
@@ -1816,6 +2058,213 @@ public final class PlayerEntitiesSystem {
 		}
 	}
 
+	private static void tickManagedBeeSwarms(MinecraftServer server) {
+		if (server == null || ACTIVE_BEE_SWARMS.isEmpty()) {
+			return;
+		}
+
+		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		for (Map.Entry<String, BeeSwarmState> entry : ACTIVE_BEE_SWARMS.entrySet()) {
+			String swarmKey = entry.getKey();
+			BeeSwarmState state = entry.getValue();
+			ServerPlayer owner = server.getPlayerList().getPlayer(state.ownerUuid);
+			if (owner == null || !owner.isAlive()) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+
+			PlayerEntitiesInventory inventory = playerEntitiesInventory(owner);
+			if (inventory == null || state.slot < 0 || state.slot >= inventory.getContainerSize()) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+			PetRule rule = resolvePetRule(inventory.getItem(state.slot));
+			if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+
+			ServerLevel level = findLevel(server, state.dimensionId);
+			LivingEntity target = findLivingEntity(server, state.targetUuid);
+			if (level == null
+				|| target == null
+				|| !target.isAlive()
+				|| target.level() != level
+				|| owner.level() != level
+				|| !isValidBeeSwarmTarget(owner, target)) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+			if ((gameplayTicks - state.startedGameplayTick) >= BEE_SWARM_MAX_TARGET_DURATION_TICKS) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+			if (shouldStopBeeSwarmFromTargetPriorityChange(owner, target, state)) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+
+			double crazySpin = 0.45D + (owner.getRandom().nextDouble() * 0.40D);
+			double nextAngle = state.orbitAngle + crazySpin;
+			double radiusWave = Math.sin((gameplayTicks + state.slot * 11L) * 0.30D) * BEE_SWARM_ORBIT_RADIUS_VARIANCE;
+			double nextRadius = Math.max(0.30D, BEE_SWARM_ORBIT_RADIUS_BASE + radiusWave);
+			double heightOffset = Math.sin((gameplayTicks + state.slot * 7L) * 0.55D) * BEE_SWARM_ORBIT_VERTICAL_VARIANCE;
+			Vec3 desiredOrbitPosition = resolveBeeSwarmOrbitPosition(target, nextAngle, nextRadius, heightOffset);
+			Mob beePet = findBeePetForOwnerSlot(server, state.ownerUuid, state.slot);
+			if (beePet == null || !beePet.isAlive() || beePet.level() != level) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+				continue;
+			}
+			Vec3 currentBeePosition = beePet.position();
+			Vec3 toOrbit = desiredOrbitPosition.subtract(currentBeePosition);
+			double orbitDistance = toOrbit.length();
+			Vec3 movementStep;
+			if (orbitDistance <= 1.0E-6D) {
+				movementStep = Vec3.ZERO;
+			} else {
+				double moveCap = BEE_SWARM_MAX_MOVE_PER_TICK + owner.getRandom().nextDouble() * 0.10D;
+				double step = Math.min(orbitDistance, moveCap);
+				movementStep = toOrbit.normalize().scale(step);
+			}
+			Vec3 nextPosition = currentBeePosition.add(movementStep);
+			beePet.setPos(nextPosition.x, nextPosition.y, nextPosition.z);
+			beePet.setDeltaMovement(movementStep);
+			beePet.getNavigation().stop();
+			beePet.getLookControl().setLookAt(target.getX(), target.getEyeY(), target.getZ(), 35.0F, 35.0F);
+			if ((gameplayTicks & 1L) == 0L) {
+				emitBeeSwarmTrail(level, currentBeePosition, nextPosition);
+			}
+
+			long nextDamageTick = state.nextDamageTick;
+			if (gameplayTicks >= nextDamageTick) {
+				float damage = Math.max(0.0F, rule.attackDamage > 0.0F ? rule.attackDamage : BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND);
+				if (damage > 0.0F) {
+					resetDamageImmunity(target);
+					target.hurtServer(level, owner.damageSources().generic(), damage);
+				}
+				nextDamageTick = gameplayTicks + BEE_SWARM_DAMAGE_INTERVAL_TICKS;
+			}
+
+			ACTIVE_BEE_SWARMS.put(
+				swarmKey,
+				new BeeSwarmState(
+					state.ownerUuid,
+					state.slot,
+					state.dimensionId,
+					state.targetUuid,
+					state.startedGameplayTick,
+					state.ownerLastHurtMobTimestampAtStart,
+					state.ownerLastHurtByMobTimestampAtStart,
+					nextDamageTick,
+					nextAngle,
+					beePet.position()
+				)
+			);
+		}
+	}
+
+	private static boolean shouldStopBeeSwarmFromTargetPriorityChange(ServerPlayer owner, LivingEntity target, BeeSwarmState state) {
+		if (owner == null || target == null || state == null) {
+			return true;
+		}
+
+		int lastHurtMobTimestamp = owner.getLastHurtMobTimestamp();
+		if (lastHurtMobTimestamp > state.ownerLastHurtMobTimestampAtStart) {
+			LivingEntity latestTarget = owner.getLastHurtMob();
+			if (isValidBeeSwarmTarget(owner, latestTarget) && !latestTarget.getUUID().equals(target.getUUID())) {
+				return true;
+			}
+		}
+
+		int lastHurtByMobTimestamp = owner.getLastHurtByMobTimestamp();
+		if (lastHurtByMobTimestamp > state.ownerLastHurtByMobTimestampAtStart) {
+			LivingEntity latestAttacker = owner.getLastHurtByMob();
+			return isValidBeeSwarmTarget(owner, latestAttacker) && !latestAttacker.getUUID().equals(target.getUUID());
+		}
+		return false;
+	}
+
+	private static Vec3 resolveBeeSwarmOrbitPosition(LivingEntity target, double angleRadians, double radius, double heightOffset) {
+		Vec3 center = resolveWebProjectileTargetPosition(target);
+		return new Vec3(
+			center.x + Math.cos(angleRadians) * radius,
+			center.y + heightOffset,
+			center.z + Math.sin(angleRadians) * radius
+		);
+	}
+
+	private static void emitBeeSwarmLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		if (level == null || position == null) {
+			return;
+		}
+		if (soundEvent != null && soundVolume > 0.0F) {
+			level.playSound(null, position.x, position.y, position.z, soundEvent, SoundSource.NEUTRAL, soundVolume, soundPitch);
+		}
+		level.sendParticles(ParticleTypes.FALLING_NECTAR, position.x, position.y, position.z, 4, 0.08D, 0.05D, 0.08D, 0.0D);
+		level.sendParticles(ParticleTypes.HAPPY_VILLAGER, position.x, position.y, position.z, 3, 0.10D, 0.10D, 0.10D, 0.0D);
+	}
+
+	private static void emitBeeSwarmTrail(ServerLevel level, Vec3 start, Vec3 end) {
+		if (level == null || start == null || end == null) {
+			return;
+		}
+
+		Vec3 delta = end.subtract(start);
+		int steps = Math.max(1, (int) Math.ceil(delta.length() * 2.0D));
+		for (int index = 0; index <= steps; index++) {
+			double progress = (double) index / (double) steps;
+			Vec3 sample = start.add(delta.scale(progress));
+			level.sendParticles(ParticleTypes.FALLING_NECTAR, sample.x, sample.y, sample.z, 1, 0.006D, 0.004D, 0.006D, 0.0D);
+		}
+		if ((level.getGameTime() & 3L) == 0L) {
+			Vec3 mid = start.add(delta.scale(0.5D));
+			level.sendParticles(ParticleTypes.CRIT, mid.x, mid.y, mid.z, 1, 0.006D, 0.006D, 0.006D, 0.0D);
+		}
+	}
+
+	private static String beeSwarmKey(UUID ownerId, int slot) {
+		if (ownerId == null) {
+			return "";
+		}
+		return ownerId + ":" + slot;
+	}
+
+	private static void stopBeeSwarmForSlot(UUID ownerId, int slot) {
+		if (ownerId == null) {
+			return;
+		}
+		ACTIVE_BEE_SWARMS.remove(beeSwarmKey(ownerId, slot));
+	}
+
+	private static void stopBeeSwarmsForOwner(UUID ownerId) {
+		if (ownerId == null || ACTIVE_BEE_SWARMS.isEmpty()) {
+			return;
+		}
+		for (String swarmKey : new ArrayList<>(ACTIVE_BEE_SWARMS.keySet())) {
+			if (swarmKey != null && swarmKey.startsWith(ownerId.toString() + ":")) {
+				ACTIVE_BEE_SWARMS.remove(swarmKey);
+			}
+		}
+	}
+
+	private static boolean isBeeSwarmActive(UUID ownerId, int slot) {
+		if (ownerId == null || slot < 0) {
+			return false;
+		}
+		return ACTIVE_BEE_SWARMS.containsKey(beeSwarmKey(ownerId, slot));
+	}
+
+	private static Mob findBeePetForOwnerSlot(MinecraftServer server, UUID ownerId, int slot) {
+		if (server == null || ownerId == null || slot < 0 || slot >= SLOT_COUNT) {
+			return null;
+		}
+		UUID[] petIds = PET_IDS_BY_PLAYER.get(ownerId);
+		if (petIds == null || slot >= petIds.length) {
+			return null;
+		}
+		return findMob(server, petIds[slot]);
+	}
+
 	private static ServerLevel findLevel(MinecraftServer server, String dimensionId) {
 		if (server == null || dimensionId == null || dimensionId.isBlank()) {
 			return null;
@@ -2151,6 +2600,44 @@ public final class PlayerEntitiesSystem {
 		markAbilityHudDirty(newPlayer.getUUID());
 	}
 
+	private static void cachePendingRespawnPetInventory(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		if (inventory == null) {
+			PENDING_RESPAWN_PET_INVENTORIES.remove(player.getUUID());
+			return;
+		}
+
+		ItemStack[] snapshot = new ItemStack[SLOT_COUNT];
+		for (int slot = 0; slot < SLOT_COUNT; slot++) {
+			ItemStack stack = slot < inventory.getContainerSize() ? inventory.getItem(slot) : ItemStack.EMPTY;
+			snapshot[slot] = stack == null ? ItemStack.EMPTY : stack.copy();
+		}
+		PENDING_RESPAWN_PET_INVENTORIES.put(player.getUUID(), snapshot);
+	}
+
+	private static boolean applyPendingRespawnPetInventory(ServerPlayer newPlayer, UUID previousPlayerId) {
+		if (newPlayer == null || previousPlayerId == null) {
+			return false;
+		}
+		PlayerEntitiesInventory inventory = playerEntitiesInventory(newPlayer);
+		ItemStack[] snapshot = PENDING_RESPAWN_PET_INVENTORIES.remove(previousPlayerId);
+		if (inventory == null || snapshot == null) {
+			return false;
+		}
+
+		inventory.runBulkUpdate(() -> {
+			for (int slot = 0; slot < SLOT_COUNT && slot < inventory.getContainerSize(); slot++) {
+				ItemStack stack = slot < snapshot.length && snapshot[slot] != null ? snapshot[slot].copy() : ItemStack.EMPTY;
+				inventory.setItem(slot, stack);
+			}
+		});
+		markAbilityHudDirty(newPlayer.getUUID());
+		return true;
+	}
+
 	private static void markAbilityHudDirty(UUID playerId) {
 		if (playerId != null) {
 			DIRTY_ABILITY_HUD_PLAYERS.add(playerId);
@@ -2192,14 +2679,16 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static void removeAllPets(MinecraftServer server, UUID playerId) {
+		stopBeeSwarmsForOwner(playerId);
 		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
-		if (petIds == null) {
-			return;
+		if (petIds != null) {
+			for (UUID petId : petIds) {
+				removePet(server, petId);
+			}
 		}
-
-		for (UUID petId : petIds) {
-			removePet(server, petId);
-		}
+		// Defensive cleanup: remove any managed pets still tagged for this owner.
+		// This prevents duplicate pets if runtime maps drift out of sync across respawn.
+		removeTaggedPetsForOwner(server, playerId);
 	}
 
 	private static void removePet(MinecraftServer server, UUID petId) {
@@ -2272,10 +2761,77 @@ public final class PlayerEntitiesSystem {
 		}
 
 		for (ServerLevel level : server.getAllLevels()) {
+			List<Entity> toDiscard = new ArrayList<>();
 			for (Entity entity : level.getAllEntities()) {
 				if (entity != null && entity.entityTags().contains(MANAGED_PET_TAG)) {
-					entity.discard();
+					toDiscard.add(entity);
 				}
+			}
+			for (Entity entity : toDiscard) {
+				entity.discard();
+			}
+		}
+	}
+
+	private static void removeTaggedPetsForOwner(MinecraftServer server, UUID ownerId) {
+		if (server == null || ownerId == null) {
+			return;
+		}
+
+		String ownerTag = ownerTag(ownerId);
+		for (ServerLevel level : server.getAllLevels()) {
+			List<Entity> toDiscard = new ArrayList<>();
+			for (Entity entity : level.getAllEntities()) {
+				if (entity == null) {
+					continue;
+				}
+				if (!entity.entityTags().contains(MANAGED_PET_TAG) || !entity.entityTags().contains(ownerTag)) {
+					continue;
+				}
+				toDiscard.add(entity);
+			}
+			for (Entity entity : toDiscard) {
+				entity.discard();
+				UUID entityId = entity.getUUID();
+				ACTIVE_PET_IDS.remove(entityId);
+				NEXT_IDLE_MOVE_BY_PET.remove(entityId);
+				FOLLOW_COMMANDS_BY_PET.remove(entityId);
+				PetSoundState.remove(entityId);
+				broadcastManagedPetSoundState(server, entityId, "");
+			}
+		}
+	}
+
+	private static void removeStrayManagedPetsForOwner(MinecraftServer server, UUID ownerId, Set<UUID> expectedPetIds) {
+		if (server == null || ownerId == null) {
+			return;
+		}
+
+		String ownerTag = ownerTag(ownerId);
+		Set<UUID> expected = expectedPetIds == null ? Set.of() : expectedPetIds;
+		for (ServerLevel level : server.getAllLevels()) {
+			List<Mob> toDiscard = new ArrayList<>();
+			for (Entity entity : level.getAllEntities()) {
+				if (!(entity instanceof Mob pet)) {
+					continue;
+				}
+				if (!pet.entityTags().contains(MANAGED_PET_TAG) || !pet.entityTags().contains(ownerTag)) {
+					continue;
+				}
+				UUID petId = pet.getUUID();
+				if (expected.contains(petId)) {
+					continue;
+				}
+				toDiscard.add(pet);
+			}
+			for (Mob pet : toDiscard) {
+				UUID petId = pet.getUUID();
+				pet.discard();
+				ACTIVE_PET_IDS.remove(petId);
+				NEXT_IDLE_MOVE_BY_PET.remove(petId);
+				FOLLOW_COMMANDS_BY_PET.remove(petId);
+				PetSoundState.remove(petId);
+				broadcastManagedPetSoundState(server, petId, "");
 			}
 		}
 	}
@@ -2291,6 +2847,7 @@ public final class PlayerEntitiesSystem {
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		ACTIVE_BEE_SWARMS.clear();
 		PetSoundState.clear();
 	}
 
@@ -2441,6 +2998,9 @@ public final class PlayerEntitiesSystem {
 		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_MOB_SCAN;
 		}
+		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
+			return PET_ABILITY_BEE_SWARM;
+		}
 		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
 			return PET_ABILITY_FALL_DAMAGE_REDUCTION;
 		}
@@ -2473,6 +3033,9 @@ public final class PlayerEntitiesSystem {
 		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
 			return 0.4D;
 		}
+		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
+			return 0.5D;
+		}
 		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
 			return 0.3D;
 		}
@@ -2481,6 +3044,9 @@ public final class PlayerEntitiesSystem {
 
 	static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
+		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
+			return PET_RARITY_MYTHIC;
+		}
 		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:cow_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:creeper_spawn_egg".equals(normalizedItemId)
@@ -2682,6 +3248,20 @@ public final class PlayerEntitiesSystem {
 		float damage,
 		float radius,
 		int remainingTicks
+	) {
+	}
+
+	private record BeeSwarmState(
+		UUID ownerUuid,
+		int slot,
+		String dimensionId,
+		UUID targetUuid,
+		long startedGameplayTick,
+		int ownerLastHurtMobTimestampAtStart,
+		int ownerLastHurtByMobTimestampAtStart,
+		long nextDamageTick,
+		double orbitAngle,
+		Vec3 position
 	) {
 	}
 

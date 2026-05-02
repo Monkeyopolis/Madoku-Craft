@@ -1,14 +1,14 @@
 ## Madoku Craft:
 
-Madoku Craft is a configurable Minecraft overhaul.
-It modifies Mobs, Items, Smelting, and much more.
+Madoku Craft is a configurable Minecraft overhaul MOD.
+It modifies Mobs, Items, Smelting, and adds new systems.
 All of these systems are modifiable in the CONFIG files.
 
 ## Main Features:
 
 Mobs:
 
-The MOB system modifies their behaviors and scales them based on Difficulty.
+The MOB system modifies MOB behaviors and scales them based on Difficulty.
 Difficulty is determined by the biome, structure, and in-game time.
 
 Items:

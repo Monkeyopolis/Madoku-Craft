@@ -1,6 +1,8 @@
 package madoku.craft.pet;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -62,8 +64,8 @@ final class PetMovementController {
 		Vec3 horizontalForward = resolveFollowDirection(owner);
 		Vec3 right = new Vec3(-horizontalForward.z, 0.0D, horizontalForward.x);
 		double verticalOffset = 0.10D;
-		if (pet instanceof Bat) {
-			verticalOffset = owner.getBbHeight() * 0.75D + batSlotVerticalOffset(slot);
+		if (isHoveringPet(pet)) {
+			verticalOffset = owner.getBbHeight() * 0.75D + hoverPetSlotVerticalOffset(pet, slot);
 		}
 		Vec3 base = owner.position().add(0.0D, verticalOffset, 0.0D);
 		return base.add(right.scale(offset.side())).subtract(horizontalForward.scale(offset.back()));
@@ -135,16 +137,16 @@ final class PetMovementController {
 
 	private static Vec3 resolveIdleTarget(ServerPlayer owner, Mob pet, int slot, double idleDistance, double idleDistanceSqr, PetRule rule) {
 		double idleWanderRadius = rule == null ? 2.0D : rule.idleWanderRadius;
-		if (pet instanceof Bat) {
+		if (isHoveringPet(pet)) {
 			Vec3 hoverAnchor = resolveDesiredPosition(owner, slot, pet);
 			Vec3 offset = new Vec3(
 				(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius,
-				(pet.getRandom().nextDouble() - 0.5D) * 1.2D,
+				(pet.getRandom().nextDouble() - 0.5D) * (isBeePet(pet) ? 1.6D : 1.2D),
 				(pet.getRandom().nextDouble() - 0.5D) * 2.0D * idleWanderRadius
 			);
 			Vec3 candidate = hoverAnchor.add(offset);
 			double minHoverY = owner.getY() + 0.9D;
-			double maxHoverY = owner.getY() + Math.max(1.8D, owner.getBbHeight() + 0.8D);
+			double maxHoverY = owner.getY() + Math.max(1.8D, owner.getBbHeight() + (isBeePet(pet) ? 1.1D : 0.8D));
 			candidate = new Vec3(candidate.x, Mth.clamp(candidate.y, minHoverY, maxHoverY), candidate.z);
 			if (candidate.distanceToSqr(owner.position()) > idleDistanceSqr) {
 				Vec3 clampedOffset = candidate.subtract(owner.position());
@@ -249,6 +251,35 @@ final class PetMovementController {
 			case 3 -> 0.05D;
 			default -> 0.25D;
 		};
+	}
+
+	private static double beeSlotVerticalOffset(int slot) {
+		return switch (Math.max(0, Math.min(PlayerEntitiesSystem.SLOT_COUNT - 1, slot))) {
+			case 0 -> 0.55D;
+			case 1 -> 0.30D;
+			case 2 -> 0.62D;
+			case 3 -> 0.25D;
+			default -> 0.45D;
+		};
+	}
+
+	private static double hoverPetSlotVerticalOffset(Mob pet, int slot) {
+		if (isBeePet(pet)) {
+			return beeSlotVerticalOffset(slot);
+		}
+		return batSlotVerticalOffset(slot);
+	}
+
+	private static boolean isHoveringPet(Mob pet) {
+		return pet instanceof Bat || isBeePet(pet);
+	}
+
+	private static boolean isBeePet(Mob pet) {
+		if (pet == null) {
+			return false;
+		}
+		Identifier entityTypeId = BuiltInRegistries.ENTITY_TYPE.getKey(pet.getType());
+		return entityTypeId != null && "minecraft:bee".equals(entityTypeId.toString());
 	}
 
 	private static Vec3 resolveFollowDirection(ServerPlayer owner) {
