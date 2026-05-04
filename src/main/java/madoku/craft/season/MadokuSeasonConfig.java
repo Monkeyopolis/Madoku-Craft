@@ -18,7 +18,6 @@ public final class MadokuSeasonConfig {
 
 	public static final int DEFAULT_SEASON_LENGTH_DAYS = 28;
 	public static final int DEFAULT_DAYS_PER_WEEK = 7;
-	public static final long DEFAULT_SEASON_SCAN_INTERVAL_TICKS = 300L;
 	public static final long DEFAULT_SEASON_PROCESS_INTERVAL_TICKS = 5L;
 	public static final double DEFAULT_COLD_TEMPERATURE_THRESHOLD = 0.2d;
 	public static final double DEFAULT_HOT_TEMPERATURE_THRESHOLD = 1.0d;

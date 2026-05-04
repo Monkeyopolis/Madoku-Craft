@@ -6,6 +6,7 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.luck.MadokuLuck;
 import madoku.craft.pet.PlayerEntitiesHolder;
 import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -29,6 +30,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.ItemStack;
@@ -75,6 +77,7 @@ public final class MadokuHud {
 	private static final Identifier OXYGEN_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/air_empty");
 	private static final Identifier OXYGEN_POPPING_TEXTURE = Identifier.withDefaultNamespace("hud/air_bursting");
 	private static final Identifier OXYGEN_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/air");
+	private static final Identifier LUCK_HUD_TEXTURE = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "textures/icons/hud-luck.png");
 	private static final int WORLD_X = 4;
 	private static final int WORLD_Y = 4;
 	private static final int HEART_SIZE = 9;
@@ -89,11 +92,14 @@ public final class MadokuHud {
 	private static final int OXYGEN_X_OFFSET_RIGHT = 4;
 	private static final int OXYGEN_RIGHT_EDGE = 91;
 	private static final int SECOND_LEFT_VANILLA_AIR_SLOT_INDEX = 8;
+	private static final int LUCK_SLOT_SHIFT_RIGHT = 2;
+	private static final int LUCK_AIR_SLOT_INDEX = Math.max(0, SECOND_LEFT_VANILLA_AIR_SLOT_INDEX - LUCK_SLOT_SHIFT_RIGHT);
 	private static final int FOOD_X_OFFSET_RIGHT = 4;
 	private static final int FOOD_RIGHT_EDGE = 91;
 	private static final int SECOND_LEFT_VANILLA_FOOD_SLOT_INDEX = 8;
 	private static final String HUNGER_BASELINE_TEXT = "Hunger: 20/20";
 	private static final String OXYGEN_BASELINE_TEXT = "Oxygen: 20/20";
+	private static final String LUCK_BASELINE_TEXT = "Luck: 100%";
 	private static final int VANILLA_MAX_FOOD_LEVEL = 20;
 	private static final int TICKS_PER_SECOND = 20;
 	private static final int OXYGEN_POP_TICKS_PER_SECOND_LOSS = 2;
@@ -481,23 +487,42 @@ public final class MadokuHud {
 
 		updateOxygenState(player, level.getGameTime());
 
-		boolean shouldRender = cachedAirSupply < cachedMaxAirSupply || player.isEyeInFluid(FluidTags.WATER);
-		if (!shouldRender) {
+		boolean shouldRenderOxygen = cachedAirSupply < cachedMaxAirSupply || player.isEyeInFluid(FluidTags.WATER);
+		if (!shouldRenderOxygen && !MadokuLuck.isEnabled()) {
 			return;
 		}
 
-		String oxygenText = buildOxygenTextFromSeconds(cachedAirSupply, cachedMaxAirSupply);
-		int oxygenX = computeOxygenX(context, client, oxygenText);
-		int oxygenY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.AIR_BAR);
-		context.blitSprite(OXYGEN_PIPELINE, selectOxygenTexture(cachedOxygenPoints), oxygenX, oxygenY, OXYGEN_SIZE, OXYGEN_SIZE);
+		int statusY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.AIR_BAR);
+		String statusText;
+		int statusX;
+		if (shouldRenderOxygen) {
+			statusText = buildOxygenTextFromSeconds(cachedAirSupply, cachedMaxAirSupply);
+			statusX = computeStatusX(context, client, statusText, OXYGEN_BASELINE_TEXT, SECOND_LEFT_VANILLA_AIR_SLOT_INDEX);
+			context.blitSprite(OXYGEN_PIPELINE, selectOxygenTexture(cachedOxygenPoints), statusX, statusY, OXYGEN_SIZE, OXYGEN_SIZE);
+		} else {
+			statusText = buildLuckText(player);
+			statusX = computeStatusX(context, client, statusText, LUCK_BASELINE_TEXT, LUCK_AIR_SLOT_INDEX);
+			context.blit(
+				OXYGEN_PIPELINE,
+				LUCK_HUD_TEXTURE,
+				statusX,
+				statusY,
+				0.0F,
+				0.0F,
+				OXYGEN_SIZE,
+				OXYGEN_SIZE,
+				OXYGEN_SIZE,
+				OXYGEN_SIZE
+			);
+		}
 
-		int textX = oxygenX + OXYGEN_SIZE + OXYGEN_TEXT_SPACING;
-		int textY = oxygenY + 1;
+		int textX = statusX + OXYGEN_SIZE + OXYGEN_TEXT_SPACING;
+		int textY = statusY + 1;
 		context.pose().pushMatrix();
 		context.pose().scale(OXYGEN_TEXT_SCALE, OXYGEN_TEXT_SCALE);
 		context.text(
 			client.font,
-			oxygenText,
+			statusText,
 			Math.round(textX / OXYGEN_TEXT_SCALE),
 			Math.round(textY / OXYGEN_TEXT_SCALE),
 			COLOR,
@@ -612,11 +637,11 @@ public final class MadokuHud {
 		return baseX + (baselineWidth - currentWidth);
 	}
 
-	private static int computeOxygenX(GuiGraphicsExtractor context, Minecraft client, String oxygenText) {
+	private static int computeStatusX(GuiGraphicsExtractor context, Minecraft client, String statusText, String baselineText, int airSlotIndex) {
 		int oxygenRightEdge = context.guiWidth() / 2 + OXYGEN_RIGHT_EDGE;
-		int baselineWidth = getScaledTextWidth(client, OXYGEN_BASELINE_TEXT, OXYGEN_TEXT_SCALE);
-		int currentWidth = getScaledTextWidth(client, oxygenText, OXYGEN_TEXT_SCALE);
-		int baseX = oxygenRightEdge - OXYGEN_SIZE - (SECOND_LEFT_VANILLA_AIR_SLOT_INDEX * 8) + OXYGEN_X_OFFSET_RIGHT;
+		int baselineWidth = getScaledTextWidth(client, baselineText, OXYGEN_TEXT_SCALE);
+		int currentWidth = getScaledTextWidth(client, statusText, OXYGEN_TEXT_SCALE);
+		int baseX = oxygenRightEdge - OXYGEN_SIZE - (Math.max(0, airSlotIndex) * 8) + OXYGEN_X_OFFSET_RIGHT;
 		return baseX + (baselineWidth - currentWidth);
 	}
 
@@ -851,6 +876,25 @@ public final class MadokuHud {
 		int maxSeconds = Math.max(1, toDisplaySeconds(normalizedMax));
 		int currentSeconds = Math.max(0, Math.min(maxSeconds, toDisplaySeconds(normalizedCurrent)));
 		return "Oxygen: " + currentSeconds + "/" + maxSeconds;
+	}
+
+	private static String buildLuckText(LocalPlayer player) {
+		double luckValue = 0.0d;
+		if (player != null) {
+			AttributeInstance luckAttribute = player.getAttribute(Attributes.LUCK);
+			if (luckAttribute != null) {
+				luckValue = luckAttribute.getValue();
+			}
+		}
+		if (!Double.isFinite(luckValue)) {
+			luckValue = 0.0d;
+		}
+		return "Luck: " + formatLuckPercent(luckValue);
+	}
+
+	private static String formatLuckPercent(double value) {
+		long percent = Math.max(0L, Math.round(value * 100.0d));
+		return percent + "%";
 	}
 
 	private static void updateOxygenState(LocalPlayer player, long gameTime) {
