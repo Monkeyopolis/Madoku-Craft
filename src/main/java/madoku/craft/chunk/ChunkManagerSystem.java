@@ -15,8 +15,10 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class ChunkManagerSystem {
@@ -24,7 +26,7 @@ public final class ChunkManagerSystem {
 	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
-	private static final long CHUNK_REFRESH_INTERVAL_TICKS = 20L;
+	private static final long CHUNK_REFRESH_INTERVAL_TICKS = 5L;
 	private static final String FIELD_LEVELS = "levels";
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_CHUNKS = "chunks";
@@ -34,6 +36,7 @@ public final class ChunkManagerSystem {
 
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
 	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
+	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
 
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
@@ -50,6 +53,16 @@ public final class ChunkManagerSystem {
 		void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ);
 	}
 
+	public interface ChunkProcessor {
+		default boolean acceptsWorld(ServerLevel level) {
+			return true;
+		}
+
+		void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ);
+
+		void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ);
+	}
+
 	public static void initialize() {
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkManagerSystem::runChunkRefreshTask);
 		ServerChunkEvents.CHUNK_LOAD.register(ChunkManagerSystem::onChunkLoad);
@@ -58,6 +71,11 @@ public final class ChunkManagerSystem {
 
 	public static void reset() {
 		CHUNK_STATUSES_BY_LEVEL.clear();
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime != null) {
+				runtime.resetState();
+			}
+		}
 		chunkSchedulerId = "";
 		refreshTaskScheduled = false;
 		serverStopping = false;
@@ -70,6 +88,65 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		CHUNK_LIFECYCLE_LISTENERS.add(listener);
+	}
+
+	public static void registerChunkProcessor(String processorId, ChunkProcessor processor) {
+		String normalizedId = normalizeProcessorId(processorId);
+		if (normalizedId.isBlank() || processor == null) {
+			return;
+		}
+		CHUNK_PROCESSORS.put(normalizedId, new ChunkProcessorRuntime(processor));
+	}
+
+	public static void resetChunkProcessor(String processorId) {
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		if (runtime != null) {
+			runtime.resetState();
+		}
+	}
+
+	public static void runChunkProcessorDiscoveryStep(MinecraftServer server, String processorId) {
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		if (runtime == null || runtime.processor == null || server == null) {
+			return;
+		}
+		discoverOneLoadedChunk(server, runtime);
+	}
+
+	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		if (runtime == null || runtime.processor == null || server == null) {
+			return;
+		}
+		processOneActiveTrackedChunk(server, runtime);
+	}
+
+	public static void trackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
+		trackChunkForProcessor(processorId, levelId(level), chunkX, chunkZ);
+	}
+
+	public static void trackChunkForProcessor(String processorId, String levelId, int chunkX, int chunkZ) {
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		if (runtime == null) {
+			return;
+		}
+		trackChunkWithState(runtime, new ProcessorChunkKey(levelId == null ? "" : levelId, chunkX, chunkZ));
+	}
+
+	public static void untrackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
+		untrackChunkForProcessor(processorId, levelId(level), chunkX, chunkZ);
+	}
+
+	public static void untrackChunkForProcessor(String processorId, String levelId, int chunkX, int chunkZ) {
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		if (runtime == null) {
+			return;
+		}
+		untrackChunkWithState(runtime, new ProcessorChunkKey(levelId == null ? "" : levelId, chunkX, chunkZ));
+	}
+
+	public static String normalizeLevelId(ServerLevel level) {
+		return levelId(level);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -216,6 +293,13 @@ public final class ChunkManagerSystem {
 		}
 		ChunkPos chunkPos = chunk.getPos();
 		putChunkStatus(levelId(level), chunkPos.pack(), FullChunkStatus.FULL);
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
+				continue;
+			}
+			runtime.discoveryChunksSeeded = true;
+			addDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(level), chunkPos.x(), chunkPos.z()));
+		}
 		notifyChunkLoaded(level, chunkPos.x(), chunkPos.z());
 	}
 
@@ -228,6 +312,13 @@ public final class ChunkManagerSystem {
 		}
 		ChunkPos chunkPos = chunk.getPos();
 		removeChunk(levelId(level), chunkPos.pack());
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
+				continue;
+			}
+			runtime.discoveryChunksSeeded = true;
+			removeDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(level), chunkPos.x(), chunkPos.z()));
+		}
 		notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 	}
 
@@ -411,6 +502,176 @@ public final class ChunkManagerSystem {
 		}
 	}
 
+	private static void processOneActiveTrackedChunk(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (runtime == null || runtime.processor == null || server == null) {
+			return;
+		}
+		if (runtime.loadedTrackedChunkCycle.isEmpty()) {
+			recoverLoadedTrackedChunks(server, runtime);
+		}
+		if (runtime.loadedTrackedChunkCycle.isEmpty()) {
+			runtime.activeChunkProcessCursor = 0;
+			return;
+		}
+
+		int selectedIndex = Math.floorMod(runtime.activeChunkProcessCursor, runtime.loadedTrackedChunkCycle.size());
+		ProcessorChunkKey selectedChunk = runtime.loadedTrackedChunkCycle.get(selectedIndex);
+		ServerLevel world = resolveLevel(server, selectedChunk.levelId());
+		boolean loaded = world != null && isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		if (!loaded) {
+			removeLoadedTrackedChunk(runtime, selectedChunk);
+			return;
+		}
+
+		runtime.processor.processTrackedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		boolean completedCycle = selectedIndex + 1 >= runtime.loadedTrackedChunkCycle.size();
+		runtime.activeChunkProcessCursor = completedCycle ? 0 : selectedIndex + 1;
+	}
+
+	private static void recoverLoadedTrackedChunks(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (server == null || runtime == null || runtime.trackedChunkCycle.isEmpty()) {
+			return;
+		}
+		for (ProcessorChunkKey chunkKey : runtime.trackedChunkCycle) {
+			if (chunkKey == null || chunkKey.levelId().isBlank()) {
+				continue;
+			}
+			ServerLevel world = resolveLevel(server, chunkKey.levelId());
+			if (world == null || !runtime.processor.acceptsWorld(world)) {
+				continue;
+			}
+			if (isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
+				addLoadedTrackedChunk(runtime, chunkKey);
+			}
+		}
+	}
+
+	private static void discoverOneLoadedChunk(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (server == null || runtime == null || runtime.processor == null) {
+			return;
+		}
+		seedDiscoveryChunksIfNeeded(server, runtime);
+		if (runtime.discoveryLoadedChunks.isEmpty()) {
+			runtime.chunkScanCursor = 0;
+			return;
+		}
+
+		int selectedIndex = Math.floorMod(runtime.chunkScanCursor, runtime.discoveryLoadedChunks.size());
+		ProcessorChunkKey selectedChunk = runtime.discoveryLoadedChunks.get(selectedIndex);
+		ServerLevel world = resolveLevel(server, selectedChunk.levelId());
+		boolean loaded = world != null && isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		if (loaded && runtime.processor.acceptsWorld(world)) {
+			runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		} else {
+			removeDiscoveryLoadedChunk(runtime, selectedChunk);
+			if (runtime.discoveryLoadedChunks.isEmpty()) {
+				runtime.chunkScanCursor = 0;
+			} else {
+				runtime.chunkScanCursor = Math.min(runtime.chunkScanCursor, runtime.discoveryLoadedChunks.size() - 1);
+			}
+			return;
+		}
+
+		boolean completedCycle = selectedIndex + 1 >= runtime.discoveryLoadedChunks.size();
+		runtime.chunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
+	}
+
+	private static void seedDiscoveryChunksIfNeeded(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (server == null || runtime == null || runtime.processor == null || runtime.discoveryChunksSeeded) {
+			return;
+		}
+		runtime.discoveryChunksSeeded = true;
+		for (ServerLevel world : server.getAllLevels()) {
+			if (world == null || !runtime.processor.acceptsWorld(world)) {
+				continue;
+			}
+			for (Long packedChunk : getLoadedChunkPositions(world)) {
+				if (packedChunk == null) {
+					continue;
+				}
+				addDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(world), unpackChunkX(packedChunk), unpackChunkZ(packedChunk)));
+			}
+		}
+	}
+
+	private static void addDiscoveryLoadedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (!runtime.discoveryLoadedChunkKeys.add(chunkKey)) {
+			return;
+		}
+		runtime.discoveryLoadedChunks.add(chunkKey);
+		if (runtime.trackedChunksWithState.contains(chunkKey)) {
+			addLoadedTrackedChunk(runtime, chunkKey);
+		}
+	}
+
+	private static void removeDiscoveryLoadedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null) {
+			return;
+		}
+		if (!runtime.discoveryLoadedChunkKeys.remove(chunkKey)) {
+			removeLoadedTrackedChunk(runtime, chunkKey);
+			return;
+		}
+		runtime.discoveryLoadedChunks.remove(chunkKey);
+		removeLoadedTrackedChunk(runtime, chunkKey);
+		if (runtime.chunkScanCursor >= runtime.discoveryLoadedChunks.size()) {
+			runtime.chunkScanCursor = 0;
+		}
+	}
+
+	private static void trackChunkWithState(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (runtime.trackedChunksWithState.add(chunkKey)) {
+			runtime.trackedChunkCycle.add(chunkKey);
+		}
+		if (runtime.discoveryLoadedChunkKeys.contains(chunkKey)) {
+			addLoadedTrackedChunk(runtime, chunkKey);
+		}
+	}
+
+	private static void untrackChunkWithState(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (!runtime.trackedChunksWithState.remove(chunkKey)) {
+			return;
+		}
+		runtime.trackedChunkCycle.remove(chunkKey);
+		removeLoadedTrackedChunk(runtime, chunkKey);
+	}
+
+	private static void addLoadedTrackedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (!runtime.loadedTrackedChunkKeys.add(chunkKey)) {
+			return;
+		}
+		runtime.loadedTrackedChunkCycle.add(chunkKey);
+	}
+
+	private static void removeLoadedTrackedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null) {
+			return;
+		}
+		if (!runtime.loadedTrackedChunkKeys.remove(chunkKey)) {
+			return;
+		}
+		runtime.loadedTrackedChunkCycle.remove(chunkKey);
+		if (runtime.activeChunkProcessCursor >= runtime.loadedTrackedChunkCycle.size()) {
+			runtime.activeChunkProcessCursor = 0;
+		}
+	}
+
+	private static String normalizeProcessorId(String processorId) {
+		return processorId == null ? "" : processorId.trim().toLowerCase();
+	}
+
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
 		root.add(FIELD_LEVELS, new JsonArray());
@@ -471,6 +732,38 @@ public final class ChunkManagerSystem {
 			return FullChunkStatus.BLOCK_TICKING;
 		}
 		return FullChunkStatus.FULL;
+	}
+
+	private static final class ChunkProcessorRuntime {
+		private final ChunkProcessor processor;
+		private final List<ProcessorChunkKey> discoveryLoadedChunks = new ArrayList<>();
+		private final Set<ProcessorChunkKey> discoveryLoadedChunkKeys = new LinkedHashSet<>();
+		private final Set<ProcessorChunkKey> trackedChunksWithState = new LinkedHashSet<>();
+		private final List<ProcessorChunkKey> trackedChunkCycle = new ArrayList<>();
+		private final Set<ProcessorChunkKey> loadedTrackedChunkKeys = new LinkedHashSet<>();
+		private final List<ProcessorChunkKey> loadedTrackedChunkCycle = new ArrayList<>();
+		private int chunkScanCursor = 0;
+		private int activeChunkProcessCursor = 0;
+		private boolean discoveryChunksSeeded = false;
+
+		private ChunkProcessorRuntime(ChunkProcessor processor) {
+			this.processor = processor;
+		}
+
+		private void resetState() {
+			discoveryLoadedChunks.clear();
+			discoveryLoadedChunkKeys.clear();
+			trackedChunksWithState.clear();
+			trackedChunkCycle.clear();
+			loadedTrackedChunkKeys.clear();
+			loadedTrackedChunkCycle.clear();
+			chunkScanCursor = 0;
+			activeChunkProcessCursor = 0;
+			discoveryChunksSeeded = false;
+		}
+	}
+
+	private record ProcessorChunkKey(String levelId, int chunkX, int chunkZ) {
 	}
 
 	private static String levelId(ServerLevel level) {

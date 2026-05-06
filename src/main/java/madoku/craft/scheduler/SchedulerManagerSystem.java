@@ -643,8 +643,9 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static long resolveCurrentSchedulerDay(MinecraftServer server) {
-		ServerLevel level = server == null ? null : server.overworld();
-		return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(level)));
+		// Use gameplay-tick days, not world absolute-day time, so `/time` commands
+		// do not instantly age and expire active schedulers.
+		return Math.max(0L, Math.floorDiv(MadokuTicks.getGameplayTicks(), MadokuTime.MINECRAFT_TICKS_PER_CYCLE));
 	}
 
 	private static JsonArray getArray(JsonObject object, String key) {

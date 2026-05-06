@@ -9,6 +9,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
+import madoku.craft.ecosystem.system.MadokuEcosystem;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
@@ -22,19 +23,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -72,13 +70,14 @@ public final class MadokuFarming {
 	private static final String CROP_CONFIG_ROOT_FOLDER_NAME = FARMING_CONFIG_ROOT_FOLDER_NAME + "/madoku-crops";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-farming";
 	private static final String DATA_FILE_NAME = "madoku-farming";
-	private static final String FARMING_SCHEDULER_OWNER_ID = "farming_gameplay";
-	private static final String TASK_TYPE_FARMING_TICK = "farming_gameplay_tick";
+	private static final String FARMING_DISCOVERY_SCHEDULER_OWNER_ID = "farming_discovery_gameplay";
+	private static final String FARMING_PROCESS_SCHEDULER_OWNER_ID = "farming_process_gameplay";
+	private static final String TASK_TYPE_FARMING_DISCOVERY_TICK = "farming_discovery_gameplay_tick";
+	private static final String TASK_TYPE_FARMING_PROCESS_TICK = "farming_process_gameplay_tick";
 	private static final long FARMING_SCHEDULER_INTERVAL_TICKS = 5L;
 
 	private static final String FIELD_PLOTS = "plots";
 	private static final String FIELD_CROPS = "crops";
-	private static final String FIELD_DIRT_BLOCKS = "dirt-blocks";
 	private static final String FIELD_CHUNK_CURSOR = "chunk-cursor";
 
 	private static final String FIELD_LEVEL_ID = "level-id";
@@ -91,7 +90,6 @@ public final class MadokuFarming {
 	private static final String FIELD_REQUIRED_GROWTH_TICKS = "required-growth-ticks";
 	private static final String FIELD_PROGRESS_GROWTH_TICKS = "progress-growth-ticks";
 	private static final String FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME = "last-processed-absolute-day-time";
-	private static final String FIELD_DIRT_POS = "dirt-pos";
 
 	private static final int CROP_MAX_AGE = 7;
 	private static final long PENDING_HARVEST_TTL_TICKS = 2L;
@@ -99,14 +97,12 @@ public final class MadokuFarming {
 	private static final long CHUNK_DEBUG_INTERVAL_TICKS = 200L;
 	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
 	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 180L;
-	private static final double DIRT_GROWTH_DAYS_SPRING = 3.0d;
-	private static final double DIRT_GROWTH_DAYS_SUMMER = 5.0d;
-	private static final double DIRT_GROWTH_DAYS_FALL = 5.0d;
-	private static final double DIRT_GROWTH_DAYS_WINTER = 7.0d;
 
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile String farmingSchedulerId = "";
-	private static volatile boolean farmingTaskScheduled = false;
+	private static volatile String farmingDiscoverySchedulerId = "";
+	private static volatile String farmingProcessSchedulerId = "";
+	private static volatile boolean farmingDiscoveryTaskScheduled = false;
+	private static volatile boolean farmingProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile long lastChunkProcessDebugTick = Long.MIN_VALUE;
 	private static volatile long lastChunkPickDebugTick = Long.MIN_VALUE;
@@ -122,7 +118,6 @@ public final class MadokuFarming {
 
 	private static final Map<String, PlotState> plotsByKey = new LinkedHashMap<>();
 	private static final Map<String, CropState> cropsByKey = new LinkedHashMap<>();
-	private static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	private static final List<ChunkRefKey> discoveryLoadedChunks = new ArrayList<>();
 	private static final Set<ChunkRefKey> discoveryLoadedChunkKeys = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> trackedChunksWithState = new LinkedHashSet<>();
@@ -131,7 +126,6 @@ public final class MadokuFarming {
 	private static final List<ChunkRefKey> loadedTrackedChunkCycle = new ArrayList<>();
 	private static final Map<ChunkRefKey, Set<String>> plotKeysByChunk = new LinkedHashMap<>();
 	private static final Map<ChunkRefKey, Set<String>> cropKeysByChunk = new LinkedHashMap<>();
-	private static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
 	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new LinkedHashMap<>();
 
 	private static final ChunkManagerSystem.ChunkLifecycleListener FARMING_CHUNK_LISTENER = new ChunkManagerSystem.ChunkLifecycleListener() {
@@ -153,7 +147,8 @@ public final class MadokuFarming {
 		loadStaticConfig();
 		loadCropConfigs();
 		ChunkManagerSystem.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_TICK, MadokuFarming::runFarmingTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_DISCOVERY_TICK, MadokuFarming::runFarmingDiscoveryTask);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -165,13 +160,13 @@ public final class MadokuFarming {
 	public static void reset() {
 		plotsByKey.clear();
 		cropsByKey.clear();
-		dirtBlocksByKey.clear();
 		plotKeysByChunk.clear();
 		cropKeysByChunk.clear();
-		dirtKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		farmingSchedulerId = "";
-		farmingTaskScheduled = false;
+		farmingDiscoverySchedulerId = "";
+		farmingProcessSchedulerId = "";
+		farmingDiscoveryTaskScheduled = false;
+		farmingProcessTaskScheduled = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 		resetChunkProcessingCycle();
 		dirty = false;
@@ -185,10 +180,14 @@ public final class MadokuFarming {
 		resetChunkProcessingCycle();
 		rebuildTrackedChunkStateFromIndexes();
 		seedDiscoveryChunksIfNeeded(server);
-		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID)
+		farmingDiscoverySchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(FARMING_DISCOVERY_SCHEDULER_OWNER_ID)
 		);
-		SchedulerManagerSystem.clearQueuedRequests(farmingSchedulerId);
+		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+		);
+		SchedulerManagerSystem.clearQueuedRequests(farmingDiscoverySchedulerId);
+		SchedulerManagerSystem.clearQueuedRequests(farmingProcessSchedulerId);
 		requestFarmingProcessing(server, 1L);
 	}
 
@@ -414,57 +413,6 @@ public final class MadokuFarming {
 		}
 	}
 
-	public static void trackPlacedDirtBlock(ServerLevel world, BlockPos dirtPos) {
-		if (!settings.enabled || world == null || dirtPos == null) {
-			return;
-		}
-
-		BlockState state = world.getBlockState(dirtPos);
-		if (!isExposedDirt(world, dirtPos, state)) {
-			return;
-		}
-
-		String key = dirtKey(world, dirtPos);
-		if (dirtBlocksByKey.containsKey(key)) {
-			return;
-		}
-
-		String seasonId = normalizeSeasonId(MadokuSeason.getCurrentSeasonId(world));
-		double requiredGrowthTicks = resolveDirtRequiredGrowthTicks(seasonId);
-		putDirtState(key, new DirtState(
-			levelId(world),
-			dirtPos.asLong(),
-			seasonId,
-			requiredGrowthTicks,
-			0.0d,
-			resolveAbsoluteDayTime(world)
-		));
-		dirty = true;
-		requestFarmingProcessing(world.getServer(), FARMING_SCHEDULER_INTERVAL_TICKS);
-	}
-
-	public static void syncDirtTrackingAroundBlock(ServerLevel world, BlockPos pos) {
-		if (!settings.enabled || world == null || pos == null) {
-			return;
-		}
-
-		BlockPos belowPos = pos.below();
-		String belowKey = dirtKey(world, belowPos);
-		DirtState trackedBelow = dirtBlocksByKey.get(belowKey);
-		if (trackedBelow != null) {
-			BlockState belowState = world.getBlockState(belowPos);
-			if (!isExposedDirt(world, belowPos, belowState)) {
-				removeDirtStateByKey(belowKey);
-				dirty = true;
-			}
-		}
-
-		BlockState atPos = world.getBlockState(pos);
-		if (isExposedDirt(world, pos, atPos)) {
-			trackPlacedDirtBlock(world, pos);
-		}
-	}
-
 	public static void registerCropPlanting(ServerLevel world, BlockPos soilPos, ItemStack stack) {
 		CropRule rule = resolveCropRuleByPlantingItem(stack);
 		if (rule == null) {
@@ -603,12 +551,8 @@ public final class MadokuFarming {
 			changed = true;
 		}
 
-		String dirtEntryKey = dirtKey(serverLevel, pos);
-		if (removeDirtStateByKey(dirtEntryKey) != null) {
-			changed = true;
-		}
 		// When a block is removed, the block below may become exposed dirt.
-		syncDirtTrackingAroundBlock(serverLevel, pos);
+		MadokuEcosystem.syncDirtTrackingAroundBlock(serverLevel, pos);
 
 		if (changed) {
 			dirty = true;
@@ -758,16 +702,27 @@ public final class MadokuFarming {
 		return true;
 	}
 
-	private static void runFarmingTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runFarmingDiscoveryTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
-			farmingSchedulerId = context.getSchedulerId();
+			farmingDiscoverySchedulerId = context.getSchedulerId();
 		}
-		farmingTaskScheduled = false;
+		farmingDiscoveryTaskScheduled = false;
 
 		if (server == null || !settings.enabled) {
 			return;
 		}
+		discoverOneLoadedChunk(server);
+		requestFarmingDiscoveryTask(server, FARMING_SCHEDULER_INTERVAL_TICKS);
+	}
 
+	private static void runFarmingProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+		if (context != null) {
+			farmingProcessSchedulerId = context.getSchedulerId();
+		}
+		farmingProcessTaskScheduled = false;
+		if (server == null || !settings.enabled) {
+			return;
+		}
 		emitFarmingDebug(
 			"farming.scheduler_tick",
 			server.overworld(),
@@ -775,18 +730,12 @@ public final class MadokuFarming {
 			Map.of(
 				"plots", Integer.toString(plotsByKey.size()),
 				"crops", Integer.toString(cropsByKey.size()),
-				"dirt", Integer.toString(dirtBlocksByKey.size()),
 				"cursor", Integer.toString(chunkScanCursor)
 			)
 		);
 		purgeExpiredPendingHarvestRules();
-		processOneLoadedChunk(server);
-		requestFarmingProcessing(server, FARMING_SCHEDULER_INTERVAL_TICKS);
-	}
-
-	private static void processOneLoadedChunk(MinecraftServer server) {
 		processOneActiveChunk(server);
-		discoverOneLoadedChunk(server);
+		requestFarmingProcessTask(server, FARMING_SCHEDULER_INTERVAL_TICKS);
 	}
 
 	private static void resetChunkProcessingCycle() {
@@ -900,8 +849,7 @@ public final class MadokuFarming {
 			return false;
 		}
 		return hasTrackedEntries(plotKeysByChunk, chunkKey)
-			|| hasTrackedEntries(cropKeysByChunk, chunkKey)
-			|| hasTrackedEntries(dirtKeysByChunk, chunkKey);
+			|| hasTrackedEntries(cropKeysByChunk, chunkKey);
 	}
 
 	private static boolean hasTrackedEntries(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey) {
@@ -917,9 +865,6 @@ public final class MadokuFarming {
 			trackChunkWithState(chunkKey);
 		}
 		for (ChunkRefKey chunkKey : cropKeysByChunk.keySet()) {
-			trackChunkWithState(chunkKey);
-		}
-		for (ChunkRefKey chunkKey : dirtKeysByChunk.keySet()) {
 			trackChunkWithState(chunkKey);
 		}
 	}
@@ -1085,7 +1030,6 @@ public final class MadokuFarming {
 		long currentAbsoluteDayTime = resolveAbsoluteDayTime(world);
 		processPlotsInChunk(world, chunkX, chunkZ);
 		processCropsInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
-		processDirtInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 	}
 
 	private static void discoverTrackableBlocksInChunk(ServerLevel world, int chunkX, int chunkZ) {
@@ -1095,7 +1039,6 @@ public final class MadokuFarming {
 
 		int discoveredFarmland = 0;
 		int discoveredCrops = 0;
-		int discoveredDirt = 0;
 		int minX = chunkX << 4;
 		int minZ = chunkZ << 4;
 		int minY = world.getMinY();
@@ -1105,35 +1048,23 @@ public final class MadokuFarming {
 			for (int localZ = 0; localZ < 16; localZ++) {
 				int worldX = minX + localX;
 				int worldZ = minZ + localZ;
-
-				int topY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
-				if (topY >= minY) {
-					BlockPos topPos = new BlockPos(worldX, topY, worldZ);
-					BlockState topState = world.getBlockState(topPos);
-					if (isExposedDirt(world, topPos, topState)) {
-						discoveredDirt++;
-						trackPlacedDirtBlock(world, topPos);
-					}
+				int topY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
+				if (topY < minY) {
+					continue;
 				}
 
-				for (int y = minY; y <= maxY; y++) {
-					BlockPos pos = new BlockPos(worldX, y, worldZ);
-					BlockState state = world.getBlockState(pos);
-
-					if (isFarmland(state)) {
-						discoveredFarmland++;
-						PlotState plot = getOrCreatePlot(world, pos);
-						if (plot != null) {
-							BlockPos cropPos = pos.above();
-							BlockState cropState = world.getBlockState(cropPos);
-							if (isManagedCrop(cropState)) {
-								discoveredCrops++;
-								trackCrop(world, cropPos, cropState);
-							}
-						}
-						continue;
+				for (int depth = 0; depth <= 2; depth++) {
+					int y = topY - depth;
+					if (y < minY) {
+						break;
 					}
 
+					BlockPos pos = new BlockPos(worldX, y, worldZ);
+					BlockState state = world.getBlockState(pos);
+					if (isFarmland(state)) {
+						discoveredFarmland++;
+						getOrCreatePlot(world, pos);
+					}
 					if (isManagedCrop(state)) {
 						discoveredCrops++;
 						trackCrop(world, pos, state);
@@ -1148,8 +1079,7 @@ public final class MadokuFarming {
 				"chunk:" + chunkX + "," + chunkZ,
 				Map.of(
 					"farmland_hits", Integer.toString(discoveredFarmland),
-					"crop_hits", Integer.toString(discoveredCrops),
-					"dirt_hits", Integer.toString(discoveredDirt)
+					"crop_hits", Integer.toString(discoveredCrops)
 				)
 			);
 		}
@@ -1453,121 +1383,6 @@ public final class MadokuFarming {
 		}
 	}
 
-	private static void processDirtInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		if (world == null) {
-			return;
-		}
-		String worldLevelId = levelId(world);
-		ChunkRefKey targetChunkKey = new ChunkRefKey(worldLevelId, chunkX, chunkZ);
-		Set<String> chunkDirtKeys = new LinkedHashSet<>(dirtKeysByChunk.getOrDefault(targetChunkKey, Set.of()));
-		if (chunkDirtKeys.isEmpty()) {
-			return;
-		}
-
-		List<String> removeKeys = new ArrayList<>();
-		for (String dirtEntryKey : chunkDirtKeys) {
-			DirtState dirt = dirtBlocksByKey.get(dirtEntryKey);
-			if (dirt == null || !dirt.levelId.equals(worldLevelId)) {
-				continue;
-			}
-
-			BlockPos dirtPos = BlockPos.of(dirt.dirtPos);
-			if (!targetChunkKey.equals(chunkRefForPos(worldLevelId, dirt.dirtPos))) {
-				continue;
-			}
-
-			BlockState state = world.getBlockState(dirtPos);
-			if (!isExposedDirt(world, dirtPos, state)) {
-				removeKeys.add(dirtEntryKey);
-				continue;
-			}
-
-			double previousRequiredTicks = Math.max(1.0d, dirt.requiredGrowthTicks);
-			double recalculatedRequiredTicks = resolveDirtRequiredGrowthTicks(dirt.discoveredSeasonId);
-			if (Math.abs(recalculatedRequiredTicks - previousRequiredTicks) > 1e-6d) {
-				dirt.progressGrowthTicks = rescaleProgressGrowthTicks(
-					dirt.progressGrowthTicks,
-					previousRequiredTicks,
-					recalculatedRequiredTicks
-				);
-				dirt.requiredGrowthTicks = recalculatedRequiredTicks;
-				dirty = true;
-			}
-			double requiredTicks = Math.max(1.0d, dirt.requiredGrowthTicks);
-			dirt.requiredGrowthTicks = requiredTicks;
-
-			long rawPreviousAbsolute = Math.max(0L, dirt.lastProcessedAbsoluteDayTime);
-			long previousAbsolute = normalizePreviousAbsoluteTick(dirt.lastProcessedAbsoluteDayTime, currentAbsoluteDayTime);
-			if (previousAbsolute != rawPreviousAbsolute) {
-				dirt.lastProcessedAbsoluteDayTime = previousAbsolute;
-				dirty = true;
-				emitFarmingDebug(
-					"farming.dirt_progress",
-					world,
-					"dirt:" + dirtPos.toShortString(),
-					Map.of(
-						"result", "clock_reset",
-						"raw_now_abs", Long.toString(currentAbsoluteDayTime),
-						"last_abs", Long.toString(rawPreviousAbsolute),
-						"reset_to_abs", Long.toString(previousAbsolute)
-					)
-				);
-			}
-			long safeCurrentAbsolute = Math.max(previousAbsolute, currentAbsoluteDayTime);
-			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
-			if (elapsedTicks > 0L) {
-				double before = dirt.progressGrowthTicks;
-				double updatedProgress = Math.min(requiredTicks, dirt.progressGrowthTicks + elapsedTicks);
-				if (updatedProgress > dirt.progressGrowthTicks) {
-					dirt.progressGrowthTicks = updatedProgress;
-					dirty = true;
-					emitFarmingDebug(
-						"farming.dirt_progress",
-						world,
-						"dirt:" + dirtPos.toShortString(),
-						Map.of(
-							"result", "progressed",
-							"elapsed_abs_ticks", Long.toString(elapsedTicks),
-							"before", Double.toString(before),
-							"after", Double.toString(updatedProgress),
-							"required", Double.toString(requiredTicks),
-							"now_abs", Long.toString(safeCurrentAbsolute),
-							"raw_now_abs", Long.toString(currentAbsoluteDayTime),
-							"last_abs", Long.toString(previousAbsolute)
-						)
-					);
-				}
-			} else {
-				emitFarmingDebug(
-					"farming.dirt_progress",
-					world,
-					"dirt:" + dirtPos.toShortString(),
-					Map.of(
-						"result", "no_elapsed_time",
-						"now_abs", Long.toString(safeCurrentAbsolute),
-						"raw_now_abs", Long.toString(currentAbsoluteDayTime),
-						"last_abs", Long.toString(previousAbsolute)
-					)
-				);
-			}
-			dirt.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
-
-			if (dirt.progressGrowthTicks + 1e-6d >= requiredTicks) {
-				Block replacement = resolveDirtGrowthBlock(world, dirtPos);
-				if (replacement != null && replacement != Blocks.DIRT) {
-					world.setBlockAndUpdate(dirtPos, replacement.defaultBlockState());
-				}
-				removeKeys.add(dirtEntryKey);
-			}
-		}
-
-		for (String key : removeKeys) {
-			if (removeDirtStateByKey(key) != null) {
-				dirty = true;
-			}
-		}
-	}
-
 	private static void updateCropBlockAge(ServerLevel world, BlockPos cropPos, BlockState state, CropRule rule, CropState crop) {
 		if (world == null || cropPos == null || state == null || rule == null || crop == null) {
 			return;
@@ -1610,34 +1425,67 @@ public final class MadokuFarming {
 	}
 
 	private static void requestFarmingProcessing(MinecraftServer server, long delayTicks) {
-		if (server == null || !settings.enabled || farmingTaskScheduled) {
+		requestFarmingDiscoveryTask(server, delayTicks);
+		requestFarmingProcessTask(server, delayTicks);
+	}
+
+	private static void requestFarmingDiscoveryTask(MinecraftServer server, long delayTicks) {
+		if (server == null || !settings.enabled || farmingDiscoveryTaskScheduled) {
 			return;
 		}
 
-		String schedulerId = ensureFarmingSchedulerExists();
-		if (enqueueFarmingTask(schedulerId, delayTicks)) {
-			farmingTaskScheduled = true;
+		String schedulerId = ensureFarmingDiscoverySchedulerExists();
+		if (enqueueFarmingTask(schedulerId, delayTicks, TASK_TYPE_FARMING_DISCOVERY_TICK)) {
+			farmingDiscoveryTaskScheduled = true;
 			return;
 		}
 
-		farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID)
+		farmingDiscoverySchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(FARMING_DISCOVERY_SCHEDULER_OWNER_ID)
 		);
-		if (enqueueFarmingTask(farmingSchedulerId, delayTicks)) {
-			farmingTaskScheduled = true;
+		if (enqueueFarmingTask(farmingDiscoverySchedulerId, delayTicks, TASK_TYPE_FARMING_DISCOVERY_TICK)) {
+			farmingDiscoveryTaskScheduled = true;
 		}
 	}
 
-	private static String ensureFarmingSchedulerExists() {
-		if (farmingSchedulerId == null || farmingSchedulerId.isBlank()) {
-			farmingSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(FARMING_SCHEDULER_OWNER_ID)
+	private static void requestFarmingProcessTask(MinecraftServer server, long delayTicks) {
+		if (server == null || !settings.enabled || farmingProcessTaskScheduled) {
+			return;
+		}
+
+		String schedulerId = ensureFarmingProcessSchedulerExists();
+		if (enqueueFarmingTask(schedulerId, delayTicks, TASK_TYPE_FARMING_PROCESS_TICK)) {
+			farmingProcessTaskScheduled = true;
+			return;
+		}
+
+		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+			SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+		);
+		if (enqueueFarmingTask(farmingProcessSchedulerId, delayTicks, TASK_TYPE_FARMING_PROCESS_TICK)) {
+			farmingProcessTaskScheduled = true;
+		}
+	}
+
+	private static String ensureFarmingDiscoverySchedulerExists() {
+		if (farmingDiscoverySchedulerId == null || farmingDiscoverySchedulerId.isBlank()) {
+			farmingDiscoverySchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+				SchedulerManagerSystem.SchedulerBinding.global(FARMING_DISCOVERY_SCHEDULER_OWNER_ID)
 			);
 		}
-		return farmingSchedulerId;
+		return farmingDiscoverySchedulerId;
 	}
 
-	private static boolean enqueueFarmingTask(String schedulerId, long delayTicks) {
+	private static String ensureFarmingProcessSchedulerExists() {
+		if (farmingProcessSchedulerId == null || farmingProcessSchedulerId.isBlank()) {
+			farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
+				SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+			);
+		}
+		return farmingProcessSchedulerId;
+	}
+
+	private static boolean enqueueFarmingTask(String schedulerId, long delayTicks, String taskType) {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
@@ -1645,7 +1493,7 @@ public final class MadokuFarming {
 		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
-			TASK_TYPE_FARMING_TICK,
+			taskType,
 			new JsonObject(),
 			SchedulerManagerSystem.TickDomain.GAMEPLAY
 		);
@@ -1760,25 +1608,6 @@ public final class MadokuFarming {
 		return removed;
 	}
 
-	private static DirtState putDirtState(String key, DirtState value) {
-		DirtState previous = dirtBlocksByKey.put(key, value);
-		if (previous != null) {
-			removeChunkIndex(dirtKeysByChunk, chunkRefForPos(previous.levelId, previous.dirtPos), key);
-		}
-		if (value != null) {
-			addChunkIndex(dirtKeysByChunk, chunkRefForPos(value.levelId, value.dirtPos), key);
-		}
-		return previous;
-	}
-
-	private static DirtState removeDirtStateByKey(String key) {
-		DirtState removed = dirtBlocksByKey.remove(key);
-		if (removed != null) {
-			removeChunkIndex(dirtKeysByChunk, chunkRefForPos(removed.levelId, removed.dirtPos), key);
-		}
-		return removed;
-	}
-
 	private static void addChunkIndex(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey, String entryKey) {
 		if (indexMap == null || chunkKey == null || entryKey == null || entryKey.isBlank()) {
 			return;
@@ -1808,10 +1637,6 @@ public final class MadokuFarming {
 
 	private static String cropKey(ServerLevel world, BlockPos cropPos) {
 		return levelId(world) + "|" + (cropPos == null ? -1L : cropPos.asLong());
-	}
-
-	private static String dirtKey(ServerLevel world, BlockPos dirtPos) {
-		return levelId(world) + "|" + (dirtPos == null ? -1L : dirtPos.asLong());
 	}
 
 	private static ChunkRefKey chunkRefForPos(String levelId, long packedBlockPos) {
@@ -1884,10 +1709,8 @@ public final class MadokuFarming {
 	private static void applyPersistedData(JsonObject source) {
 		plotsByKey.clear();
 		cropsByKey.clear();
-		dirtBlocksByKey.clear();
 		plotKeysByChunk.clear();
 		cropKeysByChunk.clear();
-		dirtKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
 		resetChunkProcessingCycle();
 
@@ -1919,16 +1742,7 @@ public final class MadokuFarming {
 			}
 		}
 
-		JsonElement dirtBlocksElement = source.get(FIELD_DIRT_BLOCKS);
-		if (dirtBlocksElement != null && dirtBlocksElement.isJsonArray()) {
-			for (JsonElement element : dirtBlocksElement.getAsJsonArray()) {
-				DirtState dirt = DirtState.fromJson(element);
-				if (dirt == null) {
-					continue;
-				}
-				putDirtState(dirt.key(), dirt);
-			}
-		}
+		// Dirt ecosystem tracking moved to MadokuEcosystem.
 	}
 
 	private static JsonObject createDefaultData() {
@@ -1936,7 +1750,6 @@ public final class MadokuFarming {
 		root.addProperty(FIELD_CHUNK_CURSOR, 0);
 		root.add(FIELD_PLOTS, new JsonArray());
 		root.add(FIELD_CROPS, new JsonArray());
-		root.add(FIELD_DIRT_BLOCKS, new JsonArray());
 		return root;
 	}
 
@@ -1959,14 +1772,6 @@ public final class MadokuFarming {
 			}
 		}
 		root.add(FIELD_CROPS, crops);
-
-		JsonArray dirtBlocks = new JsonArray();
-		for (DirtState dirt : dirtBlocksByKey.values()) {
-			if (dirt != null) {
-				dirtBlocks.add(dirt.toJson());
-			}
-		}
-		root.add(FIELD_DIRT_BLOCKS, dirtBlocks);
 		return root;
 	}
 
@@ -2341,18 +2146,6 @@ public final class MadokuFarming {
 		return plot != null && plot.fertilized;
 	}
 
-	private static boolean isTrackableDirt(BlockState state) {
-		return state != null && state.getBlock() == Blocks.DIRT;
-	}
-
-	private static boolean isExposedDirt(ServerLevel world, BlockPos dirtPos, BlockState dirtState) {
-		if (world == null || dirtPos == null || !isTrackableDirt(dirtState)) {
-			return false;
-		}
-		BlockState aboveState = world.getBlockState(dirtPos.above());
-		return aboveState != null && aboveState.isAir();
-	}
-
 	private static void emitFertilizedParticles(ServerLevel world, BlockPos soilPos, PlotState plot) {
 		if (world == null || soilPos == null || plot == null || settings.particleCount <= 0) {
 			return;
@@ -2405,21 +2198,6 @@ public final class MadokuFarming {
 
 	private static long getRandomParticleCooldownTicks() {
 		return ThreadLocalRandom.current().nextLong(PARTICLE_COOLDOWN_MIN_TICKS, PARTICLE_COOLDOWN_MAX_TICKS + 1L);
-	}
-
-	private static Block resolveDirtGrowthBlock(ServerLevel world, BlockPos dirtPos) {
-		if (world == null || dirtPos == null) {
-			return Blocks.GRASS_BLOCK;
-		}
-
-		Holder<net.minecraft.world.level.biome.Biome> biomeHolder = world.getBiome(dirtPos);
-		if (biomeHolder.is(Biomes.MUSHROOM_FIELDS)) {
-			return Blocks.MYCELIUM;
-		}
-		if (biomeHolder.is(BiomeTags.IS_TAIGA) || biomeHolder.is(BiomeTags.IS_JUNGLE)) {
-			return Blocks.PODZOL;
-		}
-		return Blocks.GRASS_BLOCK;
 	}
 
 	private static boolean isCropGrowingSeason(CropRule rule) {
@@ -2479,18 +2257,6 @@ public final class MadokuFarming {
 
 		double multiplier = Math.max(0.01d, settings.outOfSeasonPenalty);
 		return baseTicks / multiplier;
-	}
-
-	private static double resolveDirtRequiredGrowthTicks(String discoveredSeasonId) {
-		String normalized = normalizeSeasonId(discoveredSeasonId);
-		double growthDays = switch (normalized) {
-			case "spring" -> DIRT_GROWTH_DAYS_SPRING;
-			case "summer" -> DIRT_GROWTH_DAYS_SUMMER;
-			case "fall" -> DIRT_GROWTH_DAYS_FALL;
-			case "winter" -> DIRT_GROWTH_DAYS_WINTER;
-			default -> DIRT_GROWTH_DAYS_SUMMER;
-		};
-		return Math.max(1.0d, growthDays * MadokuTime.MINECRAFT_TICKS_PER_CYCLE);
 	}
 
 	private static double rescaleProgressGrowthTicks(double progressTicks, double previousRequiredTicks, double nextRequiredTicks) {
@@ -2845,73 +2611,6 @@ public final class MadokuFarming {
 				cropPos,
 				soilPos,
 				cropId,
-				discoveredSeasonId,
-				requiredGrowthTicks,
-				progressGrowthTicks,
-				lastProcessedAbsoluteDayTime
-			);
-		}
-	}
-
-	private static final class DirtState {
-		private final String levelId;
-		private final long dirtPos;
-		private String discoveredSeasonId;
-		private double requiredGrowthTicks;
-		private double progressGrowthTicks;
-		private long lastProcessedAbsoluteDayTime;
-
-		private DirtState(
-			String levelId,
-			long dirtPos,
-			String discoveredSeasonId,
-			double requiredGrowthTicks,
-			double progressGrowthTicks,
-			long lastProcessedAbsoluteDayTime
-		) {
-			this.levelId = levelId == null ? "" : levelId;
-			this.dirtPos = dirtPos;
-			this.discoveredSeasonId = normalizeSeasonId(discoveredSeasonId);
-			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
-			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
-			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
-		}
-
-		private String key() {
-			return levelId + "|" + dirtPos;
-		}
-
-		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_DIRT_POS, dirtPos);
-			root.addProperty(FIELD_DISCOVERED_SEASON_ID, discoveredSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
-		}
-
-		private static DirtState fromJson(JsonElement element) {
-			if (element == null || !element.isJsonObject()) {
-				return null;
-			}
-			JsonObject source = element.getAsJsonObject();
-			String levelId = getString(source, FIELD_LEVEL_ID, "").trim();
-			if (levelId.isEmpty()) {
-				return null;
-			}
-			long dirtPos = getLong(source, FIELD_DIRT_POS, Long.MIN_VALUE);
-			if (dirtPos == Long.MIN_VALUE) {
-				return null;
-			}
-			String discoveredSeasonId = normalizeSeasonId(getString(source, FIELD_DISCOVERED_SEASON_ID, ""));
-			double requiredGrowthTicks = getDouble(source, FIELD_REQUIRED_GROWTH_TICKS, 1.0d);
-			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
-			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new DirtState(
-				levelId,
-				dirtPos,
 				discoveredSeasonId,
 				requiredGrowthTicks,
 				progressGrowthTicks,

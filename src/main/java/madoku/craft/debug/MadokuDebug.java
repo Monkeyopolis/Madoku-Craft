@@ -239,6 +239,7 @@ public final class MadokuDebug {
 						setDomainEnabled(Domain.HUNGER, true);
 						setDomainEnabled(Domain.MOB, true);
 						setDomainEnabled(Domain.FARMING, true);
+						setDomainEnabled(Domain.ECOSYSTEM, true);
 						setDomainEnabled(Domain.PET, true);
 					}
 			}
@@ -269,8 +270,9 @@ public final class MadokuDebug {
 				activeDomains.add(Domain.SMELTING.id());
 				activeDomains.add(Domain.HEALTH.id());
 				activeDomains.add(Domain.HUNGER.id());
-					activeDomains.add(Domain.MOB.id());
+				activeDomains.add(Domain.MOB.id());
 				activeDomains.add(Domain.FARMING.id());
+				activeDomains.add(Domain.ECOSYSTEM.id());
 				activeDomains.add(Domain.SEASON.id());
 				activeDomains.add(Domain.PET.id());
 				root.add("active-domains", activeDomains);
@@ -360,6 +362,7 @@ public final class MadokuDebug {
 			CLOCK("clock"),
 			SLEEP("sleep"),
 			FARMING("farming"),
+			ECOSYSTEM("ecosystem"),
 			SEASON("season"),
 			WORLD("world"),
 			OTHER("other");
@@ -403,6 +406,7 @@ public final class MadokuDebug {
 						case "clock", "time_clock" -> CLOCK;
 						case "sleep", "sleeping" -> SLEEP;
 						case "farming", "farm", "farmland" -> FARMING;
+						case "ecosystem", "eco" -> ECOSYSTEM;
 						case "season", "seasons" -> SEASON;
 						case "world" -> WORLD;
 					case "other", "*" -> OTHER;

@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.luck.MadokuPlacedBlocks;
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.ecosystem.system.MadokuEcosystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
@@ -49,7 +49,7 @@ public abstract class BlockItemPlacedBlocksMixin {
 		}
 
 		MadokuPlacedBlocks.recordPlacedBlock(serverLevel, placedPos);
-		MadokuFarming.syncDirtTrackingAroundBlock(serverLevel, placedPos);
+		MadokuEcosystem.syncDirtTrackingAroundBlock(serverLevel, placedPos);
 	}
 
 	private static BlockPos resolvePlacedPos(BlockPlaceContext context) {
