@@ -5,6 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -16,18 +18,26 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.worldgen.features.TreeFeatures;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.Heightmap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,8 +48,14 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class MadokuEcosystem {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuEcosystem.class);
 	private static final String DATA_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String DATA_FILE_NAME = "madoku-ecosystem";
+	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
+	private static final String CONFIG_FILE_NAME = "madoku-ecosystem";
+	private static final String CONFIG_CATEGORY_FOLDER_NAME = "madoku-ecosystem";
+	private static final String CONFIG_FILE_NATURAL_GROWTH = "natural-growth";
+	private static final String CONFIG_FILE_NATURAL_EROSION = "natural-erosion";
 	private static final String ECOSYSTEM_DISCOVERY_SCHEDULER_OWNER_ID = "ecosystem_discovery_gameplay";
 	private static final String ECOSYSTEM_PROCESS_SCHEDULER_OWNER_ID = "ecosystem_process_gameplay";
 	private static final String TASK_TYPE_ECOSYSTEM_DISCOVERY_TICK = "ecosystem_discovery_gameplay_tick";
@@ -60,48 +76,10 @@ public final class MadokuEcosystem {
 	private static final String FIELD_TREE_GROUND_POS = "tree-ground-pos";
 	private static final String FIELD_TREE_TYPE = "tree-type";
 	private static final String FIELD_INITIAL_SEASON_ID = "initial-season-id";
+	private static final String FIELD_EROSION_RULE_ID = "erosion-rule-id";
 
 	private static final String MODE_WET = "wet";
 	private static final String MODE_SURFACE_DIRT = "surface_dirt";
-	private static final int WET_MIN_DAYS = 7;
-	private static final int WET_MAX_DAYS = 11;
-	private static final int SURFACE_SPRING_MIN_DAYS = 1;
-	private static final int SURFACE_SPRING_MAX_DAYS = 3;
-	private static final int SURFACE_SUMMER_FALL_MIN_DAYS = 3;
-	private static final int SURFACE_SUMMER_FALL_MAX_DAYS = 5;
-	private static final int SURFACE_WINTER_MIN_DAYS = 7;
-	private static final int SURFACE_WINTER_MAX_DAYS = 9;
-	private static final int WET_SPREAD_RADIUS_BLOCKS = 2;
-	private static final int TREE_OAK_SPRING_MIN_DAYS = 3;
-	private static final int TREE_OAK_SPRING_MAX_DAYS = 9;
-	private static final int TREE_OAK_SUMMER_MIN_DAYS = 7;
-	private static final int TREE_OAK_SUMMER_MAX_DAYS = 13;
-	private static final int TREE_OAK_FALL_MIN_DAYS = 11;
-	private static final int TREE_OAK_FALL_MAX_DAYS = 17;
-	private static final int TREE_SPRUCE_WINTER_MIN_DAYS = 3;
-	private static final int TREE_SPRUCE_WINTER_MAX_DAYS = 9;
-	private static final int TREE_SPRUCE_SPRING_MIN_DAYS = 11;
-	private static final int TREE_SPRUCE_SPRING_MAX_DAYS = 17;
-	private static final int TREE_SPRUCE_FALL_MIN_DAYS = 7;
-	private static final int TREE_SPRUCE_FALL_MAX_DAYS = 13;
-	private static final int TREE_BIRCH_MIN_DAYS = 7;
-	private static final int TREE_BIRCH_MAX_DAYS = 13;
-	private static final int TREE_JUNGLE_SUMMER_MIN_DAYS = 3;
-	private static final int TREE_JUNGLE_SUMMER_MAX_DAYS = 9;
-	private static final int TREE_MANGROVE_SUMMER_MIN_DAYS = 3;
-	private static final int TREE_MANGROVE_SUMMER_MAX_DAYS = 9;
-	private static final int TREE_MANGROVE_SPRING_FALL_MIN_DAYS = 11;
-	private static final int TREE_MANGROVE_SPRING_FALL_MAX_DAYS = 17;
-	private static final int TREE_ACACIA_SPRING_FALL_MIN_DAYS = 7;
-	private static final int TREE_ACACIA_SPRING_FALL_MAX_DAYS = 13;
-	private static final int TREE_DARK_OAK_SPRING_SUMMER_MIN_DAYS = 7;
-	private static final int TREE_DARK_OAK_SPRING_SUMMER_MAX_DAYS = 13;
-	private static final int TREE_PALE_OAK_FALL_WINTER_MIN_DAYS = 7;
-	private static final int TREE_PALE_OAK_FALL_WINTER_MAX_DAYS = 13;
-	private static final int TREE_CHERRY_SPRING_FALL_MIN_DAYS = 3;
-	private static final int TREE_CHERRY_SPRING_FALL_MAX_DAYS = 9;
-	private static final int TREE_CHERRY_SUMMER_WINTER_MIN_DAYS = 11;
-	private static final int TREE_CHERRY_SUMMER_WINTER_MAX_DAYS = 17;
 	private static final long ABSOLUTE_TIME_ROLLBACK_RESET_TICKS = 20L;
 	private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
 		Direction.NORTH,
@@ -133,6 +111,7 @@ public final class MadokuEcosystem {
 	private static final String TREE_TYPE_DARK_OAK = "dark_oak";
 	private static final String TREE_TYPE_PALE_OAK = "pale_oak";
 	private static final String TREE_TYPE_CHERRY = "cherry";
+	private static final String BIOME_TAG_PREFIX = "#";
 
 	private static volatile String ecosystemDiscoverySchedulerId = "";
 	private static volatile String ecosystemProcessSchedulerId = "";
@@ -140,6 +119,8 @@ public final class MadokuEcosystem {
 	private static volatile boolean ecosystemProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile boolean dirty = false;
+	private static volatile boolean ecosystemEnabled = true;
+	private static volatile MadokuEcosystemConfig.Settings settings = MadokuEcosystemConfig.defaults();
 
 	private static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	private static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
@@ -166,6 +147,7 @@ public final class MadokuEcosystem {
 	}
 
 	public static void initialize() {
+		loadConfig();
 		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ECOSYSTEM_DISCOVERY_TICK, MadokuEcosystem::runEcosystemDiscoveryTask);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ECOSYSTEM_PROCESS_TICK, MadokuEcosystem::runEcosystemProcessTask);
@@ -184,11 +166,73 @@ public final class MadokuEcosystem {
 		dirty = false;
 	}
 
+	public static boolean isEnabled() {
+		return ecosystemEnabled;
+	}
+
+	private static boolean isNaturalGrowthEnabled() {
+		return isEnabled() && settings.system().naturalGrowthEnabled();
+	}
+
+	private static boolean isNaturalErosionEnabled() {
+		return isEnabled() && settings.system().naturalErosionEnabled();
+	}
+
+	private static void loadConfig() {
+		MadokuEcosystemConfig.Settings fallback = MadokuEcosystemConfig.defaults();
+		JsonObject naturalGrowthDefaults = MadokuEcosystemConfig.buildNaturalGrowthDefaultsJson();
+		JsonObject naturalErosionDefaults = MadokuEcosystemConfig.buildNaturalErosionDefaultsJson();
+		try {
+			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path systemFile = resolveJsonFile(rootDirectory, CONFIG_FILE_NAME);
+			JsonStaticSystem.ManagedStaticDocument systemDocument = JsonStaticSystem.readManagedDocument(systemFile);
+			JsonObject systemGeneral = systemDocument.general();
+			JsonObject systemMain = systemDocument.main();
+			boolean generalEnabled = getBoolean(systemGeneral, MadokuEcosystemConfig.FIELD_ENABLED, true);
+			MadokuEcosystemConfig.SystemSettings systemSettings = MadokuEcosystemConfig.systemFromJson(systemMain);
+			systemGeneral.addProperty(MadokuEcosystemConfig.FIELD_ENABLED, generalEnabled);
+			JsonStaticSystem.writeManagedDocument(systemFile, MadokuEcosystemConfig.toSystemJson(systemSettings), systemGeneral);
+
+			Path categoryDirectory = rootDirectory.resolve(CONFIG_CATEGORY_FOLDER_NAME);
+			Path naturalGrowthFile = resolveJsonFile(categoryDirectory, CONFIG_FILE_NATURAL_GROWTH);
+			JsonObject naturalGrowthNormalized = JsonStaticSystem.ensureManagedFile(naturalGrowthFile, naturalGrowthDefaults);
+			MadokuEcosystemConfig.NaturalGrowthSettings naturalGrowthSettings = MadokuEcosystemConfig.naturalGrowthFromJson(naturalGrowthNormalized);
+			JsonStaticSystem.writeManagedFile(
+				naturalGrowthFile,
+				MadokuEcosystemConfig.toNaturalGrowthJson(naturalGrowthSettings),
+				naturalGrowthDefaults
+			);
+
+			Path naturalErosionFile = resolveJsonFile(categoryDirectory, CONFIG_FILE_NATURAL_EROSION);
+			JsonObject naturalErosionNormalized = JsonStaticSystem.ensureManagedFile(naturalErosionFile, naturalErosionDefaults);
+			MadokuEcosystemConfig.NaturalErosionSettings naturalErosionSettings = MadokuEcosystemConfig.naturalErosionFromJson(naturalErosionNormalized);
+			JsonStaticSystem.writeManagedFile(
+				naturalErosionFile,
+				MadokuEcosystemConfig.toNaturalErosionJson(naturalErosionSettings),
+				naturalErosionDefaults
+			);
+
+			settings = new MadokuEcosystemConfig.Settings(systemSettings, naturalGrowthSettings, naturalErosionSettings);
+			ecosystemEnabled = generalEnabled;
+		} catch (IOException | RuntimeException exception) {
+			settings = fallback;
+			ecosystemEnabled = true;
+			LOGGER.error("Failed to load MadokuEcosystem static config; using defaults.", exception);
+		}
+	}
+
 	public static void onServerStarted(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_ID);
+		if (!isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
+			ecosystemDiscoverySchedulerId = "";
+			ecosystemProcessSchedulerId = "";
+			ecosystemDiscoveryTaskScheduled = false;
+			ecosystemProcessTaskScheduled = false;
+			return;
+		}
 		ecosystemDiscoverySchedulerId = SchedulerManagerSystem.createOrGetScheduler(
 			SchedulerManagerSystem.SchedulerBinding.global(ECOSYSTEM_DISCOVERY_SCHEDULER_OWNER_ID)
 		);
@@ -204,6 +248,14 @@ public final class MadokuEcosystem {
 		if (server == null) {
 			return;
 		}
+		if (!isEnabled()) {
+			dirtBlocksByKey.clear();
+			dirtKeysByChunk.clear();
+			treeCandidatesByChunk.clear();
+			ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_ID);
+			dirty = false;
+			return;
+		}
 
 		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
@@ -213,7 +265,7 @@ public final class MadokuEcosystem {
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		if (server == null) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
 		}
 
@@ -230,7 +282,7 @@ public final class MadokuEcosystem {
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server == null) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
 		}
 
@@ -239,7 +291,7 @@ public final class MadokuEcosystem {
 	}
 
 	public static void trackPlacedDirtBlock(ServerLevel world, BlockPos dirtPos) {
-		if (world == null || dirtPos == null) {
+		if (world == null || dirtPos == null || !isEnabled()) {
 			return;
 		}
 		if (trackAndSpreadAtPosition(world, dirtPos)) {
@@ -248,14 +300,16 @@ public final class MadokuEcosystem {
 	}
 
 	public static void syncDirtTrackingAroundBlock(ServerLevel world, BlockPos pos) {
-		if (world == null || pos == null) {
+		if (world == null || pos == null || !isEnabled()) {
 			return;
 		}
 
 		boolean changed = false;
 		String atKey = dirtKey(world, pos);
 		DirtState trackedAt = dirtBlocksByKey.get(atKey);
-		if (trackedAt != null && !isCandidateForMode(world, pos, world.getBlockState(pos), trackedAt.mode)) {
+		if (trackedAt != null
+			&& isModeEnabled(trackedAt.mode)
+			&& !isCandidateForMode(world, pos, world.getBlockState(pos), trackedAt.mode)) {
 			removeDirtStateByKey(atKey);
 			changed = true;
 			dirty = true;
@@ -264,7 +318,9 @@ public final class MadokuEcosystem {
 		BlockPos belowPos = pos.below();
 		String belowKey = dirtKey(world, belowPos);
 		DirtState trackedBelow = dirtBlocksByKey.get(belowKey);
-		if (trackedBelow != null && !isCandidateForMode(world, belowPos, world.getBlockState(belowPos), trackedBelow.mode)) {
+		if (trackedBelow != null
+			&& isModeEnabled(trackedBelow.mode)
+			&& !isCandidateForMode(world, belowPos, world.getBlockState(belowPos), trackedBelow.mode)) {
 			removeDirtStateByKey(belowKey);
 			changed = true;
 			dirty = true;
@@ -288,7 +344,7 @@ public final class MadokuEcosystem {
 		}
 		ecosystemDiscoveryTaskScheduled = false;
 
-		if (server == null) {
+		if (server == null || !isEnabled()) {
 			return;
 		}
 
@@ -304,7 +360,7 @@ public final class MadokuEcosystem {
 			ecosystemProcessSchedulerId = context.getSchedulerId();
 		}
 		ecosystemProcessTaskScheduled = false;
-		if (server == null) {
+		if (server == null || !isEnabled()) {
 			return;
 		}
 
@@ -315,7 +371,7 @@ public final class MadokuEcosystem {
 	}
 
 	private static void discoverTrackableBlocksInChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
 		}
 		int minX = chunkX << 4;
@@ -338,21 +394,28 @@ public final class MadokuEcosystem {
 				discoverTrackableAtPosition(world, topPos, wetSeedPositions);
 				discoverTrackableAtPosition(world, topPos.below(), wetSeedPositions);
 				discoverTrackableAtPosition(world, topPos.below(2), wetSeedPositions);
-				collectTreeGroundCandidate(world, topPos, treeGroundCandidates);
-				collectTreeGroundCandidate(world, topPos.below(), treeGroundCandidates);
-				collectTreeGroundCandidate(world, topPos.below(2), treeGroundCandidates);
+				if (isNaturalGrowthEnabled()) {
+					collectTreeGroundCandidate(world, topPos, treeGroundCandidates);
+					collectTreeGroundCandidate(world, topPos.below(), treeGroundCandidates);
+					collectTreeGroundCandidate(world, topPos.below(2), treeGroundCandidates);
+				}
 			}
 		}
 
-		if (!wetSeedPositions.isEmpty()) {
+		if (isNaturalErosionEnabled() && !wetSeedPositions.isEmpty()) {
 			spreadWetTrackingFromSeeds(world, wetSeedPositions);
 		}
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
 		emitTreeChunkDiscoveryDebug(world, chunkKey, treeGroundCandidates.size(), wetSeedPositions.size());
-		pickTreeCandidateForChunk(world, chunkX, chunkZ, treeGroundCandidates);
+		if (isNaturalGrowthEnabled()) {
+			pickTreeCandidateForChunk(world, chunkX, chunkZ, treeGroundCandidates);
+		}
 	}
 
 	private static void processDirtInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
+		if (!isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
+			return;
+		}
 		String worldLevelId = levelId(world);
 		ChunkRefKey targetChunkKey = new ChunkRefKey(worldLevelId, chunkX, chunkZ);
 		Set<String> chunkDirtKeys = new LinkedHashSet<>(dirtKeysByChunk.getOrDefault(targetChunkKey, Set.of()));
@@ -378,6 +441,9 @@ public final class MadokuEcosystem {
 				continue;
 			}
 
+			if (!isModeEnabled(dirt.mode)) {
+				continue;
+			}
 			if (!isCandidateForMode(world, dirtPos, state, dirt.mode)) {
 				removeKeys.add(dirtEntryKey);
 				continue;
@@ -400,7 +466,7 @@ public final class MadokuEcosystem {
 			if (dirt.progressGrowthTicks + 1e-6d >= requiredTicks) {
 				Block replacement = MODE_SURFACE_DIRT.equals(dirt.mode)
 					? resolveSurfaceDirtGrowthBlock(world, dirtPos)
-					: resolveWetGroundReplacementBlock(world, dirtPos);
+					: resolveWetGroundReplacementBlock(world, dirtPos, state, dirt.erosionRuleId);
 				if (replacement != null && replacement != state.getBlock()) {
 					world.setBlockAndUpdate(dirtPos, replacement.defaultBlockState());
 				}
@@ -416,7 +482,7 @@ public final class MadokuEcosystem {
 	}
 
 	private static void processTreeCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		if (world == null) {
+		if (world == null || !isEnabled() || !isNaturalGrowthEnabled()) {
 			return;
 		}
 
@@ -479,6 +545,9 @@ public final class MadokuEcosystem {
 		if (world == null || dirtPos == null || state == null || mode == null || mode.isBlank()) {
 			return false;
 		}
+		if (!isModeEnabled(mode)) {
+			return false;
+		}
 		if (!isCandidateForMode(world, dirtPos, state, mode)) {
 			return false;
 		}
@@ -489,15 +558,25 @@ public final class MadokuEcosystem {
 			return false;
 		}
 
-		double requiredGrowthTicks = MODE_SURFACE_DIRT.equals(mode)
-			? resolveSurfaceDirtRequiredGrowthTicks(world)
-			: resolveWetRequiredGrowthTicks();
+		String erosionRuleId = "";
+		double requiredGrowthTicks;
+		if (MODE_SURFACE_DIRT.equals(mode)) {
+			requiredGrowthTicks = resolveSurfaceDirtRequiredGrowthTicks(world);
+		} else {
+			MadokuEcosystemConfig.NamedErosionRule erosionRule = resolveErosionRule(world, dirtPos, state, "");
+			if (erosionRule == null || erosionRule.rule() == null) {
+				return false;
+			}
+			erosionRuleId = erosionRule.ruleId();
+			requiredGrowthTicks = randomDaysToTicks(erosionRule.rule().growthDays());
+		}
 		double startingProgress = existing != null && mode.equals(existing.mode) ? existing.progressGrowthTicks : 0.0d;
 
 		putDirtState(key, new DirtState(
 			levelId(world),
 			dirtPos.asLong(),
 			mode,
+			erosionRuleId,
 			requiredGrowthTicks,
 			Math.max(0.0d, Math.min(requiredGrowthTicks, startingProgress)),
 			resolveAbsoluteDayTime(world)
@@ -513,7 +592,7 @@ public final class MadokuEcosystem {
 
 		BlockState state = world.getBlockState(pos);
 		boolean changed = trackExposedDirtCandidate(world, pos);
-		if (isWetSeedCandidate(world, pos, state)) {
+		if (isNaturalErosionEnabled() && isWetSeedCandidate(world, pos, state)) {
 			changed |= spreadWetTrackingFromSeed(world, pos);
 		}
 		return changed;
@@ -526,13 +605,13 @@ public final class MadokuEcosystem {
 
 		BlockState state = world.getBlockState(pos);
 		trackExposedDirtCandidate(world, pos);
-		if (wetSeedPositions != null && isWetSeedCandidate(world, pos, state)) {
+		if (isNaturalErosionEnabled() && wetSeedPositions != null && isWetSeedCandidate(world, pos, state)) {
 			wetSeedPositions.add(pos.asLong());
 		}
 	}
 
 	private static void collectTreeGroundCandidate(ServerLevel world, BlockPos pos, Set<Long> outPositions) {
-		if (world == null || pos == null || outPositions == null) {
+		if (world == null || pos == null || outPositions == null || !isNaturalGrowthEnabled()) {
 			return;
 		}
 		BlockState state = world.getBlockState(pos);
@@ -546,7 +625,7 @@ public final class MadokuEcosystem {
 	}
 
 	private static void pickTreeCandidateForChunk(ServerLevel world, int chunkX, int chunkZ, Set<Long> treeGroundCandidates) {
-		if (world == null || treeGroundCandidates == null || treeGroundCandidates.isEmpty()) {
+		if (world == null || treeGroundCandidates == null || treeGroundCandidates.isEmpty() || !isNaturalGrowthEnabled()) {
 			return;
 		}
 
@@ -604,7 +683,26 @@ public final class MadokuEcosystem {
 	}
 
 	private static boolean isTrackableGroundBlock(BlockState state) {
-		return state != null && TRACKABLE_WET_GROUND_BLOCKS.contains(state.getBlock());
+		if (state == null) {
+			return false;
+		}
+		Block block = state.getBlock();
+		if (block == Blocks.DIRT) {
+			return true;
+		}
+		if (TRACKABLE_WET_GROUND_BLOCKS.contains(block)) {
+			return true;
+		}
+		String blockId = blockId(block);
+		for (MadokuEcosystemConfig.NamedErosionRule rule : MadokuEcosystemConfig.erosionRulesInPriority(settings.naturalErosion())) {
+			if (rule == null || rule.rule() == null || !rule.rule().enabled()) {
+				continue;
+			}
+			if (rule.rule().sourceBlocks().contains(blockId)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean isTrackableTreeGroundBlock(BlockState state) {
@@ -615,21 +713,34 @@ public final class MadokuEcosystem {
 		if (world == null || blockPos == null || state == null || !isTrackableGroundBlock(state)) {
 			return "";
 		}
-		if (isWetSeedCandidate(world, blockPos, state)) {
+		if (isNaturalErosionEnabled() && isWetSeedCandidate(world, blockPos, state)) {
 			return MODE_WET;
 		}
-		if (isSurfaceDirtCandidate(world, blockPos, state)) {
+		if (isNaturalGrowthEnabled() && isSurfaceDirtCandidate(world, blockPos, state)) {
 			return MODE_SURFACE_DIRT;
 		}
 		return "";
 	}
 
 	private static boolean isCandidateForMode(ServerLevel world, BlockPos blockPos, BlockState state, String mode) {
+		if (!isModeEnabled(mode)) {
+			return false;
+		}
 		if (MODE_WET.equals(mode)) {
 			return isWetTrackedCandidate(world, blockPos, state);
 		}
 		if (MODE_SURFACE_DIRT.equals(mode)) {
 			return isSurfaceDirtCandidate(world, blockPos, state);
+		}
+		return false;
+	}
+
+	private static boolean isModeEnabled(String mode) {
+		if (MODE_WET.equals(mode)) {
+			return isNaturalErosionEnabled();
+		}
+		if (MODE_SURFACE_DIRT.equals(mode)) {
+			return isNaturalGrowthEnabled();
 		}
 		return false;
 	}
@@ -646,6 +757,9 @@ public final class MadokuEcosystem {
 
 	private static boolean isWetTrackedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
 		if (world == null || blockPos == null || state == null || !isTrackableGroundBlock(state)) {
+			return false;
+		}
+		if (resolveErosionRule(world, blockPos, state, "") == null) {
 			return false;
 		}
 		return !isSubmerged(world, blockPos);
@@ -728,85 +842,63 @@ public final class MadokuEcosystem {
 	}
 
 	private static double resolveTreeRequiredGrowthTicks(String treeType, String seasonId) {
+		if (!isTreeSeasonPermitted(treeType, seasonId)) {
+			return -1.0d;
+		}
+		MadokuEcosystemConfig.DayRange range = settings.naturalGrowth().treeGrowthForSeason(treeType, seasonId);
+		return randomDaysToTicks(range);
+	}
+
+	private static boolean isTreeSeasonPermitted(String treeType, String seasonId) {
 		if (TREE_TYPE_OAK.equals(treeType)) {
-			if ("spring".equals(seasonId)) {
-				return randomDaysToTicks(TREE_OAK_SPRING_MIN_DAYS, TREE_OAK_SPRING_MAX_DAYS);
-			}
-			if ("summer".equals(seasonId)) {
-				return randomDaysToTicks(TREE_OAK_SUMMER_MIN_DAYS, TREE_OAK_SUMMER_MAX_DAYS);
-			}
-			if ("fall".equals(seasonId)) {
-				return randomDaysToTicks(TREE_OAK_FALL_MIN_DAYS, TREE_OAK_FALL_MAX_DAYS);
-			}
-			return -1.0d;
+			return "spring".equals(seasonId) || "summer".equals(seasonId) || "fall".equals(seasonId);
 		}
-
 		if (TREE_TYPE_BIRCH.equals(treeType)) {
-			return randomDaysToTicks(TREE_BIRCH_MIN_DAYS, TREE_BIRCH_MAX_DAYS);
+			return true;
 		}
-
 		if (TREE_TYPE_JUNGLE.equals(treeType)) {
-			if ("summer".equals(seasonId)) {
-				return randomDaysToTicks(TREE_JUNGLE_SUMMER_MIN_DAYS, TREE_JUNGLE_SUMMER_MAX_DAYS);
-			}
-			return -1.0d;
+			return "summer".equals(seasonId);
 		}
-
 		if (TREE_TYPE_MANGROVE.equals(treeType)) {
-			if ("summer".equals(seasonId)) {
-				return randomDaysToTicks(TREE_MANGROVE_SUMMER_MIN_DAYS, TREE_MANGROVE_SUMMER_MAX_DAYS);
-			}
-			if ("spring".equals(seasonId) || "fall".equals(seasonId)) {
-				return randomDaysToTicks(TREE_MANGROVE_SPRING_FALL_MIN_DAYS, TREE_MANGROVE_SPRING_FALL_MAX_DAYS);
-			}
-			return -1.0d;
+			return "summer".equals(seasonId) || "spring".equals(seasonId) || "fall".equals(seasonId);
 		}
-
 		if (TREE_TYPE_ACACIA.equals(treeType)) {
-			if ("spring".equals(seasonId) || "fall".equals(seasonId)) {
-				return randomDaysToTicks(TREE_ACACIA_SPRING_FALL_MIN_DAYS, TREE_ACACIA_SPRING_FALL_MAX_DAYS);
-			}
-			return -1.0d;
+			return "spring".equals(seasonId) || "fall".equals(seasonId);
 		}
-
 		if (TREE_TYPE_DARK_OAK.equals(treeType)) {
-			if ("spring".equals(seasonId) || "summer".equals(seasonId)) {
-				return randomDaysToTicks(TREE_DARK_OAK_SPRING_SUMMER_MIN_DAYS, TREE_DARK_OAK_SPRING_SUMMER_MAX_DAYS);
-			}
-			return -1.0d;
+			return "spring".equals(seasonId) || "summer".equals(seasonId);
 		}
-
 		if (TREE_TYPE_PALE_OAK.equals(treeType)) {
-			if ("fall".equals(seasonId) || "winter".equals(seasonId)) {
-				return randomDaysToTicks(TREE_PALE_OAK_FALL_WINTER_MIN_DAYS, TREE_PALE_OAK_FALL_WINTER_MAX_DAYS);
-			}
-			return -1.0d;
+			return "fall".equals(seasonId) || "winter".equals(seasonId);
 		}
-
 		if (TREE_TYPE_CHERRY.equals(treeType)) {
-			if ("spring".equals(seasonId) || "fall".equals(seasonId)) {
-				return randomDaysToTicks(TREE_CHERRY_SPRING_FALL_MIN_DAYS, TREE_CHERRY_SPRING_FALL_MAX_DAYS);
-			}
-			if ("summer".equals(seasonId) || "winter".equals(seasonId)) {
-				return randomDaysToTicks(TREE_CHERRY_SUMMER_WINTER_MIN_DAYS, TREE_CHERRY_SUMMER_WINTER_MAX_DAYS);
-			}
-			return -1.0d;
+			return "spring".equals(seasonId) || "summer".equals(seasonId) || "fall".equals(seasonId) || "winter".equals(seasonId);
 		}
-
 		if (TREE_TYPE_SPRUCE.equals(treeType)) {
-			if ("winter".equals(seasonId)) {
-				return randomDaysToTicks(TREE_SPRUCE_WINTER_MIN_DAYS, TREE_SPRUCE_WINTER_MAX_DAYS);
-			}
-			if ("spring".equals(seasonId)) {
-				return randomDaysToTicks(TREE_SPRUCE_SPRING_MIN_DAYS, TREE_SPRUCE_SPRING_MAX_DAYS);
-			}
-			if ("fall".equals(seasonId)) {
-				return randomDaysToTicks(TREE_SPRUCE_FALL_MIN_DAYS, TREE_SPRUCE_FALL_MAX_DAYS);
-			}
+			return "winter".equals(seasonId) || "spring".equals(seasonId) || "fall".equals(seasonId);
+		}
+		return false;
+	}
+
+	private static double randomDaysToTicks(MadokuEcosystemConfig.DayRange range) {
+		if (range == null) {
 			return -1.0d;
 		}
+		return randomDaysToTicks(range.minDays(), range.maxDays());
+	}
 
-		return -1.0d;
+	private static double defaultErosionGrowthTicks() {
+		List<MadokuEcosystemConfig.NamedErosionRule> rules = MadokuEcosystemConfig.erosionRulesInPriority(settings.naturalErosion());
+		for (MadokuEcosystemConfig.NamedErosionRule rule : rules) {
+			if (rule == null || rule.rule() == null || !rule.rule().enabled()) {
+				continue;
+			}
+			double ticks = randomDaysToTicks(rule.rule().growthDays());
+			if (ticks > 0.0d) {
+				return ticks;
+			}
+		}
+		return 7.0d * MadokuTime.MINECRAFT_TICKS_PER_CYCLE;
 	}
 
 	private static double randomDaysToTicks(int minDays, int maxDays) {
@@ -1089,7 +1181,7 @@ public final class MadokuEcosystem {
 				changed |= trackDirtCandidateForMode(world, currentPos, currentState, MODE_WET);
 			}
 
-			if (current.depth() >= WET_SPREAD_RADIUS_BLOCKS) {
+			if (current.depth() >= settings.naturalErosion().waterErosionRadius()) {
 				continue;
 			}
 
@@ -1120,12 +1212,15 @@ public final class MadokuEcosystem {
 	}
 
 	private static void requestEcosystemProcessing(MinecraftServer server, long delayTicks) {
+		if (!isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
+			return;
+		}
 		requestEcosystemDiscoveryTask(server, delayTicks);
 		requestEcosystemProcessTask(server, delayTicks);
 	}
 
 	private static void requestEcosystemDiscoveryTask(MinecraftServer server, long delayTicks) {
-		if (server == null) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
 		}
 		boolean queuedBefore = isEcosystemTaskQueued(ecosystemDiscoverySchedulerId, TASK_TYPE_ECOSYSTEM_DISCOVERY_TICK);
@@ -1156,7 +1251,7 @@ public final class MadokuEcosystem {
 	}
 
 	private static void requestEcosystemProcessTask(MinecraftServer server, long delayTicks) {
-		if (server == null) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
 		}
 		boolean queuedBefore = isEcosystemTaskQueued(ecosystemProcessSchedulerId, TASK_TYPE_ECOSYSTEM_PROCESS_TICK);
@@ -1380,24 +1475,10 @@ public final class MadokuEcosystem {
 		return safePrevious;
 	}
 
-	private static double resolveWetRequiredGrowthTicks() {
-		int days = ThreadLocalRandom.current().nextInt(WET_MIN_DAYS, WET_MAX_DAYS + 1);
-		return Math.max(1.0d, days * MadokuTime.MINECRAFT_TICKS_PER_CYCLE);
-	}
-
 	private static double resolveSurfaceDirtRequiredGrowthTicks(ServerLevel world) {
 		String seasonId = normalizeSeasonId(MadokuSeason.getCurrentSeasonId(world));
-		int minDays = SURFACE_SUMMER_FALL_MIN_DAYS;
-		int maxDays = SURFACE_SUMMER_FALL_MAX_DAYS;
-		if ("spring".equals(seasonId)) {
-			minDays = SURFACE_SPRING_MIN_DAYS;
-			maxDays = SURFACE_SPRING_MAX_DAYS;
-		} else if ("winter".equals(seasonId)) {
-			minDays = SURFACE_WINTER_MIN_DAYS;
-			maxDays = SURFACE_WINTER_MAX_DAYS;
-		}
-		int days = ThreadLocalRandom.current().nextInt(minDays, maxDays + 1);
-		return Math.max(1.0d, days * MadokuTime.MINECRAFT_TICKS_PER_CYCLE);
+		MadokuEcosystemConfig.DayRange range = settings.naturalGrowth().dirtGrowthForSeason(seasonId);
+		return randomDaysToTicks(range);
 	}
 
 	private static String normalizeSeasonId(String value) {
@@ -1553,19 +1634,125 @@ public final class MadokuEcosystem {
 		return pos.getX() + "," + pos.getY() + "," + pos.getZ();
 	}
 
-	private static Block resolveWetGroundReplacementBlock(ServerLevel world, BlockPos pos) {
-		if (world == null || pos == null) {
-			return Blocks.SAND;
+	private static Block resolveWetGroundReplacementBlock(ServerLevel world, BlockPos pos, BlockState state, String preferredRuleId) {
+		MadokuEcosystemConfig.NamedErosionRule rule = resolveErosionRule(world, pos, state, preferredRuleId);
+		if (rule == null || rule.rule() == null) {
+			return null;
+		}
+		return resolveBlock(rule.rule().targetBlock());
+	}
+
+	private static MadokuEcosystemConfig.NamedErosionRule resolveErosionRule(
+		ServerLevel world,
+		BlockPos pos,
+		BlockState state,
+		String preferredRuleId
+	) {
+		if (world == null || pos == null || state == null || !isNaturalErosionEnabled()) {
+			return null;
+		}
+		String blockId = blockId(state.getBlock());
+		if (blockId.isBlank()) {
+			return null;
 		}
 
-		Holder<net.minecraft.world.level.biome.Biome> biomeHolder = world.getBiome(pos);
-		if (biomeHolder.is(BiomeTags.IS_JUNGLE) || biomeHolder.is(Biomes.SWAMP) || biomeHolder.is(Biomes.MANGROVE_SWAMP)) {
-			return Blocks.MUD;
+		List<MadokuEcosystemConfig.NamedErosionRule> rules = MadokuEcosystemConfig.erosionRulesInPriority(settings.naturalErosion());
+		if (preferredRuleId != null && !preferredRuleId.isBlank()) {
+			for (MadokuEcosystemConfig.NamedErosionRule candidate : rules) {
+				if (candidate == null || candidate.rule() == null) {
+					continue;
+				}
+				if (!preferredRuleId.equals(candidate.ruleId())) {
+					continue;
+				}
+				if (matchesErosionRule(world, pos, blockId, candidate.rule())) {
+					return candidate;
+				}
+				break;
+			}
 		}
-		if (biomeHolder.is(BiomeTags.IS_BADLANDS)) {
-			return Blocks.RED_SAND;
+
+		for (MadokuEcosystemConfig.NamedErosionRule candidate : rules) {
+			if (candidate == null || candidate.rule() == null) {
+				continue;
+			}
+			if (matchesErosionRule(world, pos, blockId, candidate.rule())) {
+				return candidate;
+			}
 		}
-		return Blocks.SAND;
+		return null;
+	}
+
+	private static boolean matchesErosionRule(
+		ServerLevel world,
+		BlockPos pos,
+		String sourceBlockId,
+		MadokuEcosystemConfig.ErosionRule rule
+	) {
+		if (world == null || pos == null || sourceBlockId == null || sourceBlockId.isBlank() || rule == null || !rule.enabled()) {
+			return false;
+		}
+		if (!rule.sourceBlocks().contains(sourceBlockId)) {
+			return false;
+		}
+		Block targetBlock = resolveBlock(rule.targetBlock());
+		if (targetBlock == null) {
+			return false;
+		}
+
+		List<String> requiredBiomeIds = rule.requiredBiomeIds();
+		List<String> requiredBiomeTags = rule.requiredBiomeTags();
+		if ((requiredBiomeIds == null || requiredBiomeIds.isEmpty()) && (requiredBiomeTags == null || requiredBiomeTags.isEmpty())) {
+			return true;
+		}
+
+		Holder<Biome> biomeHolder = world.getBiome(pos);
+		if (requiredBiomeIds != null) {
+			for (String biomeId : requiredBiomeIds) {
+				Identifier id = Identifier.tryParse(biomeId);
+				if (id == null) {
+					continue;
+				}
+				if (biomeHolder.is(ResourceKey.create(Registries.BIOME, id))) {
+					return true;
+				}
+			}
+		}
+		if (requiredBiomeTags != null) {
+			for (String biomeTag : requiredBiomeTags) {
+				String normalized = biomeTag == null ? "" : biomeTag.trim();
+				if (normalized.isEmpty()) {
+					continue;
+				}
+				if (normalized.startsWith(BIOME_TAG_PREFIX)) {
+					normalized = normalized.substring(1);
+				}
+				Identifier id = Identifier.tryParse(normalized);
+				if (id == null) {
+					continue;
+				}
+				if (biomeHolder.is(TagKey.create(Registries.BIOME, id))) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private static Block resolveBlock(String blockId) {
+		Identifier id = Identifier.tryParse(blockId == null ? "" : blockId.trim());
+		if (id == null) {
+			return null;
+		}
+		return BuiltInRegistries.BLOCK.getValue(id);
+	}
+
+	private static String blockId(Block block) {
+		if (block == null) {
+			return "";
+		}
+		Identifier id = BuiltInRegistries.BLOCK.getKey(block);
+		return id == null ? "" : id.toString();
 	}
 
 	private static Block resolveSurfaceDirtGrowthBlock(ServerLevel world, BlockPos pos) {
@@ -1643,6 +1830,20 @@ public final class MadokuEcosystem {
 		return root;
 	}
 
+	private static Path resolveJsonFile(Path directory, String fileName) {
+		if (directory == null) {
+			return Path.of(fileName + ".json");
+		}
+		String normalized = fileName == null ? "" : fileName.trim();
+		if (normalized.isEmpty()) {
+			normalized = "data";
+		}
+		if (!normalized.endsWith(".json")) {
+			normalized += ".json";
+		}
+		return directory.resolve(normalized);
+	}
+
 	private static long getLong(JsonObject object, String key, long fallback) {
 		if (object == null || key == null || key.isBlank()) {
 			return fallback;
@@ -1654,6 +1855,21 @@ public final class MadokuEcosystem {
 		try {
 			return element.getAsLong();
 		} catch (UnsupportedOperationException | IllegalStateException | NumberFormatException ignored) {
+			return fallback;
+		}
+	}
+
+	private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
+		if (object == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = object.get(key);
+		if (element == null || element.isJsonNull() || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return fallback;
+		}
+		try {
+			return element.getAsBoolean();
+		} catch (RuntimeException ignored) {
 			return fallback;
 		}
 	}
@@ -1809,6 +2025,7 @@ public final class MadokuEcosystem {
 		private final String levelId;
 		private final long dirtPos;
 		private final String mode;
+		private final String erosionRuleId;
 		private double requiredGrowthTicks;
 		private double progressGrowthTicks;
 		private long lastProcessedAbsoluteDayTime;
@@ -1817,6 +2034,7 @@ public final class MadokuEcosystem {
 			String levelId,
 			long dirtPos,
 			String mode,
+			String erosionRuleId,
 			double requiredGrowthTicks,
 			double progressGrowthTicks,
 			long lastProcessedAbsoluteDayTime
@@ -1824,6 +2042,7 @@ public final class MadokuEcosystem {
 			this.levelId = levelId == null ? "" : levelId;
 			this.dirtPos = dirtPos;
 			this.mode = MODE_SURFACE_DIRT.equals(mode) ? MODE_SURFACE_DIRT : MODE_WET;
+			this.erosionRuleId = erosionRuleId == null ? "" : erosionRuleId.trim();
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
@@ -1838,6 +2057,7 @@ public final class MadokuEcosystem {
 			root.addProperty(FIELD_LEVEL_ID, levelId);
 			root.addProperty(FIELD_BLOCK_POS, dirtPos);
 			root.addProperty(FIELD_MODE, mode);
+			root.addProperty(FIELD_EROSION_RULE_ID, erosionRuleId);
 			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
 			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
 			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
@@ -1858,10 +2078,11 @@ public final class MadokuEcosystem {
 				return null;
 			}
 			String mode = getString(source, FIELD_MODE, MODE_WET);
+			String erosionRuleId = getString(source, FIELD_EROSION_RULE_ID, "");
 			double requiredGrowthTicks = getDouble(
 				source,
 				FIELD_REQUIRED_GROWTH_TICKS,
-				MODE_SURFACE_DIRT.equals(mode) ? 3.0d * MadokuTime.MINECRAFT_TICKS_PER_CYCLE : resolveWetRequiredGrowthTicks()
+				MODE_SURFACE_DIRT.equals(mode) ? 3.0d * MadokuTime.MINECRAFT_TICKS_PER_CYCLE : defaultErosionGrowthTicks()
 			);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
@@ -1869,6 +2090,7 @@ public final class MadokuEcosystem {
 				levelId,
 				dirtPos,
 				mode,
+				erosionRuleId,
 				requiredGrowthTicks,
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
