@@ -15,6 +15,7 @@ public final class MadokuEcosystemConfig {
 	public static final String FIELD_NATURAL_EROSION_ENABLED = "natural-erosion-enabled";
 
 	public static final String FIELD_NATURAL_DIRT_GROWTH = "natural-dirt-growth";
+	public static final String FIELD_NATURAL_GRASS_GROWTH = "natural-grass-growth";
 	public static final String FIELD_NATURAL_TREE_GROWTH = "natural-tree-growth";
 	public static final String FIELD_MIN_GROWTH_TIME = "min-growth-time";
 	public static final String FIELD_MAX_GROWTH_TIME = "max-growth-time";
@@ -52,6 +53,10 @@ public final class MadokuEcosystemConfig {
 		return new Settings(
 			new SystemSettings(true, true),
 			new NaturalGrowthSettings(
+				new DayRange(1, 3),
+				new DayRange(3, 5),
+				new DayRange(3, 5),
+				new DayRange(7, 9),
 				new DayRange(1, 3),
 				new DayRange(3, 5),
 				new DayRange(3, 5),
@@ -126,12 +131,17 @@ public final class MadokuEcosystemConfig {
 		}
 
 		JsonObject dirtRoot = readObject(source, FIELD_NATURAL_DIRT_GROWTH);
+		JsonObject grassRoot = readObject(source, FIELD_NATURAL_GRASS_GROWTH);
 		JsonObject treeRoot = readObject(source, FIELD_NATURAL_TREE_GROWTH);
 		return new NaturalGrowthSettings(
 			readRange(dirtRoot, FIELD_SEASON_SPRING, fallback.dirtSpringGrowthDays()),
 			readRange(dirtRoot, FIELD_SEASON_SUMMER, fallback.dirtSummerGrowthDays()),
 			readRange(dirtRoot, FIELD_SEASON_FALL, fallback.dirtFallGrowthDays()),
 			readRange(dirtRoot, FIELD_SEASON_WINTER, fallback.dirtWinterGrowthDays()),
+			readRange(grassRoot, FIELD_SEASON_SPRING, fallback.grassSpringGrowthDays()),
+			readRange(grassRoot, FIELD_SEASON_SUMMER, fallback.grassSummerGrowthDays()),
+			readRange(grassRoot, FIELD_SEASON_FALL, fallback.grassFallGrowthDays()),
+			readRange(grassRoot, FIELD_SEASON_WINTER, fallback.grassWinterGrowthDays()),
 			readTreeProfile(treeRoot, FIELD_TREE_OAK, fallback.treeOakGrowth()),
 			readTreeProfile(treeRoot, FIELD_TREE_SPRUCE, fallback.treeSpruceGrowth()),
 			readTreeProfile(treeRoot, FIELD_TREE_BIRCH, fallback.treeBirchGrowth()),
@@ -175,6 +185,13 @@ public final class MadokuEcosystemConfig {
 		dirtRoot.add(FIELD_SEASON_FALL, toRangeJson(value.dirtFallGrowthDays()));
 		dirtRoot.add(FIELD_SEASON_WINTER, toRangeJson(value.dirtWinterGrowthDays()));
 		root.add(FIELD_NATURAL_DIRT_GROWTH, dirtRoot);
+
+		JsonObject grassRoot = new JsonObject();
+		grassRoot.add(FIELD_SEASON_SPRING, toRangeJson(value.grassSpringGrowthDays()));
+		grassRoot.add(FIELD_SEASON_SUMMER, toRangeJson(value.grassSummerGrowthDays()));
+		grassRoot.add(FIELD_SEASON_FALL, toRangeJson(value.grassFallGrowthDays()));
+		grassRoot.add(FIELD_SEASON_WINTER, toRangeJson(value.grassWinterGrowthDays()));
+		root.add(FIELD_NATURAL_GRASS_GROWTH, grassRoot);
 
 		JsonObject treeRoot = new JsonObject();
 		treeRoot.add(FIELD_TREE_OAK, toTreeProfileJson(value.treeOakGrowth()));
@@ -429,6 +446,10 @@ public final class MadokuEcosystemConfig {
 		DayRange dirtSummerGrowthDays,
 		DayRange dirtFallGrowthDays,
 		DayRange dirtWinterGrowthDays,
+		DayRange grassSpringGrowthDays,
+		DayRange grassSummerGrowthDays,
+		DayRange grassFallGrowthDays,
+		DayRange grassWinterGrowthDays,
 		TreeGrowthProfile treeOakGrowth,
 		TreeGrowthProfile treeSpruceGrowth,
 		TreeGrowthProfile treeBirchGrowth,
@@ -444,6 +465,10 @@ public final class MadokuEcosystemConfig {
 			dirtSummerGrowthDays = safeRange(dirtSummerGrowthDays, 3, 5);
 			dirtFallGrowthDays = safeRange(dirtFallGrowthDays, 3, 5);
 			dirtWinterGrowthDays = safeRange(dirtWinterGrowthDays, 7, 9);
+			grassSpringGrowthDays = safeRange(grassSpringGrowthDays, 1, 3);
+			grassSummerGrowthDays = safeRange(grassSummerGrowthDays, 3, 5);
+			grassFallGrowthDays = safeRange(grassFallGrowthDays, 3, 5);
+			grassWinterGrowthDays = safeRange(grassWinterGrowthDays, 7, 9);
 			treeOakGrowth = treeOakGrowth == null ? defaults().naturalGrowth().treeOakGrowth() : treeOakGrowth;
 			treeSpruceGrowth = treeSpruceGrowth == null ? defaults().naturalGrowth().treeSpruceGrowth() : treeSpruceGrowth;
 			treeBirchGrowth = treeBirchGrowth == null ? defaults().naturalGrowth().treeBirchGrowth() : treeBirchGrowth;
@@ -485,6 +510,22 @@ public final class MadokuEcosystemConfig {
 				default -> null;
 			};
 			return profile == null ? null : profile.season(seasonId);
+		}
+
+		public DayRange grassGrowthForSeason(String seasonId) {
+			if (FIELD_SEASON_SPRING.equals(seasonId)) {
+				return grassSpringGrowthDays;
+			}
+			if (FIELD_SEASON_SUMMER.equals(seasonId)) {
+				return grassSummerGrowthDays;
+			}
+			if (FIELD_SEASON_FALL.equals(seasonId)) {
+				return grassFallGrowthDays;
+			}
+			if (FIELD_SEASON_WINTER.equals(seasonId)) {
+				return grassWinterGrowthDays;
+			}
+			return grassSummerGrowthDays;
 		}
 	}
 

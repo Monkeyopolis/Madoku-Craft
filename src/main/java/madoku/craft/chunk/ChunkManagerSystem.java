@@ -9,8 +9,10 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,6 +29,7 @@ public final class ChunkManagerSystem {
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
 	private static final long CHUNK_REFRESH_INTERVAL_TICKS = 5L;
+	private static final int DISCOVERY_STEPS_PER_REFRESH = 1;
 	private static final String FIELD_LEVELS = "levels";
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_CHUNKS = "chunks";
@@ -37,12 +40,17 @@ public final class ChunkManagerSystem {
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
 	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
 	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
+	private static final List<ProcessorChunkKey> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
+	private static final Set<ProcessorChunkKey> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final ThreadLocal<ChunkDiscoverySnapshot> ACTIVE_DISCOVERY_SNAPSHOT = new ThreadLocal<>();
 
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
 	private static volatile boolean serverStopping = false;
 	private static volatile boolean dirty = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
+	private static volatile int discoveryChunkScanCursor = 0;
+	private static volatile boolean discoveryChunksSeeded = false;
 
 	private ChunkManagerSystem() {
 	}
@@ -63,6 +71,100 @@ public final class ChunkManagerSystem {
 		void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ);
 	}
 
+	public static final class ChunkDiscoverySnapshot {
+		private final String levelId;
+		private final int chunkX;
+		private final int chunkZ;
+		private final List<ColumnSample> motionColumns;
+		private final List<ColumnSample> surfaceColumns;
+
+		private ChunkDiscoverySnapshot(
+			String levelId,
+			int chunkX,
+			int chunkZ,
+			List<ColumnSample> motionColumns,
+			List<ColumnSample> surfaceColumns
+		) {
+			this.levelId = levelId == null ? "" : levelId;
+			this.chunkX = chunkX;
+			this.chunkZ = chunkZ;
+			this.motionColumns = motionColumns == null ? List.of() : motionColumns;
+			this.surfaceColumns = surfaceColumns == null ? List.of() : surfaceColumns;
+		}
+
+		public String levelId() {
+			return levelId;
+		}
+
+		public int chunkX() {
+			return chunkX;
+		}
+
+		public int chunkZ() {
+			return chunkZ;
+		}
+
+		public List<ColumnSample> motionColumns() {
+			return motionColumns;
+		}
+
+		public List<ColumnSample> surfaceColumns() {
+			return surfaceColumns;
+		}
+	}
+
+	public static final class ColumnSample {
+		private final int worldX;
+		private final int worldZ;
+		private final int[] yByDepth;
+		private final long[] posByDepth;
+		private final BlockState[] stateByDepth;
+
+		private ColumnSample(int worldX, int worldZ, int[] yByDepth, long[] posByDepth, BlockState[] stateByDepth) {
+			this.worldX = worldX;
+			this.worldZ = worldZ;
+			this.yByDepth = yByDepth;
+			this.posByDepth = posByDepth;
+			this.stateByDepth = stateByDepth;
+		}
+
+		public int worldX() {
+			return worldX;
+		}
+
+		public int worldZ() {
+			return worldZ;
+		}
+
+		public boolean hasDepth(int depth) {
+			return depth >= 0 && depth < yByDepth.length && yByDepth[depth] != Integer.MIN_VALUE;
+		}
+
+		public int yAtDepth(int depth) {
+			return hasDepth(depth) ? yByDepth[depth] : Integer.MIN_VALUE;
+		}
+
+		public long posAtDepth(int depth) {
+			return hasDepth(depth) ? posByDepth[depth] : 0L;
+		}
+
+		public BlockState stateAtDepth(int depth) {
+			return hasDepth(depth) ? stateByDepth[depth] : null;
+		}
+	}
+
+	public static ChunkDiscoverySnapshot getActiveDiscoverySnapshot(ServerLevel level, int chunkX, int chunkZ) {
+		ChunkDiscoverySnapshot snapshot = ACTIVE_DISCOVERY_SNAPSHOT.get();
+		if (snapshot == null || level == null) {
+			return null;
+		}
+		return snapshot.chunkX() == chunkX
+			&& snapshot.chunkZ() == chunkZ
+			&& snapshot.levelId().equals(levelId(level))
+			? snapshot
+			: null;
+	}
+
 	public static void initialize() {
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkManagerSystem::runChunkRefreshTask);
 		ServerChunkEvents.CHUNK_LOAD.register(ChunkManagerSystem::onChunkLoad);
@@ -71,6 +173,8 @@ public final class ChunkManagerSystem {
 
 	public static void reset() {
 		CHUNK_STATUSES_BY_LEVEL.clear();
+		DISCOVERY_LOADED_CHUNKS.clear();
+		DISCOVERY_LOADED_CHUNK_KEYS.clear();
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime != null) {
 				runtime.resetState();
@@ -81,6 +185,8 @@ public final class ChunkManagerSystem {
 		serverStopping = false;
 		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
+		discoveryChunkScanCursor = 0;
+		discoveryChunksSeeded = false;
 	}
 
 	public static void registerChunkLifecycleListener(ChunkLifecycleListener listener) {
@@ -106,11 +212,7 @@ public final class ChunkManagerSystem {
 	}
 
 	public static void runChunkProcessorDiscoveryStep(MinecraftServer server, String processorId) {
-		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
-		if (runtime == null || runtime.processor == null || server == null) {
-			return;
-		}
-		discoverOneLoadedChunk(server, runtime);
+		runSharedChunkDiscoverySteps(server, 1);
 	}
 
 	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
@@ -157,6 +259,10 @@ public final class ChunkManagerSystem {
 		// Chunk activity is runtime state; the persisted file is a snapshot and is not restored as live truth.
 		DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		CHUNK_STATUSES_BY_LEVEL.clear();
+		DISCOVERY_LOADED_CHUNKS.clear();
+		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		discoveryChunkScanCursor = 0;
+		discoveryChunksSeeded = false;
 		serverStopping = false;
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
@@ -169,6 +275,8 @@ public final class ChunkManagerSystem {
 		}
 
 		serverStopping = false;
+		discoveryChunkScanCursor = 0;
+		discoveryChunksSeeded = false;
 		seedLoadedChunks(server);
 		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
 			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
@@ -292,13 +400,17 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		ChunkPos chunkPos = chunk.getPos();
-		putChunkStatus(levelId(level), chunkPos.pack(), FullChunkStatus.FULL);
+		String loadedLevelId = levelId(level);
+		putChunkStatus(loadedLevelId, chunkPos.pack(), FullChunkStatus.FULL);
+		ProcessorChunkKey chunkKey = new ProcessorChunkKey(loadedLevelId, chunkPos.x(), chunkPos.z());
+		addSharedDiscoveryLoadedChunk(chunkKey);
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
 			}
-			runtime.discoveryChunksSeeded = true;
-			addDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(level), chunkPos.x(), chunkPos.z()));
+			if (runtime.trackedChunksWithState.contains(chunkKey)) {
+				addLoadedTrackedChunk(runtime, chunkKey);
+			}
 		}
 		notifyChunkLoaded(level, chunkPos.x(), chunkPos.z());
 	}
@@ -311,13 +423,15 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		ChunkPos chunkPos = chunk.getPos();
-		removeChunk(levelId(level), chunkPos.pack());
+		String unloadedLevelId = levelId(level);
+		removeChunk(unloadedLevelId, chunkPos.pack());
+		ProcessorChunkKey chunkKey = new ProcessorChunkKey(unloadedLevelId, chunkPos.x(), chunkPos.z());
+		removeSharedDiscoveryLoadedChunk(chunkKey);
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
 			}
-			runtime.discoveryChunksSeeded = true;
-			removeDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(level), chunkPos.x(), chunkPos.z()));
+			removeLoadedTrackedChunk(runtime, chunkKey);
 		}
 		notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 	}
@@ -332,10 +446,14 @@ public final class ChunkManagerSystem {
 		}
 
 		refreshTrackedChunks(server);
+		runSharedChunkDiscoverySteps(server, DISCOVERY_STEPS_PER_REFRESH);
 		requestChunkRefresh(server, CHUNK_REFRESH_INTERVAL_TICKS);
 	}
 
 	private static void seedLoadedChunks(MinecraftServer server) {
+		DISCOVERY_LOADED_CHUNKS.clear();
+		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		discoveryChunkScanCursor = 0;
 		for (ServerLevel level : server.getAllLevels()) {
 			if (level == null) {
 				continue;
@@ -350,9 +468,11 @@ public final class ChunkManagerSystem {
 				FullChunkStatus status = resolveChunkStatus(level, chunk.getPos().pack());
 				if (status != null) {
 					putChunkStatus(levelId, chunk.getPos().pack(), status);
+					addSharedDiscoveryLoadedChunk(new ProcessorChunkKey(levelId, chunk.getPos().x(), chunk.getPos().z()));
 				}
 			});
 		}
+		discoveryChunksSeeded = true;
 	}
 
 	private static void refreshTrackedChunks(MinecraftServer server) {
@@ -546,79 +666,140 @@ public final class ChunkManagerSystem {
 		}
 	}
 
-	private static void discoverOneLoadedChunk(MinecraftServer server, ChunkProcessorRuntime runtime) {
-		if (server == null || runtime == null || runtime.processor == null) {
-			return;
+	private static void runSharedChunkDiscoverySteps(MinecraftServer server, int steps) {
+		int safeSteps = Math.max(1, steps);
+		for (int i = 0; i < safeSteps; i++) {
+			runSharedChunkDiscoveryStep(server);
 		}
-		seedDiscoveryChunksIfNeeded(server, runtime);
-		if (runtime.discoveryLoadedChunks.isEmpty()) {
-			runtime.chunkScanCursor = 0;
+	}
+
+	private static void runSharedChunkDiscoveryStep(MinecraftServer server) {
+		if (server == null) {
 			return;
 		}
 
-		int selectedIndex = Math.floorMod(runtime.chunkScanCursor, runtime.discoveryLoadedChunks.size());
-		ProcessorChunkKey selectedChunk = runtime.discoveryLoadedChunks.get(selectedIndex);
+		seedSharedDiscoveryChunksIfNeeded(server);
+		if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
+			discoveryChunkScanCursor = 0;
+			return;
+		}
+
+		int selectedIndex = Math.floorMod(discoveryChunkScanCursor, DISCOVERY_LOADED_CHUNKS.size());
+		ProcessorChunkKey selectedChunk = DISCOVERY_LOADED_CHUNKS.get(selectedIndex);
 		ServerLevel world = resolveLevel(server, selectedChunk.levelId());
 		boolean loaded = world != null && isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
-		if (loaded && runtime.processor.acceptsWorld(world)) {
-			runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
-		} else {
-			removeDiscoveryLoadedChunk(runtime, selectedChunk);
-			if (runtime.discoveryLoadedChunks.isEmpty()) {
-				runtime.chunkScanCursor = 0;
+		if (!loaded) {
+			removeSharedDiscoveryLoadedChunk(selectedChunk);
+			if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
+				discoveryChunkScanCursor = 0;
 			} else {
-				runtime.chunkScanCursor = Math.min(runtime.chunkScanCursor, runtime.discoveryLoadedChunks.size() - 1);
+				discoveryChunkScanCursor = Math.min(discoveryChunkScanCursor, DISCOVERY_LOADED_CHUNKS.size() - 1);
 			}
 			return;
 		}
 
-		boolean completedCycle = selectedIndex + 1 >= runtime.discoveryLoadedChunks.size();
-		runtime.chunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
+		ChunkDiscoverySnapshot discoverySnapshot = buildDiscoverySnapshot(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		ACTIVE_DISCOVERY_SNAPSHOT.set(discoverySnapshot);
+		try {
+			for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+				if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(world)) {
+					continue;
+				}
+				runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+			}
+		} finally {
+			ACTIVE_DISCOVERY_SNAPSHOT.remove();
+		}
+
+		boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
+		discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
 	}
 
-	private static void seedDiscoveryChunksIfNeeded(MinecraftServer server, ChunkProcessorRuntime runtime) {
-		if (server == null || runtime == null || runtime.processor == null || runtime.discoveryChunksSeeded) {
+	private static void seedSharedDiscoveryChunksIfNeeded(MinecraftServer server) {
+		if (server == null || discoveryChunksSeeded) {
 			return;
 		}
-		runtime.discoveryChunksSeeded = true;
+		discoveryChunksSeeded = true;
 		for (ServerLevel world : server.getAllLevels()) {
-			if (world == null || !runtime.processor.acceptsWorld(world)) {
+			if (world == null) {
 				continue;
 			}
 			for (Long packedChunk : getLoadedChunkPositions(world)) {
 				if (packedChunk == null) {
 					continue;
 				}
-				addDiscoveryLoadedChunk(runtime, new ProcessorChunkKey(levelId(world), unpackChunkX(packedChunk), unpackChunkZ(packedChunk)));
+				addSharedDiscoveryLoadedChunk(new ProcessorChunkKey(levelId(world), unpackChunkX(packedChunk), unpackChunkZ(packedChunk)));
 			}
 		}
 	}
 
-	private static void addDiscoveryLoadedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
-		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+	private static void addSharedDiscoveryLoadedChunk(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null || chunkKey.levelId().isBlank()) {
 			return;
 		}
-		if (!runtime.discoveryLoadedChunkKeys.add(chunkKey)) {
+		if (!DISCOVERY_LOADED_CHUNK_KEYS.add(chunkKey)) {
 			return;
 		}
-		runtime.discoveryLoadedChunks.add(chunkKey);
-		if (runtime.trackedChunksWithState.contains(chunkKey)) {
-			addLoadedTrackedChunk(runtime, chunkKey);
-		}
+		DISCOVERY_LOADED_CHUNKS.add(chunkKey);
 	}
 
-	private static void removeDiscoveryLoadedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
-		if (runtime == null || chunkKey == null) {
+	private static ChunkDiscoverySnapshot buildDiscoverySnapshot(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null) {
+			return new ChunkDiscoverySnapshot("", chunkX, chunkZ, List.of(), List.of());
+		}
+
+		List<ColumnSample> motionColumns = new ArrayList<>(16 * 16);
+		List<ColumnSample> surfaceColumns = new ArrayList<>(16 * 16);
+		int minX = chunkX << 4;
+		int minZ = chunkZ << 4;
+		int minY = world.getMinY();
+		int maxY = world.getMaxY() - 1;
+
+		for (int localX = 0; localX < 16; localX++) {
+			for (int localZ = 0; localZ < 16; localZ++) {
+				int worldX = minX + localX;
+				int worldZ = minZ + localZ;
+				int motionTopY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
+				int surfaceTopY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
+				motionColumns.add(sampleColumn(world, worldX, worldZ, minY, motionTopY));
+				surfaceColumns.add(sampleColumn(world, worldX, worldZ, minY, surfaceTopY));
+			}
+		}
+
+		return new ChunkDiscoverySnapshot(levelId(world), chunkX, chunkZ, motionColumns, surfaceColumns);
+	}
+
+	private static ColumnSample sampleColumn(ServerLevel world, int worldX, int worldZ, int minY, int topY) {
+		int[] yByDepth = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+		long[] posByDepth = new long[3];
+		BlockState[] stateByDepth = new BlockState[3];
+		if (topY < minY || world == null) {
+			return new ColumnSample(worldX, worldZ, yByDepth, posByDepth, stateByDepth);
+		}
+
+		for (int depth = 0; depth <= 2; depth++) {
+			int y = topY - depth;
+			if (y < minY) {
+				break;
+			}
+			long packedPos = net.minecraft.core.BlockPos.asLong(worldX, y, worldZ);
+			yByDepth[depth] = y;
+			posByDepth[depth] = packedPos;
+			stateByDepth[depth] = world.getBlockState(net.minecraft.core.BlockPos.of(packedPos));
+		}
+		return new ColumnSample(worldX, worldZ, yByDepth, posByDepth, stateByDepth);
+	}
+
+	private static void removeSharedDiscoveryLoadedChunk(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null) {
 			return;
 		}
-		if (!runtime.discoveryLoadedChunkKeys.remove(chunkKey)) {
-			removeLoadedTrackedChunk(runtime, chunkKey);
+		if (!DISCOVERY_LOADED_CHUNK_KEYS.remove(chunkKey)) {
 			return;
 		}
-		runtime.discoveryLoadedChunks.remove(chunkKey);
-		removeLoadedTrackedChunk(runtime, chunkKey);
-		if (runtime.chunkScanCursor >= runtime.discoveryLoadedChunks.size()) {
-			runtime.chunkScanCursor = 0;
+		DISCOVERY_LOADED_CHUNKS.remove(chunkKey);
+		if (discoveryChunkScanCursor >= DISCOVERY_LOADED_CHUNKS.size()) {
+			discoveryChunkScanCursor = 0;
 		}
 	}
 
@@ -629,7 +810,7 @@ public final class ChunkManagerSystem {
 		if (runtime.trackedChunksWithState.add(chunkKey)) {
 			runtime.trackedChunkCycle.add(chunkKey);
 		}
-		if (runtime.discoveryLoadedChunkKeys.contains(chunkKey)) {
+		if (isKnownLoadedChunk(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ())) {
 			addLoadedTrackedChunk(runtime, chunkKey);
 		}
 	}
@@ -666,6 +847,18 @@ public final class ChunkManagerSystem {
 		if (runtime.activeChunkProcessCursor >= runtime.loadedTrackedChunkCycle.size()) {
 			runtime.activeChunkProcessCursor = 0;
 		}
+	}
+
+	private static boolean isKnownLoadedChunk(String levelId, int chunkX, int chunkZ) {
+		if (levelId == null || levelId.isBlank()) {
+			return false;
+		}
+		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId);
+		if (chunks == null || chunks.isEmpty()) {
+			return false;
+		}
+		FullChunkStatus status = chunks.get(packChunk(chunkX, chunkZ));
+		return status != null && status.isOrAfter(FullChunkStatus.FULL);
 	}
 
 	private static String normalizeProcessorId(String processorId) {
@@ -736,30 +929,22 @@ public final class ChunkManagerSystem {
 
 	private static final class ChunkProcessorRuntime {
 		private final ChunkProcessor processor;
-		private final List<ProcessorChunkKey> discoveryLoadedChunks = new ArrayList<>();
-		private final Set<ProcessorChunkKey> discoveryLoadedChunkKeys = new LinkedHashSet<>();
 		private final Set<ProcessorChunkKey> trackedChunksWithState = new LinkedHashSet<>();
 		private final List<ProcessorChunkKey> trackedChunkCycle = new ArrayList<>();
 		private final Set<ProcessorChunkKey> loadedTrackedChunkKeys = new LinkedHashSet<>();
 		private final List<ProcessorChunkKey> loadedTrackedChunkCycle = new ArrayList<>();
-		private int chunkScanCursor = 0;
 		private int activeChunkProcessCursor = 0;
-		private boolean discoveryChunksSeeded = false;
 
 		private ChunkProcessorRuntime(ChunkProcessor processor) {
 			this.processor = processor;
 		}
 
 		private void resetState() {
-			discoveryLoadedChunks.clear();
-			discoveryLoadedChunkKeys.clear();
 			trackedChunksWithState.clear();
 			trackedChunkCycle.clear();
 			loadedTrackedChunkKeys.clear();
 			loadedTrackedChunkCycle.clear();
-			chunkScanCursor = 0;
 			activeChunkProcessCursor = 0;
-			discoveryChunksSeeded = false;
 		}
 	}
 
