@@ -142,14 +142,13 @@ public final class MadokuEcosystemConfig {
 		JsonObject dirtRoot = readObject(source, FIELD_NATURAL_DIRT_GROWTH);
 		JsonObject grassRoot = readObject(source, FIELD_NATURAL_GRASS_GROWTH);
 		JsonObject foliageRoot = readObject(source, FIELD_NATURAL_FOLIAGE_GROWTH);
-		GrowthProfile legacyFoliageProfile = readGrowthProfile(foliageRoot, fallback.foliageWildflowersGrowth());
 		JsonObject wildflowerFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_WILDFLOWERS);
 		JsonObject pinkPetalFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_PINK_PETALS);
 		JsonObject treeRoot = readObject(source, FIELD_NATURAL_TREE_GROWTH);
 		return new NaturalGrowthSettings(
 			readGrowthProfile(dirtRoot, fallback.dirtGrowth()),
 			readGrowthProfile(grassRoot, fallback.grassGrowth()),
-			wildflowerFoliageRoot == null ? legacyFoliageProfile : readGrowthProfile(wildflowerFoliageRoot, fallback.foliageWildflowersGrowth()),
+			readGrowthProfile(wildflowerFoliageRoot, fallback.foliageWildflowersGrowth()),
 			readGrowthProfile(pinkPetalFoliageRoot, fallback.foliagePinkPetalsGrowth()),
 			readTreeGrowthProfile(treeRoot, FIELD_TREE_OAK, fallback.treeOakGrowth()),
 			readTreeGrowthProfile(treeRoot, FIELD_TREE_SPRUCE, fallback.treeSpruceGrowth()),

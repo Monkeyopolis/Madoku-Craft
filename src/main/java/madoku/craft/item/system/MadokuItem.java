@@ -984,11 +984,7 @@ public final class MadokuItem {
 	}
 
 	private static int readComposterAdjustment(JsonObject root) {
-		int fallback = readInt(root, MadokuItemConfig.FIELD_COMPOSTER_ADJUSTMENT, 1);
-		if (fallback <= 0) {
-			fallback = readInt(root, "adjustment", 1);
-		}
-		return Math.max(1, fallback);
+		return Math.max(1, readInt(root, MadokuItemConfig.FIELD_COMPOSTER_ADJUSTMENT, 1));
 	}
 
 	private static void emitConfigLoaded() {

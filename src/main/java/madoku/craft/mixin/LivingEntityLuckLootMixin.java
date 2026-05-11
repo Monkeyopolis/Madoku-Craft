@@ -4,8 +4,10 @@ import madoku.craft.luck.MadokuLuck;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.storage.loot.LootTable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,12 +30,24 @@ public abstract class LivingEntityLuckLootMixin {
 		boolean causedByPlayer,
 		ResourceKey<LootTable> lootTableKey
 	) {
+		LivingEntity livingEntity = (LivingEntity) (Object) this;
+		Consumer<ItemStack> normalizedConsumer = stack -> {
+			if (stack != null
+				&& !stack.isEmpty()
+				&& livingEntity.getType() == EntityType.ZOMBIFIED_PIGLIN
+				&& stack.is(Items.GOLD_NUGGET)) {
+				consumer.accept(new ItemStack(Items.IRON_NUGGET, stack.getCount()));
+				return;
+			}
+			consumer.accept(stack);
+		};
+
 		return MadokuLuck.wrapMobDeathLootConsumer(
 			level,
-			(LivingEntity) (Object) this,
+			livingEntity,
 			damageSource,
 			causedByPlayer,
-			consumer
+			normalizedConsumer
 		);
 	}
 }
