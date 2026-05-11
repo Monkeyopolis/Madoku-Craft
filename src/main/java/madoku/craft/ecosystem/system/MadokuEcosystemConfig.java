@@ -16,9 +16,18 @@ public final class MadokuEcosystemConfig {
 
 	public static final String FIELD_NATURAL_DIRT_GROWTH = "natural-dirt-growth";
 	public static final String FIELD_NATURAL_GRASS_GROWTH = "natural-grass-growth";
+	public static final String FIELD_NATURAL_FOLIAGE_GROWTH = "natural-foliage-growth";
 	public static final String FIELD_NATURAL_TREE_GROWTH = "natural-tree-growth";
 	public static final String FIELD_MIN_GROWTH_TIME = "min-growth-time";
 	public static final String FIELD_MAX_GROWTH_TIME = "max-growth-time";
+	public static final String FIELD_GROWTH_TIME = "growth-time";
+	public static final String FIELD_GROWTH_SPEED_MULTIPLIER = "growth-speed-multiplier";
+	public static final String FIELD_MIN_EROSION_TIME = "min-erosion-time";
+	public static final String FIELD_MAX_EROSION_TIME = "max-erosion-time";
+	public static final String FIELD_MIN_DECAY_TIME = "min-decay-time";
+	public static final String FIELD_MAX_DECAY_TIME = "max-decay-time";
+	public static final String FIELD_DECAY_TIME = "decay-time";
+	public static final String FIELD_DECAY_SPEED_MULTIPLIER = "decay-speed-multiplier";
 
 	public static final String FIELD_SEASON_SPRING = "spring";
 	public static final String FIELD_SEASON_SUMMER = "summer";
@@ -34,17 +43,20 @@ public final class MadokuEcosystemConfig {
 	public static final String FIELD_TREE_DARK_OAK = "dark_oak";
 	public static final String FIELD_TREE_PALE_OAK = "pale_oak";
 	public static final String FIELD_TREE_CHERRY = "cherry";
+	public static final String FIELD_FOLIAGE_WILDFLOWERS = "wildflowers";
+	public static final String FIELD_FOLIAGE_PINK_PETALS = "pink_petals";
 
 	public static final String FIELD_WATER_EROSION_RADIUS = "water-erosion-radius";
 	public static final String FIELD_BLOCK_EROSION_MUD = "block-erosion-mud";
 	public static final String FIELD_BLOCK_EROSION_RED_SAND = "block-erosion-red-sand";
 	public static final String FIELD_BLOCK_EROSION_SAND = "block-erosion-sand";
+	public static final String FIELD_NATURAL_TREE_DECAY = "natural-tree-decay";
 
 	private static final String FIELD_SOURCE_BLOCKS = "source-blocks";
 	private static final String FIELD_TARGET_BLOCK = "target-block";
 	private static final String FIELD_REQUIRED_BIOME_IDS = "required-biome-ids";
 	private static final String FIELD_REQUIRED_BIOME_TAGS = "required-biome-tags";
-	private static final String FIELD_GROWTH_DAYS = "growth-days";
+	private static final String FIELD_EROSION_TIME = "erosion-time";
 
 	private MadokuEcosystemConfig() {
 	}
@@ -53,23 +65,19 @@ public final class MadokuEcosystemConfig {
 		return new Settings(
 			new SystemSettings(true, true),
 			new NaturalGrowthSettings(
-				new DayRange(1, 3),
-				new DayRange(3, 5),
-				new DayRange(3, 5),
-				new DayRange(7, 9),
-				new DayRange(1, 3),
-				new DayRange(3, 5),
-				new DayRange(3, 5),
-				new DayRange(7, 9),
-				new TreeGrowthProfile(new DayRange(3, 9), new DayRange(7, 13), new DayRange(11, 17), new DayRange(11, 17)),
-				new TreeGrowthProfile(new DayRange(11, 17), new DayRange(11, 17), new DayRange(7, 13), new DayRange(3, 9)),
-				new TreeGrowthProfile(new DayRange(7, 13), new DayRange(7, 13), new DayRange(7, 13), new DayRange(7, 13)),
-				new TreeGrowthProfile(new DayRange(11, 17), new DayRange(3, 9), new DayRange(11, 17), new DayRange(11, 17)),
-				new TreeGrowthProfile(new DayRange(11, 17), new DayRange(3, 9), new DayRange(11, 17), new DayRange(11, 17)),
-				new TreeGrowthProfile(new DayRange(7, 13), new DayRange(11, 17), new DayRange(7, 13), new DayRange(11, 17)),
-				new TreeGrowthProfile(new DayRange(7, 13), new DayRange(7, 13), new DayRange(11, 17), new DayRange(11, 17)),
-				new TreeGrowthProfile(new DayRange(11, 17), new DayRange(11, 17), new DayRange(7, 13), new DayRange(7, 13)),
-				new TreeGrowthProfile(new DayRange(3, 9), new DayRange(11, 17), new DayRange(3, 9), new DayRange(11, 17))
+				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
+				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
+				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(3.5d, 0.0d, 0.5d, 0.0d)),
+				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(3.0d, 0.0d, 1.0d, 0.0d)),
+				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)),
+				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.0d, 0.25d, 1.25d, 1.5d)),
+				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
+				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.0d, 2.0d, 0.75d, 0.25d)),
+				new GrowthProfile(new DayRange(11, 19), new SeasonGrowthMultiplier(0.5d, 3.0d, 0.5d, 0.0d)),
+				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.25d, 1.25d, 0.75d, 0.75d)),
+				new GrowthProfile(new DayRange(11, 19), new SeasonGrowthMultiplier(1.25d, 1.75d, 0.75d, 0.25d)),
+				new GrowthProfile(new DayRange(11, 19), new SeasonGrowthMultiplier(1.5d, 0.5d, 1.5d, 0.5d)),
+				new GrowthProfile(new DayRange(11, 19), new SeasonGrowthMultiplier(2.0d, 0.5d, 1.0d, 0.5d))
 			),
 			new NaturalErosionSettings(
 				2,
@@ -96,7 +104,8 @@ public final class MadokuEcosystemConfig {
 					List.of(),
 					List.of(),
 					new DayRange(7, 11)
-				)
+				),
+				new DecayProfile(new DayRange(3, 7), new SeasonGrowthMultiplier(1.0d, 0.0d, 3.0d, 0.0d))
 			)
 		);
 	}
@@ -132,25 +141,25 @@ public final class MadokuEcosystemConfig {
 
 		JsonObject dirtRoot = readObject(source, FIELD_NATURAL_DIRT_GROWTH);
 		JsonObject grassRoot = readObject(source, FIELD_NATURAL_GRASS_GROWTH);
+		JsonObject foliageRoot = readObject(source, FIELD_NATURAL_FOLIAGE_GROWTH);
+		GrowthProfile legacyFoliageProfile = readGrowthProfile(foliageRoot, fallback.foliageWildflowersGrowth());
+		JsonObject wildflowerFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_WILDFLOWERS);
+		JsonObject pinkPetalFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_PINK_PETALS);
 		JsonObject treeRoot = readObject(source, FIELD_NATURAL_TREE_GROWTH);
 		return new NaturalGrowthSettings(
-			readRange(dirtRoot, FIELD_SEASON_SPRING, fallback.dirtSpringGrowthDays()),
-			readRange(dirtRoot, FIELD_SEASON_SUMMER, fallback.dirtSummerGrowthDays()),
-			readRange(dirtRoot, FIELD_SEASON_FALL, fallback.dirtFallGrowthDays()),
-			readRange(dirtRoot, FIELD_SEASON_WINTER, fallback.dirtWinterGrowthDays()),
-			readRange(grassRoot, FIELD_SEASON_SPRING, fallback.grassSpringGrowthDays()),
-			readRange(grassRoot, FIELD_SEASON_SUMMER, fallback.grassSummerGrowthDays()),
-			readRange(grassRoot, FIELD_SEASON_FALL, fallback.grassFallGrowthDays()),
-			readRange(grassRoot, FIELD_SEASON_WINTER, fallback.grassWinterGrowthDays()),
-			readTreeProfile(treeRoot, FIELD_TREE_OAK, fallback.treeOakGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_SPRUCE, fallback.treeSpruceGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_BIRCH, fallback.treeBirchGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_JUNGLE, fallback.treeJungleGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_MANGROVE, fallback.treeMangroveGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_ACACIA, fallback.treeAcaciaGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_DARK_OAK, fallback.treeDarkOakGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_PALE_OAK, fallback.treePaleOakGrowth()),
-			readTreeProfile(treeRoot, FIELD_TREE_CHERRY, fallback.treeCherryGrowth())
+			readGrowthProfile(dirtRoot, fallback.dirtGrowth()),
+			readGrowthProfile(grassRoot, fallback.grassGrowth()),
+			wildflowerFoliageRoot == null ? legacyFoliageProfile : readGrowthProfile(wildflowerFoliageRoot, fallback.foliageWildflowersGrowth()),
+			readGrowthProfile(pinkPetalFoliageRoot, fallback.foliagePinkPetalsGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_OAK, fallback.treeOakGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_SPRUCE, fallback.treeSpruceGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_BIRCH, fallback.treeBirchGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_JUNGLE, fallback.treeJungleGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_MANGROVE, fallback.treeMangroveGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_ACACIA, fallback.treeAcaciaGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_DARK_OAK, fallback.treeDarkOakGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_PALE_OAK, fallback.treePaleOakGrowth()),
+			readTreeGrowthProfile(treeRoot, FIELD_TREE_CHERRY, fallback.treeCherryGrowth())
 		);
 	}
 
@@ -163,7 +172,8 @@ public final class MadokuEcosystemConfig {
 			Math.max(0, readInt(source, FIELD_WATER_EROSION_RADIUS, fallback.waterErosionRadius())),
 			readRule(source, FIELD_BLOCK_EROSION_MUD, fallback.blockErosionMud()),
 			readRule(source, FIELD_BLOCK_EROSION_RED_SAND, fallback.blockErosionRedSand()),
-			readRule(source, FIELD_BLOCK_EROSION_SAND, fallback.blockErosionSand())
+			readRule(source, FIELD_BLOCK_EROSION_SAND, fallback.blockErosionSand()),
+			readDecayProfile(readObject(source, FIELD_NATURAL_TREE_DECAY), fallback.naturalTreeDecay())
 		);
 	}
 
@@ -179,30 +189,23 @@ public final class MadokuEcosystemConfig {
 		NaturalGrowthSettings value = settings == null ? defaults().naturalGrowth() : settings;
 		JsonObject root = new JsonObject();
 
-		JsonObject dirtRoot = new JsonObject();
-		dirtRoot.add(FIELD_SEASON_SPRING, toRangeJson(value.dirtSpringGrowthDays()));
-		dirtRoot.add(FIELD_SEASON_SUMMER, toRangeJson(value.dirtSummerGrowthDays()));
-		dirtRoot.add(FIELD_SEASON_FALL, toRangeJson(value.dirtFallGrowthDays()));
-		dirtRoot.add(FIELD_SEASON_WINTER, toRangeJson(value.dirtWinterGrowthDays()));
-		root.add(FIELD_NATURAL_DIRT_GROWTH, dirtRoot);
-
-		JsonObject grassRoot = new JsonObject();
-		grassRoot.add(FIELD_SEASON_SPRING, toRangeJson(value.grassSpringGrowthDays()));
-		grassRoot.add(FIELD_SEASON_SUMMER, toRangeJson(value.grassSummerGrowthDays()));
-		grassRoot.add(FIELD_SEASON_FALL, toRangeJson(value.grassFallGrowthDays()));
-		grassRoot.add(FIELD_SEASON_WINTER, toRangeJson(value.grassWinterGrowthDays()));
-		root.add(FIELD_NATURAL_GRASS_GROWTH, grassRoot);
+		root.add(FIELD_NATURAL_DIRT_GROWTH, toGrowthProfileJson(value.dirtGrowth()));
+		root.add(FIELD_NATURAL_GRASS_GROWTH, toGrowthProfileJson(value.grassGrowth()));
+		JsonObject foliageRoot = new JsonObject();
+		foliageRoot.add(FIELD_FOLIAGE_WILDFLOWERS, toGrowthProfileJson(value.foliageWildflowersGrowth()));
+		foliageRoot.add(FIELD_FOLIAGE_PINK_PETALS, toGrowthProfileJson(value.foliagePinkPetalsGrowth()));
+		root.add(FIELD_NATURAL_FOLIAGE_GROWTH, foliageRoot);
 
 		JsonObject treeRoot = new JsonObject();
-		treeRoot.add(FIELD_TREE_OAK, toTreeProfileJson(value.treeOakGrowth()));
-		treeRoot.add(FIELD_TREE_SPRUCE, toTreeProfileJson(value.treeSpruceGrowth()));
-		treeRoot.add(FIELD_TREE_BIRCH, toTreeProfileJson(value.treeBirchGrowth()));
-		treeRoot.add(FIELD_TREE_JUNGLE, toTreeProfileJson(value.treeJungleGrowth()));
-		treeRoot.add(FIELD_TREE_MANGROVE, toTreeProfileJson(value.treeMangroveGrowth()));
-		treeRoot.add(FIELD_TREE_ACACIA, toTreeProfileJson(value.treeAcaciaGrowth()));
-		treeRoot.add(FIELD_TREE_DARK_OAK, toTreeProfileJson(value.treeDarkOakGrowth()));
-		treeRoot.add(FIELD_TREE_PALE_OAK, toTreeProfileJson(value.treePaleOakGrowth()));
-		treeRoot.add(FIELD_TREE_CHERRY, toTreeProfileJson(value.treeCherryGrowth()));
+		treeRoot.add(FIELD_TREE_OAK, toGrowthProfileJson(value.treeOakGrowth()));
+		treeRoot.add(FIELD_TREE_SPRUCE, toGrowthProfileJson(value.treeSpruceGrowth()));
+		treeRoot.add(FIELD_TREE_BIRCH, toGrowthProfileJson(value.treeBirchGrowth()));
+		treeRoot.add(FIELD_TREE_JUNGLE, toGrowthProfileJson(value.treeJungleGrowth()));
+		treeRoot.add(FIELD_TREE_MANGROVE, toGrowthProfileJson(value.treeMangroveGrowth()));
+		treeRoot.add(FIELD_TREE_ACACIA, toGrowthProfileJson(value.treeAcaciaGrowth()));
+		treeRoot.add(FIELD_TREE_DARK_OAK, toGrowthProfileJson(value.treeDarkOakGrowth()));
+		treeRoot.add(FIELD_TREE_PALE_OAK, toGrowthProfileJson(value.treePaleOakGrowth()));
+		treeRoot.add(FIELD_TREE_CHERRY, toGrowthProfileJson(value.treeCherryGrowth()));
 		root.add(FIELD_NATURAL_TREE_GROWTH, treeRoot);
 		return root;
 	}
@@ -214,6 +217,7 @@ public final class MadokuEcosystemConfig {
 		root.add(FIELD_BLOCK_EROSION_MUD, toRuleJson(value.blockErosionMud()));
 		root.add(FIELD_BLOCK_EROSION_RED_SAND, toRuleJson(value.blockErosionRedSand()));
 		root.add(FIELD_BLOCK_EROSION_SAND, toRuleJson(value.blockErosionSand()));
+		root.add(FIELD_NATURAL_TREE_DECAY, toDecayProfileJson(value.naturalTreeDecay()));
 		return root;
 	}
 
@@ -226,23 +230,54 @@ public final class MadokuEcosystemConfig {
 		return rules;
 	}
 
-	private static TreeGrowthProfile readTreeProfile(JsonObject root, String treeKey, TreeGrowthProfile fallback) {
+	private static GrowthProfile readTreeGrowthProfile(JsonObject root, String treeKey, GrowthProfile fallback) {
 		JsonObject treeRoot = readObject(root, treeKey);
-		return new TreeGrowthProfile(
-			readRange(treeRoot, FIELD_SEASON_SPRING, fallback.spring()),
-			readRange(treeRoot, FIELD_SEASON_SUMMER, fallback.summer()),
-			readRange(treeRoot, FIELD_SEASON_FALL, fallback.fall()),
-			readRange(treeRoot, FIELD_SEASON_WINTER, fallback.winter())
+		return readGrowthProfile(treeRoot, fallback);
+	}
+
+	private static GrowthProfile readGrowthProfile(JsonObject root, GrowthProfile fallback) {
+		GrowthProfile value = fallback == null ? new GrowthProfile(new DayRange(1, 1), new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)) : fallback;
+		if (root == null || (!root.has(FIELD_GROWTH_TIME) && !root.has(FIELD_GROWTH_SPEED_MULTIPLIER))) {
+			return value;
+		}
+		JsonObject multiplierRoot = readObject(root, FIELD_GROWTH_SPEED_MULTIPLIER);
+		return new GrowthProfile(
+			readRange(root, FIELD_GROWTH_TIME, value.growthTime()),
+			readSeasonGrowthMultiplier(multiplierRoot, value.growthSpeedMultiplier())
 		);
 	}
 
-	private static JsonObject toTreeProfileJson(TreeGrowthProfile profile) {
-		TreeGrowthProfile value = profile == null ? defaults().naturalGrowth().treeOakGrowth() : profile;
+	private static JsonObject toGrowthProfileJson(GrowthProfile profile) {
+		GrowthProfile value = profile == null
+			? new GrowthProfile(new DayRange(1, 1), new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d))
+			: profile;
 		JsonObject root = new JsonObject();
-		root.add(FIELD_SEASON_SPRING, toRangeJson(value.spring()));
-		root.add(FIELD_SEASON_SUMMER, toRangeJson(value.summer()));
-		root.add(FIELD_SEASON_FALL, toRangeJson(value.fall()));
-		root.add(FIELD_SEASON_WINTER, toRangeJson(value.winter()));
+		root.add(FIELD_GROWTH_TIME, toRangeJson(value.growthTime()));
+		root.add(FIELD_GROWTH_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.growthSpeedMultiplier()));
+		return root;
+	}
+
+	private static SeasonGrowthMultiplier readSeasonGrowthMultiplier(JsonObject root, SeasonGrowthMultiplier fallback) {
+		SeasonGrowthMultiplier value = fallback == null
+			? new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)
+			: fallback;
+		return new SeasonGrowthMultiplier(
+			readDouble(root, FIELD_SEASON_SPRING, value.spring()),
+			readDouble(root, FIELD_SEASON_SUMMER, value.summer()),
+			readDouble(root, FIELD_SEASON_FALL, value.fall()),
+			readDouble(root, FIELD_SEASON_WINTER, value.winter())
+		);
+	}
+
+	private static JsonObject toSeasonGrowthMultiplierJson(SeasonGrowthMultiplier multiplier) {
+		SeasonGrowthMultiplier value = multiplier == null
+			? new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)
+			: multiplier;
+		JsonObject root = new JsonObject();
+		root.addProperty(FIELD_SEASON_SPRING, value.spring());
+		root.addProperty(FIELD_SEASON_SUMMER, value.summer());
+		root.addProperty(FIELD_SEASON_FALL, value.fall());
+		root.addProperty(FIELD_SEASON_WINTER, value.winter());
 		return root;
 	}
 
@@ -254,7 +289,7 @@ public final class MadokuEcosystemConfig {
 			readString(source, FIELD_TARGET_BLOCK, fallback.targetBlock()),
 			readStringArray(source, FIELD_REQUIRED_BIOME_IDS, fallback.requiredBiomeIds()),
 			readStringArray(source, FIELD_REQUIRED_BIOME_TAGS, fallback.requiredBiomeTags()),
-			readRange(source, FIELD_GROWTH_DAYS, fallback.growthDays())
+			readErosionRange(source, fallback.erosionTime())
 		);
 	}
 
@@ -266,7 +301,31 @@ public final class MadokuEcosystemConfig {
 		root.addProperty(FIELD_TARGET_BLOCK, value.targetBlock());
 		root.add(FIELD_REQUIRED_BIOME_IDS, toStringArray(value.requiredBiomeIds()));
 		root.add(FIELD_REQUIRED_BIOME_TAGS, toStringArray(value.requiredBiomeTags()));
-		root.add(FIELD_GROWTH_DAYS, toRangeJson(value.growthDays()));
+		root.add(FIELD_EROSION_TIME, toRangeJson(value.erosionTime(), FIELD_MIN_EROSION_TIME, FIELD_MAX_EROSION_TIME));
+		return root;
+	}
+
+	private static DecayProfile readDecayProfile(JsonObject root, DecayProfile fallback) {
+		DecayProfile value = fallback == null
+			? new DecayProfile(new DayRange(3, 7), new SeasonGrowthMultiplier(1.0d, 0.0d, 3.0d, 0.0d))
+			: fallback;
+		if (root == null || (!root.has(FIELD_DECAY_TIME) && !root.has(FIELD_DECAY_SPEED_MULTIPLIER))) {
+			return value;
+		}
+		JsonObject multiplierRoot = readObject(root, FIELD_DECAY_SPEED_MULTIPLIER);
+		return new DecayProfile(
+			readRange(root, FIELD_DECAY_TIME, value.decayTime(), FIELD_MIN_DECAY_TIME, FIELD_MAX_DECAY_TIME),
+			readSeasonGrowthMultiplier(multiplierRoot, value.decaySpeedMultiplier())
+		);
+	}
+
+	private static JsonObject toDecayProfileJson(DecayProfile profile) {
+		DecayProfile value = profile == null
+			? new DecayProfile(new DayRange(3, 7), new SeasonGrowthMultiplier(1.0d, 0.0d, 3.0d, 0.0d))
+			: profile;
+		JsonObject root = new JsonObject();
+		root.add(FIELD_DECAY_TIME, toRangeJson(value.decayTime(), FIELD_MIN_DECAY_TIME, FIELD_MAX_DECAY_TIME));
+		root.add(FIELD_DECAY_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.decaySpeedMultiplier()));
 		return root;
 	}
 
@@ -277,11 +336,37 @@ public final class MadokuEcosystemConfig {
 		return new DayRange(min, max);
 	}
 
+	private static DayRange readRange(JsonObject object, String key, DayRange fallback, String minKey, String maxKey) {
+		JsonObject rangeRoot = readObject(object, key);
+		int min = readInt(rangeRoot, minKey, fallback.minDays());
+		int max = readInt(rangeRoot, maxKey, fallback.maxDays());
+		return new DayRange(min, max);
+	}
+
 	private static JsonObject toRangeJson(DayRange range) {
+		return toRangeJson(range, FIELD_MIN_GROWTH_TIME, FIELD_MAX_GROWTH_TIME);
+	}
+
+	private static DayRange readErosionRange(JsonObject object, DayRange fallback) {
+		JsonObject erosionRangeRoot = readObject(object, FIELD_EROSION_TIME);
+		int min = readInt(
+			erosionRangeRoot,
+			FIELD_MIN_EROSION_TIME,
+			fallback.minDays()
+		);
+		int max = readInt(
+			erosionRangeRoot,
+			FIELD_MAX_EROSION_TIME,
+			fallback.maxDays()
+		);
+		return new DayRange(min, max);
+	}
+
+	private static JsonObject toRangeJson(DayRange range, String minKey, String maxKey) {
 		DayRange safe = range == null ? new DayRange(1, 1) : range;
 		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_MIN_GROWTH_TIME, safe.minDays());
-		root.addProperty(FIELD_MAX_GROWTH_TIME, safe.maxDays());
+		root.addProperty(minKey, safe.minDays());
+		root.addProperty(maxKey, safe.maxDays());
 		return root;
 	}
 
@@ -381,6 +466,21 @@ public final class MadokuEcosystemConfig {
 		}
 	}
 
+	private static double readDouble(JsonObject object, String key, double fallback) {
+		if (object == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = object.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+			return fallback;
+		}
+		try {
+			return element.getAsDouble();
+		} catch (RuntimeException ignored) {
+			return fallback;
+		}
+	}
+
 	public record DayRange(int minDays, int maxDays) {
 		public DayRange {
 			int safeMin = Math.max(1, minDays);
@@ -393,15 +493,15 @@ public final class MadokuEcosystemConfig {
 		}
 	}
 
-	public record TreeGrowthProfile(DayRange spring, DayRange summer, DayRange fall, DayRange winter) {
-		public TreeGrowthProfile {
-			spring = spring == null ? new DayRange(7, 13) : spring;
-			summer = summer == null ? new DayRange(7, 13) : summer;
-			fall = fall == null ? new DayRange(7, 13) : fall;
-			winter = winter == null ? new DayRange(7, 13) : winter;
+	public record SeasonGrowthMultiplier(double spring, double summer, double fall, double winter) {
+		public SeasonGrowthMultiplier {
+			spring = Math.max(0.0d, spring);
+			summer = Math.max(0.0d, summer);
+			fall = Math.max(0.0d, fall);
+			winter = Math.max(0.0d, winter);
 		}
 
-		public DayRange season(String seasonId) {
+		public double forSeason(String seasonId) {
 			if (FIELD_SEASON_SPRING.equals(seasonId)) {
 				return spring;
 			}
@@ -414,7 +514,20 @@ public final class MadokuEcosystemConfig {
 			if (FIELD_SEASON_WINTER.equals(seasonId)) {
 				return winter;
 			}
-			return null;
+			return summer;
+		}
+	}
+
+	public record GrowthProfile(DayRange growthTime, SeasonGrowthMultiplier growthSpeedMultiplier) {
+		public GrowthProfile {
+			growthTime = growthTime == null ? new DayRange(1, 1) : growthTime;
+			growthSpeedMultiplier = growthSpeedMultiplier == null
+				? new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)
+				: growthSpeedMultiplier;
+		}
+
+		public DayRange growthForSeason(String seasonId) {
+			return scaleRangeBySpeed(growthTime, growthSpeedMultiplier.forSeason(seasonId));
 		}
 	}
 
@@ -424,14 +537,27 @@ public final class MadokuEcosystemConfig {
 		String targetBlock,
 		List<String> requiredBiomeIds,
 		List<String> requiredBiomeTags,
-		DayRange growthDays
+		DayRange erosionTime
 	) {
 		public ErosionRule {
 			sourceBlocks = normalizeList(sourceBlocks);
 			targetBlock = normalize(targetBlock);
 			requiredBiomeIds = normalizeList(requiredBiomeIds);
 			requiredBiomeTags = normalizeList(requiredBiomeTags);
-			growthDays = growthDays == null ? new DayRange(7, 11) : growthDays;
+			erosionTime = erosionTime == null ? new DayRange(7, 11) : erosionTime;
+		}
+	}
+
+	public record DecayProfile(DayRange decayTime, SeasonGrowthMultiplier decaySpeedMultiplier) {
+		public DecayProfile {
+			decayTime = decayTime == null ? new DayRange(3, 7) : decayTime;
+			decaySpeedMultiplier = decaySpeedMultiplier == null
+				? new SeasonGrowthMultiplier(1.0d, 0.0d, 3.0d, 0.0d)
+				: decaySpeedMultiplier;
+		}
+
+		public DayRange decayForSeason(String seasonId) {
+			return scaleRangeBySpeed(decayTime, decaySpeedMultiplier.forSeason(seasonId));
 		}
 	}
 
@@ -442,33 +568,25 @@ public final class MadokuEcosystemConfig {
 	}
 
 	public record NaturalGrowthSettings(
-		DayRange dirtSpringGrowthDays,
-		DayRange dirtSummerGrowthDays,
-		DayRange dirtFallGrowthDays,
-		DayRange dirtWinterGrowthDays,
-		DayRange grassSpringGrowthDays,
-		DayRange grassSummerGrowthDays,
-		DayRange grassFallGrowthDays,
-		DayRange grassWinterGrowthDays,
-		TreeGrowthProfile treeOakGrowth,
-		TreeGrowthProfile treeSpruceGrowth,
-		TreeGrowthProfile treeBirchGrowth,
-		TreeGrowthProfile treeJungleGrowth,
-		TreeGrowthProfile treeMangroveGrowth,
-		TreeGrowthProfile treeAcaciaGrowth,
-		TreeGrowthProfile treeDarkOakGrowth,
-		TreeGrowthProfile treePaleOakGrowth,
-		TreeGrowthProfile treeCherryGrowth
+		GrowthProfile dirtGrowth,
+		GrowthProfile grassGrowth,
+		GrowthProfile foliageWildflowersGrowth,
+		GrowthProfile foliagePinkPetalsGrowth,
+		GrowthProfile treeOakGrowth,
+		GrowthProfile treeSpruceGrowth,
+		GrowthProfile treeBirchGrowth,
+		GrowthProfile treeJungleGrowth,
+		GrowthProfile treeMangroveGrowth,
+		GrowthProfile treeAcaciaGrowth,
+		GrowthProfile treeDarkOakGrowth,
+		GrowthProfile treePaleOakGrowth,
+		GrowthProfile treeCherryGrowth
 	) {
 		public NaturalGrowthSettings {
-			dirtSpringGrowthDays = safeRange(dirtSpringGrowthDays, 1, 3);
-			dirtSummerGrowthDays = safeRange(dirtSummerGrowthDays, 3, 5);
-			dirtFallGrowthDays = safeRange(dirtFallGrowthDays, 3, 5);
-			dirtWinterGrowthDays = safeRange(dirtWinterGrowthDays, 7, 9);
-			grassSpringGrowthDays = safeRange(grassSpringGrowthDays, 1, 3);
-			grassSummerGrowthDays = safeRange(grassSummerGrowthDays, 3, 5);
-			grassFallGrowthDays = safeRange(grassFallGrowthDays, 3, 5);
-			grassWinterGrowthDays = safeRange(grassWinterGrowthDays, 7, 9);
+			dirtGrowth = dirtGrowth == null ? defaults().naturalGrowth().dirtGrowth() : dirtGrowth;
+			grassGrowth = grassGrowth == null ? defaults().naturalGrowth().grassGrowth() : grassGrowth;
+			foliageWildflowersGrowth = foliageWildflowersGrowth == null ? defaults().naturalGrowth().foliageWildflowersGrowth() : foliageWildflowersGrowth;
+			foliagePinkPetalsGrowth = foliagePinkPetalsGrowth == null ? defaults().naturalGrowth().foliagePinkPetalsGrowth() : foliagePinkPetalsGrowth;
 			treeOakGrowth = treeOakGrowth == null ? defaults().naturalGrowth().treeOakGrowth() : treeOakGrowth;
 			treeSpruceGrowth = treeSpruceGrowth == null ? defaults().naturalGrowth().treeSpruceGrowth() : treeSpruceGrowth;
 			treeBirchGrowth = treeBirchGrowth == null ? defaults().naturalGrowth().treeBirchGrowth() : treeBirchGrowth;
@@ -481,23 +599,11 @@ public final class MadokuEcosystemConfig {
 		}
 
 		public DayRange dirtGrowthForSeason(String seasonId) {
-			if (FIELD_SEASON_SPRING.equals(seasonId)) {
-				return dirtSpringGrowthDays;
-			}
-			if (FIELD_SEASON_SUMMER.equals(seasonId)) {
-				return dirtSummerGrowthDays;
-			}
-			if (FIELD_SEASON_FALL.equals(seasonId)) {
-				return dirtFallGrowthDays;
-			}
-			if (FIELD_SEASON_WINTER.equals(seasonId)) {
-				return dirtWinterGrowthDays;
-			}
-			return dirtSummerGrowthDays;
+			return dirtGrowth == null ? null : dirtGrowth.growthForSeason(seasonId);
 		}
 
 		public DayRange treeGrowthForSeason(String treeType, String seasonId) {
-			TreeGrowthProfile profile = switch (treeType) {
+			GrowthProfile profile = switch (treeType) {
 				case FIELD_TREE_OAK -> treeOakGrowth;
 				case FIELD_TREE_SPRUCE -> treeSpruceGrowth;
 				case FIELD_TREE_BIRCH -> treeBirchGrowth;
@@ -509,23 +615,20 @@ public final class MadokuEcosystemConfig {
 				case FIELD_TREE_CHERRY -> treeCherryGrowth;
 				default -> null;
 			};
-			return profile == null ? null : profile.season(seasonId);
+			return profile == null ? null : profile.growthForSeason(seasonId);
 		}
 
 		public DayRange grassGrowthForSeason(String seasonId) {
-			if (FIELD_SEASON_SPRING.equals(seasonId)) {
-				return grassSpringGrowthDays;
-			}
-			if (FIELD_SEASON_SUMMER.equals(seasonId)) {
-				return grassSummerGrowthDays;
-			}
-			if (FIELD_SEASON_FALL.equals(seasonId)) {
-				return grassFallGrowthDays;
-			}
-			if (FIELD_SEASON_WINTER.equals(seasonId)) {
-				return grassWinterGrowthDays;
-			}
-			return grassSummerGrowthDays;
+			return grassGrowth == null ? null : grassGrowth.growthForSeason(seasonId);
+		}
+
+		public DayRange foliageGrowthForSeason(String foliageType, String seasonId) {
+			GrowthProfile profile = switch (normalize(foliageType)) {
+				case FIELD_FOLIAGE_PINK_PETALS -> foliagePinkPetalsGrowth;
+				case FIELD_FOLIAGE_WILDFLOWERS -> foliageWildflowersGrowth;
+				default -> null;
+			};
+			return profile == null ? null : profile.growthForSeason(seasonId);
 		}
 	}
 
@@ -533,13 +636,19 @@ public final class MadokuEcosystemConfig {
 		int waterErosionRadius,
 		ErosionRule blockErosionMud,
 		ErosionRule blockErosionRedSand,
-		ErosionRule blockErosionSand
+		ErosionRule blockErosionSand,
+		DecayProfile naturalTreeDecay
 	) {
 		public NaturalErosionSettings {
 			waterErosionRadius = Math.max(0, waterErosionRadius);
 			blockErosionMud = blockErosionMud == null ? defaults().naturalErosion().blockErosionMud() : blockErosionMud;
 			blockErosionRedSand = blockErosionRedSand == null ? defaults().naturalErosion().blockErosionRedSand() : blockErosionRedSand;
 			blockErosionSand = blockErosionSand == null ? defaults().naturalErosion().blockErosionSand() : blockErosionSand;
+			naturalTreeDecay = naturalTreeDecay == null ? defaults().naturalErosion().naturalTreeDecay() : naturalTreeDecay;
+		}
+
+		public DayRange treeDecayForSeason(String seasonId) {
+			return naturalTreeDecay == null ? null : naturalTreeDecay.decayForSeason(seasonId);
 		}
 	}
 
@@ -551,10 +660,15 @@ public final class MadokuEcosystemConfig {
 		}
 	}
 
-	private static DayRange safeRange(DayRange range, int defaultMin, int defaultMax) {
-		if (range == null) {
-			return new DayRange(defaultMin, defaultMax);
+	private static DayRange scaleRangeBySpeed(DayRange baseRange, double growthSpeedMultiplier) {
+		if (baseRange == null) {
+			return null;
 		}
-		return range;
+		if (growthSpeedMultiplier <= 0.0d) {
+			return null;
+		}
+		int adjustedMin = (int) Math.ceil(baseRange.minDays() / growthSpeedMultiplier);
+		int adjustedMax = (int) Math.ceil(baseRange.maxDays() / growthSpeedMultiplier);
+		return new DayRange(adjustedMin, adjustedMax);
 	}
 }

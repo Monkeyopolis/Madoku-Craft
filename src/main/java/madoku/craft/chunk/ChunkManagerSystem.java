@@ -14,6 +14,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -42,7 +43,7 @@ public final class ChunkManagerSystem {
 	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
 	private static final List<ProcessorChunkKey> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
 	private static final Set<ProcessorChunkKey> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final ThreadLocal<ChunkDiscoverySnapshot> ACTIVE_DISCOVERY_SNAPSHOT = new ThreadLocal<>();
+	private static final ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = ChunkDiscoverySnapshot.reusable(16 * 16);
 
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
@@ -66,30 +67,53 @@ public final class ChunkManagerSystem {
 			return true;
 		}
 
-		void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ);
+		default boolean requiresMotionColumns() {
+			return true;
+		}
+
+		default boolean requiresSurfaceColumns() {
+			return false;
+		}
+
+		// Snapshot data is callback-scoped and backed by reusable storage.
+		// Processors must not retain references to snapshot/column instances outside this call.
+		void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkDiscoverySnapshot snapshot);
 
 		void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ);
 	}
 
 	public static final class ChunkDiscoverySnapshot {
-		private final String levelId;
-		private final int chunkX;
-		private final int chunkZ;
+		private String levelId;
+		private int chunkX;
+		private int chunkZ;
 		private final List<ColumnSample> motionColumns;
 		private final List<ColumnSample> surfaceColumns;
+		private boolean hasMotionColumns;
+		private boolean hasSurfaceColumns;
 
-		private ChunkDiscoverySnapshot(
-			String levelId,
-			int chunkX,
-			int chunkZ,
-			List<ColumnSample> motionColumns,
-			List<ColumnSample> surfaceColumns
-		) {
+		private ChunkDiscoverySnapshot(int capacity) {
+			int safeCapacity = Math.max(1, capacity);
+			List<ColumnSample> motion = new ArrayList<>(safeCapacity);
+			List<ColumnSample> surface = new ArrayList<>(safeCapacity);
+			for (int i = 0; i < safeCapacity; i++) {
+				motion.add(new ColumnSample());
+				surface.add(new ColumnSample());
+			}
+			this.motionColumns = motion;
+			this.surfaceColumns = surface;
+			this.levelId = "";
+		}
+
+		private static ChunkDiscoverySnapshot reusable(int capacity) {
+			return new ChunkDiscoverySnapshot(capacity);
+		}
+
+		private void begin(String levelId, int chunkX, int chunkZ, boolean needsMotionColumns, boolean needsSurfaceColumns) {
 			this.levelId = levelId == null ? "" : levelId;
 			this.chunkX = chunkX;
 			this.chunkZ = chunkZ;
-			this.motionColumns = motionColumns == null ? List.of() : motionColumns;
-			this.surfaceColumns = surfaceColumns == null ? List.of() : surfaceColumns;
+			this.hasMotionColumns = needsMotionColumns;
+			this.hasSurfaceColumns = needsSurfaceColumns;
 		}
 
 		public String levelId() {
@@ -105,27 +129,58 @@ public final class ChunkManagerSystem {
 		}
 
 		public List<ColumnSample> motionColumns() {
+			if (!hasMotionColumns) {
+				return List.of();
+			}
 			return motionColumns;
 		}
 
+		public boolean hasMotionColumns() {
+			return hasMotionColumns;
+		}
+
+		public boolean hasSurfaceColumns() {
+			return hasSurfaceColumns;
+		}
+
 		public List<ColumnSample> surfaceColumns() {
+			if (!hasSurfaceColumns) {
+				return List.of();
+			}
 			return surfaceColumns;
+		}
+
+		private ColumnSample motionColumnAt(int index) {
+			return motionColumns.get(index);
+		}
+
+		private ColumnSample surfaceColumnAt(int index) {
+			return surfaceColumns.get(index);
 		}
 	}
 
 	public static final class ColumnSample {
-		private final int worldX;
-		private final int worldZ;
-		private final int[] yByDepth;
-		private final long[] posByDepth;
-		private final BlockState[] stateByDepth;
+		private int worldX;
+		private int worldZ;
+		private final int[] yByDepth = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+		private final long[] posByDepth = new long[3];
+		private final BlockState[] stateByDepth = new BlockState[3];
 
-		private ColumnSample(int worldX, int worldZ, int[] yByDepth, long[] posByDepth, BlockState[] stateByDepth) {
+		private void reset(int worldX, int worldZ) {
 			this.worldX = worldX;
 			this.worldZ = worldZ;
-			this.yByDepth = yByDepth;
-			this.posByDepth = posByDepth;
-			this.stateByDepth = stateByDepth;
+			Arrays.fill(yByDepth, Integer.MIN_VALUE);
+			Arrays.fill(posByDepth, 0L);
+			Arrays.fill(stateByDepth, null);
+		}
+
+		private void setDepth(int depth, int y, long packedPos, BlockState state) {
+			if (depth < 0 || depth >= yByDepth.length) {
+				return;
+			}
+			yByDepth[depth] = y;
+			posByDepth[depth] = packedPos;
+			stateByDepth[depth] = state;
 		}
 
 		public int worldX() {
@@ -151,18 +206,6 @@ public final class ChunkManagerSystem {
 		public BlockState stateAtDepth(int depth) {
 			return hasDepth(depth) ? stateByDepth[depth] : null;
 		}
-	}
-
-	public static ChunkDiscoverySnapshot getActiveDiscoverySnapshot(ServerLevel level, int chunkX, int chunkZ) {
-		ChunkDiscoverySnapshot snapshot = ACTIVE_DISCOVERY_SNAPSHOT.get();
-		if (snapshot == null || level == null) {
-			return null;
-		}
-		return snapshot.chunkX() == chunkX
-			&& snapshot.chunkZ() == chunkZ
-			&& snapshot.levelId().equals(levelId(level))
-			? snapshot
-			: null;
 	}
 
 	public static void initialize() {
@@ -698,17 +741,30 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		ChunkDiscoverySnapshot discoverySnapshot = buildDiscoverySnapshot(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
-		ACTIVE_DISCOVERY_SNAPSHOT.set(discoverySnapshot);
-		try {
-			for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
-				if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(world)) {
-					continue;
-				}
-				runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		ChunkDiscoverySnapshot discoverySnapshot;
+		List<ChunkProcessorRuntime> activeRuntimes = new ArrayList<>();
+		boolean needsMotionColumns = false;
+		boolean needsSurfaceColumns = false;
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null) {
+				continue;
 			}
-		} finally {
-			ACTIVE_DISCOVERY_SNAPSHOT.remove();
+			if (!runtime.processor.acceptsWorld(world)) {
+				continue;
+			}
+			activeRuntimes.add(runtime);
+			needsMotionColumns |= runtime.processor.requiresMotionColumns();
+			needsSurfaceColumns |= runtime.processor.requiresSurfaceColumns();
+		}
+		if (activeRuntimes.isEmpty()) {
+			boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
+			discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
+			return;
+		}
+
+		discoverySnapshot = buildDiscoverySnapshot(world, selectedChunk.chunkX(), selectedChunk.chunkZ(), needsMotionColumns, needsSurfaceColumns);
+		for (ChunkProcessorRuntime runtime : activeRuntimes) {
+			runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ(), discoverySnapshot);
 		}
 
 		boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
@@ -743,38 +799,52 @@ public final class ChunkManagerSystem {
 		DISCOVERY_LOADED_CHUNKS.add(chunkKey);
 	}
 
-	private static ChunkDiscoverySnapshot buildDiscoverySnapshot(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
-			return new ChunkDiscoverySnapshot("", chunkX, chunkZ, List.of(), List.of());
+	private static ChunkDiscoverySnapshot buildDiscoverySnapshot(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		boolean needsMotionColumns,
+		boolean needsSurfaceColumns
+	) {
+		REUSABLE_DISCOVERY_SNAPSHOT.begin(levelId(world), chunkX, chunkZ, needsMotionColumns, needsSurfaceColumns);
+		if (world == null || (!needsMotionColumns && !needsSurfaceColumns)) {
+			return REUSABLE_DISCOVERY_SNAPSHOT;
 		}
 
-		List<ColumnSample> motionColumns = new ArrayList<>(16 * 16);
-		List<ColumnSample> surfaceColumns = new ArrayList<>(16 * 16);
 		int minX = chunkX << 4;
 		int minZ = chunkZ << 4;
 		int minY = world.getMinY();
 		int maxY = world.getMaxY() - 1;
 
+		int index = 0;
 		for (int localX = 0; localX < 16; localX++) {
 			for (int localZ = 0; localZ < 16; localZ++) {
 				int worldX = minX + localX;
 				int worldZ = minZ + localZ;
-				int motionTopY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
-				int surfaceTopY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
-				motionColumns.add(sampleColumn(world, worldX, worldZ, minY, motionTopY));
-				surfaceColumns.add(sampleColumn(world, worldX, worldZ, minY, surfaceTopY));
+				ColumnSample motionColumn = REUSABLE_DISCOVERY_SNAPSHOT.motionColumnAt(index);
+				ColumnSample surfaceColumn = REUSABLE_DISCOVERY_SNAPSHOT.surfaceColumnAt(index);
+				if (needsMotionColumns) {
+					int motionTopY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
+					sampleColumnInto(motionColumn, world, worldX, worldZ, minY, motionTopY);
+				}
+				if (needsSurfaceColumns) {
+					int surfaceTopY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
+					sampleColumnInto(surfaceColumn, world, worldX, worldZ, minY, surfaceTopY);
+				}
+				index++;
 			}
 		}
 
-		return new ChunkDiscoverySnapshot(levelId(world), chunkX, chunkZ, motionColumns, surfaceColumns);
+		return REUSABLE_DISCOVERY_SNAPSHOT;
 	}
 
-	private static ColumnSample sampleColumn(ServerLevel world, int worldX, int worldZ, int minY, int topY) {
-		int[] yByDepth = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-		long[] posByDepth = new long[3];
-		BlockState[] stateByDepth = new BlockState[3];
+	private static void sampleColumnInto(ColumnSample target, ServerLevel world, int worldX, int worldZ, int minY, int topY) {
+		if (target == null) {
+			return;
+		}
+		target.reset(worldX, worldZ);
 		if (topY < minY || world == null) {
-			return new ColumnSample(worldX, worldZ, yByDepth, posByDepth, stateByDepth);
+			return;
 		}
 
 		for (int depth = 0; depth <= 2; depth++) {
@@ -783,11 +853,8 @@ public final class ChunkManagerSystem {
 				break;
 			}
 			long packedPos = net.minecraft.core.BlockPos.asLong(worldX, y, worldZ);
-			yByDepth[depth] = y;
-			posByDepth[depth] = packedPos;
-			stateByDepth[depth] = world.getBlockState(net.minecraft.core.BlockPos.of(packedPos));
+			target.setDepth(depth, y, packedPos, world.getBlockState(net.minecraft.core.BlockPos.of(packedPos)));
 		}
-		return new ColumnSample(worldX, worldZ, yByDepth, posByDepth, stateByDepth);
 	}
 
 	private static void removeSharedDiscoveryLoadedChunk(ProcessorChunkKey chunkKey) {

@@ -146,7 +146,7 @@ public final class MadokuDebug {
 			}
 			RECENT_EVENTS.addLast(formatted);
 		}
-		LOGGER.info("{}{}", formatted, System.lineSeparator());
+		LOGGER.debug("{}{}", formatted, System.lineSeparator());
 	}
 
 	private static String format(DebugEvent debugEvent) {
