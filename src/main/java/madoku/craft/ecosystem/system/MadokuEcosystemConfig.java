@@ -17,8 +17,8 @@ public final class MadokuEcosystemConfig {
 	public static final String FIELD_NATURAL_DIRT_GROWTH = "natural-dirt-growth";
 	public static final String FIELD_NATURAL_GRASS_GROWTH = "natural-grass-growth";
 	public static final String FIELD_NATURAL_FOLIAGE_GROWTH = "natural-foliage-growth";
-	public static final String FIELD_NATURAL_DESERT_FOLIAGE = "natural-desert-foliage";
 	public static final String FIELD_NATURAL_DESERT_FOLIAGE_GROWTH = "natural-desert-foliage-growth";
+	public static final String FIELD_NATURAL_CACTUS_GROWTH = "natural-cactus-growth";
 	public static final String FIELD_NATURAL_TREE_GROWTH = "natural-tree-growth";
 	public static final String FIELD_MIN_GROWTH_TIME = "min-growth-time";
 	public static final String FIELD_MAX_GROWTH_TIME = "max-growth-time";
@@ -72,12 +72,9 @@ public final class MadokuEcosystemConfig {
 				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
 				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
 				new GrowthProfile(new DayRange(3, 7), new SeasonGrowthMultiplier(0.5d, 2.0d, 0.5d, 1.0d)),
+				new GrowthProfile(new DayRange(9, 17), new SeasonGrowthMultiplier(1.0d, 0.5d, 1.0d, 0.5d)),
 				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(3.5d, 0.0d, 0.5d, 0.0d)),
 				new GrowthProfile(new DayRange(1, 5), new SeasonGrowthMultiplier(3.0d, 0.0d, 1.0d, 0.0d)),
-				new DesertFoliageSettings(
-					new DayRange(1, 3),
-					new DayRange(3, 5)
-				),
 				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)),
 				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.0d, 0.25d, 1.25d, 1.5d)),
 				new GrowthProfile(new DayRange(7, 15), new SeasonGrowthMultiplier(1.25d, 0.75d, 1.25d, 0.75d)),
@@ -174,18 +171,18 @@ public final class MadokuEcosystemConfig {
 		JsonObject dirtRoot = readObject(source, FIELD_NATURAL_DIRT_GROWTH);
 		JsonObject grassRoot = readObject(source, FIELD_NATURAL_GRASS_GROWTH);
 		JsonObject desertFoliageGrowthRoot = readObject(source, FIELD_NATURAL_DESERT_FOLIAGE_GROWTH);
+		JsonObject cactusGrowthRoot = readObject(source, FIELD_NATURAL_CACTUS_GROWTH);
 		JsonObject foliageRoot = readObject(source, FIELD_NATURAL_FOLIAGE_GROWTH);
 		JsonObject wildflowerFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_WILDFLOWERS);
 		JsonObject pinkPetalFoliageRoot = readObject(foliageRoot, FIELD_FOLIAGE_PINK_PETALS);
-		JsonObject desertFoliageRoot = readObject(source, FIELD_NATURAL_DESERT_FOLIAGE);
 		JsonObject treeRoot = readObject(source, FIELD_NATURAL_TREE_GROWTH);
 		return new NaturalGrowthSettings(
 			readGrowthProfile(dirtRoot, fallback.dirtGrowth()),
 			readGrowthProfile(grassRoot, fallback.grassGrowth()),
 			readGrowthProfile(desertFoliageGrowthRoot, fallback.desertFoliageGrowth()),
+			readGrowthProfile(cactusGrowthRoot, fallback.cactusGrowth()),
 			readGrowthProfile(wildflowerFoliageRoot, fallback.foliageWildflowersGrowth()),
 			readGrowthProfile(pinkPetalFoliageRoot, fallback.foliagePinkPetalsGrowth()),
-			readDesertFoliageSettings(desertFoliageRoot, fallback.desertFoliage()),
 			readTreeGrowthProfile(treeRoot, FIELD_TREE_OAK, fallback.treeOakGrowth()),
 			readTreeGrowthProfile(treeRoot, FIELD_TREE_SPRUCE, fallback.treeSpruceGrowth()),
 			readTreeGrowthProfile(treeRoot, FIELD_TREE_BIRCH, fallback.treeBirchGrowth()),
@@ -229,11 +226,11 @@ public final class MadokuEcosystemConfig {
 		root.add(FIELD_NATURAL_DIRT_GROWTH, toGrowthProfileJson(value.dirtGrowth()));
 		root.add(FIELD_NATURAL_GRASS_GROWTH, toGrowthProfileJson(value.grassGrowth()));
 		root.add(FIELD_NATURAL_DESERT_FOLIAGE_GROWTH, toGrowthProfileJson(value.desertFoliageGrowth()));
+		root.add(FIELD_NATURAL_CACTUS_GROWTH, toGrowthProfileJson(value.cactusGrowth()));
 		JsonObject foliageRoot = new JsonObject();
 		foliageRoot.add(FIELD_FOLIAGE_WILDFLOWERS, toGrowthProfileJson(value.foliageWildflowersGrowth()));
 		foliageRoot.add(FIELD_FOLIAGE_PINK_PETALS, toGrowthProfileJson(value.foliagePinkPetalsGrowth()));
 		root.add(FIELD_NATURAL_FOLIAGE_GROWTH, foliageRoot);
-		root.add(FIELD_NATURAL_DESERT_FOLIAGE, toDesertFoliageJson(value.desertFoliage()));
 
 		JsonObject treeRoot = new JsonObject();
 		treeRoot.add(FIELD_TREE_OAK, toGrowthProfileJson(value.treeOakGrowth()));
@@ -296,28 +293,6 @@ public final class MadokuEcosystemConfig {
 		JsonObject root = new JsonObject();
 		root.add(FIELD_GROWTH_TIME, toRangeJson(value.growthTime()));
 		root.add(FIELD_GROWTH_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.growthSpeedMultiplier()));
-		return root;
-	}
-
-	private static DesertFoliageSettings readDesertFoliageSettings(JsonObject root, DesertFoliageSettings fallback) {
-		DesertFoliageSettings value = fallback == null ? new DesertFoliageSettings(new DayRange(1, 3), new DayRange(3, 5)) : fallback;
-		JsonObject winterRoot = readObject(root, FIELD_SEASON_WINTER);
-		JsonObject summerRoot = readObject(root, FIELD_SEASON_SUMMER);
-		return new DesertFoliageSettings(
-			readRange(winterRoot, FIELD_GROWTH_TIME, value.winterGrowthTime()),
-			readRange(summerRoot, FIELD_GROWTH_TIME, value.summerGrowthTime())
-		);
-	}
-
-	private static JsonObject toDesertFoliageJson(DesertFoliageSettings settings) {
-		DesertFoliageSettings value = settings == null ? new DesertFoliageSettings(new DayRange(1, 3), new DayRange(3, 5)) : settings;
-		JsonObject root = new JsonObject();
-		JsonObject winterRoot = new JsonObject();
-		winterRoot.add(FIELD_GROWTH_TIME, toRangeJson(value.winterGrowthTime()));
-		root.add(FIELD_SEASON_WINTER, winterRoot);
-		JsonObject summerRoot = new JsonObject();
-		summerRoot.add(FIELD_GROWTH_TIME, toRangeJson(value.summerGrowthTime()));
-		root.add(FIELD_SEASON_SUMMER, summerRoot);
 		return root;
 	}
 
@@ -635,9 +610,9 @@ public final class MadokuEcosystemConfig {
 		GrowthProfile dirtGrowth,
 		GrowthProfile grassGrowth,
 		GrowthProfile desertFoliageGrowth,
+		GrowthProfile cactusGrowth,
 		GrowthProfile foliageWildflowersGrowth,
 		GrowthProfile foliagePinkPetalsGrowth,
-		DesertFoliageSettings desertFoliage,
 		GrowthProfile treeOakGrowth,
 		GrowthProfile treeSpruceGrowth,
 		GrowthProfile treeBirchGrowth,
@@ -652,9 +627,9 @@ public final class MadokuEcosystemConfig {
 			dirtGrowth = dirtGrowth == null ? defaults().naturalGrowth().dirtGrowth() : dirtGrowth;
 			grassGrowth = grassGrowth == null ? defaults().naturalGrowth().grassGrowth() : grassGrowth;
 			desertFoliageGrowth = desertFoliageGrowth == null ? defaults().naturalGrowth().desertFoliageGrowth() : desertFoliageGrowth;
+			cactusGrowth = cactusGrowth == null ? defaults().naturalGrowth().cactusGrowth() : cactusGrowth;
 			foliageWildflowersGrowth = foliageWildflowersGrowth == null ? defaults().naturalGrowth().foliageWildflowersGrowth() : foliageWildflowersGrowth;
 			foliagePinkPetalsGrowth = foliagePinkPetalsGrowth == null ? defaults().naturalGrowth().foliagePinkPetalsGrowth() : foliagePinkPetalsGrowth;
-			desertFoliage = desertFoliage == null ? defaults().naturalGrowth().desertFoliage() : desertFoliage;
 			treeOakGrowth = treeOakGrowth == null ? defaults().naturalGrowth().treeOakGrowth() : treeOakGrowth;
 			treeSpruceGrowth = treeSpruceGrowth == null ? defaults().naturalGrowth().treeSpruceGrowth() : treeSpruceGrowth;
 			treeBirchGrowth = treeBirchGrowth == null ? defaults().naturalGrowth().treeBirchGrowth() : treeBirchGrowth;
@@ -694,6 +669,10 @@ public final class MadokuEcosystemConfig {
 			return desertFoliageGrowth == null ? null : desertFoliageGrowth.growthForSeason(seasonId);
 		}
 
+		public DayRange cactusGrowthForSeason(String seasonId) {
+			return cactusGrowth == null ? null : cactusGrowth.growthForSeason(seasonId);
+		}
+
 		public DayRange foliageGrowthForSeason(String foliageType, String seasonId) {
 			GrowthProfile profile = switch (normalize(foliageType)) {
 				case FIELD_FOLIAGE_PINK_PETALS -> foliagePinkPetalsGrowth;
@@ -701,27 +680,6 @@ public final class MadokuEcosystemConfig {
 				default -> null;
 			};
 			return profile == null ? null : profile.growthForSeason(seasonId);
-		}
-
-		public DayRange desertFoliageTransitionForSeason(String seasonId) {
-			String normalizedSeason = normalize(seasonId);
-			if (FIELD_SEASON_WINTER.equals(normalizedSeason)) {
-				return desertFoliage == null ? null : desertFoliage.winterGrowthTime();
-			}
-			if (FIELD_SEASON_SUMMER.equals(normalizedSeason)) {
-				return desertFoliage == null ? null : desertFoliage.summerGrowthTime();
-			}
-			return null;
-		}
-	}
-
-	public record DesertFoliageSettings(
-		DayRange winterGrowthTime,
-		DayRange summerGrowthTime
-	) {
-		public DesertFoliageSettings {
-			winterGrowthTime = winterGrowthTime == null ? new DayRange(1, 3) : winterGrowthTime;
-			summerGrowthTime = summerGrowthTime == null ? new DayRange(3, 5) : summerGrowthTime;
 		}
 	}
 
