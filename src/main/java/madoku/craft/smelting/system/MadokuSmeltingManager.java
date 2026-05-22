@@ -1,6 +1,5 @@
 package madoku.craft.smelting.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
@@ -17,7 +16,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
@@ -35,12 +33,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,7 +43,7 @@ public final class MadokuSmeltingManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuSmeltingManager.class);
 
 	private static final String SMELTING_CONFIG_FOLDER_NAME = "madoku-craft-smelting";
-	private static final String SMELTING_CONFIG_FILE_NAME = "smelting";
+	private static final String SMELTING_CONFIG_FILE_NAME = "madoku-smelting";
 	private static final String FURNACES_DIRECTORY_NAME = "madoku-furnaces";
 	private static final String TASK_TYPE_SMELTING_TICK = "smelting_furnace_tick";
 	private static final String FIELD_ENABLED = "enabled";
@@ -63,7 +58,6 @@ public final class MadokuSmeltingManager {
 	private static final String FIELD_RECIPE_TYPE_ID = "recipe-type-id";
 	private static final String FIELD_SMELTING_SPEED = "smelting-speed";
 	private static final String FIELD_FUEL_EFFICIENCY = "fuel-efficiency";
-	private static final String FIELD_ADDITIONAL_INPUTS = "additional-inputs";
 
 	private static final double SPEED_INCREMENT = 0.125;
 	private static final double MIN_SMELTING_SPEED = 20.0;
@@ -72,7 +66,6 @@ public final class MadokuSmeltingManager {
 	private static final double MAX_FUEL_EFFICIENCY = 10.0;
 
 	private static final MadokuSmeltingConfig configuration = new MadokuSmeltingConfig();
-	private static Map<RecipeType<?>, Set<Item>> additionalInputsByRecipeType = Map.of();
 	private static Map<BlockEntityType<?>, FurnaceBehavior> furnaceBehaviorByBlockEntityType = Map.of();
 	private static final Map<FurnaceKey, String> furnaceSchedulerIds = new HashMap<>();
 	private static final Set<FurnaceKey> scheduledFurnaces = new HashSet<>();
@@ -99,10 +92,9 @@ public final class MadokuSmeltingManager {
 			JsonStaticSystem.writeManagedDocument(smeltingFile, new JsonObject(), smeltingGeneral);
 
 			FurnaceLoadResult furnaceLoadResult = loadFurnaceRules(directory);
-			rebuildRules(furnaceLoadResult.additionalInputsByRecipeType, furnaceLoadResult.behaviorByBlockEntityId);
+			rebuildRules(furnaceLoadResult.behaviorByBlockEntityId);
 		} catch (IOException | RuntimeException exception) {
 			configuration.resetToDefaults();
-			additionalInputsByRecipeType = Map.of();
 			furnaceBehaviorByBlockEntityType = Map.of();
 			LOGGER.error("Failed to load MadokuSmelting config; using defaults.", exception);
 		}
@@ -163,10 +155,6 @@ public final class MadokuSmeltingManager {
 				.log();
 		}
 		return result;
-	}
-
-	public static boolean shouldWrapRecipeType(RecipeType<?> recipeType) {
-		return recipeType != null && recipeType != RecipeType.SMELTING;
 	}
 
 	public static void onServerStarted() {
@@ -400,25 +388,6 @@ public final class MadokuSmeltingManager {
 		lastProcessedGameTimeByFurnace.clear();
 	}
 
-	public static boolean isAdditionalInput(RecipeType<?> recipeType, ItemStack stack) {
-		if (!isEnabled() || recipeType == null || stack == null || stack.isEmpty()) {
-			return false;
-		}
-		Set<Item> entries = additionalInputsByRecipeType.get(recipeType);
-		return entries != null && entries.contains(stack.getItem());
-	}
-
-	public static boolean isAdditionalInput(BlockEntityType<?> blockEntityType, RecipeType<?> recipeType, ItemStack stack) {
-		if (!isEnabled() || blockEntityType == null || stack == null || stack.isEmpty()) {
-			return false;
-		}
-		FurnaceBehavior behavior = furnaceBehaviorByBlockEntityType.get(blockEntityType);
-		if (behavior != null && behavior.additionalInputs.contains(stack.getItem())) {
-			return true;
-		}
-		return isAdditionalInput(recipeType, stack);
-	}
-
 	private static FurnaceLoadResult loadFurnaceRules(Path smeltingRootDirectory) throws IOException {
 		Path furnacesFolder = smeltingRootDirectory.resolve(FURNACES_DIRECTORY_NAME);
 
@@ -431,7 +400,6 @@ public final class MadokuSmeltingManager {
 			null
 		);
 
-		Map<String, Set<String>> byRecipeType = new LinkedHashMap<>();
 		Map<String, FurnaceBehaviorDefinition> byBlockEntityId = new LinkedHashMap<>();
 
 		for (Map.Entry<String, JsonObject> fileEntry : loadedFiles.entrySet()) {
@@ -450,13 +418,10 @@ public final class MadokuSmeltingManager {
 				}
 			}
 
-			String recipeTypeId = root.getAsJsonPrimitive(FIELD_RECIPE_TYPE_ID).getAsString();
 			String blockEntityTypeId = root.getAsJsonPrimitive(FIELD_BLOCK_ENTITY_ID).getAsString();
-			List<String> additionalInputs = normalizeAdditionalInputs(root.get(FIELD_ADDITIONAL_INPUTS), List.of());
 			double smeltingSpeed = normalizeSmeltingSpeed(readDouble(root, FIELD_SMELTING_SPEED, 200.0), 200.0);
 			double fuelEfficiency = normalizeFuelEfficiency(readDouble(root, FIELD_FUEL_EFFICIENCY, 1.0), 1.0);
 
-			changed |= setArray(root, FIELD_ADDITIONAL_INPUTS, additionalInputs);
 			changed |= setDouble(root, FIELD_SMELTING_SPEED, smeltingSpeed);
 			changed |= setDouble(root, FIELD_FUEL_EFFICIENCY, fuelEfficiency);
 
@@ -470,16 +435,10 @@ public final class MadokuSmeltingManager {
 				);
 			}
 
-			byRecipeType.computeIfAbsent(recipeTypeId, ignored -> new LinkedHashSet<>()).addAll(additionalInputs);
-			byBlockEntityId.put(blockEntityTypeId, new FurnaceBehaviorDefinition(additionalInputs, smeltingSpeed, fuelEfficiency));
+			byBlockEntityId.put(blockEntityTypeId, new FurnaceBehaviorDefinition(smeltingSpeed, fuelEfficiency));
 		}
 
-		Map<String, List<String>> recipeTypeListMap = new LinkedHashMap<>();
-		for (Map.Entry<String, Set<String>> entry : byRecipeType.entrySet()) {
-			recipeTypeListMap.put(entry.getKey(), new ArrayList<>(entry.getValue()));
-		}
-
-		return new FurnaceLoadResult(recipeTypeListMap, byBlockEntityId);
+		return new FurnaceLoadResult(byBlockEntityId);
 	}
 
 	private static boolean normalizeFurnaceDefinition(JsonObject root, JsonObject defaults) {
@@ -490,22 +449,18 @@ public final class MadokuSmeltingManager {
 		String defaultRecipeType = readString(defaults, FIELD_RECIPE_TYPE_ID, "");
 		double defaultSmeltingSpeed = readDouble(defaults, FIELD_SMELTING_SPEED, 200.0);
 		double defaultFuelEfficiency = readDouble(defaults, FIELD_FUEL_EFFICIENCY, 1.0);
-		List<String> defaultInputs = normalizeAdditionalInputs(defaults.get(FIELD_ADDITIONAL_INPUTS), List.of());
 
 		String blockId = normalizeBlockId(readString(root, FIELD_BLOCK_ID, defaultBlock), defaultBlock);
 		String blockEntityId = normalizeBlockEntityId(readString(root, FIELD_BLOCK_ENTITY_ID, defaultBlockEntity), defaultBlockEntity);
 		String recipeTypeId = normalizeRecipeTypeId(readString(root, FIELD_RECIPE_TYPE_ID, defaultRecipeType), defaultRecipeType);
 		double smeltingSpeed = normalizeSmeltingSpeed(readDouble(root, FIELD_SMELTING_SPEED, defaultSmeltingSpeed), defaultSmeltingSpeed);
 		double fuelEfficiency = normalizeFuelEfficiency(readDouble(root, FIELD_FUEL_EFFICIENCY, defaultFuelEfficiency), defaultFuelEfficiency);
-		List<String> additionalInputs = normalizeAdditionalInputs(root.get(FIELD_ADDITIONAL_INPUTS), defaultInputs);
 
 		changed |= setString(root, FIELD_BLOCK_ID, blockId);
 		changed |= setString(root, FIELD_BLOCK_ENTITY_ID, blockEntityId);
 		changed |= setString(root, FIELD_RECIPE_TYPE_ID, recipeTypeId);
 		changed |= setDouble(root, FIELD_SMELTING_SPEED, smeltingSpeed);
 		changed |= setDouble(root, FIELD_FUEL_EFFICIENCY, fuelEfficiency);
-		changed |= setArray(root, FIELD_ADDITIONAL_INPUTS, additionalInputs);
-
 		return changed;
 	}
 
@@ -528,30 +483,27 @@ public final class MadokuSmeltingManager {
 			"minecraft:furnace",
 			"minecraft:smelting",
 			120.0,
-			1.0,
-			List.of()
+			1.0
 		));
 		defaults.put("smoker", buildFurnaceDefaultsObject(
 			"minecraft:smoker",
 			"minecraft:smoker",
 			"minecraft:smoking",
 			80.0,
-			1.5,
-			MadokuSmeltingConfig.buildDefaultSmokerAdditionalInputs()
+			1.5
 		));
 		defaults.put("blast_furnace", buildFurnaceDefaultsObject(
 			"minecraft:blast_furnace",
 			"minecraft:blast_furnace",
 			"minecraft:blasting",
 			80.0,
-			1.5,
-			MadokuSmeltingConfig.buildDefaultBlastAdditionalInputs()
+			1.5
 		));
 		return defaults;
 	}
 
 	private static JsonObject buildGenericFurnaceDefaults() {
-		return buildFurnaceDefaultsObject("", "", "", 200.0, 1.0, List.of());
+		return buildFurnaceDefaultsObject("", "", "", 200.0, 1.0);
 	}
 
 	private static JsonObject buildFurnaceDefaultsObject(
@@ -559,8 +511,7 @@ public final class MadokuSmeltingManager {
 		String blockEntityId,
 		String recipeTypeId,
 		double smeltingSpeed,
-		double fuelEfficiency,
-		List<String> additionalInputs
+		double fuelEfficiency
 	) {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_BLOCK_ID, blockId);
@@ -568,25 +519,7 @@ public final class MadokuSmeltingManager {
 		root.addProperty(FIELD_RECIPE_TYPE_ID, recipeTypeId);
 		root.addProperty(FIELD_SMELTING_SPEED, smeltingSpeed);
 		root.addProperty(FIELD_FUEL_EFFICIENCY, fuelEfficiency);
-		root.add(FIELD_ADDITIONAL_INPUTS, toJsonArray(additionalInputs == null ? List.of() : additionalInputs));
 		return root;
-	}
-
-	private static List<String> normalizeAdditionalInputs(JsonElement element, List<String> fallbackDefaults) {
-		if (!(element instanceof JsonArray array)) {
-			return new ArrayList<>(fallbackDefaults);
-		}
-		Set<String> normalized = new LinkedHashSet<>();
-		for (JsonElement value : array) {
-			if (!(value instanceof JsonPrimitive primitive) || !primitive.isString()) {
-				continue;
-			}
-			String itemId = normalizeItemId(primitive.getAsString(), "");
-			if (!itemId.isEmpty()) {
-				normalized.add(itemId);
-			}
-		}
-		return new ArrayList<>(normalized);
 	}
 
 	private static String normalizeBlockId(String value, String fallback) {
@@ -613,15 +546,6 @@ public final class MadokuSmeltingManager {
 			return resolved;
 		}
 		String fallbackResolved = resolveRecipeTypeId(fallback);
-		return fallbackResolved == null ? "" : fallbackResolved;
-	}
-
-	private static String normalizeItemId(String value, String fallback) {
-		String resolved = resolveItemId(value);
-		if (resolved != null) {
-			return resolved;
-		}
-		String fallbackResolved = resolveItemId(fallback);
 		return fallbackResolved == null ? "" : fallbackResolved;
 	}
 
@@ -674,19 +598,7 @@ public final class MadokuSmeltingManager {
 		return id.toString();
 	}
 
-	private static String resolveItemId(String value) {
-		Identifier id = Identifier.tryParse(value == null ? "" : value.trim());
-		if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
-			return null;
-		}
-		return id.toString();
-	}
-
-	private static void rebuildRules(
-		Map<String, List<String>> recipeTypeInputs,
-		Map<String, FurnaceBehaviorDefinition> behaviorByBlockEntityId
-	) {
-		additionalInputsByRecipeType = buildRecipeTypeRules(recipeTypeInputs);
+	private static void rebuildRules(Map<String, FurnaceBehaviorDefinition> behaviorByBlockEntityId) {
 		Map<BlockEntityType<?>, FurnaceBehavior> byBlockEntityType = new LinkedHashMap<>();
 		Map<RecipeType<?>, FurnaceBehavior> byRecipeType = new LinkedHashMap<>();
 		for (Map.Entry<String, FurnaceBehaviorDefinition> entry : behaviorByBlockEntityId.entrySet()) {
@@ -696,8 +608,7 @@ public final class MadokuSmeltingManager {
 				continue;
 			}
 			FurnaceBehaviorDefinition definition = entry.getValue();
-			Set<Item> items = buildItemSet(definition.additionalInputs);
-			FurnaceBehavior behavior = new FurnaceBehavior(items, definition.smeltingSpeed, definition.fuelEfficiency);
+			FurnaceBehavior behavior = new FurnaceBehavior(definition.smeltingSpeed, definition.fuelEfficiency);
 			if (blockEntityType != null) {
 				byBlockEntityType.put(blockEntityType, behavior);
 			}
@@ -707,21 +618,6 @@ public final class MadokuSmeltingManager {
 		}
 		furnaceBehaviorByBlockEntityType = Map.copyOf(byBlockEntityType);
 		furnaceBehaviorByRecipeType = Map.copyOf(byRecipeType);
-	}
-
-	private static Map<RecipeType<?>, Set<Item>> buildRecipeTypeRules(Map<String, List<String>> raw) {
-		Map<RecipeType<?>, Set<Item>> resolved = new LinkedHashMap<>();
-		for (Map.Entry<String, List<String>> entry : raw.entrySet()) {
-			RecipeType<?> recipeType = resolveRecipeType(entry.getKey());
-			if (recipeType == null) {
-				continue;
-			}
-			Set<Item> items = buildItemSet(entry.getValue());
-			if (!items.isEmpty()) {
-				resolved.put(recipeType, items);
-			}
-		}
-		return Map.copyOf(resolved);
 	}
 
 	private static RecipeType<?> resolveRecipeTypeForBlockEntity(String key) {
@@ -736,28 +632,6 @@ public final class MadokuSmeltingManager {
 		};
 	}
 
-	private static Set<Item> buildItemSet(List<String> entries) {
-		Set<Item> items = new LinkedHashSet<>();
-		for (String entry : entries) {
-			Item item = resolveItem(entry);
-			if (item != null) {
-				items.add(item);
-			}
-		}
-		return Set.copyOf(items);
-	}
-
-	private static RecipeType<?> resolveRecipeType(String key) {
-		if (key == null || key.isBlank()) {
-			return null;
-		}
-		Identifier recipeTypeId = Identifier.tryParse(key);
-		if (recipeTypeId == null || !BuiltInRegistries.RECIPE_TYPE.containsKey(recipeTypeId)) {
-			return null;
-		}
-		return BuiltInRegistries.RECIPE_TYPE.getValue(recipeTypeId);
-	}
-
 	private static BlockEntityType<?> resolveBlockEntityType(String key) {
 		if (key == null || key.isBlank()) {
 			return null;
@@ -767,25 +641,6 @@ public final class MadokuSmeltingManager {
 			return null;
 		}
 		return BuiltInRegistries.BLOCK_ENTITY_TYPE.getValue(id);
-	}
-
-	private static Item resolveItem(String key) {
-		if (key == null || key.isBlank()) {
-			return null;
-		}
-		Identifier itemId = Identifier.tryParse(key);
-		if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
-			return null;
-		}
-		return BuiltInRegistries.ITEM.getValue(itemId);
-	}
-
-	private static JsonArray toJsonArray(List<String> values) {
-		JsonArray array = new JsonArray();
-		for (String value : values) {
-			array.add(value);
-		}
-		return array;
 	}
 
 	private static boolean setString(JsonObject root, String key, String value) {
@@ -808,16 +663,6 @@ public final class MadokuSmeltingManager {
 			}
 		}
 		root.addProperty(key, value);
-		return true;
-	}
-
-	private static boolean setArray(JsonObject root, String key, List<String> values) {
-		JsonArray replacement = toJsonArray(values);
-		JsonElement element = root.get(key);
-		if (element instanceof JsonArray existing && existing.equals(replacement)) {
-			return false;
-		}
-		root.add(key, replacement);
 		return true;
 	}
 
@@ -938,23 +783,15 @@ public final class MadokuSmeltingManager {
 		}
 	}
 
-	private record FurnaceLoadResult(
-		Map<String, List<String>> additionalInputsByRecipeType,
-		Map<String, FurnaceBehaviorDefinition> behaviorByBlockEntityId
-	) {
+	private record FurnaceLoadResult(Map<String, FurnaceBehaviorDefinition> behaviorByBlockEntityId) {
 	}
 
 	private record FurnaceBehaviorDefinition(
-		List<String> additionalInputs,
 		double smeltingSpeed,
 		double fuelEfficiency
 	) {
 	}
 
-	private record FurnaceBehavior(
-		Set<Item> additionalInputs,
-		double smeltingSpeed,
-		double fuelEfficiency
-	) {
+	private record FurnaceBehavior(double smeltingSpeed, double fuelEfficiency) {
 	}
 }

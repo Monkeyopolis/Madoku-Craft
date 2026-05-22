@@ -30,6 +30,7 @@ import madoku.craft.network.WorldSeasonSync;
 import madoku.craft.network.WorldTimeSync;
 import madoku.craft.oxygen.MadokuOxygen;
 import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.recipe.system.MadokuRecipe;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
@@ -50,6 +51,7 @@ public class MadokuCraft implements ModInitializer {
 		JsonManagerSystem.initialize();
 		ChunkManagerSystem.initialize();
 		MadokuSmeltingManager.initialize();
+		MadokuRecipe.initialize();
 		MadokuDebug.initialize();
 		MadokuDifficulty.initialize();
 		MadokuTime.initialize();
