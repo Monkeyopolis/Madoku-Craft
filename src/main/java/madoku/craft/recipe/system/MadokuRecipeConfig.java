@@ -11,6 +11,7 @@ public final class MadokuRecipeConfig {
 	public static final String FIELD_RESULT_COUNT = "result-count";
 	public static final String FIELD_CATEGORIES = "categories";
 	public static final String FIELD_CUSTOM_RECIPE = "custom-recipe";
+	public static final String FIELD_CRAFTING_SHAPE = "crafting-shape";
 	public static final String FIELD_PATTERN = "pattern";
 	public static final String FIELD_KEY = "key";
 	public static final String FIELD_INPUT = "input";
@@ -25,9 +26,12 @@ public final class MadokuRecipeConfig {
 	public static final String CATEGORY_SMELTING = "smelting";
 	public static final String CATEGORY_BLASTING = "blasting";
 	public static final String CATEGORY_SMOKING = "smoking";
+	public static final String CATEGORY_CAMPFIRE = "campfire";
 	public static final String CATEGORY_SMITHING = "smithing";
 	public static final String CATEGORY_STONECUTTING = "stonecutting";
 	public static final String CATEGORY_OTHER = "other";
+	public static final String CRAFTING_SHAPE_SHAPED = "shaped";
+	public static final String CRAFTING_SHAPE_SHAPELESS = "shapeless";
 
 	private MadokuRecipeConfig() {
 	}

@@ -59,6 +59,7 @@ public final class MadokuRecipe {
 	private static final String RECIPE_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-recipes";
 	private static final String RECIPE_CONFIG_SETTINGS_FILE_NAME = "madoku-recipes";
 	private static final String RECIPE_CONFIG_RECIPES_FOLDER_NAME = "madoku-recipes";
+	private static final String MADOKU_RECIPE_NAMESPACE = "madoku-craft";
 	private static final String EMPTY_SLOT_SYMBOL = "-";
 	private static final String SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -87,32 +88,44 @@ public final class MadokuRecipe {
 			Path recipesDirectory = rootDirectory.resolve(RECIPE_CONFIG_RECIPES_FOLDER_NAME);
 
 			List<RecipeDescriptor> descriptors = collectDescriptors(source);
+			Map<String, RecipeDescriptor> descriptorByRecipeId = new HashMap<>();
+			Map<String, JsonObject> defaultsByFileKey = new HashMap<>();
+			Set<Path> discoveredFolders = new LinkedHashSet<>();
 			Map<Path, Map<String, JsonObject>> defaultsByFolder = new LinkedHashMap<>();
 			Map<Path, Set<String>> keysByFolder = new LinkedHashMap<>();
 			for (RecipeDescriptor descriptor : descriptors) {
+				String normalizedRecipeId = normalizeRecipeId(descriptor.recipeId());
+				if (!normalizedRecipeId.isBlank()) {
+					descriptorByRecipeId.put(normalizedRecipeId, descriptor);
+				}
+
 				Path folder = recipesDirectory.resolve(descriptor.folderPath());
-				defaultsByFolder.computeIfAbsent(folder, ignored -> new LinkedHashMap<>())
-					.put(descriptor.fileKey(), descriptor.defaultsRoot());
+				discoveredFolders.add(folder);
+				defaultsByFileKey.putIfAbsent(descriptor.fileKey(), descriptor.defaultsRoot());
+
+				if (!shouldGenerateManagedRecipeFile(descriptor.recipeId(), descriptor.defaultsRoot())) {
+					continue;
+				}
+				defaultsByFolder.computeIfAbsent(folder, ignored -> new LinkedHashMap<>()).put(descriptor.fileKey(), descriptor.defaultsRoot());
 				keysByFolder.computeIfAbsent(folder, ignored -> new LinkedHashSet<>()).add(descriptor.fileKey());
 			}
 
 			Map<String, JsonObject> normalizedByRecipeId = new HashMap<>();
-			for (Map.Entry<Path, Map<String, JsonObject>> folderEntry : defaultsByFolder.entrySet()) {
-				Path folder = folderEntry.getKey();
-				Map<String, JsonObject> staticDefaults = folderEntry.getValue();
+			for (Path folder : discoveredFolders) {
+				Map<String, JsonObject> staticDefaults = defaultsByFolder.getOrDefault(folder, Map.of());
 				Set<String> validKeys = keysByFolder.getOrDefault(folder, Set.of());
 
 				Map<String, JsonObject> normalized = DynamicStaticSystem.ensureManagedFolder(
 					folder,
 					staticDefaults,
-					staticDefaults::get,
-					(fileKey, sourceRoot) -> validKeys.contains(fileKey),
-					null
+					fileKey -> defaultsByFileKey.getOrDefault(fileKey, new JsonObject()),
+					(fileKey, sourceRoot) -> isSupportedRecipeConfigFile(fileKey, sourceRoot, validKeys, descriptorByRecipeId),
+					MadokuRecipe::copyDynamicEntry
 				);
 
 				for (JsonObject normalizedRoot : normalized.values()) {
-					String recipeId = readString(normalizedRoot, MadokuRecipeConfig.FIELD_RECIPE_ID, "");
-					if (!recipeId.isBlank()) {
+					String recipeId = normalizeRecipeId(readString(normalizedRoot, MadokuRecipeConfig.FIELD_RECIPE_ID, ""));
+					if (!recipeId.isBlank() && descriptorByRecipeId.containsKey(recipeId)) {
 						normalizedByRecipeId.put(recipeId, normalizedRoot);
 					}
 				}
@@ -138,6 +151,59 @@ public final class MadokuRecipe {
 			LOGGER.error("Failed to apply MadokuRecipe config; using vanilla loaded recipes.", exception);
 			return source;
 		}
+	}
+
+	private static boolean shouldGenerateManagedRecipeFile(String recipeId, JsonObject defaultsRoot) {
+		if (!readBoolean(defaultsRoot, MadokuRecipeConfig.FIELD_ENABLED, true)) {
+			return true;
+		}
+		if (recipeId == null || recipeId.isBlank()) {
+			return false;
+		}
+		var identifier = net.minecraft.resources.Identifier.tryParse(recipeId.trim().toLowerCase(Locale.ROOT));
+		if (identifier == null) {
+			return false;
+		}
+		return MADOKU_RECIPE_NAMESPACE.equals(identifier.getNamespace());
+	}
+
+	private static boolean isSupportedRecipeConfigFile(
+		String fileKey,
+		JsonObject sourceRoot,
+		Set<String> validGeneratedKeys,
+		Map<String, RecipeDescriptor> descriptorByRecipeId
+	) {
+		if (validGeneratedKeys != null && validGeneratedKeys.contains(fileKey)) {
+			return true;
+		}
+		String recipeId = normalizeRecipeId(readString(sourceRoot, MadokuRecipeConfig.FIELD_RECIPE_ID, ""));
+		if (recipeId.isBlank() || descriptorByRecipeId == null || !descriptorByRecipeId.containsKey(recipeId)) {
+			return false;
+		}
+		return isUserModifiedRecipeConfig(sourceRoot);
+	}
+
+	private static boolean isUserModifiedRecipeConfig(JsonObject sourceRoot) {
+		if (sourceRoot == null) {
+			return false;
+		}
+		boolean enabled = readBoolean(sourceRoot, MadokuRecipeConfig.FIELD_ENABLED, true);
+		boolean customRecipe = readBoolean(sourceRoot, MadokuRecipeConfig.FIELD_CUSTOM_RECIPE, false);
+		return !enabled || customRecipe;
+	}
+
+	private static JsonElement copyDynamicEntry(String key, JsonElement sourceValue) {
+		if (sourceValue == null || sourceValue.isJsonNull()) {
+			return null;
+		}
+		return sourceValue.deepCopy();
+	}
+
+	private static String normalizeRecipeId(String recipeId) {
+		if (recipeId == null || recipeId.isBlank()) {
+			return "";
+		}
+		return recipeId.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private static List<RecipeHolder<?>> addMadokuDefaultCookingRecipes(List<RecipeHolder<?>> source) {
@@ -347,11 +413,15 @@ public final class MadokuRecipe {
 		}
 
 		var inputId = BuiltInRegistries.ITEM.getKey(inputItem);
-		if (inputId == null) {
+		var outputItem = outputStack.getItem();
+		var outputId = outputItem == null ? null : BuiltInRegistries.ITEM.getKey(outputItem);
+		if (inputId == null || outputId == null) {
 			return null;
 		}
-		String targetPathPrefix = targetType == RecipeType.SMOKING ? "smoking-from-smelting" : "blasting-from-smelting";
-		String recipeId = uniqueDerivedRecipeId(existingRecipeIds, targetPathPrefix, inputId.toString());
+		String targetPathPrefix = targetType == RecipeType.SMOKING ? "smoking" : "blasting";
+		String inputToken = recipePathToken(inputId.toString());
+		String outputToken = recipePathToken(outputId.toString());
+		String recipeId = uniqueDerivedRecipeId(existingRecipeIds, targetPathPrefix, inputToken + "-to-" + outputToken);
 		var identifier = net.minecraft.resources.Identifier.tryParse(recipeId);
 		if (identifier == null) {
 			return null;
@@ -481,11 +551,8 @@ public final class MadokuRecipe {
 		}
 
 		Recipe<?> recipe = descriptor.recipe();
-		if (recipe instanceof ShapedRecipe shapedRecipe) {
-			return buildShapedOverride(recipeRoot, descriptor, shapedRecipe);
-		}
-		if (recipe instanceof ShapelessRecipe shapelessRecipe) {
-			return buildShapelessOverride(recipeRoot, descriptor, shapelessRecipe);
+		if (recipe instanceof CraftingRecipe craftingRecipe) {
+			return buildCraftingOverride(recipeRoot, descriptor, craftingRecipe);
 		}
 		if (recipe instanceof StonecutterRecipe stonecutterRecipe) {
 			return buildStonecutterOverride(recipeRoot, descriptor, stonecutterRecipe);
@@ -508,7 +575,26 @@ public final class MadokuRecipe {
 		return readBoolean(recipeRoot, MadokuRecipeConfig.FIELD_CUSTOM_RECIPE, false);
 	}
 
-	private static Recipe<?> buildShapedOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, ShapedRecipe recipe) {
+	private static Recipe<?> buildCraftingOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, CraftingRecipe recipe) {
+		String requestedShape = readString(
+			recipeRoot,
+			MadokuRecipeConfig.FIELD_CRAFTING_SHAPE,
+			defaultCraftingShape(recipe)
+		).trim().toLowerCase(Locale.ROOT);
+		if (requestedShape.equals(MadokuRecipeConfig.CRAFTING_SHAPE_SHAPELESS)) {
+			return buildShapelessOverride(recipeRoot, descriptor, recipe);
+		}
+		return buildShapedOverride(recipeRoot, descriptor, recipe);
+	}
+
+	private static String defaultCraftingShape(CraftingRecipe recipe) {
+		if (recipe instanceof ShapelessRecipe) {
+			return MadokuRecipeConfig.CRAFTING_SHAPE_SHAPELESS;
+		}
+		return MadokuRecipeConfig.CRAFTING_SHAPE_SHAPED;
+	}
+
+	private static Recipe<?> buildShapedOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, CraftingRecipe recipe) {
 		List<String> patternRows = readPatternRows(recipeRoot.get(MadokuRecipeConfig.FIELD_PATTERN));
 		if (patternRows.isEmpty()) {
 			return null;
@@ -542,10 +628,10 @@ public final class MadokuRecipe {
 		return new ShapedRecipe(commonInfo, bookInfo, pattern, resultTemplate);
 	}
 
-	private static Recipe<?> buildShapelessOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, ShapelessRecipe recipe) {
+	private static Recipe<?> buildShapelessOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, CraftingRecipe recipe) {
 		List<Ingredient> ingredients = readIngredientList(recipeRoot.get(MadokuRecipeConfig.FIELD_INGREDIENTS));
 		if (ingredients.isEmpty()) {
-			for (Ingredient ingredient : readShapelessIngredients(recipe)) {
+			for (Ingredient ingredient : readDefaultCraftingIngredients(recipe)) {
 				if (ingredient != null && !ingredient.isEmpty()) {
 					ingredients.add(ingredient);
 				}
@@ -563,6 +649,19 @@ public final class MadokuRecipe {
 		Recipe.CommonInfo commonInfo = new Recipe.CommonInfo(recipe.showNotification());
 		CraftingRecipe.CraftingBookInfo bookInfo = new CraftingRecipe.CraftingBookInfo(recipe.category(), recipe.group());
 		return new ShapelessRecipe(commonInfo, bookInfo, resultTemplate, List.copyOf(ingredients));
+	}
+
+	private static List<Ingredient> readDefaultCraftingIngredients(CraftingRecipe recipe) {
+		if (recipe == null) {
+			return List.of();
+		}
+		if (recipe instanceof ShapelessRecipe shapelessRecipe) {
+			return readShapelessIngredients(shapelessRecipe);
+		}
+		if (recipe instanceof ShapedRecipe shapedRecipe) {
+			return readShapedIngredients(shapedRecipe);
+		}
+		return List.of();
 	}
 
 	private static List<Ingredient> readShapelessIngredients(ShapelessRecipe recipe) {
@@ -588,6 +687,23 @@ public final class MadokuRecipe {
 			LOGGER.warn("Failed to read shapeless recipe ingredients for recipe overrides.", exception);
 			return List.of();
 		}
+	}
+
+	private static List<Ingredient> readShapedIngredients(ShapedRecipe recipe) {
+		if (recipe == null) {
+			return List.of();
+		}
+		List<Ingredient> resolved = new ArrayList<>();
+		for (Optional<Ingredient> optional : recipe.getIngredients()) {
+			if (optional == null || optional.isEmpty()) {
+				continue;
+			}
+			Ingredient ingredient = optional.get();
+			if (!ingredient.isEmpty()) {
+				resolved.add(ingredient);
+			}
+		}
+		return List.copyOf(resolved);
 	}
 
 	private static Recipe<?> buildCookingOverride(JsonObject recipeRoot, RecipeDescriptor descriptor, AbstractCookingRecipe recipe) {
@@ -936,8 +1052,10 @@ public final class MadokuRecipe {
 		);
 
 		if (recipe instanceof ShapedRecipe shapedRecipe) {
+			root.addProperty(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPED);
 			writeShapedDefaults(root, shapedRecipe);
 		} else if (recipe instanceof ShapelessRecipe shapelessRecipe) {
+			root.addProperty(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPELESS);
 			writeShapelessDefaults(root, shapelessRecipe);
 		} else if (recipe instanceof SmithingRecipe smithingRecipe) {
 			writeSmithingDefaults(root, smithingRecipe);
@@ -1001,6 +1119,7 @@ public final class MadokuRecipe {
 
 		root.add(MadokuRecipeConfig.FIELD_PATTERN, pattern);
 		root.add(MadokuRecipeConfig.FIELD_KEY, key);
+		writeCraftingIngredientsDefaults(root, readShapedIngredients(recipe));
 	}
 
 	private static void writeSingleInputDefaults(JsonObject root, SingleItemRecipe recipe) {
@@ -1012,8 +1131,15 @@ public final class MadokuRecipe {
 	}
 
 	private static void writeShapelessDefaults(JsonObject root, ShapelessRecipe recipe) {
+		writeCraftingIngredientsDefaults(root, readShapelessIngredients(recipe));
+	}
+
+	private static void writeCraftingIngredientsDefaults(JsonObject root, List<Ingredient> ingredientList) {
 		JsonArray ingredients = new JsonArray();
-		for (Ingredient ingredient : readShapelessIngredients(recipe)) {
+		if (ingredientList == null || ingredientList.isEmpty()) {
+			return;
+		}
+		for (Ingredient ingredient : ingredientList) {
 			if (ingredient == null || ingredient.isEmpty()) {
 				continue;
 			}
@@ -1136,7 +1262,7 @@ public final class MadokuRecipe {
 			return MadokuRecipeConfig.CATEGORY_SMOKING;
 		}
 		if (recipe instanceof CampfireCookingRecipe) {
-			return MadokuRecipeConfig.CATEGORY_SMELTING;
+			return MadokuRecipeConfig.CATEGORY_CAMPFIRE;
 		}
 		if (recipeTypeId.contains("smithing")) {
 			return MadokuRecipeConfig.CATEGORY_SMITHING;
