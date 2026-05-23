@@ -5,6 +5,7 @@ import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeMap;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
@@ -20,13 +21,28 @@ public abstract class RecipeManagerRecipeOverridesMixin {
 	@Mutable
 	private RecipeMap recipes;
 
+	@Unique
+	private boolean madokuCraft$rebuildingRecipeCaches;
+
+	@Shadow
+	public abstract void finalizeRecipeLoading(FeatureFlagSet featureFlags);
+
 	@Inject(method = "finalizeRecipeLoading", at = @At("TAIL"))
 	private void madoku$applyRecipeConfig(FeatureFlagSet featureFlags, CallbackInfo ci) {
+		if (this.madokuCraft$rebuildingRecipeCaches) {
+			return;
+		}
 		if (this.recipes == null) {
 			return;
 		}
 
 		List<RecipeHolder<?>> resolvedRecipes = MadokuRecipe.applyRecipeOverrides(this.recipes.values());
 		this.recipes = RecipeMap.create(resolvedRecipes);
+		this.madokuCraft$rebuildingRecipeCaches = true;
+		try {
+			this.finalizeRecipeLoading(featureFlags);
+		} finally {
+			this.madokuCraft$rebuildingRecipeCaches = false;
+		}
 	}
 }
