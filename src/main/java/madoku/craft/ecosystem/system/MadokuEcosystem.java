@@ -3298,6 +3298,9 @@ public final class MadokuEcosystem {
 				if (!preferredRuleId.equals(candidate.ruleId())) {
 					continue;
 				}
+				if (EROSION_RULE_ID_LAVA_MAGMA.equals(candidate.ruleId())) {
+					break;
+				}
 				if (matchesErosionRule(world, pos, blockId, candidate.rule())) {
 					return candidate;
 				}
@@ -3306,6 +3309,9 @@ public final class MadokuEcosystem {
 		}
 
 		for (MadokuEcosystemConfig.NamedErosionRule candidate : cachedErosionRules) {
+			if (EROSION_RULE_ID_LAVA_MAGMA.equals(candidate.ruleId())) {
+				continue;
+			}
 			if (matchesErosionRule(world, pos, blockId, candidate.rule())) {
 				return candidate;
 			}

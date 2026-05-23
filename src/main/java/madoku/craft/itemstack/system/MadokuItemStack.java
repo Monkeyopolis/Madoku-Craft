@@ -102,7 +102,7 @@ public final class MadokuItemStack {
 	}
 
 	public static int getMaxStackCap() {
-		return MadokuItemStackConfig.MAX_STACK_CAP;
+		return MadokuItemStackConfig.MAX_STACK_RUNTIME_CAP;
 	}
 
 	public static int adjustStackLimit(int originalLimit) {
@@ -139,6 +139,32 @@ public final class MadokuItemStack {
 		}
 
 		return DataResult.success(value);
+	}
+
+	public static String formatCompactStackCount(int count) {
+		if (count < 1000) {
+			return Integer.toString(count);
+		}
+		return formatCompactValue(count);
+	}
+
+	private static String formatCompactValue(long value) {
+		if (value >= 1_000_000L) {
+			return formatCompactUnit(value, 1_000_000L, "M");
+		}
+		return formatCompactUnit(value, 1_000L, "K");
+	}
+
+	private static String formatCompactUnit(long value, long unit, String suffix) {
+		long whole = value / unit;
+		if (whole >= 10L) {
+			return whole + suffix;
+		}
+		long tenth = ((value % unit) * 10L) / unit;
+		if (tenth <= 0L) {
+			return whole + suffix;
+		}
+		return whole + "." + tenth + suffix;
 	}
 
 	public static boolean handleInventoryDrop(Inventory inventory) {
