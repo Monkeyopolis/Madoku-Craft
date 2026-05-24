@@ -184,7 +184,7 @@ final class PetRule {
 			root.addProperty("follow-speed", 1.5D);
 			root.addProperty("idle-move-speed", 1.25D);
 			root.addProperty("idle-wander-radius", 4.0D);
-			root.addProperty("attack-damage", 2.0D);
+			root.addProperty("attack-damage", 1.5D);
 			root.addProperty("cooldown-ticks", 0L);
 		}
 		return root;
@@ -366,7 +366,7 @@ final class PetRule {
 			return "Automatic: Periodically reveals nearby mobs.";
 		}
 		if (PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(abilityType) && attackDamage > 0.0F) {
-			return "Automatic: Swarms one nearby hostile mob for " + PlayerEntitiesSystem.formatAbilityAmount(attackDamage) + " damage per second.";
+			return "Automatic: Swarms nearby hostile mobs.";
 		}
 		return "";
 	}

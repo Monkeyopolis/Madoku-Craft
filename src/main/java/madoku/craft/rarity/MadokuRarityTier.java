@@ -2,6 +2,8 @@ package madoku.craft.rarity;
 
 import net.minecraft.ChatFormatting;
 
+import java.util.Locale;
+
 public enum MadokuRarityTier {
 	COMMON(ChatFormatting.WHITE, "*"),
 	RARE(ChatFormatting.BLUE, "**"),
@@ -22,5 +24,17 @@ public enum MadokuRarityTier {
 
 	public String inventoryIndicator() {
 		return inventoryIndicator;
+	}
+
+	public static MadokuRarityTier fromString(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		String normalized = value.trim().toUpperCase(Locale.ROOT);
+		try {
+			return valueOf(normalized);
+		} catch (IllegalArgumentException ignored) {
+			return null;
+		}
 	}
 }

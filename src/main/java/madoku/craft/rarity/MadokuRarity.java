@@ -121,6 +121,19 @@ public final class MadokuRarity {
 		rollAndApplySingle(random, stack);
 	}
 
+	public static void applyConfiguredRarity(ItemStack stack, MadokuRarityTier rarity) {
+		if (!isEnabled() || stack == null || stack.isEmpty() || rarity == null) {
+			return;
+		}
+		if (!MadokuItem.isRarityCategoryItem(stack)) {
+			return;
+		}
+		if (detectAppliedRarity(stack) != null) {
+			return;
+		}
+		applyRarityToStack(stack, rarity);
+	}
+
 	public static void deliverCraftExtras(ServerPlayer player, List<ItemStack> extras) {
 		if (player == null || extras == null || extras.isEmpty()) {
 			return;

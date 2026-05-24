@@ -154,6 +154,13 @@ public final class MadokuLuck {
 		return settings.playerCritDamageMultiplier;
 	}
 
+	public static double resolveLootLuckStat(ServerPlayer player) {
+		if (!settings.enabled || player == null) {
+			return 0.0d;
+		}
+		return resolveLuckProcChance(player) * 100.0d;
+	}
+
 	private static void handlePlayerJoin(ServerPlayer player) {
 		refreshPlayerLuck(player);
 	}

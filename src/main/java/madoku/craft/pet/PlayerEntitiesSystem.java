@@ -3045,10 +3045,12 @@ public final class PlayerEntitiesSystem {
 	static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizeKey(itemId);
 		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
-			return PET_RARITY_MYTHIC;
+			return PET_RARITY_EPIC;
 		}
-		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:cow_spawn_egg".equals(normalizedItemId)
+		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
+			return PET_RARITY_EPIC;
+		}
+		if ("minecraft:cow_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:creeper_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:skeleton_spawn_egg".equals(normalizedItemId)
 			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)) {
