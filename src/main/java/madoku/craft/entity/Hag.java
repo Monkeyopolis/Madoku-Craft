@@ -254,7 +254,7 @@ public class Hag extends Witch implements Merchant {
 		int emeraldCost = petSystemEnabled ? emeraldCost(item) : DEFAULT_SPAWN_EGG_EMERALD_COST;
 		ItemStack resultStack = new ItemStack(item);
 		if (petSystemEnabled) {
-			PlayerEntitiesSystem.applyAbilityLore(resultStack);
+			PlayerEntitiesSystem.applySupportedSpawnEggLore(resultStack);
 		}
 		return new MerchantOffer(
 			new ItemCost(Items.EGG, eggCost),

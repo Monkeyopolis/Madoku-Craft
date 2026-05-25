@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
@@ -29,6 +30,7 @@ public class LootTableRarityMixin {
 		RandomSource random = lootContext == null ? null : lootContext.getRandom();
 		for (ItemStack stack : stacks) {
 			MadokuRarity.applyGeneratedRarity(stack, random);
+			PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
 		}
 	}
 }

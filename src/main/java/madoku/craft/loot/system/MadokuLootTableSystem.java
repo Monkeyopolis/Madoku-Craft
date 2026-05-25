@@ -8,6 +8,7 @@ import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.luck.MadokuLuck;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.rarity.MadokuRarityTier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -49,9 +50,6 @@ public final class MadokuLootTableSystem {
 	private static final String LOOT_CONFIG_TABLES_FOLDER_NAME = "structures";
 	private static final String STRUCTURE_CHEST_NAMESPACE = "minecraft";
 	private static final String STRUCTURE_CHEST_PREFIX = "minecraft:structure_chests/";
-	private static final String SAMPLE_STRUCTURE_CHEST_TABLE_ID = STRUCTURE_CHEST_PREFIX + "starter_chest";
-	private static final String VILLAGE_STRUCTURE_CHEST_TABLE_ID = STRUCTURE_CHEST_PREFIX + "village";
-	private static final String ABANDONED_MINESHAFT_STRUCTURE_CHEST_TABLE_ID = STRUCTURE_CHEST_PREFIX + "abandoned_mineshaft";
 	private static final long RELOAD_INTERVAL_MILLIS = 1_500L;
 	private static final Set<String> DEFAULT_STRUCTURE_CHEST_IDS = Set.of(
 		STRUCTURE_CHEST_PREFIX + "abandoned_mineshaft",
@@ -329,6 +327,7 @@ public final class MadokuLootTableSystem {
 		if (itemRarity != null) {
 			MadokuRarity.applyConfiguredRarity(stack, itemRarity);
 		}
+		PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
 		into.add(stack);
 	}
 
@@ -643,24 +642,12 @@ public final class MadokuLootTableSystem {
 
 	private static Map<String, JsonObject> buildStructureChestStaticDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put(fileKeyFromTableId(SAMPLE_STRUCTURE_CHEST_TABLE_ID), MadokuLootTableConfig.buildSampleTableDefaults());
-		defaults.put(fileKeyFromTableId(VILLAGE_STRUCTURE_CHEST_TABLE_ID), MadokuLootTableConfig.buildVillageTableDefaults());
-		defaults.put(
-			fileKeyFromTableId(ABANDONED_MINESHAFT_STRUCTURE_CHEST_TABLE_ID),
-			MadokuLootTableConfig.buildAbandonedMineshaftTableDefaults()
-		);
-
 		Set<String> tableIds = new LinkedHashSet<>(DEFAULT_STRUCTURE_CHEST_IDS);
 		for (String tableId : tableIds) {
 			if (tableId == null || tableId.isBlank()) {
 				continue;
 			}
-			if (tableId.equals(SAMPLE_STRUCTURE_CHEST_TABLE_ID)
-				|| tableId.equals(VILLAGE_STRUCTURE_CHEST_TABLE_ID)
-				|| tableId.equals(ABANDONED_MINESHAFT_STRUCTURE_CHEST_TABLE_ID)) {
-				continue;
-			}
-			defaults.put(fileKeyFromTableId(tableId), MadokuLootTableConfig.buildStructureTableTemplate(tableId));
+			defaults.put(fileKeyFromTableId(tableId), MadokuLootTableConfig.buildStructureTableDefaults(tableId));
 		}
 		return defaults;
 	}

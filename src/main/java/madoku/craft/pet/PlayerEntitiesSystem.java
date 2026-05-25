@@ -499,6 +499,13 @@ public final class PlayerEntitiesSystem {
 		stack.set(DataComponents.LORE, new ItemLore(lines));
 	}
 
+	public static void applySupportedSpawnEggLore(ItemStack stack) {
+		if (!settings.enabled || !isValidPlayerEntity(stack)) {
+			return;
+		}
+		applyAbilityLore(stack);
+	}
+
 	public static double playerDamageAbilityBonus(ServerPlayer player) {
 		if (player == null || !settings.enabled) {
 			return 0.0D;
