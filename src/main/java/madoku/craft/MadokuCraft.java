@@ -187,9 +187,8 @@ public class MadokuCraft implements ModInitializer {
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			long tickIncrement = MadokuSleep.getTickIncrement(server);
-			// Remap sleep / time-command jumps before any time-based tasks consume this tick.
-			MadokuTime.update(server);
 			MadokuTicks.advance(server, tickIncrement);
+			MadokuTime.update(server);
 			if (MadokuTime.isEnabled()) {
 				SchedulerManagerSystem.onClockTick(server);
 			} else {
@@ -210,7 +209,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuLevels.autosavePersistedData(server);
 			PlayerEntitiesSystem.autosavePersistedData(server);
 			MadokuItemStack.autosavePersistedData(server);
-			MadokuTime.update(server);
 			MadokuSeason.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
 			MadokuMob.onServerTick(server);

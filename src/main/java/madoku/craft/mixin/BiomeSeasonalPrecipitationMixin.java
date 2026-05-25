@@ -19,6 +19,9 @@ public abstract class BiomeSeasonalPrecipitationMixin {
 		int seaLevel,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
+		if (!MadokuSeason.isEnabled()) {
+			return;
+		}
 		cir.setReturnValue(MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla());
 	}
 }

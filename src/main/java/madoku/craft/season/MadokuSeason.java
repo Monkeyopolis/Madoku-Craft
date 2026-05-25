@@ -2,15 +2,12 @@ package madoku.craft.season;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
-import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -18,22 +15,15 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class MadokuSeason {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuSeason.class);
@@ -43,130 +33,39 @@ public final class MadokuSeason {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-season";
 	private static final String DATA_FILE_NAME = "madoku-season";
 	private static final String BIOME_FOLDER_NAME = "biomes";
-	private static final String FIELD_SEASONAL_QUEUE = "seasonal-queue";
-	private static final String TASK_TYPE_SEASON_SCAN = "season_scan";
-	private static final String TASK_TYPE_SEASON_PROCESS = "season_process";
-	private static final String SEASON_SCAN_SCHEDULER_KEY = "madoku-season-scan";
-	private static final String SEASON_PROCESS_SCHEDULER_KEY = "madoku-season-process";
-	private static final String CHUNK_PROCESSOR_SEASON_DISCOVERY_ID = "season_discovery";
 	private static final long SEASON_YEAR_DAYS = MadokuSeasonConfig.DEFAULT_SEASON_LENGTH_DAYS * 4L;
-	private static final int WATER_QUEUE_MAX_SIZE = 640000;
-	private static final int WATER_SURFACE_SCAN_DEPTH = 2;
 	private static final int TEMPERATE_TRANSITION_START_DAY = MadokuSeasonConfig.DEFAULT_DAYS_PER_WEEK * 2;
 
 	private static final Map<String, BiomeClimateRecord> BIOME_CLIMATE_CACHE = new ConcurrentHashMap<>();
-	private static final ChunkManagerSystem.ChunkLifecycleListener SEASON_CHUNK_LISTENER = new ChunkManagerSystem.ChunkLifecycleListener() {
-		@Override
-		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuSeason.onTrackedChunkLoaded(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuSeason.onTrackedChunkUnloaded(level, chunkX, chunkZ);
-		}
-	};
-	private static final ChunkManagerSystem.ChunkProcessor SEASON_CHUNK_PROCESSOR = new ChunkManagerSystem.ChunkProcessor() {
-		@Override
-		public boolean acceptsWorld(ServerLevel level) {
-			return settings.enabled && isSeasonWorld(level);
-		}
-
-		@Override
-		public boolean requiresMotionColumns() {
-			return false;
-		}
-
-		@Override
-		public boolean requiresSurfaceColumns() {
-			return true;
-		}
-
-		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkManagerSystem.ChunkDiscoverySnapshot snapshot) {
-			discoverSeasonalWaterInChunk(level, chunkX, chunkZ, snapshot);
-		}
-
-		@Override
-		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !settings.enabled || !isSeasonWorld(level)) {
-				return;
-			}
-			if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
-				return;
-			}
-
-			SeasonState currentState = refreshSeasonState(level);
-			SeasonWaterWork work = pollNextSeasonWaterWorkForChunk(level, chunkX, chunkZ);
-			if (work == null) {
-				return;
-			}
-
-			boolean changed = processSeasonWaterWork(level, work);
-			emitSeasonQueueProcessDebug(level, currentState, work, changed, PENDING_WATER_WORK.size());
-		}
-	};
 
 	private static volatile Settings settings = Settings.defaults();
 	private static volatile SeasonState lastProcessedState = SeasonState.empty();
-	private static volatile String seasonScanSchedulerId = "";
-	private static volatile String seasonProcessSchedulerId = "";
-	private static volatile boolean seasonScanTaskScheduled = false;
-	private static volatile boolean seasonProcessTaskScheduled = false;
-	private static volatile int seasonScanCursor = 0;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
-	private static final LinkedHashMap<Long, SeasonWaterWork> PENDING_WATER_WORK = new LinkedHashMap<>();
-	private static final ArrayList<Long> PENDING_WATER_WORK_ORDER = new ArrayList<>();
-	private static final LinkedHashMap<Long, ArrayList<Long>> PENDING_WATER_WORK_BY_CHUNK = new LinkedHashMap<>();
-	private static final ArrayList<Long> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
-	private static final LinkedHashSet<Long> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
 
 	private MadokuSeason() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		ChunkManagerSystem.registerChunkLifecycleListener(SEASON_CHUNK_LISTENER);
-		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, SEASON_CHUNK_PROCESSOR);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_SCAN, MadokuSeason::runSeasonScanTask);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SEASON_PROCESS, MadokuSeason::runSeasonProcessTask);
 	}
 
 	public static void reset() {
 		BIOME_CLIMATE_CACHE.clear();
 		lastProcessedState = SeasonState.empty();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID);
-		seasonScanSchedulerId = "";
-		seasonProcessSchedulerId = "";
-		seasonScanTaskScheduled = false;
-		seasonProcessTaskScheduled = false;
-		seasonScanCursor = 0;
 		lastAutosaveBucket = Long.MIN_VALUE;
-		PENDING_WATER_WORK.clear();
-		PENDING_WATER_WORK_ORDER.clear();
-		PENDING_WATER_WORK_BY_CHUNK.clear();
-		DISCOVERY_LOADED_CHUNKS.clear();
-		DISCOVERY_LOADED_CHUNK_KEYS.clear();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID);
-		seasonScanSchedulerId = "";
-		seasonProcessSchedulerId = "";
-		seasonScanTaskScheduled = false;
-		seasonProcessTaskScheduled = false;
-		seasonScanSchedulerId = ensureSeasonScanSchedulerExists();
-		seasonProcessSchedulerId = ensureSeasonProcessSchedulerExists();
-		if (seasonScanSchedulerId.isBlank() || seasonProcessSchedulerId.isBlank()) {
-			return;
-		}
-		SchedulerManagerSystem.clearQueuedRequests(seasonScanSchedulerId);
-		SchedulerManagerSystem.clearQueuedRequests(seasonProcessSchedulerId);
-		rebuildSeasonQueue(server);
+		ServerLevel world = resolveSeasonWorld(server);
+		lastProcessedState = resolveCurrentState(world);
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		requestSeasonProcessProcessing(server, MadokuSeasonConfig.DEFAULT_SEASON_PROCESS_INTERVAL_TICKS);
+		ServerLevel world = resolveSeasonWorld(server);
+		if (world == null) {
+			return;
+		}
+		refreshSeasonState(world);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -182,10 +81,6 @@ public final class MadokuSeason {
 		} else {
 			lastProcessedState = resolveCurrentState(server.overworld());
 		}
-		loadPendingWaterWork(data);
-		seasonScanCursor = 0;
-		DISCOVERY_LOADED_CHUNKS.clear();
-		DISCOVERY_LOADED_CHUNK_KEYS.clear();
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
@@ -338,6 +233,23 @@ public final class MadokuSeason {
 		};
 	}
 
+	public static boolean shouldSeasonFreezeAt(ServerLevel world, Biome biome, net.minecraft.core.BlockPos pos) {
+		if (world == null || biome == null || pos == null || !settings.enabled) {
+			return false;
+		}
+
+		SeasonState state = resolveCurrentState(world);
+		BiomeClimate climate = resolveBiomeClimate(world, pos);
+		double freezeProgress = resolveWaterFreezeProgress(state.season(), climate, state.seasonDay());
+		if (freezeProgress <= 0.0d) {
+			return false;
+		}
+		if (freezeProgress >= 1.0d) {
+			return true;
+		}
+		return freezeProgress >= seasonalColumnBias(pos.getX(), pos.getZ());
+	}
+
 	public static SeasonalPrecipitation resolveSeasonalPrecipitation(Biome biome) {
 		if (biome == null) {
 			return SeasonalPrecipitation.DRY;
@@ -388,6 +300,19 @@ public final class MadokuSeason {
 		};
 	}
 
+	private static double seasonalColumnBias(int worldX, int worldZ) {
+		long mixed = 0x9E3779B97F4A7C15L;
+		mixed ^= (long) worldX * 0x632BE59BD9B4E019L;
+		mixed ^= (long) worldZ * 0x8CB92BA72F3D8DD7L;
+		mixed ^= mixed >>> 33;
+		mixed *= 0xFF51AFD7ED558CCDL;
+		mixed ^= mixed >>> 33;
+		mixed *= 0xC4CEB9FE1A85EC53L;
+		mixed ^= mixed >>> 33;
+		long positive = mixed & Long.MAX_VALUE;
+		return positive / (double) Long.MAX_VALUE;
+	}
+
 	private static SeasonalPrecipitation resolveDrySeasonalPrecipitation(Season season, BiomeClimate climate) {
 		return switch (climate) {
 			case COLD -> SeasonalPrecipitation.SNOW;
@@ -435,35 +360,6 @@ public final class MadokuSeason {
 		};
 	}
 
-	private static void runSeasonScanTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			seasonScanSchedulerId = context.getSchedulerId();
-		}
-		seasonScanTaskScheduled = false;
-		// Discovery is now driven by ChunkManagerSystem shared discovery.
-	}
-
-	private static void runSeasonProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			seasonProcessSchedulerId = context.getSchedulerId();
-		}
-		seasonProcessTaskScheduled = false;
-
-		if (server == null || !settings.enabled) {
-			return;
-		}
-
-		ServerLevel world = resolveSeasonWorld(server);
-		if (world == null) {
-			requestSeasonProcessProcessing(server, MadokuSeasonConfig.DEFAULT_SEASON_PROCESS_INTERVAL_TICKS);
-			return;
-		}
-
-		refreshSeasonState(world);
-		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_SEASON_DISCOVERY_ID);
-		requestSeasonProcessProcessing(server, MadokuSeasonConfig.DEFAULT_SEASON_PROCESS_INTERVAL_TICKS);
-	}
-
 	private static SeasonState refreshSeasonState(ServerLevel world) {
 		SeasonState previousState = lastProcessedState;
 		SeasonState currentState = resolveCurrentState(world);
@@ -474,46 +370,7 @@ public final class MadokuSeason {
 		if (!currentState.equals(previousState)) {
 			lastProcessedState = currentState;
 		}
-		if (seasonTransition) {
-			rebuildSeasonQueue(world == null ? null : world.getServer());
-		}
 		return currentState;
-	}
-
-	private static void rebuildSeasonQueue(MinecraftServer server) {
-		PENDING_WATER_WORK.clear();
-		PENDING_WATER_WORK_ORDER.clear();
-		PENDING_WATER_WORK_BY_CHUNK.clear();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID);
-		seasonScanTaskScheduled = false;
-		seasonProcessTaskScheduled = false;
-		seasonScanCursor = 0;
-
-		if (server == null) {
-			return;
-		}
-
-		String scanSchedulerId = ensureSeasonScanSchedulerExists();
-		String processSchedulerId = ensureSeasonProcessSchedulerExists();
-		if (!scanSchedulerId.isBlank()) {
-			SchedulerManagerSystem.clearQueuedRequests(scanSchedulerId);
-		}
-		if (!processSchedulerId.isBlank()) {
-			SchedulerManagerSystem.clearQueuedRequests(processSchedulerId);
-		}
-
-		ServerLevel world = resolveSeasonWorld(server);
-		SeasonState currentState = resolveCurrentState(world);
-		if (currentState.absoluteDay() >= 0L) {
-			lastProcessedState = currentState;
-		}
-		if (world != null) {
-			syncDiscoveryLoadedChunks(world);
-			emitSeasonQueueScanDebug(world, currentState, DISCOVERY_LOADED_CHUNKS.size(), 0, PENDING_WATER_WORK.size(), 0);
-		}
-
-		savePersistedData(server);
-		requestSeasonProcessProcessing(server, 1L);
 	}
 
 	private static void emitSeasonTransitionDebug(SeasonState previousState, SeasonState currentState) {
@@ -534,619 +391,6 @@ public final class MadokuSeason {
 			.field("cycle_day", currentState.cycleDay())
 			.field("progress", formatProgress(currentState.progress()))
 			.log();
-	}
-
-	private static void emitSeasonQueueScanDebug(
-		ServerLevel world,
-		SeasonState state,
-		int loadedChunkCount,
-		int columnsScanned,
-		int queueSize,
-		int enqueuedBlocks
-	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.queue_scan")) {
-			return;
-		}
-
-		MadokuDebug.event("season.queue_scan", MadokuDebug.Domain.SEASON)
-			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
-			.world(world == null ? "" : world.dimension().toString())
-			.subject("season_water_scan")
-			.field("season", state == null ? "unknown" : state.season().id)
-			.field("week", state == null ? "0" : state.week())
-			.field("loaded_chunks", loadedChunkCount)
-			.field("columns_scanned", columnsScanned)
-			.field("queue_size", queueSize)
-			.field("enqueued_blocks", enqueuedBlocks)
-			.field("queue_target", WATER_QUEUE_MAX_SIZE)
-			.log();
-	}
-
-	private static void emitSeasonQueueProcessDebug(
-		ServerLevel world,
-		SeasonState state,
-		SeasonWaterWork work,
-		boolean changed,
-		int queueSize
-	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.queue_process")) {
-			return;
-		}
-
-		BlockPos pos = BlockPos.of(work.blockPosLong());
-		MadokuDebug.event("season.queue_process", MadokuDebug.Domain.SEASON)
-			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
-			.world(world == null ? "" : world.dimension().toString())
-			.subject("block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ())
-			.field("season", state == null ? "unknown" : state.season().id)
-			.field("queued_season", work.queuedSeasonId())
-			.field("action", work.action().id)
-			.field("changed", changed)
-			.field("queue_size", queueSize)
-			.log();
-	}
-
-	private static void onTrackedChunkLoaded(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !settings.enabled || !isSeasonWorld(world)) {
-			return;
-		}
-
-		refreshSeasonState(world);
-		removeSeasonWaterWorkForChunk(world, chunkX, chunkZ);
-		addDiscoveryLoadedChunk(packChunk(chunkX, chunkZ));
-		requestSeasonProcessProcessing(world.getServer(), 1L);
-	}
-
-	private static void onTrackedChunkUnloaded(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isSeasonWorld(world)) {
-			return;
-		}
-		removeSeasonWaterWorkForChunk(world, chunkX, chunkZ);
-		removeDiscoveryLoadedChunk(packChunk(chunkX, chunkZ));
-	}
-
-	private static void discoverSeasonalWaterInChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		ChunkManagerSystem.ChunkDiscoverySnapshot snapshot
-	) {
-		if (world == null || !settings.enabled || !isSeasonWorld(world)) {
-			return;
-		}
-		SeasonState currentState = refreshSeasonState(world);
-		SeasonWaterScanResult scanResult = scanSeasonalWaterChunk(world, chunkX, chunkZ, currentState, snapshot);
-		emitSeasonQueueScanDebug(world, currentState, 1, scanResult.columnsScanned(), PENDING_WATER_WORK.size(), scanResult.enqueuedBlocks());
-		if (scanResult.enqueuedBlocks() > 0 || !PENDING_WATER_WORK_ORDER.isEmpty()) {
-			requestSeasonProcessProcessing(world.getServer(), 1L);
-		}
-	}
-
-	private static void syncDiscoveryLoadedChunks(ServerLevel world) {
-		if (world == null) {
-			DISCOVERY_LOADED_CHUNKS.clear();
-			DISCOVERY_LOADED_CHUNK_KEYS.clear();
-			seasonScanCursor = 0;
-			return;
-		}
-
-		LinkedHashSet<Long> liveLoaded = new LinkedHashSet<>();
-		for (Long packedChunk : ChunkManagerSystem.getLoadedChunkPositions(world)) {
-			if (packedChunk != null) {
-				liveLoaded.add(packedChunk);
-			}
-		}
-
-		for (Long packedChunk : liveLoaded) {
-			addDiscoveryLoadedChunk(packedChunk);
-		}
-
-		for (int index = DISCOVERY_LOADED_CHUNKS.size() - 1; index >= 0; index--) {
-			Long existing = DISCOVERY_LOADED_CHUNKS.get(index);
-			if (existing == null || !liveLoaded.contains(existing)) {
-				removeDiscoveryLoadedChunkAt(index);
-			}
-		}
-		if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
-			seasonScanCursor = 0;
-		} else {
-			seasonScanCursor = Math.min(Math.max(0, seasonScanCursor), DISCOVERY_LOADED_CHUNKS.size() - 1);
-		}
-	}
-
-	private static void addDiscoveryLoadedChunk(long packedChunk) {
-		if (!DISCOVERY_LOADED_CHUNK_KEYS.add(packedChunk)) {
-			return;
-		}
-		DISCOVERY_LOADED_CHUNKS.add(packedChunk);
-	}
-
-	private static void removeDiscoveryLoadedChunk(long packedChunk) {
-		if (!DISCOVERY_LOADED_CHUNK_KEYS.remove(packedChunk)) {
-			return;
-		}
-		for (int index = 0; index < DISCOVERY_LOADED_CHUNKS.size(); index++) {
-			Long existing = DISCOVERY_LOADED_CHUNKS.get(index);
-			if (existing != null && existing.longValue() == packedChunk) {
-				removeDiscoveryLoadedChunkAt(index);
-				break;
-			}
-		}
-	}
-
-	private static void removeDiscoveryLoadedChunkAt(int index) {
-		if (index < 0 || index >= DISCOVERY_LOADED_CHUNKS.size()) {
-			return;
-		}
-		Long removed = DISCOVERY_LOADED_CHUNKS.remove(index);
-		if (removed != null) {
-			DISCOVERY_LOADED_CHUNK_KEYS.remove(removed);
-		}
-		if (seasonScanCursor > index) {
-			seasonScanCursor--;
-		}
-	}
-
-	private static SeasonWaterScanResult scanSeasonalWaterChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		SeasonState state,
-		ChunkManagerSystem.ChunkDiscoverySnapshot snapshot
-	) {
-		if (world == null || state == null || !ChunkManagerSystem.isChunkLoaded(world, chunkX, chunkZ)) {
-			return new SeasonWaterScanResult(0, 0);
-		}
-
-		int columnsScanned = 0;
-		int enqueuedBlocks = 0;
-		if (snapshot == null || snapshot.surfaceColumns().isEmpty()) {
-			return new SeasonWaterScanResult(0, 0);
-		}
-		for (ChunkManagerSystem.ColumnSample column : snapshot.surfaceColumns()) {
-			if (column == null) {
-				continue;
-			}
-			if (PENDING_WATER_WORK.size() >= WATER_QUEUE_MAX_SIZE) {
-				return new SeasonWaterScanResult(columnsScanned, enqueuedBlocks);
-			}
-			columnsScanned++;
-			SeasonWaterWork work = scanSeasonalWaterColumn(world, column, state);
-			if (enqueueSeasonWaterWork(world, work)) {
-				enqueuedBlocks++;
-			}
-		}
-		return new SeasonWaterScanResult(columnsScanned, enqueuedBlocks);
-	}
-
-	private static SeasonWaterWork scanSeasonalWaterColumn(
-		ServerLevel world,
-		ChunkManagerSystem.ColumnSample column,
-		SeasonState state
-	) {
-		if (world == null || column == null || state == null) {
-			return null;
-		}
-
-		for (int depth = 0; depth <= WATER_SURFACE_SCAN_DEPTH; depth++) {
-			if (!column.hasDepth(depth)) {
-				continue;
-			}
-			long packedPos = column.posAtDepth(depth);
-			BlockPos pos = BlockPos.of(packedPos);
-			BlockState blockState = column.stateAtDepth(depth);
-			if (!isSeasonalWaterCandidate(blockState) && !isWaterloggedFreezeCandidate(blockState)) {
-				continue;
-			}
-
-			BiomeClimate climate = resolveBiomeClimate(world, pos);
-			if (!isTransitionScanWindow(state, climate)) {
-				continue;
-			}
-			double freezeProgress = resolveWaterFreezeProgress(state.season(), climate, state.seasonDay());
-			boolean shouldFreeze = shouldFreezeColumn(column.worldX(), column.worldZ(), freezeProgress);
-			SeasonWaterAction action = resolveSeasonWaterAction(blockState, shouldFreeze);
-			if (action == null) {
-				return null;
-			}
-
-			if (PENDING_WATER_WORK.containsKey(packedPos)) {
-				return null;
-			}
-
-			return new SeasonWaterWork(
-				packedPos,
-				action,
-				state.season().id,
-				state.seasonDay(),
-				MadokuTicks.getGameplayTicks()
-			);
-		}
-
-		return null;
-	}
-
-	private static SeasonWaterAction resolveSeasonWaterAction(BlockState blockState, boolean shouldFreeze) {
-		if (blockState == null) {
-			return null;
-		}
-		if (isStillWaterBlock(blockState)) {
-			return shouldFreeze ? SeasonWaterAction.TO_ICE : null;
-		}
-		if (isWaterloggedFreezeCandidate(blockState)) {
-			return shouldFreeze ? SeasonWaterAction.TO_ICE_CLEAR : null;
-		}
-		if (blockState.is(Blocks.ICE)) {
-			return shouldFreeze ? null : SeasonWaterAction.TO_WATER;
-		}
-		if (blockState.is(Blocks.SNOW)) {
-			return shouldFreeze ? null : SeasonWaterAction.TO_AIR;
-		}
-		return null;
-	}
-
-	private static boolean enqueueSeasonWaterWork(ServerLevel world, SeasonWaterWork work) {
-		if (world == null || work == null) {
-			return false;
-		}
-		if (PENDING_WATER_WORK.containsKey(work.blockPosLong()) || PENDING_WATER_WORK.size() >= WATER_QUEUE_MAX_SIZE) {
-			return false;
-		}
-
-		long blockPosLong = work.blockPosLong();
-		PENDING_WATER_WORK.put(blockPosLong, work);
-		PENDING_WATER_WORK_ORDER.add(blockPosLong);
-		int chunkX = BlockPos.getX(blockPosLong) >> 4;
-		int chunkZ = BlockPos.getZ(blockPosLong) >> 4;
-		long chunkKey = packChunk(chunkX, chunkZ);
-		ArrayList<Long> keys = PENDING_WATER_WORK_BY_CHUNK.computeIfAbsent(chunkKey, ignored -> new ArrayList<>());
-		if (!keys.contains(blockPosLong)) {
-			keys.add(blockPosLong);
-		}
-		ChunkManagerSystem.trackChunkForProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, world, chunkX, chunkZ);
-		return true;
-	}
-
-	private static int removeSeasonWaterWorkForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		long packedChunk = packChunk(chunkX, chunkZ);
-		ArrayList<Long> chunkWorkKeys = PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-		if (chunkWorkKeys == null || chunkWorkKeys.isEmpty()) {
-			return 0;
-		}
-
-		int removed = 0;
-		for (Long blockPosLong : new ArrayList<>(chunkWorkKeys)) {
-			if (removeSeasonWaterWorkByKey(blockPosLong) != null) {
-				removed++;
-			}
-		}
-		ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, world, chunkX, chunkZ);
-		return removed;
-	}
-
-	private static SeasonWaterWork pollNextSeasonWaterWorkForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
-			return null;
-		}
-		long packedChunk = packChunk(chunkX, chunkZ);
-		ArrayList<Long> chunkWorkKeys = PENDING_WATER_WORK_BY_CHUNK.get(packedChunk);
-		if (chunkWorkKeys == null || chunkWorkKeys.isEmpty()) {
-			PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-			ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, world, chunkX, chunkZ);
-			return null;
-		}
-
-		while (!chunkWorkKeys.isEmpty()) {
-			int selectedIndex = ThreadLocalRandom.current().nextInt(chunkWorkKeys.size());
-			int lastIndex = chunkWorkKeys.size() - 1;
-			Long selectedKey = chunkWorkKeys.get(selectedIndex);
-			Long lastKey = chunkWorkKeys.get(lastIndex);
-			if (selectedIndex != lastIndex) {
-				chunkWorkKeys.set(selectedIndex, lastKey);
-			}
-			chunkWorkKeys.remove(lastIndex);
-
-			SeasonWaterWork work = removeSeasonWaterWorkByKey(selectedKey);
-			if (work != null) {
-				if (chunkWorkKeys.isEmpty()) {
-					PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-					ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, world, chunkX, chunkZ);
-				}
-				return work;
-			}
-		}
-
-		PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-		ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_SEASON_DISCOVERY_ID, world, chunkX, chunkZ);
-		return null;
-	}
-
-	private static SeasonWaterWork removeSeasonWaterWorkByKey(Long blockPosLong) {
-		if (blockPosLong == null) {
-			return null;
-		}
-		SeasonWaterWork removed = PENDING_WATER_WORK.remove(blockPosLong);
-		removeSeasonWaterWorkOrderKey(blockPosLong);
-		removeSeasonWaterWorkFromChunkIndex(blockPosLong);
-		return removed;
-	}
-
-	private static void removeSeasonWaterWorkOrderKey(Long blockPosLong) {
-		if (blockPosLong == null || PENDING_WATER_WORK_ORDER.isEmpty()) {
-			return;
-		}
-		for (int index = PENDING_WATER_WORK_ORDER.size() - 1; index >= 0; index--) {
-			Long key = PENDING_WATER_WORK_ORDER.get(index);
-			if (key != null && key.longValue() == blockPosLong.longValue()) {
-				PENDING_WATER_WORK_ORDER.remove(index);
-				return;
-			}
-		}
-	}
-
-	private static void removeSeasonWaterWorkFromChunkIndex(Long blockPosLong) {
-		if (blockPosLong == null) {
-			return;
-		}
-		long packedChunk = packChunk(BlockPos.getX(blockPosLong) >> 4, BlockPos.getZ(blockPosLong) >> 4);
-		ArrayList<Long> chunkWorkKeys = PENDING_WATER_WORK_BY_CHUNK.get(packedChunk);
-		if (chunkWorkKeys == null || chunkWorkKeys.isEmpty()) {
-			PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-			return;
-		}
-		for (int index = chunkWorkKeys.size() - 1; index >= 0; index--) {
-			Long key = chunkWorkKeys.get(index);
-			if (key != null && key.longValue() == blockPosLong.longValue()) {
-				chunkWorkKeys.remove(index);
-				break;
-			}
-		}
-		if (chunkWorkKeys.isEmpty()) {
-			PENDING_WATER_WORK_BY_CHUNK.remove(packedChunk);
-		}
-	}
-
-	private static boolean processSeasonWaterWork(ServerLevel world, SeasonWaterWork work) {
-		if (world == null || work == null) {
-			return false;
-		}
-
-		BlockPos blockPos = BlockPos.of(work.blockPosLong());
-		if (!ChunkManagerSystem.isChunkLoaded(world, blockPos.getX() >> 4, blockPos.getZ() >> 4)) {
-			return false;
-		}
-
-		BlockState currentState = world.getBlockState(blockPos);
-		if (work.action() == SeasonWaterAction.TO_ICE && isStillWaterBlock(currentState)) {
-			world.setBlockAndUpdate(blockPos, Blocks.ICE.defaultBlockState());
-			return true;
-		}
-		if (work.action() == SeasonWaterAction.TO_ICE_CLEAR && isWaterloggedFreezeCandidate(currentState)) {
-			world.setBlockAndUpdate(blockPos, Blocks.ICE.defaultBlockState());
-			return true;
-		}
-		if (work.action() == SeasonWaterAction.TO_WATER && currentState.is(Blocks.ICE)) {
-			world.setBlockAndUpdate(blockPos, Blocks.WATER.defaultBlockState());
-			return true;
-		}
-		if (work.action() == SeasonWaterAction.TO_AIR && currentState.is(Blocks.SNOW)) {
-			world.setBlockAndUpdate(blockPos, Blocks.AIR.defaultBlockState());
-			return true;
-		}
-		return false;
-	}
-
-	private static boolean shouldFreezeColumn(int worldX, int worldZ, double freezeProgress) {
-		if (freezeProgress <= 0.0d) {
-			return false;
-		}
-		if (freezeProgress >= 1.0d) {
-			return true;
-		}
-		return freezeProgress >= columnBias(worldX, worldZ);
-	}
-
-	private static boolean isTransitionScanWindow(SeasonState state, BiomeClimate climate) {
-		if (state == null || climate == null) {
-			return false;
-		}
-
-		return switch (climate) {
-			case TEMPERATE -> isTemperateTransitionWindow(state);
-			case COLD -> state.season() == Season.SUMMER || state.season() == Season.FALL;
-			case HOT -> state.season() == Season.SPRING || state.season() == Season.WINTER;
-		};
-	}
-
-	private static boolean isTemperateTransitionWindow(SeasonState state) {
-		if (state == null) {
-			return false;
-		}
-
-		return switch (state.season()) {
-			case SPRING -> state.week() >= 3;
-			case SUMMER -> state.week() <= 2;
-			case FALL -> state.week() >= 3;
-			case WINTER -> state.week() <= 2;
-		};
-	}
-
-	private static double columnBias(int worldX, int worldZ) {
-		long mixed = 0x9E3779B97F4A7C15L;
-		mixed ^= (long) worldX * 0x632BE59BD9B4E019L;
-		mixed ^= (long) worldZ * 0x8CB92BA72F3D8DD7L;
-		mixed ^= mixed >>> 33;
-		mixed *= 0xFF51AFD7ED558CCDL;
-		mixed ^= mixed >>> 33;
-		mixed *= 0xC4CEB9FE1A85EC53L;
-		mixed ^= mixed >>> 33;
-		long positive = mixed & Long.MAX_VALUE;
-		return positive / (double) Long.MAX_VALUE;
-	}
-
-	private static boolean isSeasonalWaterCandidate(BlockState blockState) {
-		return blockState != null
-			&& (blockState.is(Blocks.WATER)
-			|| blockState.is(Blocks.ICE)
-			|| blockState.is(Blocks.SNOW));
-	}
-
-	private static boolean isStillWaterBlock(BlockState blockState) {
-		return blockState != null
-			&& blockState.is(Blocks.WATER)
-			&& blockState.getFluidState().isSource();
-	}
-
-	private static boolean isWaterloggedFreezeCandidate(BlockState blockState) {
-		if (blockState == null) {
-			return false;
-		}
-		if (blockState.is(Blocks.WATER) || blockState.is(Blocks.ICE) || blockState.is(Blocks.SNOW)) {
-			return false;
-		}
-		if (!blockState.getFluidState().is(FluidTags.WATER) || !blockState.getFluidState().isSource()) {
-			return false;
-		}
-		// Restrict to non-occluding waterlogged blocks (seagrass, kelp, coral fans, etc.)
-		// so solid waterlogged structures are not overwritten by seasonal ice.
-		return !blockState.canOcclude();
-	}
-
-	private static boolean isSeasonWorld(ServerLevel world) {
-		if (world == null) {
-			return false;
-		}
-		MinecraftServer server = world.getServer();
-		ServerLevel seasonWorld = resolveSeasonWorld(server);
-		return seasonWorld != null && seasonWorld.dimension().equals(world.dimension());
-	}
-
-	private record SeasonWaterWork(
-		long blockPosLong,
-		SeasonWaterAction action,
-		String queuedSeasonId,
-		int queuedSeasonDay,
-		long queuedAtTick
-	) {
-	}
-
-	private record SeasonWaterScanResult(int columnsScanned, int enqueuedBlocks) {
-	}
-
-	private enum SeasonWaterAction {
-		TO_ICE("ice"),
-		TO_ICE_CLEAR("ice_clear"),
-		TO_WATER("water"),
-		TO_AIR("air");
-
-		private final String id;
-
-		SeasonWaterAction(String id) {
-			this.id = id;
-		}
-
-		private static SeasonWaterAction fromId(String value) {
-			if (value == null) {
-				return null;
-			}
-
-			String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
-			for (SeasonWaterAction action : values()) {
-				if (action.id.equals(normalized)) {
-					return action;
-				}
-			}
-			return null;
-		}
-	}
-
-	private static long packChunk(int chunkX, int chunkZ) {
-		return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
-	}
-
-	private static void requestSeasonProcessProcessing(MinecraftServer server, long delay) {
-		requestSeasonTask(server, delay, TASK_TYPE_SEASON_PROCESS);
-	}
-
-	private static void requestSeasonTask(MinecraftServer server, long delay, String taskType) {
-		if (server == null || !settings.enabled) {
-			return;
-		}
-
-		boolean scanTask = TASK_TYPE_SEASON_SCAN.equals(taskType);
-		if (scanTask && seasonScanTaskScheduled) {
-			return;
-		}
-		if (!scanTask && seasonProcessTaskScheduled) {
-			return;
-		}
-
-		String schedulerId = scanTask ? ensureSeasonScanSchedulerExists() : ensureSeasonProcessSchedulerExists();
-		if (schedulerId.isBlank()) {
-			return;
-		}
-		if (enqueueSeasonTask(schedulerId, delay, taskType)) {
-			if (scanTask) {
-				seasonScanTaskScheduled = true;
-			} else {
-				seasonProcessTaskScheduled = true;
-			}
-			return;
-		}
-
-		String recreatedSchedulerId = scanTask
-			? SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(SEASON_SCAN_SCHEDULER_KEY))
-			: SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(SEASON_PROCESS_SCHEDULER_KEY));
-		if (scanTask) {
-			seasonScanSchedulerId = recreatedSchedulerId;
-		} else {
-			seasonProcessSchedulerId = recreatedSchedulerId;
-		}
-		if (enqueueSeasonTask(recreatedSchedulerId, delay, taskType)) {
-			if (scanTask) {
-				seasonScanTaskScheduled = true;
-			} else {
-				seasonProcessTaskScheduled = true;
-			}
-			return;
-		}
-
-		LOGGER.error("Failed to enqueue MadokuSeason scheduler task type {}.", taskType);
-	}
-
-	private static String ensureSeasonScanSchedulerExists() {
-		if (seasonScanSchedulerId == null || seasonScanSchedulerId.isBlank()) {
-			seasonScanSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(SEASON_SCAN_SCHEDULER_KEY)
-			);
-		}
-		return seasonScanSchedulerId;
-	}
-
-	private static String ensureSeasonProcessSchedulerExists() {
-		if (seasonProcessSchedulerId == null || seasonProcessSchedulerId.isBlank()) {
-			seasonProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(SEASON_PROCESS_SCHEDULER_KEY)
-			);
-		}
-		return seasonProcessSchedulerId;
-	}
-
-	private static boolean enqueueSeasonTask(String schedulerId, long delay, String taskType) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
-			schedulerId,
-			Math.max(0L, delay),
-			taskType,
-			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static ServerLevel resolveSeasonWorld(MinecraftServer server) {
@@ -1343,9 +587,7 @@ public final class MadokuSeason {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(FIELD_SEASONAL_QUEUE, new com.google.gson.JsonArray());
-		return root;
+		return new JsonObject();
 	}
 
 	private static SeasonState parsePersistedState(JsonObject source) {
@@ -1353,63 +595,7 @@ public final class MadokuSeason {
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		root.add(FIELD_SEASONAL_QUEUE, serializePendingWaterWork());
-		return root;
-	}
-
-	private static void loadPendingWaterWork(JsonObject source) {
-		PENDING_WATER_WORK.clear();
-		PENDING_WATER_WORK_ORDER.clear();
-		PENDING_WATER_WORK_BY_CHUNK.clear();
-		if (source == null) {
-			return;
-		}
-
-		JsonElement element = source.get(FIELD_SEASONAL_QUEUE);
-		if (element == null || !element.isJsonArray()) {
-			return;
-		}
-
-		for (JsonElement queueElement : element.getAsJsonArray()) {
-			if (queueElement == null || !queueElement.isJsonObject()) {
-				continue;
-			}
-
-			JsonObject queueObject = queueElement.getAsJsonObject();
-			Long blockPosLong = getLongObject(queueObject, "block-pos", null);
-			String actionId = getString(queueObject, "action", "");
-			String queuedSeasonId = getString(queueObject, "queued-season", "unknown");
-			int queuedSeasonDay = getInt(queueObject, "queued-season-day", 0);
-			long queuedAtTick = getLong(queueObject, "queued-at-tick", 0L);
-			SeasonWaterAction action = SeasonWaterAction.fromId(actionId);
-			if (blockPosLong == null || action == null) {
-				continue;
-			}
-
-			if (PENDING_WATER_WORK.putIfAbsent(
-				blockPosLong,
-				new SeasonWaterWork(blockPosLong, action, queuedSeasonId, queuedSeasonDay, queuedAtTick)
-			) == null) {
-				PENDING_WATER_WORK_ORDER.add(blockPosLong);
-				long packedChunk = packChunk(BlockPos.getX(blockPosLong) >> 4, BlockPos.getZ(blockPosLong) >> 4);
-				PENDING_WATER_WORK_BY_CHUNK.computeIfAbsent(packedChunk, ignored -> new ArrayList<>()).add(blockPosLong);
-			}
-		}
-	}
-
-	private static com.google.gson.JsonArray serializePendingWaterWork() {
-		com.google.gson.JsonArray queue = new com.google.gson.JsonArray();
-		for (SeasonWaterWork work : PENDING_WATER_WORK.values()) {
-			JsonObject entry = new JsonObject();
-			entry.addProperty("block-pos", work.blockPosLong());
-			entry.addProperty("action", work.action().id);
-			entry.addProperty("queued-season", work.queuedSeasonId());
-			entry.addProperty("queued-season-day", work.queuedSeasonDay());
-			entry.addProperty("queued-at-tick", work.queuedAtTick());
-			queue.add(entry);
-		}
-		return queue;
+		return new JsonObject();
 	}
 
 	private static void loadStaticConfig() {
@@ -1439,57 +625,6 @@ public final class MadokuSeason {
 			normalized = normalized + ".json";
 		}
 		return directory.resolve(normalized);
-	}
-
-	private static long getLong(JsonObject object, String key, long fallback) {
-		if (object == null) {
-			return fallback;
-		}
-
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-
-		try {
-			return element.getAsLong();
-		} catch (NumberFormatException exception) {
-			return fallback;
-		}
-	}
-
-	private static Long getLongObject(JsonObject object, String key, Long fallback) {
-		if (object == null) {
-			return fallback;
-		}
-
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-
-		try {
-			return element.getAsLong();
-		} catch (NumberFormatException exception) {
-			return fallback;
-		}
-	}
-
-	private static int getInt(JsonObject object, String key, int fallback) {
-		if (object == null) {
-			return fallback;
-		}
-
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-
-		try {
-			return element.getAsInt();
-		} catch (NumberFormatException exception) {
-			return fallback;
-		}
 	}
 
 	private static double getDouble(JsonObject object, String key, double fallback) {

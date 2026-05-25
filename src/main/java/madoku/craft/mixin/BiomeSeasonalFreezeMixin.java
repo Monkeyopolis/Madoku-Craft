@@ -1,0 +1,103 @@
+package madoku.craft.mixin;
+
+import madoku.craft.season.MadokuSeason;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.state.BlockState;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(Biome.class)
+public abstract class BiomeSeasonalFreezeMixin {
+	@Inject(
+		method = "shouldFreeze(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;)Z",
+		at = @At("RETURN"),
+		cancellable = true
+	)
+	private void madoku$seasonalShouldFreeze(
+		LevelReader levelReader,
+		BlockPos pos,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		if (cir.getReturnValue()
+			|| !MadokuSeason.isEnabled()
+			|| !(levelReader instanceof ServerLevel serverLevel)
+			|| pos == null
+			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)) {
+			return;
+		}
+
+		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		if (seasonalFreeze) {
+			cir.setReturnValue(true);
+		}
+	}
+
+	@Inject(
+		method = "shouldFreeze(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Z)Z",
+		at = @At("RETURN"),
+		cancellable = true
+	)
+	private void madoku$seasonalShouldFreezeWithEdgeCheck(
+		LevelReader levelReader,
+		BlockPos pos,
+		boolean mustBeAtEdge,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		if (cir.getReturnValue()
+			|| !MadokuSeason.isEnabled()
+			|| !(levelReader instanceof ServerLevel serverLevel)
+			|| pos == null
+			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)
+			|| (mustBeAtEdge && madoku$isSurroundedByWater(levelReader, pos))) {
+			return;
+		}
+
+		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		if (seasonalFreeze) {
+			cir.setReturnValue(true);
+		}
+	}
+
+	@Inject(
+		method = "shouldSnow(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;)Z",
+		at = @At("RETURN"),
+		cancellable = true
+	)
+	private void madoku$seasonalShouldSnow(
+		LevelReader levelReader,
+		BlockPos pos,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		if (!MadokuSeason.isEnabled() || !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
+			return;
+		}
+
+		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		cir.setReturnValue(cir.getReturnValue() || seasonalFreeze);
+	}
+
+	private static boolean madoku$isSeasonalWaterCandidate(LevelReader levelReader, BlockPos pos) {
+		BlockState state = levelReader.getBlockState(pos);
+		return state != null
+			&& state.getFluidState().is(FluidTags.WATER)
+			&& state.getFluidState().isSource();
+	}
+
+	private static boolean madoku$isSurroundedByWater(LevelReader levelReader, BlockPos pos) {
+		for (Direction direction : Direction.Plane.HORIZONTAL) {
+			BlockPos neighborPos = pos.relative(direction);
+			BlockState neighborState = levelReader.getBlockState(neighborPos);
+			if (neighborState == null || !neighborState.getFluidState().is(FluidTags.WATER)) {
+				return false;
+			}
+		}
+		return true;
+	}
+}

@@ -254,10 +254,6 @@ public final class ChunkManagerSystem {
 		}
 	}
 
-	public static void runChunkProcessorDiscoveryStep(MinecraftServer server, String processorId) {
-		runSharedChunkDiscoverySteps(server, 1);
-	}
-
 	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
 		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
 		if (runtime == null || runtime.processor == null || server == null) {
@@ -425,7 +421,7 @@ public final class ChunkManagerSystem {
 		return getStoredChunkStatus(level, chunkX, chunkZ);
 	}
 
-	public static List<Long> getLoadedChunkPositions(ServerLevel level) {
+	private static List<Long> getLoadedChunkPositions(ServerLevel level) {
 		if (level == null) {
 			return List.of();
 		}

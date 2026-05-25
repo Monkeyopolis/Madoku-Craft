@@ -6,9 +6,8 @@ import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
-import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.protocol.game.ClientboundSetTimePacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,23 +29,18 @@ public final class MadokuTime {
 	private static final int DEFAULT_CLOCK_MIDNIGHT_MINUTES = 0;
 
 	public static final long MINECRAFT_TICKS_PER_CYCLE = 24000L;
-	private static final long VANILLA_TIME_SET_DAY_TICK = 1000L;
-	private static final long VANILLA_TIME_SET_NIGHT_TICK = 13000L;
 	private static final int MINUTES_PER_DAY = 24 * 60;
 	private static final int MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES = 6 * 60;
 
 	private static final String TIME_CONFIG_FOLDER_NAME = "madoku-craft-time";
 	private static final String TIME_CONFIG_FILE_NAME = "madoku-time";
-	private static final String DATA_FOLDER_NAME = "madoku-craft-time";
-	private static final String DATA_FILE_NAME = "madoku-time";
 
 	private static volatile TimeSettings settings = TimeSettings.defaults();
-	private static boolean hasAppliedDayTime = false;
-	private static boolean hasAppliedManagedGameRules = false;
-	private static boolean hasRestoredVanillaGameRules = false;
-	private static long lastAppliedDayTime = 0L;
-	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static long sessionTickOffset = 0L;
+	private static boolean managedGameRulesApplied = false;
+	private static long pendingSkippedTicks = 0L;
+	private static double timeAdjustmentCarry = 0.0D;
+	private static boolean hasObservedOverworldTime = false;
+	private static long lastObservedOverworldDayTime = 0L;
 
 	private MadokuTime() {
 	}
@@ -56,110 +50,57 @@ public final class MadokuTime {
 	}
 
 	public static void reset() {
-		hasAppliedDayTime = false;
-		hasAppliedManagedGameRules = false;
-		hasRestoredVanillaGameRules = false;
-		lastAppliedDayTime = 0L;
-		lastAutosaveBucket = Long.MIN_VALUE;
-		sessionTickOffset = 0L;
+		managedGameRulesApplied = false;
+		pendingSkippedTicks = 0L;
+		timeAdjustmentCarry = 0.0D;
+		hasObservedOverworldTime = false;
+		lastObservedOverworldDayTime = 0L;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
 		loadStaticConfig();
-		TimeSettings currentSettings = settings;
-
-		JsonObject data = DataManagerSystem.loadWorldData(
-			server,
-			DATA_FOLDER_NAME,
-			DATA_FILE_NAME,
-			createData(
-				0L,
-				currentSettings.clockDayStartMinutes / 60,
-				currentSettings.clockDayStartMinutes % 60
-			)
-		);
-
-		long day = getLong(data, "day", 0L);
-		int hour = (int) getLong(data, "hour", currentSettings.clockDayStartMinutes / 60);
-		int minute = (int) getLong(data, "minute", currentSettings.clockDayStartMinutes % 60);
-		if (day >= 0L && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-			setClockFromAbsoluteDayTime(toAbsoluteDayTime(day, hour, minute));
-		}
-
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
-		if (currentBucket != lastAutosaveBucket) {
-			lastAutosaveBucket = currentBucket;
-			savePersistedData(server);
-		}
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		long absoluteDayTime = getCurrentAbsoluteDayTime();
-		long day = getDay(absoluteDayTime);
-		int totalMinutes = getTotalMinutes(absoluteDayTime);
-		int hour = totalMinutes / 60;
-		int minute = totalMinutes % 60;
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createData(day, hour, minute));
 	}
 
 	public static void update(MinecraftServer server) {
-		TimeSettings currentSettings = settings;
-		if (!currentSettings.enabled) {
-			if (!hasRestoredVanillaGameRules || hasAppliedManagedGameRules || hasAppliedDayTime) {
-				for (ServerLevel world : server.getAllLevels()) {
-					world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
-				}
-				hasRestoredVanillaGameRules = true;
-				hasAppliedManagedGameRules = false;
-			}
-
-			ServerLevel overworld = server.overworld();
-			if (overworld != null) {
-				MadokuClock.observeWorldTime(overworld);
-			}
-
-			hasAppliedDayTime = false;
-			lastAppliedDayTime = 0L;
+		if (server == null) {
 			return;
 		}
-		if (!hasAppliedManagedGameRules) {
-			for (ServerLevel world : server.getAllLevels()) {
-				world.getGameRules().set(GameRules.ADVANCE_TIME, false, server);
-				world.getGameRules().set(GameRules.PLAYERS_SLEEPING_PERCENTAGE, 100, server);
-			}
-			hasAppliedManagedGameRules = true;
-			hasRestoredVanillaGameRules = false;
+
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
 		}
 
-		long sessionTicks = getSessionTicks();
-		long absoluteDayTime = getAbsoluteDayTime(sessionTicks, currentSettings);
+		TimeSettings currentSettings = settings;
+		long observedDayTime = overworld.getOverworldClockTime();
+		observeOverworldTime(observedDayTime);
+		MadokuClock.observeWorldTime(observedDayTime);
 
-			ServerLevel overworld = server.overworld();
-			if (overworld != null) {
-				long observedDayTime = overworld.getOverworldClockTime();
-				MadokuClock.observeWorldTime(observedDayTime);
-				if (hasAppliedDayTime && observedDayTime != lastAppliedDayTime) {
-					long remappedObservedDayTime =
-					remapVanillaTimeSetAnchors(observedDayTime, lastAppliedDayTime, currentSettings);
-				sessionTickOffset = getNearestSessionTicks(remappedObservedDayTime, currentSettings) - MadokuTicks.getGameplayTicks();
-				// Preserve the exact command-driven value this tick; clock mapping takes over next tick.
-				absoluteDayTime = remappedObservedDayTime;
-			}
-			}
+		if (!currentSettings.enabled) {
+			restoreVanillaGameRules(server);
+			clearRuntimeAdjustments();
+			return;
+		}
 
-			for (ServerLevel world : server.getAllLevels()) {
-				var overworldClock = world.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).getOrThrow(WorldClocks.OVERWORLD);
-				world.clockManager().setTotalTicks(overworldClock, absoluteDayTime);
-			}
+		applyManagedGameRules(server);
+		timeAdjustmentCarry += getPerTickAdjustment(observedDayTime, currentSettings);
 
-		lastAppliedDayTime = absoluteDayTime;
-		hasAppliedDayTime = true;
+		long correctionTicks = takeWholeTicksFromCarry();
+		long skippedTicks = consumePendingSkippedTicks();
+		long totalAdjustment = safeAdd(correctionTicks, skippedTicks);
+		if (totalAdjustment == 0L) {
+			return;
+		}
+
+		long adjustedDayTime = applyWorldTimeDelta(server, observedDayTime, totalAdjustment);
+		observeOverworldTime(adjustedDayTime);
+		MadokuClock.observeWorldTime(adjustedDayTime);
 		syncClientTime(server);
 	}
 
@@ -170,38 +111,13 @@ public final class MadokuTime {
 		}
 
 		ClientboundSetTimePacket packet = overworld.clockManager().createFullSyncPacket();
-
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			player.connection.send(packet);
 		}
 	}
 
 	public static long getTimeOfDay(long cycleTick) {
-		TimeSettings currentSettings = settings;
-		long normalizedTick = Math.floorMod(cycleTick, currentSettings.serverTicksPerCycle);
-
-		if (normalizedTick < currentSettings.serverTicksPerDay) {
-			long dayTick = mapRangeInclusive(
-				normalizedTick,
-				currentSettings.serverTicksPerDay,
-				currentSettings.minecraftTicksPerDay
-			);
-			return Math.floorMod(
-				currentSettings.minecraftDayStartTick + dayTick,
-				MINECRAFT_TICKS_PER_CYCLE
-			);
-		}
-
-		long nightTick = normalizedTick - currentSettings.serverTicksPerDay;
-		long mappedNightTick = mapRangeInclusive(
-			nightTick,
-			currentSettings.serverTicksPerNight,
-			currentSettings.minecraftTicksPerNight
-		);
-		return Math.floorMod(
-			currentSettings.minecraftNightStartTick + mappedNightTick,
-			MINECRAFT_TICKS_PER_CYCLE
-		);
+		return Math.floorMod(cycleTick, MINECRAFT_TICKS_PER_CYCLE);
 	}
 
 	public static long getDay(long absoluteDayTime) {
@@ -219,17 +135,17 @@ public final class MadokuTime {
 	}
 
 	public static long getCurrentAbsoluteDayTime() {
-		if (!settings.enabled) {
-			return MadokuTicks.getGameplayTicks();
+		if (hasObservedOverworldTime) {
+			return lastObservedOverworldDayTime;
 		}
-		return getAbsoluteDayTime(getSessionTicks(), settings);
+		return MadokuTicks.getGameplayTicks();
 	}
 
 	public static long getCurrentAbsoluteDayTime(ServerLevel world) {
-		if (settings.enabled) {
-			return getCurrentAbsoluteDayTime();
+		if (world != null) {
+			return world.getOverworldClockTime();
 		}
-			return world == null ? MadokuTicks.getGameplayTicks() : world.getOverworldClockTime();
+		return getCurrentAbsoluteDayTime();
 	}
 
 	public static boolean isEnabled() {
@@ -261,7 +177,7 @@ public final class MadokuTime {
 	}
 
 	public static void setClockFromAbsoluteDayTime(long absoluteDayTime) {
-		sessionTickOffset = getSessionTicks(absoluteDayTime, settings) - MadokuTicks.getGameplayTicks();
+		observeOverworldTime(Math.max(0L, absoluteDayTime));
 	}
 
 	public static void advanceSkippedTimeTicks(long amount) {
@@ -270,11 +186,7 @@ public final class MadokuTime {
 		}
 
 		long extraTicks = amount - 1L;
-		try {
-			sessionTickOffset = Math.addExact(sessionTickOffset, extraTicks);
-		} catch (ArithmeticException exception) {
-			sessionTickOffset = Long.MAX_VALUE;
-		}
+		pendingSkippedTicks = safeAdd(pendingSkippedTicks, extraTicks);
 	}
 
 	public static boolean isDaytime(long absoluteDayTime) {
@@ -285,8 +197,70 @@ public final class MadokuTime {
 		return isSleepTime(getTotalMinutes(absoluteDayTime));
 	}
 
-	private static long getSessionTicks() {
-		return MadokuTicks.getGameplayTicks() + sessionTickOffset;
+	private static void clearRuntimeAdjustments() {
+		pendingSkippedTicks = 0L;
+		timeAdjustmentCarry = 0.0D;
+	}
+
+	private static void observeOverworldTime(long absoluteDayTime) {
+		hasObservedOverworldTime = true;
+		lastObservedOverworldDayTime = absoluteDayTime;
+	}
+
+	private static void applyManagedGameRules(MinecraftServer server) {
+		if (managedGameRulesApplied) {
+			return;
+		}
+		for (ServerLevel world : server.getAllLevels()) {
+			world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
+		}
+		managedGameRulesApplied = true;
+	}
+
+	private static void restoreVanillaGameRules(MinecraftServer server) {
+		for (ServerLevel world : server.getAllLevels()) {
+			world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
+		}
+		managedGameRulesApplied = false;
+	}
+
+	private static long applyWorldTimeDelta(MinecraftServer server, long observedDayTime, long delta) {
+		long targetDayTime = safeAdd(observedDayTime, delta);
+		for (ServerLevel world : server.getAllLevels()) {
+			var overworldClock = world.registryAccess()
+				.lookupOrThrow(Registries.WORLD_CLOCK)
+				.getOrThrow(WorldClocks.OVERWORLD);
+			world.clockManager().setTotalTicks(overworldClock, targetDayTime);
+		}
+		return targetDayTime;
+	}
+
+	private static double getPerTickAdjustment(long absoluteDayTime, TimeSettings timeSettings) {
+		long timeOfDay = Math.floorMod(absoluteDayTime, MINECRAFT_TICKS_PER_CYCLE);
+		double desiredTicksPerTick = isDaytime(getTotalMinutes(timeOfDay))
+			? timeSettings.dayTicksPerServerTick
+			: timeSettings.nightTicksPerServerTick;
+		return desiredTicksPerTick - 1.0D;
+	}
+
+	private static long takeWholeTicksFromCarry() {
+		if (timeAdjustmentCarry >= 1.0D) {
+			long ticks = (long) Math.floor(timeAdjustmentCarry);
+			timeAdjustmentCarry -= ticks;
+			return ticks;
+		}
+		if (timeAdjustmentCarry <= -1.0D) {
+			long ticks = (long) Math.ceil(timeAdjustmentCarry);
+			timeAdjustmentCarry -= ticks;
+			return ticks;
+		}
+		return 0L;
+	}
+
+	private static long consumePendingSkippedTicks() {
+		long value = pendingSkippedTicks;
+		pendingSkippedTicks = 0L;
+		return value;
 	}
 
 	private static boolean isDaytime(int totalMinutes) {
@@ -302,25 +276,12 @@ public final class MadokuTime {
 		return !isDaytime(totalMinutes);
 	}
 
-	private static long getAbsoluteDayTime(long sessionTicks, TimeSettings timeSettings) {
-		long cycleTick = Math.floorMod(sessionTicks, timeSettings.serverTicksPerCycle);
-		long completedCycles = Math.floorDiv(sessionTicks, timeSettings.serverTicksPerCycle);
-		long timeOfDay = getTimeOfDay(cycleTick);
-		long timeSinceDayStart = Math.floorMod(
-			timeOfDay - timeSettings.minecraftDayStartTick,
-			MINECRAFT_TICKS_PER_CYCLE
-		);
-		return completedCycles * MINECRAFT_TICKS_PER_CYCLE
-			+ timeSettings.minecraftDayStartTick
-			+ timeSinceDayStart;
-	}
-
-	private static JsonObject createData(long day, int hour, int minute) {
-		JsonObject root = new JsonObject();
-		root.addProperty("day", Math.max(0L, day));
-		root.addProperty("hour", Math.max(0, Math.min(23, hour)));
-		root.addProperty("minute", Math.max(0, Math.min(59, minute)));
-		return root;
+	private static long safeAdd(long base, long delta) {
+		try {
+			return Math.addExact(base, delta);
+		} catch (ArithmeticException exception) {
+			return delta >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
+		}
 	}
 
 	private static long getLong(JsonObject object, String key, long fallback) {
@@ -367,100 +328,6 @@ public final class MadokuTime {
 		return element.getAsBoolean();
 	}
 
-	private static long getSessionTicks(long absoluteDayTime, TimeSettings timeSettings) {
-		long shiftedDayTime = absoluteDayTime - timeSettings.minecraftDayStartTick;
-		long completedCycles = Math.floorDiv(shiftedDayTime, MINECRAFT_TICKS_PER_CYCLE);
-		long timeSinceDayStart = Math.floorMod(shiftedDayTime, MINECRAFT_TICKS_PER_CYCLE);
-		long timeOfDay = Math.floorMod(
-			timeSettings.minecraftDayStartTick + timeSinceDayStart,
-			MINECRAFT_TICKS_PER_CYCLE
-		);
-		long cycleTick = getCycleTick(timeOfDay, timeSettings);
-		return completedCycles * timeSettings.serverTicksPerCycle + cycleTick;
-	}
-
-	private static long getNearestSessionTicks(long observedDayTime, TimeSettings timeSettings) {
-		long candidate = getSessionTicks(observedDayTime, timeSettings);
-		long bestTicks = candidate;
-		long bestDistance = Math.abs(getAbsoluteDayTime(candidate, timeSettings) - observedDayTime);
-
-		for (long delta = -2L; delta <= 2L; delta++) {
-			long testTicks = candidate + delta;
-			long distance = Math.abs(getAbsoluteDayTime(testTicks, timeSettings) - observedDayTime);
-			if (distance < bestDistance) {
-				bestDistance = distance;
-				bestTicks = testTicks;
-			}
-		}
-
-		return bestTicks;
-	}
-
-	private static long remapVanillaTimeSetAnchors(
-		long observedDayTime,
-		long previousAppliedDayTime,
-		TimeSettings timeSettings
-	) {
-		long timeOfDay = Math.floorMod(observedDayTime, MINECRAFT_TICKS_PER_CYCLE);
-		if (timeOfDay == VANILLA_TIME_SET_DAY_TICK) {
-			long commandDay = getDay(observedDayTime);
-			return toAbsoluteDayTime(
-				commandDay,
-				timeSettings.clockDayStartMinutes / 60,
-				timeSettings.clockDayStartMinutes % 60
-			);
-		}
-		if (timeOfDay == VANILLA_TIME_SET_NIGHT_TICK) {
-			long commandDay = getDay(observedDayTime);
-			return toAbsoluteDayTime(
-				commandDay,
-				timeSettings.clockNightStartMinutes / 60,
-				timeSettings.clockNightStartMinutes % 60
-			);
-		}
-		// Keep `/time set <Nd>` on vanilla day boundaries.
-		// This preserves the expected day number semantics for command users.
-		if (timeOfDay == 0L && observedDayTime >= MINECRAFT_TICKS_PER_CYCLE) {
-			long plainAddOneDayTarget = previousAppliedDayTime + MINECRAFT_TICKS_PER_CYCLE;
-			if (observedDayTime != plainAddOneDayTarget) {
-				return observedDayTime;
-			}
-		}
-		if (timeOfDay == 0L && observedDayTime == 0L) {
-			return toAbsoluteDayTime(
-				0L,
-				timeSettings.clockDayStartMinutes / 60,
-				timeSettings.clockDayStartMinutes % 60
-			);
-		}
-		return observedDayTime;
-	}
-
-	private static long getCycleTick(long timeOfDay, TimeSettings timeSettings) {
-		long dayOffset = Math.floorMod(
-			timeOfDay - timeSettings.minecraftDayStartTick,
-			MINECRAFT_TICKS_PER_CYCLE
-		);
-		if (dayOffset < timeSettings.minecraftTicksPerDay) {
-			return inverseMapRangeInclusive(
-				dayOffset,
-				timeSettings.serverTicksPerDay,
-				timeSettings.minecraftTicksPerDay
-			);
-		}
-
-		long nightTick = Math.floorMod(
-			timeOfDay - timeSettings.minecraftNightStartTick,
-			MINECRAFT_TICKS_PER_CYCLE
-		);
-		return timeSettings.serverTicksPerDay
-			+ inverseMapRangeInclusive(
-				nightTick,
-				timeSettings.serverTicksPerNight,
-				timeSettings.minecraftTicksPerNight
-			);
-	}
-
 	private static long clockMinutesToMinecraftTicks(int clockMinutes) {
 		int minecraftMinutes = Math.floorMod(clockMinutes - MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES, MINUTES_PER_DAY);
 		return (minecraftMinutes * MINECRAFT_TICKS_PER_CYCLE) / MINUTES_PER_DAY;
@@ -487,24 +354,6 @@ public final class MadokuTime {
 		return Math.floorMod(endTick - startTick, MINECRAFT_TICKS_PER_CYCLE);
 	}
 
-	private static long mapRangeInclusive(long value, long sourceLength, long targetLength) {
-		if (sourceLength <= 1L || targetLength <= 1L) {
-			return 0L;
-		}
-
-		return (value * (targetLength - 1L)) / (sourceLength - 1L);
-	}
-
-	private static long inverseMapRangeInclusive(long value, long sourceLength, long targetLength) {
-		if (sourceLength <= 1L || targetLength <= 1L) {
-			return 0L;
-		}
-
-		long sourceRange = sourceLength - 1L;
-		long targetRange = targetLength - 1L;
-		return (value * sourceRange + targetRange / 2L) / targetRange;
-	}
-
 	private static void loadStaticConfig() {
 		JsonObject defaults = TimeSettings.defaults().toConfigJson();
 		TimeSettings fallback = TimeSettings.defaults();
@@ -514,8 +363,7 @@ public final class MadokuTime {
 			Path configFile = resolveJsonFile(configDirectory, TIME_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			TimeSettings loaded = TimeSettings.fromJson(normalized);
-			JsonObject cleaned = loaded.toConfigJson();
-			JsonStaticSystem.writeManagedFile(configFile, cleaned, defaults);
+			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -537,14 +385,14 @@ public final class MadokuTime {
 	private static long safeServerTicksFromMinutes(long minutes, long fallbackMinutes) {
 		long safeMinutes = Math.max(1L, minutes);
 		try {
-				return Math.multiplyExact(
-					safeMinutes,
-					MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND
-				);
-			} catch (ArithmeticException exception) {
-				return fallbackMinutes * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
-			}
+			return Math.multiplyExact(
+				safeMinutes,
+				MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND
+			);
+		} catch (ArithmeticException exception) {
+			return fallbackMinutes * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
 		}
+	}
 
 	private static long sanitizePositive(long value, long fallback) {
 		return value > 0L ? value : fallback;
@@ -591,18 +439,16 @@ public final class MadokuTime {
 		private final boolean enabled;
 		private final long realMinutesPerDay;
 		private final long realMinutesPerNight;
-		private final long serverTicksPerCycle;
 		private final long serverTicksPerDay;
 		private final long serverTicksPerNight;
+		private final long serverTicksPerCycle;
 		private final int clockDayStartMinutes;
 		private final int clockNightStartMinutes;
 		private final int clockMidnightMinutes;
-		private final long minecraftDayStartTick;
-		private final long minecraftNightStartTick;
 		private final long minecraftMidnightTick;
 		private final long dayRolloverOffsetTicks;
-		private final long minecraftTicksPerDay;
-		private final long minecraftTicksPerNight;
+		private final double dayTicksPerServerTick;
+		private final double nightTicksPerServerTick;
 
 		private TimeSettings(
 			boolean enabled,
@@ -621,12 +467,16 @@ public final class MadokuTime {
 			this.serverTicksPerDay = safeServerTicksFromMinutes(realMinutesPerDay, DEFAULT_REAL_MINUTES_PER_DAY);
 			this.serverTicksPerNight = safeServerTicksFromMinutes(realMinutesPerNight, DEFAULT_REAL_MINUTES_PER_NIGHT);
 			this.serverTicksPerCycle = this.serverTicksPerDay + this.serverTicksPerNight;
-			this.minecraftDayStartTick = clockMinutesToMinecraftTicks(clockDayStartMinutes);
-			this.minecraftNightStartTick = clockMinutesToMinecraftTicks(clockNightStartMinutes);
+
+			long minecraftDayStartTick = clockMinutesToMinecraftTicks(clockDayStartMinutes);
+			long minecraftNightStartTick = clockMinutesToMinecraftTicks(clockNightStartMinutes);
 			this.minecraftMidnightTick = clockMinutesToMinecraftTicks(clockMidnightMinutes);
 			this.dayRolloverOffsetTicks = MINECRAFT_TICKS_PER_CYCLE - this.minecraftMidnightTick;
-			this.minecraftTicksPerDay = wrappedDuration(this.minecraftDayStartTick, this.minecraftNightStartTick);
-			this.minecraftTicksPerNight = MINECRAFT_TICKS_PER_CYCLE - this.minecraftTicksPerDay;
+
+			long minecraftTicksPerDay = wrappedDuration(minecraftDayStartTick, minecraftNightStartTick);
+			long minecraftTicksPerNight = MINECRAFT_TICKS_PER_CYCLE - minecraftTicksPerDay;
+			this.dayTicksPerServerTick = minecraftTicksPerDay / (double) Math.max(1L, this.serverTicksPerDay);
+			this.nightTicksPerServerTick = minecraftTicksPerNight / (double) Math.max(1L, this.serverTicksPerNight);
 		}
 
 		private static TimeSettings defaults() {
