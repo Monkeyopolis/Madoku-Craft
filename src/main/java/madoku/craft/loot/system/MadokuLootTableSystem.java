@@ -50,6 +50,9 @@ public final class MadokuLootTableSystem {
 	private static final String LOOT_CONFIG_TABLES_FOLDER_NAME = "structures";
 	private static final String STRUCTURE_CHEST_NAMESPACE = "minecraft";
 	private static final String STRUCTURE_CHEST_PREFIX = "minecraft:structure_chests/";
+	private static final String GROUP_TAG_MADOKU_PETS = "madoku-pets";
+	private static final String GROUP_TAG_MADOKU_LUCK = "madoku-luck";
+	private static final String GROUP_TAG_MADOKU_RARITY = "madoku-rarity";
 	private static final long RELOAD_INTERVAL_MILLIS = 1_500L;
 	private static final Set<String> DEFAULT_STRUCTURE_CHEST_IDS = Set.of(
 		STRUCTURE_CHEST_PREFIX + "abandoned_mineshaft",
@@ -249,7 +252,10 @@ public final class MadokuLootTableSystem {
 		double totalWeight = 0.0d;
 		List<Double> effectiveWeights = new ArrayList<>(groups.size());
 		for (ManagedLootGroup group : groups) {
-			if (group == null || group.weight() <= 0 || group.entries().isEmpty()) {
+			if (group == null
+				|| group.weight() <= 0
+				|| group.entries().isEmpty()
+				|| !isGroupEnabledByTags(group.tags())) {
 				effectiveWeights.add(0.0d);
 				continue;
 			}
@@ -675,9 +681,60 @@ public final class MadokuLootTableSystem {
 			if (entries.isEmpty()) {
 				continue;
 			}
-			groups.add(new ManagedLootGroup(rarity, weight, List.copyOf(entries)));
+			List<String> tags = parseGroupTags(groupRoot.get(MadokuLootTableConfig.FIELD_TAGS));
+			groups.add(new ManagedLootGroup(rarity, weight, List.copyOf(entries), tags));
 		}
 		return groups;
+	}
+
+	private static List<String> parseGroupTags(JsonElement element) {
+		if (!(element instanceof JsonArray tagsArray) || tagsArray.isEmpty()) {
+			return List.of();
+		}
+
+		Set<String> tags = new LinkedHashSet<>();
+		for (JsonElement tagElement : tagsArray) {
+			if (!(tagElement instanceof JsonPrimitive primitive) || !primitive.isString()) {
+				continue;
+			}
+			String normalizedTag = normalizeGroupTag(primitive.getAsString());
+			if (!normalizedTag.isBlank()) {
+				tags.add(normalizedTag);
+			}
+		}
+		return tags.isEmpty() ? List.of() : List.copyOf(tags);
+	}
+
+	private static boolean isGroupEnabledByTags(List<String> tags) {
+		if (tags == null || tags.isEmpty()) {
+			return true;
+		}
+		for (String tag : tags) {
+			if (!isGroupTagEnabled(tag)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static boolean isGroupTagEnabled(String rawTag) {
+		String tag = normalizeGroupTag(rawTag);
+		if (tag.isBlank()) {
+			return true;
+		}
+		return switch (tag) {
+			case GROUP_TAG_MADOKU_PETS -> PlayerEntitiesSystem.isEnabled();
+			case GROUP_TAG_MADOKU_LUCK -> MadokuLuck.isEnabled();
+			case GROUP_TAG_MADOKU_RARITY -> MadokuRarity.isEnabled();
+			default -> true;
+		};
+	}
+
+	private static String normalizeGroupTag(String value) {
+		if (value == null || value.isBlank()) {
+			return "";
+		}
+		return value.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private static List<ManagedLootEntry> parseEntries(JsonElement element) {
@@ -898,7 +955,12 @@ public final class MadokuLootTableSystem {
 	private record ManagedLootTable(String tableId, int minRolls, int maxRolls, List<ManagedLootGroup> groups) {
 	}
 
-	private record ManagedLootGroup(MadokuLootRarity rarity, double weight, List<ManagedLootEntry> entries) {
+	private record ManagedLootGroup(
+		MadokuLootRarity rarity,
+		double weight,
+		List<ManagedLootEntry> entries,
+		List<String> tags
+	) {
 	}
 
 	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount, MadokuRarityTier itemRarity) {

@@ -41,6 +41,7 @@ public final class MadokuOxygen {
 	private static final String OXYGEN_PLAYER_TICK_SCHEDULER_KEY = "oxygen_player_tick";
 	private static final long OXYGEN_PLAYER_TICK_DELAY = 1L;
 	private static final String VANILLA_BREATH_OF_THE_NAUTILUS_DESCRIPTION_ID = "effect.minecraft.breath_of_the_nautilus";
+	private static final int VANILLA_MAX_AIR_SUPPLY_TICKS = 300;
 	private static final long TICKS_PER_SECOND = Math.max(1L, MadokuTicks.TICKS_PER_SECOND);
 	private static final double DEFAULT_MAXIMUM_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 2.0d;
 	private static final double DEFAULT_OXYGEN_GAIN_PER_EFFECT_LEVEL_FRACTION = 1.0d;
@@ -240,9 +241,7 @@ public final class MadokuOxygen {
 		if (player.isSpectator() || player.getAbilities().invulnerable) {
 			state.oxygenTicks = oxygenCapTicks;
 			state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
-			if (player.getAirSupply() != oxygenCapTicks) {
-				player.setAirSupply(oxygenCapTicks);
-			}
+			applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 			return true;
 		}
 
@@ -259,9 +258,7 @@ public final class MadokuOxygen {
 				state.oxygenTicks = Math.max(0, state.oxygenTicks - drained);
 			}
 			if (state.oxygenTicks > 0) {
-				if (player.getAirSupply() != state.oxygenTicks) {
-					player.setAirSupply(state.oxygenTicks);
-				}
+				applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 			} else if (player.getAirSupply() > 0) {
 				// Force zero vanilla air so custom drowning damage stays authoritative.
 				player.setAirSupply(0);
@@ -275,9 +272,7 @@ public final class MadokuOxygen {
 			state.oxygenTicks = Math.min(oxygenCapTicks, state.oxygenTicks + recovered);
 		}
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
-		if (player.getAirSupply() != state.oxygenTicks) {
-			player.setAirSupply(state.oxygenTicks);
-		}
+		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 		return true;
 	}
 
@@ -416,7 +411,7 @@ public final class MadokuOxygen {
 			return;
 		}
 
-		int observedAirSupply = clampInt(player.getAirSupply(), 0, oxygenCapTicks);
+		int observedAirSupply = decodeAirSupplyFromVanillaHud(player.getAirSupply(), oxygenCapTicks);
 		state.oxygenTicks = shouldDrainOxygen(player) ? observedAirSupply : oxygenCapTicks;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
 	}
@@ -432,9 +427,7 @@ public final class MadokuOxygen {
 		state.oxygenTicks = clampInt(state.oxygenTicks, 0, oxygenCapTicks);
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(player);
-		if (player.getAirSupply() != state.oxygenTicks) {
-			player.setAirSupply(state.oxygenTicks);
-		}
+		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
@@ -448,8 +441,46 @@ public final class MadokuOxygen {
 		state.oxygenTicks = oxygenCapTicks;
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
 		state.lastKnownOxygenBoostLevels = getTotalOxygenBoostLevels(newPlayer);
-		newPlayer.setAirSupply(oxygenCapTicks);
+		applyVanillaCompatibleAirSupply(newPlayer, state.oxygenTicks, oxygenCapTicks);
 		NEXT_PROCESS_TICKS_BY_PLAYER.put(newPlayer.getUUID(), 0L);
+	}
+
+	private static void applyVanillaCompatibleAirSupply(ServerPlayer player, int oxygenTicks, int oxygenCapTicks) {
+		if (player == null) {
+			return;
+		}
+		int encodedAir = encodeAirSupplyForVanillaHud(oxygenTicks, oxygenCapTicks);
+		if (player.getAirSupply() != encodedAir) {
+			player.setAirSupply(encodedAir);
+		}
+	}
+
+	private static int encodeAirSupplyForVanillaHud(int oxygenTicks, int oxygenCapTicks) {
+		int safeCap = Math.max(1, oxygenCapTicks);
+		int safeOxygen = clampInt(oxygenTicks, 0, safeCap);
+		if (safeCap <= VANILLA_MAX_AIR_SUPPLY_TICKS) {
+			return safeOxygen;
+		}
+		double ratio = safeOxygen / (double) safeCap;
+		return clampInt(
+			(int) Math.round(ratio * VANILLA_MAX_AIR_SUPPLY_TICKS),
+			0,
+			VANILLA_MAX_AIR_SUPPLY_TICKS
+		);
+	}
+
+	private static int decodeAirSupplyFromVanillaHud(int observedAirSupply, int oxygenCapTicks) {
+		int safeCap = Math.max(1, oxygenCapTicks);
+		int clampedObserved = clampInt(observedAirSupply, 0, safeCap);
+		if (safeCap <= VANILLA_MAX_AIR_SUPPLY_TICKS) {
+			return clampedObserved;
+		}
+		if (clampedObserved > VANILLA_MAX_AIR_SUPPLY_TICKS) {
+			// Backward compatibility for any pre-scale values still in memory.
+			return clampedObserved;
+		}
+		double ratio = clampedObserved / (double) VANILLA_MAX_AIR_SUPPLY_TICKS;
+		return clampInt((int) Math.round(ratio * safeCap), 0, safeCap);
 	}
 
 	private static JsonObject createDefaultData() {

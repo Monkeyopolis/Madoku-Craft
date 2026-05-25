@@ -101,6 +101,7 @@ public final class MadokuHud {
 	private static final String OXYGEN_BASELINE_TEXT = "Oxygen: 20/20";
 	private static final String LUCK_BASELINE_TEXT = "Luck: 100%";
 	private static final int VANILLA_MAX_FOOD_LEVEL = 20;
+	private static final int VANILLA_MAX_AIR_SUPPLY_TICKS = 300;
 	private static final int TICKS_PER_SECOND = 20;
 	private static final int OXYGEN_POP_TICKS_PER_SECOND_LOSS = 2;
 	private static final float WORLD_HUD_SCALE = 0.8F;
@@ -124,6 +125,7 @@ public final class MadokuHud {
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
 	private static final float ARMOR_STEP = 0.25F;
+	private static final boolean DEFAULT_HUD_ENABLED = true;
 	private static final boolean DEFAULT_WORLD_HUD_ENABLED = true;
 	private static final boolean DEFAULT_HEALTH_HUD_ENABLED = true;
 	private static final boolean DEFAULT_HUNGER_HUD_ENABLED = true;
@@ -180,7 +182,7 @@ public final class MadokuHud {
 	}
 
 	private static void renderWorldHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
-		if (!settings.worldHudEnabled) {
+		if (!settings.enabled || !settings.worldHudEnabled) {
 			return;
 		}
 
@@ -218,6 +220,10 @@ public final class MadokuHud {
 	}
 
 	private static void renderAbilityHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
+		if (!settings.enabled) {
+			return;
+		}
+
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		if (player == null || client.level == null || client.options.hideGui || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
@@ -283,7 +289,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.healthHudEnabled) {
+		if (!settings.enabled || !settings.healthHudEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -355,7 +361,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.hungerHudEnabled) {
+		if (!settings.enabled || !settings.hungerHudEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -423,7 +429,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.armorHudEnabled) {
+		if (!settings.enabled || !settings.armorHudEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -480,7 +486,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.oxygenHudEnabled) {
+		if (!settings.enabled || !settings.oxygenHudEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -903,7 +909,8 @@ public final class MadokuHud {
 		}
 		lastOxygenStateUpdateTick = gameTime;
 		cachedMaxAirSupply = Math.max(1, MadokuOxygen.getMaximumOxygenTicksForEntity(player));
-		cachedAirSupply = clampInt(player.getAirSupply(), 0, cachedMaxAirSupply);
+		int observedAirSupply = clampInt(player.getAirSupply(), 0, Math.max(cachedMaxAirSupply, VANILLA_MAX_AIR_SUPPLY_TICKS));
+		cachedAirSupply = decodeAirSupplyForDisplay(observedAirSupply, cachedMaxAirSupply);
 		cachedOxygenPoints = toOxygenPoints(cachedAirSupply, cachedMaxAirSupply);
 		int displayedSeconds = toDisplaySeconds(cachedAirSupply);
 		if (previousDisplayedOxygenSeconds >= 0
@@ -917,8 +924,28 @@ public final class MadokuHud {
 		previousDisplayedOxygenSeconds = displayedSeconds;
 	}
 
+	private static int decodeAirSupplyForDisplay(int observedAirSupply, int maximumAirSupply) {
+		int safeMax = Math.max(1, maximumAirSupply);
+		int clampedObserved = clampInt(observedAirSupply, 0, safeMax);
+		if (safeMax <= VANILLA_MAX_AIR_SUPPLY_TICKS) {
+			return clampedObserved;
+		}
+		if (clampedObserved > VANILLA_MAX_AIR_SUPPLY_TICKS) {
+			return clampedObserved;
+		}
+		double ratio = clampedObserved / (double) VANILLA_MAX_AIR_SUPPLY_TICKS;
+		return clampInt((int) Math.round(ratio * safeMax), 0, safeMax);
+	}
+
 	private static int clampInt(int value, int min, int max) {
 		return Math.max(min, Math.min(max, value));
+	}
+
+	private static int toVanillaFood(int hungerPoints, int maxHungerPoints) {
+		int safeMax = Math.max(1, maxHungerPoints);
+		int safeCurrent = clampInt(hungerPoints, 0, safeMax);
+		double ratio = safeCurrent / (double) safeMax;
+		return clampInt((int) Math.round(ratio * VANILLA_MAX_FOOD_LEVEL), 0, VANILLA_MAX_FOOD_LEVEL);
 	}
 
 	private static void loadClientConfig() {
@@ -1028,6 +1055,7 @@ public final class MadokuHud {
 		serverHungerPending = Math.max(0, pending);
 		serverHungerMax = Math.max(1, max);
 		hasServerHunger = true;
+		syncVanillaFoodFromServerSnapshotIfNeeded();
 	}
 
 	public static void clearServerHunger() {
@@ -1057,7 +1085,34 @@ public final class MadokuHud {
 		return total < Math.max(1, serverHungerMax);
 	}
 
+	public static void stabilizeVanillaFoodAfterClientConsume() {
+		syncVanillaFoodFromServerSnapshotIfNeeded();
+	}
+
+	private static void syncVanillaFoodFromServerSnapshotIfNeeded() {
+		if (settings.enabled || !hasServerHunger) {
+			return;
+		}
+
+		Minecraft client = Minecraft.getInstance();
+		LocalPlayer player = client == null ? null : client.player;
+		if (player == null) {
+			return;
+		}
+
+		int maxHunger = Math.max(1, serverHungerMax);
+		int currentHunger = clampInt(serverHungerCurrent, 0, maxHunger);
+		int vanillaFood = toVanillaFood(currentHunger, maxHunger);
+		if (player.getFoodData().getFoodLevel() != vanillaFood) {
+			player.getFoodData().setFoodLevel(vanillaFood);
+		}
+		if (player.getFoodData().getSaturationLevel() != 0.0f) {
+			player.getFoodData().setSaturation(0.0f);
+		}
+	}
+
 	private static final class Settings {
+		private final boolean enabled;
 		private final boolean worldHudEnabled;
 			private final boolean healthHudEnabled;
 			private final boolean hungerHudEnabled;
@@ -1066,6 +1121,7 @@ public final class MadokuHud {
 			private final boolean seasonHudEnabled;
 
 			private Settings(
+				boolean enabled,
 				boolean worldHudEnabled,
 				boolean healthHudEnabled,
 				boolean hungerHudEnabled,
@@ -1073,6 +1129,7 @@ public final class MadokuHud {
 				boolean oxygenHudEnabled,
 				boolean seasonHudEnabled
 			) {
+				this.enabled = enabled;
 				this.worldHudEnabled = worldHudEnabled;
 				this.healthHudEnabled = healthHudEnabled;
 				this.hungerHudEnabled = hungerHudEnabled;
@@ -1083,6 +1140,7 @@ public final class MadokuHud {
 
 		private static Settings defaults() {
 			return new Settings(
+				DEFAULT_HUD_ENABLED,
 				DEFAULT_WORLD_HUD_ENABLED,
 				DEFAULT_HEALTH_HUD_ENABLED,
 				DEFAULT_HUNGER_HUD_ENABLED,
@@ -1095,6 +1153,7 @@ public final class MadokuHud {
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			return new Settings(
+				getBoolean(source, "enabled", defaults.enabled),
 				getBoolean(source, "world-hud-enabled", getBoolean(source, "world_hud_enabled", defaults.worldHudEnabled)),
 				getBoolean(source, "health-hud-enabled", getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled)),
 				getBoolean(source, "hunger-hud-enabled", getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled)),
@@ -1106,6 +1165,7 @@ public final class MadokuHud {
 
 		private JsonObject toConfigJson() {
 			JsonObject root = new JsonObject();
+			root.addProperty("enabled", enabled);
 			root.addProperty("world-hud-enabled", worldHudEnabled);
 			root.addProperty("health-hud-enabled", healthHudEnabled);
 			root.addProperty("hunger-hud-enabled", hungerHudEnabled);
