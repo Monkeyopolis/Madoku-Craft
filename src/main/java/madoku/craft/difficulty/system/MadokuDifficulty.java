@@ -58,7 +58,8 @@ public final class MadokuDifficulty {
 	private static final String TIME_RULES_FOLDER_NAME = "time-rules";
 	private static final String TASK_TYPE_TIME_TICK = "difficulty_time_tick";
 	private static final String TIME_SCHEDULER_OWNER_ID = "madoku-difficulty-time";
-	private static final int TIME_SCHEDULER_INTERVAL_TICKS = 20;
+	private static final long TIME_SCHEDULER_MIN_INTERVAL_TICKS = 5L;
+	private static final long TIME_SCHEDULER_MAX_INTERVAL_TICKS = 100L;
 	private static final double HEALTH_SCALE_STEP_PERCENT = 0.05D;
 	private static final double MOVEMENT_SPEED_SCALE_STEP_PERCENT = 0.02D;
 	private static final double DAMAGE_SCALE_STEP_PERCENT = 0.05D;
@@ -88,6 +89,7 @@ public final class MadokuDifficulty {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		SchedulerManagerSystem.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
@@ -99,10 +101,11 @@ public final class MadokuDifficulty {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		requestTimeProcessing(server, TIME_SCHEDULER_INTERVAL_TICKS);
+		requestTimeProcessing(server, resolveTimeSchedulerInterval(server));
 	}
 
 	public static void onServerStopped() {
+		SchedulerManagerSystem.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
@@ -640,7 +643,16 @@ public final class MadokuDifficulty {
 			return;
 		}
 		refreshCachedTimeAdjustment(server, config);
-		requestTimeProcessing(server, TIME_SCHEDULER_INTERVAL_TICKS);
+		requestTimeProcessing(server, resolveTimeSchedulerInterval(server));
+	}
+
+	private static long resolveTimeSchedulerInterval(MinecraftServer server) {
+		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			TIME_SCHEDULER_OWNER_ID,
+			TIME_SCHEDULER_MIN_INTERVAL_TICKS,
+			TIME_SCHEDULER_MAX_INTERVAL_TICKS
+		);
 	}
 
 	private static void refreshCachedTimeAdjustment(MinecraftServer server, Snapshot config) {

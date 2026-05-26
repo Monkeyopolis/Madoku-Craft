@@ -29,7 +29,8 @@ public final class ChunkManagerSystem {
 	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
-	private static final long CHUNK_REFRESH_INTERVAL_TICKS = 5L;
+	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 1L;
+	private static final long CHUNK_REFRESH_MAX_INTERVAL_TICKS = 20L;
 	private static final int DISCOVERY_STEPS_PER_REFRESH = 1;
 	private static final String FIELD_LEVELS = "levels";
 	private static final String FIELD_LEVEL_ID = "level-id";
@@ -230,6 +231,7 @@ public final class ChunkManagerSystem {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
+		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
 	}
 
 	public static void registerChunkLifecycleListener(ChunkLifecycleListener listener) {
@@ -312,6 +314,7 @@ public final class ChunkManagerSystem {
 		if (server == null) {
 			return;
 		}
+		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
 
 		serverStopping = false;
 		discoveryChunkScanCursor = 0;
@@ -486,7 +489,7 @@ public final class ChunkManagerSystem {
 
 		refreshTrackedChunks(server);
 		runSharedChunkDiscoverySteps(server, DISCOVERY_STEPS_PER_REFRESH);
-		requestChunkRefresh(server, CHUNK_REFRESH_INTERVAL_TICKS);
+		requestChunkRefresh(server, resolveChunkRefreshInterval(server));
 	}
 
 	private static void seedLoadedChunks(MinecraftServer server) {
@@ -579,6 +582,15 @@ public final class ChunkManagerSystem {
 		if (enqueueChunkRefresh(chunkSchedulerId, delayTicks)) {
 			refreshTaskScheduled = true;
 		}
+	}
+
+	private static long resolveChunkRefreshInterval(MinecraftServer server) {
+		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			CHUNK_SCHEDULER_OWNER_ID,
+			CHUNK_REFRESH_MIN_INTERVAL_TICKS,
+			CHUNK_REFRESH_MAX_INTERVAL_TICKS
+		);
 	}
 
 	private static String ensureChunkSchedulerExists() {

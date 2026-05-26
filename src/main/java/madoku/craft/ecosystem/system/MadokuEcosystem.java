@@ -65,7 +65,8 @@ public final class MadokuEcosystem {
 	private static final String ECOSYSTEM_EROSION_PROCESS_SCHEDULER_OWNER_ID = "ecosystem_erosion_process_gameplay";
 	private static final String TASK_TYPE_ECOSYSTEM_GROWTH_PROCESS_TICK = "ecosystem_growth_process_gameplay_tick";
 	private static final String TASK_TYPE_ECOSYSTEM_EROSION_PROCESS_TICK = "ecosystem_erosion_process_gameplay_tick";
-	private static final long ECOSYSTEM_SCHEDULER_INTERVAL_TICKS = 5L;
+	private static final long ECOSYSTEM_SCHEDULER_MIN_INTERVAL_TICKS = 1L;
+	private static final long ECOSYSTEM_SCHEDULER_MAX_INTERVAL_TICKS = 20L;
 	private static final String CHUNK_PROCESSOR_GROWTH_ID = "ecosystem_natural_growth";
 	private static final String CHUNK_PROCESSOR_EROSION_ID = "ecosystem_natural_erosion";
 
@@ -272,6 +273,8 @@ public final class MadokuEcosystem {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		resetUnifiedDiscoveryState();
+		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_GROWTH_PROCESS_SCHEDULER_OWNER_ID);
+		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_EROSION_PROCESS_SCHEDULER_OWNER_ID);
 	}
 
 	public static boolean isEnabled() {
@@ -351,6 +354,8 @@ public final class MadokuEcosystem {
 		if (server == null) {
 			return;
 		}
+		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_GROWTH_PROCESS_SCHEDULER_OWNER_ID);
+		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_EROSION_PROCESS_SCHEDULER_OWNER_ID);
 		resetUnifiedDiscoveryState();
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
@@ -433,7 +438,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 		if (trackAndSpreadAtPosition(world, dirtPos)) {
-			requestEcosystemProcessing(world.getServer(), ECOSYSTEM_SCHEDULER_INTERVAL_TICKS);
+			requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
 		}
 	}
 
@@ -472,7 +477,7 @@ public final class MadokuEcosystem {
 		}
 
 		if (changed) {
-			requestEcosystemProcessing(world.getServer(), ECOSYSTEM_SCHEDULER_INTERVAL_TICKS);
+			requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
 		}
 	}
 
@@ -485,7 +490,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 		emitEcosystemSchedulerTickDebug(server, context, EcosystemTaskSlot.GROWTH_PROCESS, "process_start");
-		requestEcosystemTask(server, ECOSYSTEM_SCHEDULER_INTERVAL_TICKS, EcosystemTaskSlot.GROWTH_PROCESS);
+		requestEcosystemTask(server, resolveEcosystemSchedulerInterval(server), EcosystemTaskSlot.GROWTH_PROCESS);
 		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_GROWTH_ID);
 		emitEcosystemSchedulerTickDebug(server, context, EcosystemTaskSlot.GROWTH_PROCESS, "process_end");
 	}
@@ -499,7 +504,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 		emitEcosystemSchedulerTickDebug(server, context, EcosystemTaskSlot.EROSION_PROCESS, "process_start");
-		requestEcosystemTask(server, ECOSYSTEM_SCHEDULER_INTERVAL_TICKS, EcosystemTaskSlot.EROSION_PROCESS);
+		requestEcosystemTask(server, resolveEcosystemSchedulerInterval(server), EcosystemTaskSlot.EROSION_PROCESS);
 		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_EROSION_ID);
 		emitEcosystemSchedulerTickDebug(server, context, EcosystemTaskSlot.EROSION_PROCESS, "process_end");
 	}
@@ -736,7 +741,7 @@ public final class MadokuEcosystem {
 			dirty = true;
 			emitTreeGrowthResultDebug(world, chunkKey, candidate, grown);
 			if (grown) {
-				requestEcosystemProcessing(world.getServer(), ECOSYSTEM_SCHEDULER_INTERVAL_TICKS);
+				requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
 			}
 		}
 	}
@@ -783,7 +788,7 @@ public final class MadokuEcosystem {
 			removeCactusCandidate(chunkKey);
 			dirty = true;
 			if (grown) {
-				requestEcosystemProcessing(world.getServer(), ECOSYSTEM_SCHEDULER_INTERVAL_TICKS);
+				requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
 			}
 		}
 	}
@@ -2052,6 +2057,15 @@ public final class MadokuEcosystem {
 		}
 		int topY = world.getHeight(Heightmap.Types.WORLD_SURFACE, waterPos.getX(), waterPos.getZ()) - 1;
 		return waterPos.getY() >= topY;
+	}
+
+	private static long resolveEcosystemSchedulerInterval(MinecraftServer server) {
+		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			ECOSYSTEM_GROWTH_PROCESS_SCHEDULER_OWNER_ID,
+			ECOSYSTEM_SCHEDULER_MIN_INTERVAL_TICKS,
+			ECOSYSTEM_SCHEDULER_MAX_INTERVAL_TICKS
+		);
 	}
 
 	private static void requestEcosystemProcessing(MinecraftServer server, long delayTicks) {

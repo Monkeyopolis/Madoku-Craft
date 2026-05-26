@@ -64,6 +64,7 @@ public final class SchedulerManagerSystem {
 	public static void reset() {
 		SCHEDULERS.clear();
 		SCHEDULER_IDS_BY_BINDING.clear();
+		AdaptiveSchedulerInterval.clearAll();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 	}
@@ -125,6 +126,24 @@ public final class SchedulerManagerSystem {
 		}
 
 		processDue(server);
+	}
+
+	public static long resolveAdaptiveDelayTicks(
+		MinecraftServer server,
+		String schedulerOwnerId,
+		long minimumIntervalTicks,
+		long maximumIntervalTicks
+	) {
+		return AdaptiveSchedulerInterval.resolve(
+			adaptiveSystemIdForSchedulerOwner(schedulerOwnerId),
+			server,
+			minimumIntervalTicks,
+			maximumIntervalTicks
+		);
+	}
+
+	public static void clearAdaptiveDelayState(String schedulerOwnerId) {
+		AdaptiveSchedulerInterval.clearSystem(adaptiveSystemIdForSchedulerOwner(schedulerOwnerId));
 	}
 
 	public static void clearQueuedRequests(String schedulerId) {
@@ -727,6 +746,14 @@ public final class SchedulerManagerSystem {
 
 	private static String normalizeKey(String value) {
 		return value == null ? "" : value.trim().toLowerCase();
+	}
+
+	private static String adaptiveSystemIdForSchedulerOwner(String schedulerOwnerId) {
+		String normalizedOwnerId = normalizeKey(schedulerOwnerId);
+		if (normalizedOwnerId.isEmpty()) {
+			return "scheduler:default";
+		}
+		return "scheduler:" + normalizedOwnerId;
 	}
 
 	private static int normalizeExpirationDays(int expirationDays) {
