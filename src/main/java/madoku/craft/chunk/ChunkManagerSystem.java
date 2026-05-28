@@ -42,6 +42,7 @@ public final class ChunkManagerSystem {
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
 	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
 	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
+	private static final Set<String> ACTIVE_CHUNK_PROCESSOR_IDS = new LinkedHashSet<>();
 	private static final List<ProcessorChunkKey> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
 	private static final Set<ProcessorChunkKey> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = ChunkDiscoverySnapshot.reusable(16 * 16);
@@ -246,7 +247,20 @@ public final class ChunkManagerSystem {
 		if (normalizedId.isBlank() || processor == null) {
 			return;
 		}
-		CHUNK_PROCESSORS.put(normalizedId, new ChunkProcessorRuntime(processor));
+		CHUNK_PROCESSORS.put(normalizedId, new ChunkProcessorRuntime(normalizedId, processor));
+		ACTIVE_CHUNK_PROCESSOR_IDS.add(normalizedId);
+	}
+
+	public static void setChunkProcessorActive(String processorId, boolean active) {
+		String normalizedId = normalizeProcessorId(processorId);
+		if (normalizedId.isBlank() || !CHUNK_PROCESSORS.containsKey(normalizedId)) {
+			return;
+		}
+		if (active) {
+			ACTIVE_CHUNK_PROCESSOR_IDS.add(normalizedId);
+		} else {
+			ACTIVE_CHUNK_PROCESSOR_IDS.remove(normalizedId);
+		}
 	}
 
 	public static void resetChunkProcessor(String processorId) {
@@ -257,8 +271,12 @@ public final class ChunkManagerSystem {
 	}
 
 	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
-		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
+		String normalizedId = normalizeProcessorId(processorId);
+		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizedId);
 		if (runtime == null || runtime.processor == null || server == null) {
+			return;
+		}
+		if (!ACTIVE_CHUNK_PROCESSOR_IDS.contains(normalizedId)) {
 			return;
 		}
 		processOneActiveTrackedChunk(server, runtime);
@@ -320,6 +338,11 @@ public final class ChunkManagerSystem {
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
 		seedLoadedChunks(server);
+		if (!hasActiveChunkProcessors()) {
+			chunkSchedulerId = "";
+			refreshTaskScheduled = false;
+			return;
+		}
 		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
 			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 		);
@@ -483,7 +506,7 @@ public final class ChunkManagerSystem {
 			chunkSchedulerId = context.getSchedulerId();
 		}
 		refreshTaskScheduled = false;
-		if (server == null) {
+		if (server == null || !hasActiveChunkProcessors()) {
 			return;
 		}
 
@@ -566,7 +589,7 @@ public final class ChunkManagerSystem {
 	}
 
 	private static void requestChunkRefresh(MinecraftServer server, long delayTicks) {
-		if (server == null || refreshTaskScheduled) {
+		if (server == null || refreshTaskScheduled || !hasActiveChunkProcessors()) {
 			return;
 		}
 
@@ -754,7 +777,7 @@ public final class ChunkManagerSystem {
 		boolean needsMotionColumns = false;
 		boolean needsSurfaceColumns = false;
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
-			if (runtime == null || runtime.processor == null) {
+			if (runtime == null || runtime.processor == null || !ACTIVE_CHUNK_PROCESSOR_IDS.contains(runtime.id)) {
 				continue;
 			}
 			if (!runtime.processor.acceptsWorld(world)) {
@@ -940,6 +963,19 @@ public final class ChunkManagerSystem {
 		return processorId == null ? "" : processorId.trim().toLowerCase();
 	}
 
+	private static boolean hasActiveChunkProcessors() {
+		if (ACTIVE_CHUNK_PROCESSOR_IDS.isEmpty()) {
+			return false;
+		}
+		for (String processorId : ACTIVE_CHUNK_PROCESSOR_IDS) {
+			ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(processorId);
+			if (runtime != null && runtime.processor != null) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static JsonObject createDefaultData() {
 		JsonObject root = new JsonObject();
 		root.add(FIELD_LEVELS, new JsonArray());
@@ -1003,6 +1039,7 @@ public final class ChunkManagerSystem {
 	}
 
 	private static final class ChunkProcessorRuntime {
+		private final String id;
 		private final ChunkProcessor processor;
 		private final Set<ProcessorChunkKey> trackedChunksWithState = new LinkedHashSet<>();
 		private final List<ProcessorChunkKey> trackedChunkCycle = new ArrayList<>();
@@ -1010,7 +1047,8 @@ public final class ChunkManagerSystem {
 		private final List<ProcessorChunkKey> loadedTrackedChunkCycle = new ArrayList<>();
 		private int activeChunkProcessCursor = 0;
 
-		private ChunkProcessorRuntime(ChunkProcessor processor) {
+		private ChunkProcessorRuntime(String id, ChunkProcessor processor) {
+			this.id = id;
 			this.processor = processor;
 		}
 

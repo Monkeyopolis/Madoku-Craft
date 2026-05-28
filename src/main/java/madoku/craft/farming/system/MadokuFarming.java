@@ -194,6 +194,7 @@ public final class MadokuFarming {
 		if (server == null) {
 			return;
 		}
+		syncChunkProcessorActivation();
 		SchedulerManagerSystem.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 		applyCropItemMetadata();
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
@@ -221,6 +222,7 @@ public final class MadokuFarming {
 
 		loadStaticConfig();
 		loadCropConfigs();
+		syncChunkProcessorActivation();
 		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
@@ -256,6 +258,10 @@ public final class MadokuFarming {
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	private static void syncChunkProcessorActivation() {
+		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, settings.enabled);
 	}
 
 	public static boolean isCropPlantItem(ItemStack stack) {

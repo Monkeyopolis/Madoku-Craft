@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,6 +26,14 @@ public abstract class BiomeSeasonalFreezeMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Boolean> cir
 	) {
+		if (MadokuSeason.isEnabled()
+			&& levelReader instanceof ServerLevel
+			&& pos != null
+			&& MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) == MadokuSeason.SeasonalPrecipitation.RAIN) {
+			cir.setReturnValue(false);
+			return;
+		}
+
 		if (cir.getReturnValue()
 			|| !MadokuSeason.isEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
@@ -50,6 +59,14 @@ public abstract class BiomeSeasonalFreezeMixin {
 		boolean mustBeAtEdge,
 		CallbackInfoReturnable<Boolean> cir
 	) {
+		if (MadokuSeason.isEnabled()
+			&& levelReader instanceof ServerLevel
+			&& pos != null
+			&& MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) == MadokuSeason.SeasonalPrecipitation.RAIN) {
+			cir.setReturnValue(false);
+			return;
+		}
+
 		if (cir.getReturnValue()
 			|| !MadokuSeason.isEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
@@ -78,9 +95,21 @@ public abstract class BiomeSeasonalFreezeMixin {
 		if (!MadokuSeason.isEnabled() || !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
 			return;
 		}
+		if (MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) != MadokuSeason.SeasonalPrecipitation.SNOW) {
+			cir.setReturnValue(false);
+			return;
+		}
+		if (cir.getReturnValue()) {
+			return;
+		}
 
 		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
-		cir.setReturnValue(cir.getReturnValue() || seasonalFreeze);
+		if (!seasonalFreeze || !madoku$canPlaceSeasonalSnow(levelReader, pos)) {
+			cir.setReturnValue(false);
+			return;
+		}
+
+		cir.setReturnValue(true);
 	}
 
 	private static boolean madoku$isSeasonalWaterCandidate(LevelReader levelReader, BlockPos pos) {
@@ -99,5 +128,13 @@ public abstract class BiomeSeasonalFreezeMixin {
 			}
 		}
 		return true;
+	}
+
+	private static boolean madoku$canPlaceSeasonalSnow(LevelReader levelReader, BlockPos pos) {
+		BlockState stateAtPos = levelReader.getBlockState(pos);
+		if (stateAtPos == null || !stateAtPos.isAir()) {
+			return false;
+		}
+		return Blocks.SNOW.defaultBlockState().canSurvive(levelReader, pos);
 	}
 }

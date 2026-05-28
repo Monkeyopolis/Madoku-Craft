@@ -237,6 +237,9 @@ public final class MadokuSeason {
 		if (world == null || biome == null || pos == null || !settings.enabled) {
 			return false;
 		}
+		if (resolveSeasonalPrecipitation(biome) == SeasonalPrecipitation.RAIN) {
+			return false;
+		}
 
 		SeasonState state = resolveCurrentState(world);
 		BiomeClimate climate = resolveBiomeClimate(world, pos);
@@ -315,9 +318,15 @@ public final class MadokuSeason {
 
 	private static SeasonalPrecipitation resolveDrySeasonalPrecipitation(Season season, BiomeClimate climate) {
 		return switch (climate) {
-			case COLD -> SeasonalPrecipitation.SNOW;
-			case TEMPERATE -> SeasonalPrecipitation.DRY;
-			case HOT -> season == Season.SUMMER ? SeasonalPrecipitation.RAIN : SeasonalPrecipitation.DRY;
+			case COLD -> switch (season) {
+				case SPRING, SUMMER -> SeasonalPrecipitation.DRY;
+				case FALL, WINTER -> SeasonalPrecipitation.RAIN;
+			};
+			case TEMPERATE -> switch (season) {
+				case SPRING, SUMMER, FALL -> SeasonalPrecipitation.DRY;
+				case WINTER -> SeasonalPrecipitation.RAIN;
+			};
+			case HOT -> SeasonalPrecipitation.DRY;
 		};
 	}
 
@@ -325,37 +334,32 @@ public final class MadokuSeason {
 		return switch (climate) {
 			case COLD -> switch (season) {
 				case SPRING -> SeasonalPrecipitation.RAIN;
-				case SUMMER -> SeasonalPrecipitation.DRY;
+				case SUMMER -> SeasonalPrecipitation.RAIN;
 				case FALL, WINTER -> SeasonalPrecipitation.SNOW;
 			};
 			case TEMPERATE -> switch (season) {
-				case SPRING, SUMMER, FALL -> SeasonalPrecipitation.RAIN;
-				case WINTER -> SeasonalPrecipitation.SNOW;
-			};
-			case HOT -> switch (season) {
 				case SPRING, FALL -> SeasonalPrecipitation.RAIN;
 				case SUMMER -> SeasonalPrecipitation.DRY;
 				case WINTER -> SeasonalPrecipitation.SNOW;
+			};
+			case HOT -> switch (season) {
+				case SPRING, FALL, WINTER -> SeasonalPrecipitation.RAIN;
+				case SUMMER -> SeasonalPrecipitation.DRY;
 			};
 		};
 	}
 
 	private static SeasonalPrecipitation resolveSnowySeasonalPrecipitation(Season season, BiomeClimate climate) {
 		return switch (climate) {
-			case COLD -> switch (season) {
-				case SPRING -> SeasonalPrecipitation.DRY;
-				case SUMMER, FALL -> SeasonalPrecipitation.RAIN;
-				case WINTER -> SeasonalPrecipitation.SNOW;
-			};
+			case COLD -> SeasonalPrecipitation.SNOW;
 			case TEMPERATE -> switch (season) {
-				case SPRING -> SeasonalPrecipitation.DRY;
-				case SUMMER, FALL -> SeasonalPrecipitation.RAIN;
-				case WINTER -> SeasonalPrecipitation.SNOW;
+				case SPRING, FALL, WINTER -> SeasonalPrecipitation.SNOW;
+				case SUMMER -> SeasonalPrecipitation.RAIN;
 			};
 			case HOT -> switch (season) {
-				case SPRING -> SeasonalPrecipitation.DRY;
-				case SUMMER -> SeasonalPrecipitation.RAIN;
-				case FALL, WINTER -> SeasonalPrecipitation.SNOW;
+				case SPRING, FALL -> SeasonalPrecipitation.RAIN;
+				case SUMMER -> SeasonalPrecipitation.DRY;
+				case WINTER -> SeasonalPrecipitation.SNOW;
 			};
 		};
 	}

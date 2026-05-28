@@ -289,6 +289,11 @@ public final class MadokuEcosystem {
 		return isEnabled() && settings.system().naturalErosionEnabled();
 	}
 
+	private static void syncChunkProcessorActivation() {
+		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_GROWTH_ID, isNaturalGrowthEnabled());
+		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_EROSION_ID, isNaturalErosionEnabled());
+	}
+
 	private static void loadConfig() {
 		MadokuEcosystemConfig.Settings fallback = MadokuEcosystemConfig.defaults();
 		JsonObject naturalGrowthDefaults = MadokuEcosystemConfig.buildNaturalGrowthDefaultsJson();
@@ -354,6 +359,7 @@ public final class MadokuEcosystem {
 		if (server == null) {
 			return;
 		}
+		syncChunkProcessorActivation();
 		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_GROWTH_PROCESS_SCHEDULER_OWNER_ID);
 		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_EROSION_PROCESS_SCHEDULER_OWNER_ID);
 		resetUnifiedDiscoveryState();
@@ -384,6 +390,7 @@ public final class MadokuEcosystem {
 		if (server == null) {
 			return;
 		}
+		syncChunkProcessorActivation();
 		if (!isEnabled()) {
 			dirtBlocksByKey.clear();
 			dirtKeysByChunk.clear();
