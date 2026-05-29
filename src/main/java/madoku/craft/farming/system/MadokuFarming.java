@@ -69,9 +69,7 @@ public final class MadokuFarming {
 	private static final String CROP_CONFIG_ROOT_FOLDER_NAME = FARMING_CONFIG_ROOT_FOLDER_NAME + "/madoku-crops";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-farming";
 	private static final String DATA_FILE_NAME = "madoku-farming";
-	private static final String FARMING_DISCOVERY_SCHEDULER_OWNER_ID = "farming_discovery_gameplay";
 	private static final String FARMING_PROCESS_SCHEDULER_OWNER_ID = "farming_process_gameplay";
-	private static final String TASK_TYPE_FARMING_DISCOVERY_TICK = "farming_discovery_gameplay_tick";
 	private static final String TASK_TYPE_FARMING_PROCESS_TICK = "farming_process_gameplay_tick";
 	private static final long FARMING_SCHEDULER_MIN_INTERVAL_TICKS = 1L;
 	private static final long FARMING_SCHEDULER_MAX_INTERVAL_TICKS = 20L;
@@ -100,7 +98,6 @@ public final class MadokuFarming {
 	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 180L;
 
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile String farmingDiscoverySchedulerId = "";
 	private static volatile String farmingProcessSchedulerId = "";
 	private static volatile boolean farmingProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
@@ -164,7 +161,6 @@ public final class MadokuFarming {
 		loadCropConfigs();
 		ChunkManagerSystem.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
 		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_DISCOVERY_TICK, MadokuFarming::runFarmingDiscoveryTask);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
@@ -181,7 +177,6 @@ public final class MadokuFarming {
 		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
-		farmingDiscoverySchedulerId = "";
 		farmingProcessSchedulerId = "";
 		farmingProcessTaskScheduled = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
@@ -200,13 +195,9 @@ public final class MadokuFarming {
 		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		resetChunkProcessingCycle();
 		rebuildTrackedChunkStateFromIndexes();
-		farmingDiscoverySchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(FARMING_DISCOVERY_SCHEDULER_OWNER_ID)
-		);
 		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
 			SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
 		);
-		SchedulerManagerSystem.clearQueuedRequests(farmingDiscoverySchedulerId);
 		SchedulerManagerSystem.clearQueuedRequests(farmingProcessSchedulerId);
 		requestFarmingProcessing(server, 1L);
 	}
@@ -725,13 +716,6 @@ public final class MadokuFarming {
 			prepareCropHarvest(serverLevel, pos, state);
 		}
 		return true;
-	}
-
-	private static void runFarmingDiscoveryTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			farmingDiscoverySchedulerId = context.getSchedulerId();
-		}
-		// Discovery is now driven by ChunkManagerSystem shared discovery.
 	}
 
 	private static void runFarmingProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {

@@ -6,6 +6,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
@@ -14,9 +15,11 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,10 +31,19 @@ public final class ChunkManagerSystem {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-chunks";
 	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
+	private static final String DIRTY_DISCOVERY_SCHEDULER_OWNER_ID = "madoku_chunks_dirty_discovery";
+	private static final String PROCESSOR_ROUND_ROBIN_SCHEDULER_OWNER_PREFIX = "madoku_chunks_processor_round_robin_";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
-	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 1L;
-	private static final long CHUNK_REFRESH_MAX_INTERVAL_TICKS = 20L;
+	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 4L * 60L * 20L;
+	private static final long CHUNK_REFRESH_MAX_INTERVAL_TICKS = 8L * 60L * 20L;
+	private static final long DIRTY_DISCOVERY_MIN_INTERVAL_TICKS = 1L;
+	private static final long DIRTY_DISCOVERY_MAX_INTERVAL_TICKS = 20L;
+	private static final long PROCESSOR_ROUND_ROBIN_MIN_INTERVAL_TICKS = 1L;
+	private static final long PROCESSOR_ROUND_ROBIN_MAX_INTERVAL_TICKS = 20L;
+	private static final long DIRTY_REQUEUE_COOLDOWN_TICKS = 20L;
+	private static final int DIRTY_DISCOVERY_STEPS_PER_REFRESH = 1;
 	private static final int DISCOVERY_STEPS_PER_REFRESH = 1;
+	private static final int CHUNK_COLUMN_COUNT = 16 * 16;
 	private static final String FIELD_LEVELS = "levels";
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_CHUNKS = "chunks";
@@ -45,7 +57,12 @@ public final class ChunkManagerSystem {
 	private static final Set<String> ACTIVE_CHUNK_PROCESSOR_IDS = new LinkedHashSet<>();
 	private static final List<ProcessorChunkKey> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
 	private static final Set<ProcessorChunkKey> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = ChunkDiscoverySnapshot.reusable(16 * 16);
+	private static final Deque<ProcessorChunkKey> DIRTY_DISCOVERY_CHUNKS = new ArrayDeque<>();
+	private static final Set<ProcessorChunkKey> DIRTY_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Map<ProcessorChunkKey, Long> DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS = new LinkedHashMap<>();
+	private static final Map<ProcessorChunkKey, CachedChunkColumns> DISCOVERY_COLUMNS_CACHE = new LinkedHashMap<>();
+	private static final ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = ChunkDiscoverySnapshot.reusable(CHUNK_COLUMN_COUNT);
+	private static final ThreadLocal<Integer> INTERNAL_PROCESSOR_MUTATION_DEPTH = ThreadLocal.withInitial(() -> 0);
 
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
@@ -54,6 +71,7 @@ public final class ChunkManagerSystem {
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile int discoveryChunkScanCursor = 0;
 	private static volatile boolean discoveryChunksSeeded = false;
+	private static volatile long lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 
 	private ChunkManagerSystem() {
 	}
@@ -185,6 +203,18 @@ public final class ChunkManagerSystem {
 			stateByDepth[depth] = state;
 		}
 
+		private void copyFrom(ColumnSample source) {
+			if (source == null) {
+				reset(0, 0);
+				return;
+			}
+			this.worldX = source.worldX;
+			this.worldZ = source.worldZ;
+			System.arraycopy(source.yByDepth, 0, this.yByDepth, 0, this.yByDepth.length);
+			System.arraycopy(source.posByDepth, 0, this.posByDepth, 0, this.posByDepth.length);
+			System.arraycopy(source.stateByDepth, 0, this.stateByDepth, 0, this.stateByDepth.length);
+		}
+
 		public int worldX() {
 			return worldX;
 		}
@@ -220,6 +250,10 @@ public final class ChunkManagerSystem {
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		DISCOVERY_LOADED_CHUNKS.clear();
 		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		DIRTY_DISCOVERY_CHUNKS.clear();
+		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
+		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
+		DISCOVERY_COLUMNS_CACHE.clear();
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime != null) {
 				runtime.resetState();
@@ -232,7 +266,10 @@ public final class ChunkManagerSystem {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
+		lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
+		SchedulerManagerSystem.clearAdaptiveDelayState(DIRTY_DISCOVERY_SCHEDULER_OWNER_ID);
+		clearProcessorRoundRobinAdaptiveState();
 	}
 
 	public static void registerChunkLifecycleListener(ChunkLifecycleListener listener) {
@@ -282,6 +319,23 @@ public final class ChunkManagerSystem {
 		processOneActiveTrackedChunk(server, runtime);
 	}
 
+	public static boolean isInternalProcessorMutationActive() {
+		return INTERNAL_PROCESSOR_MUTATION_DEPTH.get() > 0;
+	}
+
+	private static void beginInternalProcessorMutation() {
+		INTERNAL_PROCESSOR_MUTATION_DEPTH.set(INTERNAL_PROCESSOR_MUTATION_DEPTH.get() + 1);
+	}
+
+	private static void endInternalProcessorMutation() {
+		int depth = INTERNAL_PROCESSOR_MUTATION_DEPTH.get() - 1;
+		if (depth <= 0) {
+			INTERNAL_PROCESSOR_MUTATION_DEPTH.remove();
+			return;
+		}
+		INTERNAL_PROCESSOR_MUTATION_DEPTH.set(depth);
+	}
+
 	public static void trackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
 		trackChunkForProcessor(processorId, levelId(level), chunkX, chunkZ);
 	}
@@ -310,6 +364,31 @@ public final class ChunkManagerSystem {
 		return levelId(level);
 	}
 
+	public static void onWorldPositionChanged(ServerLevel level, BlockPos pos) {
+		onWorldPositionChanged(level, pos, null, null);
+	}
+
+	public static void onWorldPositionChanged(ServerLevel level, BlockPos pos, BlockState previousState, BlockState nextState) {
+		if (level == null || pos == null) {
+			return;
+		}
+		if (previousState != null && nextState != null && previousState == nextState) {
+			return;
+		}
+
+		int chunkX = pos.getX() >> 4;
+		int chunkZ = pos.getZ() >> 4;
+		if (!isChunkLoaded(level, chunkX, chunkZ)) {
+			return;
+		}
+
+		refreshCachedColumn(level, chunkX, chunkZ, pos.getX(), pos.getZ());
+		ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId(level), chunkX, chunkZ);
+		markChunkDiscoveryDirty(chunkKey);
+		markTrackedChunkDirtyForAllProcessors(chunkKey);
+		requestImmediateChunkRefresh(level.getServer());
+	}
+
 	public static void loadPersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
@@ -320,12 +399,17 @@ public final class ChunkManagerSystem {
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		DISCOVERY_LOADED_CHUNKS.clear();
 		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		DIRTY_DISCOVERY_CHUNKS.clear();
+		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
+		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
+		DISCOVERY_COLUMNS_CACHE.clear();
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
 		serverStopping = false;
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
+		lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -333,6 +417,8 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
+		SchedulerManagerSystem.clearAdaptiveDelayState(DIRTY_DISCOVERY_SCHEDULER_OWNER_ID);
+		clearProcessorRoundRobinAdaptiveState();
 
 		serverStopping = false;
 		discoveryChunkScanCursor = 0;
@@ -469,6 +555,9 @@ public final class ChunkManagerSystem {
 		putChunkStatus(loadedLevelId, chunkPos.pack(), FullChunkStatus.FULL);
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(loadedLevelId, chunkPos.x(), chunkPos.z());
 		addSharedDiscoveryLoadedChunk(chunkKey);
+		markChunkDiscoveryDirty(chunkKey);
+		markTrackedChunkDirtyForAllProcessors(chunkKey);
+		requestImmediateChunkRefresh(level.getServer());
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
@@ -491,7 +580,9 @@ public final class ChunkManagerSystem {
 		String unloadedLevelId = levelId(level);
 		removeChunk(unloadedLevelId, chunkPos.pack());
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(unloadedLevelId, chunkPos.x(), chunkPos.z());
+		removeCachedChunkColumns(chunkKey);
 		removeSharedDiscoveryLoadedChunk(chunkKey);
+		removeDirtyDiscoveryChunk(chunkKey);
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
@@ -511,13 +602,22 @@ public final class ChunkManagerSystem {
 		}
 
 		refreshTrackedChunks(server);
-		runSharedChunkDiscoverySteps(server, DISCOVERY_STEPS_PER_REFRESH);
-		requestChunkRefresh(server, resolveChunkRefreshInterval(server));
+		int discoverySteps = hasPendingDirtyDiscoveryWork()
+			? DIRTY_DISCOVERY_STEPS_PER_REFRESH
+			: DISCOVERY_STEPS_PER_REFRESH;
+		runSharedChunkDiscoverySteps(server, discoverySteps);
+		long nextDelay = hasPendingDirtyDiscoveryWork()
+			? resolveDirtyDiscoveryInterval(server)
+			: resolveChunkRefreshInterval(server);
+		requestChunkRefresh(server, nextDelay);
 	}
 
 	private static void seedLoadedChunks(MinecraftServer server) {
 		DISCOVERY_LOADED_CHUNKS.clear();
 		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		DIRTY_DISCOVERY_CHUNKS.clear();
+		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
+		DISCOVERY_COLUMNS_CACHE.clear();
 		discoveryChunkScanCursor = 0;
 		for (ServerLevel level : server.getAllLevels()) {
 			if (level == null) {
@@ -533,7 +633,9 @@ public final class ChunkManagerSystem {
 				FullChunkStatus status = resolveChunkStatus(level, chunk.getPos().pack());
 				if (status != null) {
 					putChunkStatus(levelId, chunk.getPos().pack(), status);
-					addSharedDiscoveryLoadedChunk(new ProcessorChunkKey(levelId, chunk.getPos().x(), chunk.getPos().z()));
+					ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId, chunk.getPos().x(), chunk.getPos().z());
+					addSharedDiscoveryLoadedChunk(chunkKey);
+					markChunkDiscoveryDirty(chunkKey);
 				}
 			});
 		}
@@ -564,6 +666,16 @@ public final class ChunkManagerSystem {
 				FullChunkStatus resolved = resolveChunkStatus(level, packedChunk);
 				if (resolved == null) {
 					chunks.remove(packedChunk);
+					ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId, unpackChunkX(packedChunk), unpackChunkZ(packedChunk));
+					removeCachedChunkColumns(chunkKey);
+					removeSharedDiscoveryLoadedChunk(chunkKey);
+					removeDirtyDiscoveryChunk(chunkKey);
+					for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+						if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
+							continue;
+						}
+						removeLoadedTrackedChunk(runtime, chunkKey);
+					}
 					dirty = true;
 					notifyChunkUnloaded(level, unpackChunkX(packedChunk), unpackChunkZ(packedChunk));
 					continue;
@@ -607,12 +719,44 @@ public final class ChunkManagerSystem {
 		}
 	}
 
+	private static void requestImmediateChunkRefresh(MinecraftServer server) {
+		if (server == null || !hasActiveChunkProcessors()) {
+			return;
+		}
+		long gameplayTick = MadokuTicks.getGameplayTicks();
+		if (refreshTaskScheduled && gameplayTick == lastImmediateRefreshRequestTick) {
+			return;
+		}
+		if (refreshTaskScheduled) {
+			String schedulerId = ensureChunkSchedulerExists();
+			if (schedulerId != null && !schedulerId.isBlank()) {
+				SchedulerManagerSystem.clearQueuedRequests(schedulerId);
+			}
+			refreshTaskScheduled = false;
+		}
+		lastImmediateRefreshRequestTick = gameplayTick;
+		requestChunkRefresh(server, resolveDirtyDiscoveryInterval(server));
+	}
+
+	private static boolean hasPendingDirtyDiscoveryWork() {
+		return !DIRTY_DISCOVERY_CHUNKS.isEmpty();
+	}
+
 	private static long resolveChunkRefreshInterval(MinecraftServer server) {
 		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
 			server,
 			CHUNK_SCHEDULER_OWNER_ID,
 			CHUNK_REFRESH_MIN_INTERVAL_TICKS,
 			CHUNK_REFRESH_MAX_INTERVAL_TICKS
+		);
+	}
+
+	private static long resolveDirtyDiscoveryInterval(MinecraftServer server) {
+		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			DIRTY_DISCOVERY_SCHEDULER_OWNER_ID,
+			DIRTY_DISCOVERY_MIN_INTERVAL_TICKS,
+			DIRTY_DISCOVERY_MAX_INTERVAL_TICKS
 		);
 	}
 
@@ -700,11 +844,28 @@ public final class ChunkManagerSystem {
 		if (runtime == null || runtime.processor == null || server == null) {
 			return;
 		}
+		ProcessorChunkKey dirtyTrackedChunk = pollNextDirtyTrackedChunk(server, runtime);
+		if (dirtyTrackedChunk != null) {
+			ServerLevel world = resolveLevel(server, dirtyTrackedChunk.levelId());
+			if (world != null && isChunkLoaded(world, dirtyTrackedChunk.chunkX(), dirtyTrackedChunk.chunkZ())) {
+				beginInternalProcessorMutation();
+				try {
+					runtime.processor.processTrackedChunk(world, dirtyTrackedChunk.chunkX(), dirtyTrackedChunk.chunkZ());
+				} finally {
+					endInternalProcessorMutation();
+				}
+				return;
+			}
+			removeLoadedTrackedChunk(runtime, dirtyTrackedChunk);
+		}
 		if (runtime.loadedTrackedChunkCycle.isEmpty()) {
 			recoverLoadedTrackedChunks(server, runtime);
 		}
 		if (runtime.loadedTrackedChunkCycle.isEmpty()) {
 			runtime.activeChunkProcessCursor = 0;
+			return;
+		}
+		if (!isRoundRobinProcessorStepDue(server, runtime)) {
 			return;
 		}
 
@@ -717,7 +878,13 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		runtime.processor.processTrackedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		beginInternalProcessorMutation();
+		try {
+			runtime.processor.processTrackedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		} finally {
+			endInternalProcessorMutation();
+		}
+		scheduleNextRoundRobinProcessorStep(server, runtime);
 		boolean completedCycle = selectedIndex + 1 >= runtime.loadedTrackedChunkCycle.size();
 		runtime.activeChunkProcessCursor = completedCycle ? 0 : selectedIndex + 1;
 	}
@@ -753,6 +920,12 @@ public final class ChunkManagerSystem {
 		}
 
 		seedSharedDiscoveryChunksIfNeeded(server);
+		ProcessorChunkKey dirtyChunk = pollNextDirtyDiscoveryChunk(server);
+		if (dirtyChunk != null) {
+			runChunkDiscoveryCallbacks(server, dirtyChunk, false);
+			return;
+		}
+
 		if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
 			discoveryChunkScanCursor = 0;
 			return;
@@ -763,6 +936,7 @@ public final class ChunkManagerSystem {
 		ServerLevel world = resolveLevel(server, selectedChunk.levelId());
 		boolean loaded = world != null && isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
 		if (!loaded) {
+			removeCachedChunkColumns(selectedChunk);
 			removeSharedDiscoveryLoadedChunk(selectedChunk);
 			if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
 				discoveryChunkScanCursor = 0;
@@ -772,31 +946,7 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		ChunkDiscoverySnapshot discoverySnapshot;
-		List<ChunkProcessorRuntime> activeRuntimes = new ArrayList<>();
-		boolean needsMotionColumns = false;
-		boolean needsSurfaceColumns = false;
-		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
-			if (runtime == null || runtime.processor == null || !ACTIVE_CHUNK_PROCESSOR_IDS.contains(runtime.id)) {
-				continue;
-			}
-			if (!runtime.processor.acceptsWorld(world)) {
-				continue;
-			}
-			activeRuntimes.add(runtime);
-			needsMotionColumns |= runtime.processor.requiresMotionColumns();
-			needsSurfaceColumns |= runtime.processor.requiresSurfaceColumns();
-		}
-		if (activeRuntimes.isEmpty()) {
-			boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
-			discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
-			return;
-		}
-
-		discoverySnapshot = buildDiscoverySnapshot(world, selectedChunk.chunkX(), selectedChunk.chunkZ(), needsMotionColumns, needsSurfaceColumns);
-		for (ChunkProcessorRuntime runtime : activeRuntimes) {
-			runtime.processor.discoverLoadedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ(), discoverySnapshot);
-		}
+		runChunkDiscoveryCallbacks(server, selectedChunk, true);
 
 		boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
 		discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
@@ -820,6 +970,163 @@ public final class ChunkManagerSystem {
 		}
 	}
 
+	private static void runChunkDiscoveryCallbacks(MinecraftServer server, ProcessorChunkKey chunkKey, boolean forceRescan) {
+		if (server == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		ServerLevel world = resolveLevel(server, chunkKey.levelId());
+		if (world == null || !isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
+			removeCachedChunkColumns(chunkKey);
+			removeSharedDiscoveryLoadedChunk(chunkKey);
+			removeDirtyDiscoveryChunk(chunkKey);
+			return;
+		}
+
+		ChunkDiscoverySnapshot discoverySnapshot;
+		List<ChunkProcessorRuntime> activeRuntimes = new ArrayList<>();
+		boolean needsMotionColumns = false;
+		boolean needsSurfaceColumns = false;
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null || !ACTIVE_CHUNK_PROCESSOR_IDS.contains(runtime.id)) {
+				continue;
+			}
+			if (!runtime.processor.acceptsWorld(world)) {
+				continue;
+			}
+			activeRuntimes.add(runtime);
+			needsMotionColumns |= runtime.processor.requiresMotionColumns();
+			needsSurfaceColumns |= runtime.processor.requiresSurfaceColumns();
+		}
+		if (activeRuntimes.isEmpty()) {
+			return;
+		}
+
+		discoverySnapshot = buildDiscoverySnapshot(
+			world,
+			chunkKey.chunkX(),
+			chunkKey.chunkZ(),
+			needsMotionColumns,
+			needsSurfaceColumns,
+			forceRescan
+		);
+		for (ChunkProcessorRuntime runtime : activeRuntimes) {
+			runtime.processor.discoverLoadedChunk(world, chunkKey.chunkX(), chunkKey.chunkZ(), discoverySnapshot);
+		}
+	}
+
+	private static ProcessorChunkKey pollNextDirtyDiscoveryChunk(MinecraftServer server) {
+		while (!DIRTY_DISCOVERY_CHUNKS.isEmpty()) {
+			ProcessorChunkKey chunkKey = DIRTY_DISCOVERY_CHUNKS.pollFirst();
+			if (chunkKey == null) {
+				continue;
+			}
+			DIRTY_DISCOVERY_CHUNK_KEYS.remove(chunkKey);
+			if (chunkKey.levelId().isBlank()) {
+				continue;
+			}
+			ServerLevel world = resolveLevel(server, chunkKey.levelId());
+			if (world == null || !isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
+				removeCachedChunkColumns(chunkKey);
+				removeSharedDiscoveryLoadedChunk(chunkKey);
+				continue;
+			}
+			return chunkKey;
+		}
+		return null;
+	}
+
+	private static void markChunkDiscoveryDirty(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (!canRequeueDirtyChunk(chunkKey, DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS)) {
+			return;
+		}
+		if (!DIRTY_DISCOVERY_CHUNK_KEYS.add(chunkKey)) {
+			return;
+		}
+		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.put(chunkKey, MadokuTicks.getGameplayTicks());
+		DIRTY_DISCOVERY_CHUNKS.addLast(chunkKey);
+	}
+
+	private static void removeDirtyDiscoveryChunk(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		if (!DIRTY_DISCOVERY_CHUNK_KEYS.remove(chunkKey)) {
+			return;
+		}
+		DIRTY_DISCOVERY_CHUNKS.remove(chunkKey);
+	}
+
+	private static void markTrackedChunkDirtyForAllProcessors(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null) {
+				continue;
+			}
+			if (!runtime.trackedChunksWithState.contains(chunkKey)) {
+				continue;
+			}
+			markTrackedChunkDirty(runtime, chunkKey);
+		}
+	}
+
+	private static void markTrackedChunkDirty(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null || chunkKey.levelId().isBlank()) {
+			return;
+		}
+		if (!runtime.loadedTrackedChunkKeys.contains(chunkKey)) {
+			return;
+		}
+		if (!canRequeueDirtyChunk(chunkKey, runtime.dirtyTrackedLastEnqueueTicks)) {
+			return;
+		}
+		if (!runtime.dirtyTrackedChunkKeys.add(chunkKey)) {
+			return;
+		}
+		runtime.dirtyTrackedLastEnqueueTicks.put(chunkKey, MadokuTicks.getGameplayTicks());
+		runtime.dirtyTrackedChunks.addLast(chunkKey);
+	}
+
+	private static void removeTrackedChunkDirty(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
+		if (runtime == null || chunkKey == null) {
+			return;
+		}
+		if (!runtime.dirtyTrackedChunkKeys.remove(chunkKey)) {
+			return;
+		}
+		runtime.dirtyTrackedChunks.remove(chunkKey);
+	}
+
+	private static ProcessorChunkKey pollNextDirtyTrackedChunk(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (runtime == null) {
+			return null;
+		}
+		while (!runtime.dirtyTrackedChunks.isEmpty()) {
+			ProcessorChunkKey chunkKey = runtime.dirtyTrackedChunks.pollFirst();
+			if (chunkKey == null) {
+				continue;
+			}
+			runtime.dirtyTrackedChunkKeys.remove(chunkKey);
+			if (!runtime.loadedTrackedChunkKeys.contains(chunkKey)) {
+				continue;
+			}
+			if (chunkKey.levelId().isBlank()) {
+				continue;
+			}
+			ServerLevel world = resolveLevel(server, chunkKey.levelId());
+			if (world == null || !isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
+				removeLoadedTrackedChunk(runtime, chunkKey);
+				continue;
+			}
+			return chunkKey;
+		}
+		return null;
+	}
+
 	private static void addSharedDiscoveryLoadedChunk(ProcessorChunkKey chunkKey) {
 		if (chunkKey == null || chunkKey.levelId().isBlank()) {
 			return;
@@ -835,38 +1142,117 @@ public final class ChunkManagerSystem {
 		int chunkX,
 		int chunkZ,
 		boolean needsMotionColumns,
-		boolean needsSurfaceColumns
+		boolean needsSurfaceColumns,
+		boolean forceRescan
 	) {
 		REUSABLE_DISCOVERY_SNAPSHOT.begin(levelId(world), chunkX, chunkZ, needsMotionColumns, needsSurfaceColumns);
 		if (world == null || (!needsMotionColumns && !needsSurfaceColumns)) {
 			return REUSABLE_DISCOVERY_SNAPSHOT;
 		}
 
-		int minX = chunkX << 4;
-		int minZ = chunkZ << 4;
+		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ, forceRescan);
+		if (cached == null) {
+			return REUSABLE_DISCOVERY_SNAPSHOT;
+		}
+		copyCachedColumnsToReusableSnapshot(cached, needsMotionColumns, needsSurfaceColumns);
+
+		return REUSABLE_DISCOVERY_SNAPSHOT;
+	}
+
+	private static void copyCachedColumnsToReusableSnapshot(
+		CachedChunkColumns cached,
+		boolean needsMotionColumns,
+		boolean needsSurfaceColumns
+	) {
+		if (cached == null) {
+			return;
+		}
+		int size = Math.min(CHUNK_COLUMN_COUNT, Math.min(cached.motionColumns.size(), cached.surfaceColumns.size()));
+		for (int index = 0; index < size; index++) {
+			if (needsMotionColumns) {
+				REUSABLE_DISCOVERY_SNAPSHOT.motionColumnAt(index).copyFrom(cached.motionColumns.get(index));
+			}
+			if (needsSurfaceColumns) {
+				REUSABLE_DISCOVERY_SNAPSHOT.surfaceColumnAt(index).copyFrom(cached.surfaceColumns.get(index));
+			}
+		}
+	}
+
+	private static CachedChunkColumns getOrCreateCachedChunkColumns(ServerLevel world, int chunkX, int chunkZ, boolean forceRescan) {
+		if (world == null || !isChunkLoaded(world, chunkX, chunkZ)) {
+			return null;
+		}
+		ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId(world), chunkX, chunkZ);
+		CachedChunkColumns cached = DISCOVERY_COLUMNS_CACHE.get(chunkKey);
+		if (cached == null) {
+			cached = new CachedChunkColumns(CHUNK_COLUMN_COUNT);
+			DISCOVERY_COLUMNS_CACHE.put(chunkKey, cached);
+			forceRescan = true;
+		}
+		if (forceRescan) {
+			rescanChunkColumnsIntoCache(world, chunkX, chunkZ, cached);
+		}
+		return cached;
+	}
+
+	private static void refreshCachedColumn(ServerLevel world, int chunkX, int chunkZ, int worldX, int worldZ) {
+		if (world == null || !isChunkLoaded(world, chunkX, chunkZ)) {
+			return;
+		}
+		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ, false);
+		if (cached == null) {
+			return;
+		}
+		int localX = worldX - (chunkX << 4);
+		int localZ = worldZ - (chunkZ << 4);
+		if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) {
+			return;
+		}
+		updateCachedColumnSamples(cached, world, chunkX, chunkZ, localX, localZ);
+	}
+
+	private static void removeCachedChunkColumns(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		DISCOVERY_COLUMNS_CACHE.remove(chunkKey);
+	}
+
+	private static void rescanChunkColumnsIntoCache(ServerLevel world, int chunkX, int chunkZ, CachedChunkColumns cached) {
+		if (world == null || cached == null) {
+			return;
+		}
+		for (int localX = 0; localX < 16; localX++) {
+			for (int localZ = 0; localZ < 16; localZ++) {
+				updateCachedColumnSamples(cached, world, chunkX, chunkZ, localX, localZ);
+			}
+		}
+	}
+
+	private static void updateCachedColumnSamples(
+		CachedChunkColumns cached,
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		int localX,
+		int localZ
+	) {
+		if (cached == null || world == null) {
+			return;
+		}
+		int index = (localX << 4) + localZ;
+		if (index < 0 || index >= CHUNK_COLUMN_COUNT) {
+			return;
+		}
+		int worldX = (chunkX << 4) + localX;
+		int worldZ = (chunkZ << 4) + localZ;
 		int minY = world.getMinY();
 		int maxY = world.getMaxY() - 1;
 
-		int index = 0;
-		for (int localX = 0; localX < 16; localX++) {
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int worldX = minX + localX;
-				int worldZ = minZ + localZ;
-				ColumnSample motionColumn = REUSABLE_DISCOVERY_SNAPSHOT.motionColumnAt(index);
-				ColumnSample surfaceColumn = REUSABLE_DISCOVERY_SNAPSHOT.surfaceColumnAt(index);
-				if (needsMotionColumns) {
-					int motionTopY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
-					sampleColumnInto(motionColumn, world, worldX, worldZ, minY, motionTopY);
-				}
-				if (needsSurfaceColumns) {
-					int surfaceTopY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
-					sampleColumnInto(surfaceColumn, world, worldX, worldZ, minY, surfaceTopY);
-				}
-				index++;
-			}
-		}
-
-		return REUSABLE_DISCOVERY_SNAPSHOT;
+		int motionTopY = Math.min(maxY, world.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1);
+		int surfaceTopY = Math.min(maxY, world.getHeight(Heightmap.Types.WORLD_SURFACE, worldX, worldZ) - 1);
+		sampleColumnInto(cached.motionColumns.get(index), world, worldX, worldZ, minY, motionTopY);
+		sampleColumnInto(cached.surfaceColumns.get(index), world, worldX, worldZ, minY, surfaceTopY);
 	}
 
 	private static void sampleColumnInto(ColumnSample target, ServerLevel world, int worldX, int worldZ, int minY, int topY) {
@@ -892,6 +1278,8 @@ public final class ChunkManagerSystem {
 		if (chunkKey == null) {
 			return;
 		}
+		removeDirtyDiscoveryChunk(chunkKey);
+		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.remove(chunkKey);
 		if (!DISCOVERY_LOADED_CHUNK_KEYS.remove(chunkKey)) {
 			return;
 		}
@@ -910,6 +1298,7 @@ public final class ChunkManagerSystem {
 		}
 		if (isKnownLoadedChunk(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ())) {
 			addLoadedTrackedChunk(runtime, chunkKey);
+			markTrackedChunkDirty(runtime, chunkKey);
 		}
 	}
 
@@ -921,7 +1310,9 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		runtime.trackedChunkCycle.remove(chunkKey);
+		removeTrackedChunkDirty(runtime, chunkKey);
 		removeLoadedTrackedChunk(runtime, chunkKey);
+		runtime.dirtyTrackedLastEnqueueTicks.remove(chunkKey);
 	}
 
 	private static void addLoadedTrackedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
@@ -932,18 +1323,74 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		runtime.loadedTrackedChunkCycle.add(chunkKey);
+		markTrackedChunkDirty(runtime, chunkKey);
 	}
 
 	private static void removeLoadedTrackedChunk(ChunkProcessorRuntime runtime, ProcessorChunkKey chunkKey) {
 		if (runtime == null || chunkKey == null) {
 			return;
 		}
+		removeTrackedChunkDirty(runtime, chunkKey);
 		if (!runtime.loadedTrackedChunkKeys.remove(chunkKey)) {
 			return;
 		}
 		runtime.loadedTrackedChunkCycle.remove(chunkKey);
 		if (runtime.activeChunkProcessCursor >= runtime.loadedTrackedChunkCycle.size()) {
 			runtime.activeChunkProcessCursor = 0;
+		}
+	}
+
+	private static boolean canRequeueDirtyChunk(ProcessorChunkKey chunkKey, Map<ProcessorChunkKey, Long> lastEnqueueTicks) {
+		if (chunkKey == null || lastEnqueueTicks == null) {
+			return false;
+		}
+		long currentTick = MadokuTicks.getGameplayTicks();
+		Long lastTick = lastEnqueueTicks.get(chunkKey);
+		if (lastTick == null) {
+			return true;
+		}
+		long elapsed = currentTick - lastTick;
+		return elapsed < 0L || elapsed >= DIRTY_REQUEUE_COOLDOWN_TICKS;
+	}
+
+	private static boolean isRoundRobinProcessorStepDue(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (server == null || runtime == null) {
+			return false;
+		}
+		long currentTick = MadokuTicks.getGameplayTicks();
+		if (runtime.nextRoundRobinProcessGameplayTick == Long.MIN_VALUE) {
+			return true;
+		}
+		if (currentTick < runtime.nextRoundRobinProcessGameplayTick) {
+			return false;
+		}
+		return true;
+	}
+
+	private static void scheduleNextRoundRobinProcessorStep(MinecraftServer server, ChunkProcessorRuntime runtime) {
+		if (server == null || runtime == null) {
+			return;
+		}
+		long interval = SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			processorRoundRobinAdaptiveOwnerId(runtime.id),
+			PROCESSOR_ROUND_ROBIN_MIN_INTERVAL_TICKS,
+			PROCESSOR_ROUND_ROBIN_MAX_INTERVAL_TICKS
+		);
+		long currentTick = MadokuTicks.getGameplayTicks();
+		runtime.nextRoundRobinProcessGameplayTick = currentTick + Math.max(1L, interval);
+	}
+
+	private static String processorRoundRobinAdaptiveOwnerId(String processorId) {
+		return PROCESSOR_ROUND_ROBIN_SCHEDULER_OWNER_PREFIX + normalizeProcessorId(processorId);
+	}
+
+	private static void clearProcessorRoundRobinAdaptiveState() {
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.id == null || runtime.id.isBlank()) {
+				continue;
+			}
+			SchedulerManagerSystem.clearAdaptiveDelayState(processorRoundRobinAdaptiveOwnerId(runtime.id));
 		}
 	}
 
@@ -1038,6 +1485,23 @@ public final class ChunkManagerSystem {
 		return FullChunkStatus.FULL;
 	}
 
+	private static final class CachedChunkColumns {
+		private final List<ColumnSample> motionColumns;
+		private final List<ColumnSample> surfaceColumns;
+
+		private CachedChunkColumns(int capacity) {
+			int safeCapacity = Math.max(1, capacity);
+			List<ColumnSample> motion = new ArrayList<>(safeCapacity);
+			List<ColumnSample> surface = new ArrayList<>(safeCapacity);
+			for (int i = 0; i < safeCapacity; i++) {
+				motion.add(new ColumnSample());
+				surface.add(new ColumnSample());
+			}
+			this.motionColumns = motion;
+			this.surfaceColumns = surface;
+		}
+	}
+
 	private static final class ChunkProcessorRuntime {
 		private final String id;
 		private final ChunkProcessor processor;
@@ -1045,7 +1509,11 @@ public final class ChunkManagerSystem {
 		private final List<ProcessorChunkKey> trackedChunkCycle = new ArrayList<>();
 		private final Set<ProcessorChunkKey> loadedTrackedChunkKeys = new LinkedHashSet<>();
 		private final List<ProcessorChunkKey> loadedTrackedChunkCycle = new ArrayList<>();
+		private final Set<ProcessorChunkKey> dirtyTrackedChunkKeys = new LinkedHashSet<>();
+		private final Deque<ProcessorChunkKey> dirtyTrackedChunks = new ArrayDeque<>();
+		private final Map<ProcessorChunkKey, Long> dirtyTrackedLastEnqueueTicks = new LinkedHashMap<>();
 		private int activeChunkProcessCursor = 0;
+		private long nextRoundRobinProcessGameplayTick = Long.MIN_VALUE;
 
 		private ChunkProcessorRuntime(String id, ChunkProcessor processor) {
 			this.id = id;
@@ -1057,7 +1525,11 @@ public final class ChunkManagerSystem {
 			trackedChunkCycle.clear();
 			loadedTrackedChunkKeys.clear();
 			loadedTrackedChunkCycle.clear();
+			dirtyTrackedChunkKeys.clear();
+			dirtyTrackedChunks.clear();
+			dirtyTrackedLastEnqueueTicks.clear();
 			activeChunkProcessCursor = 0;
+			nextRoundRobinProcessGameplayTick = Long.MIN_VALUE;
 		}
 	}
 

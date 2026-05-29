@@ -46,6 +46,7 @@
     "LivingEntityEffectMixin",
     "LivingEntityPetBehaviorMixin",
     "LivingEntityLuckLootMixin",
+    "LevelChunkDiscoveryCacheSyncMixin",
     "MobExperienceAccessor",
     "MobDifficultySpawnMixin",
     "MobSpawnOverridesMixin",
