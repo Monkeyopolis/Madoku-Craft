@@ -7,7 +7,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
-import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
@@ -125,6 +125,7 @@ public final class MadokuMobManager {
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
 			if (entity instanceof LivingEntity livingEntity) {
+				preapplyBeeRegionalDifficultyAdjustment(livingEntity, world);
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
 				applyDifficultyScalingAfterMobOverrides(livingEntity, world, reappliedMobOverrides);
 			}
@@ -409,7 +410,7 @@ public final class MadokuMobManager {
 
 		double accuracy = resolveScaledAttackAccuracy(readMobStatDouble(root, MadokuMobConfigManager.FIELD_ATTACK_ACCURACY, 0.7D), skeleton.level().getDifficulty(), isHardcoreWorld(skeleton.level()));
 		double rangedDamage = resolveSkeletonRangedDamage(skeleton, root);
-		accuracy = MadokuDifficulty.resolveMobAttackAccuracyScaling(skeleton, accuracy);
+		accuracy = MadokuRegionalDifficultyManager.resolveMobAttackAccuracyScaling(skeleton, accuracy);
 		ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
 		arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
 			arrow.setCritArrow(false);
@@ -633,7 +634,7 @@ public final class MadokuMobManager {
 			return false;
 		}
 		double accuracy = resolveScaledAttackAccuracy(readMobStatDouble(root, MadokuMobConfigManager.FIELD_ATTACK_ACCURACY, 0.7D), shooter.level().getDifficulty(), isHardcoreWorld(shooter.level()));
-		accuracy = shooter instanceof Mob mob ? MadokuDifficulty.resolveMobAttackAccuracyScaling(mob, accuracy) : accuracy;
+		accuracy = shooter instanceof Mob mob ? MadokuRegionalDifficultyManager.resolveMobAttackAccuracyScaling(mob, accuracy) : accuracy;
 		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		if (shooter.getRandom().nextDouble() <= accuracy) {
 			projectile.shoot(velocityX, velocityY, velocityZ, speed, 0.0F);
@@ -700,7 +701,7 @@ public final class MadokuMobManager {
 			return fallbackDamage;
 		}
 		double damage = resolveScaledRangedDamage(readMobStatDouble(root, MadokuMobConfigManager.FIELD_RANGED_DAMAGE, 6.0D), livingOwner.level().getDifficulty(), isHardcoreWorld(livingOwner.level()));
-		damage = livingOwner instanceof Mob mob ? MadokuDifficulty.resolveMobRangedDamageScaling(mob, damage) : damage;
+		damage = livingOwner instanceof Mob mob ? MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(mob, damage) : damage;
 		return (float) Math.max(0.0D, damage);
 	}
 
@@ -791,7 +792,7 @@ public final class MadokuMobManager {
 		Double configuredPower = readOptionalDouble(readMobStatsRoot(variant), MadokuMobConfigManager.FIELD_EXPLOSION_POWER);
 		float power = configuredPower == null ? vanillaPower : configuredPower.floatValue();
 		power = (float) resolveDifficultyAdjustedValue(level.getDifficulty(), isHardcoreWorld(level), Math.max(0.0D, power), CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
-		power = (float) Math.max(0.0D, power + MadokuDifficulty.resolveCreeperExplosionPowerScaling(creeper));
+		power = (float) Math.max(0.0D, power + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
 		Level.ExplosionInteraction interaction = level.getRandom().nextDouble() < chance
 			? Level.ExplosionInteraction.MOB
 			: Level.ExplosionInteraction.NONE;
@@ -826,7 +827,7 @@ public final class MadokuMobManager {
 			explosionPower = Math.max(0.0D, configuredPower);
 		}
 		explosionPower = resolveDifficultyAdjustedValue(creeper.level().getDifficulty(), isHardcoreWorld(creeper.level()), explosionPower, CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
-		explosionPower = Math.max(0.0D, explosionPower + MadokuDifficulty.resolveCreeperExplosionPowerScaling(creeper));
+		explosionPower = Math.max(0.0D, explosionPower + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
 		return (float) (explosionPower / CREEPER_POWER_PER_DAMAGE);
 	}
 
@@ -953,14 +954,27 @@ public final class MadokuMobManager {
 	}
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
-		if (!snapshot.enabled || entity == null || !(entity instanceof Mob mob) || level == null || !MadokuDifficulty.isEnabled()) {
+		if (!snapshot.enabled || entity == null || !(entity instanceof Mob mob) || level == null || !MadokuRegionalDifficultyManager.isEnabled()) {
+			return;
+		}
+		if (isBeeRegionalDifficultyScalingEnabled(entity)) {
 			return;
 		}
 		if (loadedMobOverridesApplied && mob instanceof DifficultyScaledMob scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
-			MadokuDifficulty.reapplySpawnScalingFromStoredAdjustment(mob);
+			MadokuRegionalDifficultyManager.reapplySpawnScalingFromStoredAdjustment(mob);
 			return;
 		}
-		MadokuDifficulty.applySpawnScalingIfUnscaled(mob, level);
+		MadokuRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, level);
+	}
+
+	private static void preapplyBeeRegionalDifficultyAdjustment(LivingEntity entity, ServerLevel level) {
+		if (entity == null || level == null || !(entity instanceof Mob mob) || !snapshot.enabled || !MadokuRegionalDifficultyManager.isEnabled()) {
+			return;
+		}
+		if (!isBeeRegionalDifficultyScalingEnabled(entity)) {
+			return;
+		}
+		MadokuRegionalDifficultyManager.ensureSpawnDifficultyAdjustment(mob, level);
 	}
 
 	static void applyCreeperSpawnOverrides(Creeper creeper, ServerLevelAccessor world, DifficultyInstance difficulty) {
@@ -1044,6 +1058,16 @@ public final class MadokuMobManager {
 		return readBoolean(beeFileRoot, MadokuMobConfigManager.FIELD_OVERRIDE_GOALS, true);
 	}
 
+	private static boolean isBeeRegionalDifficultyScalingEnabled(LivingEntity entity) {
+		if (entity == null || entity.getType() != EntityType.BEE || !snapshot.enabled || !isMobFileEnabled(MadokuMobConfigManager.FILE_BEE)) {
+			return false;
+		}
+		JsonObject beeFileRoot = root(MadokuMobConfigManager.FILE_BEE);
+		JsonObject resolvedBeeRoot = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
+		JsonObject regionalRoot = readObject(resolvedBeeRoot, MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING);
+		return readBoolean(regionalRoot, MadokuMobConfigManager.FIELD_ENABLED, false);
+	}
+
 	static void applyHagSpawnOverrides(Mob mob) {
 		if (mob == null || !snapshot.enabled) {
 			return;
@@ -1075,13 +1099,23 @@ public final class MadokuMobManager {
 		boolean modified = false;
 		double oldMaxHealth = entity.getMaxHealth();
 		boolean hardcore = isHardcoreWorld(entity.level());
+		JsonObject statsRoot = readMobStatsRoot(root);
 		JsonObject difficultyScale = readObject(root, MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE);
 		boolean difficultyScalingEnabled = readBoolean(root, MadokuMobConfigManager.FIELD_DIFFICULTY_SCALING, false);
+		JsonObject regionalDifficultyScale = readObject(root, MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING);
+		boolean regionalDifficultyScalingEnabled = readBoolean(regionalDifficultyScale, MadokuMobConfigManager.FIELD_ENABLED, false);
+		int regionalAdjustment = regionalDifficultyScalingEnabled ? resolveRegionalDifficultyAdjustment(entity) : 0;
 		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.MAX_HEALTH,
 			resolveScaledStat(
-				readOptionalPositive(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_HEALTH),
+				resolveRegionalDifficultyScaledStat(
+					readOptionalPositive(statsRoot, MadokuMobConfigManager.FIELD_HEALTH),
+					regionalAdjustment,
+					regionalDifficultyScale,
+					MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH,
+					0.0D
+				),
 				entity.level().getDifficulty(),
 				hardcore,
 				HEALTH_DIFFICULTY_STEP,
@@ -1095,7 +1129,7 @@ public final class MadokuMobManager {
 			entity,
 			Attributes.ARMOR,
 			resolveUniversalBaseStat(
-				readOptionalNonNegative(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_ARMOR),
+				readOptionalNonNegative(statsRoot, MadokuMobConfigManager.FIELD_ARMOR),
 				entity.level().getDifficulty(),
 				hardcore,
 				ARMOR_DIFFICULTY_STEP,
@@ -1106,7 +1140,13 @@ public final class MadokuMobManager {
 				entity,
 				Attributes.ATTACK_DAMAGE,
 				resolveScaledStat(
-					readOptionalNonNegative(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_DAMAGE),
+					resolveRegionalDifficultyScaledStat(
+						readOptionalNonNegative(statsRoot, MadokuMobConfigManager.FIELD_DAMAGE),
+						regionalAdjustment,
+						regionalDifficultyScale,
+						MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE,
+						0.0D
+					),
 					entity.level().getDifficulty(),
 					hardcore,
 					DAMAGE_DIFFICULTY_STEP,
@@ -1120,7 +1160,13 @@ public final class MadokuMobManager {
 				entity,
 				Attributes.MOVEMENT_SPEED,
 				resolveScaledStat(
-					readOptionalPositive(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_MOVEMENT_SPEED),
+					resolveRegionalDifficultyScaledStat(
+						readOptionalPositive(statsRoot, MadokuMobConfigManager.FIELD_MOVEMENT_SPEED),
+						regionalAdjustment,
+						regionalDifficultyScale,
+						MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED,
+						0.0D
+					),
 					entity.level().getDifficulty(),
 					hardcore,
 					MOVEMENT_SPEED_DIFFICULTY_STEP,
@@ -1134,7 +1180,13 @@ public final class MadokuMobManager {
 			entity,
 			Attributes.FLYING_SPEED,
 			resolveScaledStat(
-				readOptionalPositive(readMobStatsRoot(root), FIELD_FLYING_SPEED),
+				resolveRegionalDifficultyScaledStat(
+					readOptionalPositive(statsRoot, FIELD_FLYING_SPEED),
+					regionalAdjustment,
+					regionalDifficultyScale,
+					FIELD_FLYING_SPEED,
+					0.0D
+				),
 				entity.level().getDifficulty(),
 				hardcore,
 				MOVEMENT_SPEED_DIFFICULTY_STEP,
@@ -1148,14 +1200,14 @@ public final class MadokuMobManager {
 			entity,
 			Attributes.KNOCKBACK_RESISTANCE,
 			resolveUniversalBaseStat(
-				clampOptional(readOptionalDouble(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D),
+				clampOptional(readOptionalDouble(statsRoot, MadokuMobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D),
 				entity.level().getDifficulty(),
 				hardcore,
 				KNOCKBACK_RESISTANCE_DIFFICULTY_STEP,
 				0.0D
 			)
 		);
-		Double baseScale = readOptionalPositive(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_SCALE);
+		Double baseScale = readOptionalPositive(statsRoot, MadokuMobConfigManager.FIELD_SCALE);
 		Double resolvedScale = baseScale;
 		if (baseScale != null) {
 			if (difficultyScalingEnabled) {
@@ -1188,7 +1240,12 @@ public final class MadokuMobManager {
 		modified |= scaleApplied;
 		Double scaleAfter = scaleInstance == null ? null : scaleInstance.getBaseValue();
 		emitBeeScaleApplyDebug(entity, baseScale, resolvedScale, difficultyScalingEnabled, scaleInstance != null, scaleApplied, scaleBefore, scaleAfter);
-		Integer baseExperienceDrop = readOptionalIntNonNegative(readMobStatsRoot(root), MadokuMobConfigManager.FIELD_EXPERIENCE_DROP);
+		Integer baseExperienceDrop = resolveRegionalDifficultyScaledIntStat(
+			readOptionalIntNonNegative(statsRoot, MadokuMobConfigManager.FIELD_EXPERIENCE_DROP),
+			regionalAdjustment,
+			regionalDifficultyScale,
+			MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP
+		);
 		if (baseExperienceDrop != null) {
 			int resolvedExperienceDrop = baseExperienceDrop;
 			if (difficultyScalingEnabled) {
@@ -1326,7 +1383,7 @@ public final class MadokuMobManager {
 				explosionPower,
 				CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
 				0.0D
-			) + MadokuDifficulty.resolveCreeperExplosionPowerScaling(creeper);
+			) + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper);
 			int radius = Math.max(0, (int) Math.round(resolvedPower));
 			accessor.madokuCraft$setExplosionRadius(radius);
 		}
@@ -2284,6 +2341,56 @@ public final class MadokuMobManager {
 		return resolveDifficultyAdjustedValue(difficulty, hardcore, baseValue, step, minimum);
 	}
 
+	private static int resolveRegionalDifficultyAdjustment(LivingEntity entity) {
+		if (!(entity instanceof DifficultyScaledMob scaledMob)) {
+			return 0;
+		}
+		return Math.max(0, scaledMob.madokuCraft$getSpawnDifficultyAdjustment());
+	}
+
+	private static Double resolveRegionalDifficultyScaledStat(
+		Double baseValue,
+		int regionalAdjustment,
+		JsonObject regionalDifficultyScaleRoot,
+		String scalingKey,
+		double minimum
+	) {
+		if (baseValue == null) {
+			return null;
+		}
+		if (regionalAdjustment <= 0 || regionalDifficultyScaleRoot == null || scalingKey == null || scalingKey.isBlank()) {
+			return baseValue;
+		}
+		Double percentPerAdjustment = readOptionalNonNegative(regionalDifficultyScaleRoot, scalingKey);
+		if (percentPerAdjustment == null || !Double.isFinite(percentPerAdjustment) || percentPerAdjustment <= 0.0D) {
+			return baseValue;
+		}
+		double multiplier = 1.0D + ((percentPerAdjustment / 100.0D) * regionalAdjustment);
+		return Math.max(minimum, baseValue * Math.max(0.0D, multiplier));
+	}
+
+	private static Integer resolveRegionalDifficultyScaledIntStat(
+		Integer baseValue,
+		int regionalAdjustment,
+		JsonObject regionalDifficultyScaleRoot,
+		String scalingKey
+	) {
+		if (baseValue == null) {
+			return null;
+		}
+		Double scaled = resolveRegionalDifficultyScaledStat(
+			(double) Math.max(0, baseValue),
+			regionalAdjustment,
+			regionalDifficultyScaleRoot,
+			scalingKey,
+			0.0D
+		);
+		if (scaled == null || !Double.isFinite(scaled)) {
+			return Math.max(0, baseValue);
+		}
+		return Math.max(0, (int) Math.round(scaled));
+	}
+
 	private static Double resolveScaledStat(
 		Double baseValue,
 		Difficulty difficulty,
@@ -2328,7 +2435,7 @@ public final class MadokuMobManager {
 			skeleton.level().getDifficulty(),
 			isHardcoreWorld(skeleton.level())
 		);
-		return MadokuDifficulty.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+		return MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
 	}
 
 	private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -2702,7 +2809,8 @@ public final class MadokuMobManager {
 		}
 		return normalizedKey.equals(normalizeKey(MadokuMobConfigManager.FIELD_DEFAULT_GROUP))
 			|| normalizedKey.equals(normalizeKey(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALING))
-			|| normalizedKey.equals(normalizeKey(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE));
+			|| normalizedKey.equals(normalizeKey(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE))
+			|| normalizedKey.equals(normalizeKey(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING));
 	}
 
 	private static double resolveBeeVariantSpawnWeight(JsonObject variantRoot, double fallback) {
@@ -2774,6 +2882,9 @@ public final class MadokuMobManager {
 			}
 			if (!merged.has(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE) && beeRoot.has(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE)) {
 				merged.add(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE, beeRoot.get(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE).deepCopy());
+			}
+			if (!merged.has(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING) && beeRoot.has(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING)) {
+				merged.add(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, beeRoot.get(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING).deepCopy());
 			}
 		}
 		return merged;
@@ -2943,5 +3054,6 @@ public final class MadokuMobManager {
 		}
 	}
 }
+
 
 

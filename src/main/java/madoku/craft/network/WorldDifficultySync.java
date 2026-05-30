@@ -2,7 +2,7 @@ package madoku.craft.network;
 
 import madoku.craft.chunk.ChunkManagerSystem;
 import net.minecraft.core.BlockPos;
-import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -75,7 +75,7 @@ public final class WorldDifficultySync {
 			return;
 		}
 
-		int difficultyLevel = MadokuDifficulty.resolveHudDifficultyLevel(player);
+		int difficultyLevel = MadokuRegionalDifficultyManager.resolveHudDifficultyLevel(player);
 		PlayerDifficultyState resolvedState = currentKey.withDifficultyLevel(difficultyLevel);
 		boolean shouldSend = force || previous == null || previous.difficultyLevel() != difficultyLevel;
 
@@ -98,7 +98,7 @@ public final class WorldDifficultySync {
 		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
 			return null;
 		}
-		int timeAdjustment = MadokuDifficulty.resolveCurrentTimeAdjustment(level);
+		int timeAdjustment = MadokuRegionalDifficultyManager.resolveCurrentTimeAdjustment(level);
 		String levelId = level.dimension().identifier().toString();
 		long chunkPos = packChunk(chunkX, chunkZ);
 		return new PlayerDifficultyState(levelId, chunkPos, timeAdjustment, 1);
@@ -128,3 +128,4 @@ public final class WorldDifficultySync {
 		}
 	}
 }
+

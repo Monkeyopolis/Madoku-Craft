@@ -95,6 +95,7 @@ public final class MadokuMobConfigManager {
 	public static final String FIELD_ADULT_GROUP = "adult";
 	public static final String FIELD_DIFFICULTY_SCALING = "difficulty-scaling";
 	public static final String FIELD_DIFFICULTY_SCALE = "difficulty-scale";
+	public static final String FIELD_REGIONAL_DIFFICULTY_SCALING = "regional-difficulty-scaling";
 	public static final String FIELD_DIFFICULTY_SCALE_HEALTH = "health";
 	public static final String FIELD_DIFFICULTY_SCALE_DAMAGE = "damage";
 	public static final String FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED = "movement_speed";

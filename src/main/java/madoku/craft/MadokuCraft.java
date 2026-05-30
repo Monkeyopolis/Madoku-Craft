@@ -9,7 +9,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.debug.MadokuDebug;
-import madoku.craft.difficulty.system.MadokuDifficulty;
+import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.ecosystem.system.MadokuEcosystem;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;
@@ -55,7 +55,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuRecipe.initialize();
 		MadokuLootTableSystem.initialize();
 		MadokuDebug.initialize();
-		MadokuDifficulty.initialize();
+		MadokuRegionalDifficultyManager.initialize();
 		MadokuTime.initialize();
 		MadokuSeason.initialize();
 		MadokuWorldgen.initialize();
@@ -132,7 +132,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuEntities.onServerStarted(server);
 			PlayerEntitiesSystem.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
-			MadokuDifficulty.onServerStarted(server);
+			MadokuRegionalDifficultyManager.onServerStarted(server);
 			MadokuTime.update(server);
 			WorldTimeSync.reset();
 			WorldDifficultySync.reset();
@@ -172,7 +172,7 @@ public class MadokuCraft implements ModInitializer {
 			SchedulerManagerSystem.reset();
 			MadokuPlacedBlocks.reset();
 			MadokuSmeltingManager.onServerStopped();
-			MadokuDifficulty.onServerStopped();
+			MadokuRegionalDifficultyManager.onServerStopped();
 			MadokuMobManager.onServerStopped();
 			MadokuHealth.reset();
 			MadokuHunger.reset();
@@ -210,7 +210,7 @@ public class MadokuCraft implements ModInitializer {
 			PlayerEntitiesSystem.autosavePersistedData(server);
 			MadokuItemStack.autosavePersistedData(server);
 			MadokuSeason.onServerTick(server);
-			MadokuDifficulty.onServerTick(server);
+			MadokuRegionalDifficultyManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);
 			MadokuLevels.flushDirtySyncs(server);
 			WorldTimeSync.broadcastIfChanged(server);
@@ -219,4 +219,5 @@ public class MadokuCraft implements ModInitializer {
 		});
 	}
 }
+
 

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class MadokuDifficultyConfig {
+public final class RegionalDifficultyConfigManager {
 	public static final int DEFAULT_UNKNOWN_ADJUSTMENT = 2;
 	public static final int TIME_UNBOUNDED_MAX_DAY = -1;
 
@@ -29,6 +29,10 @@ public final class MadokuDifficultyConfig {
 	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
 	public static final String FIELD_ATTACK_ACCURACY = "attack_accuracy";
 	public static final String FIELD_EXPLOSION_POWER = "explosion_power";
+	public static final String FIELD_SCALING_TYPE = "type";
+	public static final String FIELD_SCALING_VALUE = "value";
+	public static final String SCALING_TYPE_ADD = "add";
+	public static final String SCALING_TYPE_MULTIPLY = "multiply";
 
 	public static final String FIELD_ADJUSTMENT = "adjustment";
 	public static final String FIELD_BIOME_LIST = "biome_list";
@@ -37,16 +41,16 @@ public final class MadokuDifficultyConfig {
 	public static final String FIELD_MAX_DAY = "max_day";
 	public static final String FIELD_MOB_ID = "mob_id";
 
-	public static final double DEFAULT_HEALTH_INCREMENT = 4.0d;
-	public static final double DEFAULT_MOVEMENT_SPEED_INCREMENT = 1.0d;
+	public static final double DEFAULT_HEALTH_INCREMENT = 20.0d;
+	public static final double DEFAULT_MOVEMENT_SPEED_INCREMENT = 2.0d;
 	public static final double DEFAULT_SCALE_INCREMENT = 0.0d;
-	public static final double DEFAULT_ARMOR_INCREMENT = 1.0d;
-	public static final double DEFAULT_DAMAGE_INCREMENT = 1.0d;
-	public static final double DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT = 1.0d;
-	public static final double DEFAULT_EXPERIENCE_DROP_INCREMENT = 1.0d;
+	public static final double DEFAULT_ARMOR_INCREMENT = 0.2d;
+	public static final double DEFAULT_DAMAGE_INCREMENT = 5.0d;
+	public static final double DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT = 0.02d;
+	public static final double DEFAULT_EXPERIENCE_DROP_INCREMENT = 10.0d;
 	public static final double DEFAULT_EXPLOSION_POWER_INCREMENT = 1.0d;
 
-	private MadokuDifficultyConfig() {
+	private RegionalDifficultyConfigManager() {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
@@ -58,12 +62,13 @@ public final class MadokuDifficultyConfig {
 		root.addProperty(FIELD_DEFAULT_UNKNOWN_ADJUSTMENT, DEFAULT_UNKNOWN_ADJUSTMENT);
 
 			JsonObject scaling = new JsonObject();
-			scaling.addProperty(FIELD_HEALTH, DEFAULT_HEALTH_INCREMENT);
-			scaling.addProperty(FIELD_MOVEMENT_SPEED, DEFAULT_MOVEMENT_SPEED_INCREMENT);
+			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
+			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
 			scaling.addProperty(FIELD_SCALE, DEFAULT_SCALE_INCREMENT);
-			scaling.addProperty(FIELD_ARMOR, DEFAULT_ARMOR_INCREMENT);
-			scaling.addProperty(FIELD_KNOCKBACK_RESISTANCE, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT);
-			scaling.addProperty(FIELD_EXPERIENCE_DROP, DEFAULT_EXPERIENCE_DROP_INCREMENT);
+			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
+			scaling.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT));
+			scaling.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT));
+			scaling.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT));
 			root.add(FIELD_DIFFICULTY_SCALING, scaling);
 			return root;
 		}
@@ -290,12 +295,12 @@ public final class MadokuDifficultyConfig {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
 		root.addProperty(FIELD_MOB_ID, normalizeMobId(mobId));
-		root.addProperty(FIELD_HEALTH, health);
-		root.addProperty(FIELD_MOVEMENT_SPEED, movementSpeed);
-		root.addProperty(FIELD_ARMOR, armor);
-		root.addProperty(FIELD_DAMAGE, damage);
-		root.addProperty(FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
-		root.addProperty(FIELD_EXPERIENCE_DROP, experienceDrop);
+		root.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, health));
+		root.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, movementSpeed));
+		root.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, armor));
+		root.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, damage));
+		root.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, knockbackResistance));
+		root.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, experienceDrop));
 		if (scale != null) {
 			root.addProperty(FIELD_SCALE, scale);
 		}
@@ -325,6 +330,17 @@ public final class MadokuDifficultyConfig {
 			}
 		}
 		return array;
+	}
+
+	public static JsonObject buildScalingValueRule(String type, double value) {
+		JsonObject rule = new JsonObject();
+		String normalizedType = type == null ? SCALING_TYPE_ADD : type.trim().toLowerCase(Locale.ROOT);
+		if (!SCALING_TYPE_ADD.equals(normalizedType) && !SCALING_TYPE_MULTIPLY.equals(normalizedType)) {
+			normalizedType = SCALING_TYPE_ADD;
+		}
+		rule.addProperty(FIELD_SCALING_TYPE, normalizedType);
+		rule.addProperty(FIELD_SCALING_VALUE, value);
+		return rule;
 	}
 
 	private static String resolveMobIdFromFileKey(String fileKey) {
@@ -360,3 +376,4 @@ public final class MadokuDifficultyConfig {
 			root.addProperty(FIELD_ATTACK_ACCURACY, 1.0d);
 		}
 	}
+

@@ -24,6 +24,14 @@ public final class MobSystemConfigBee {
 		difficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
 		difficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
 		bee.add(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
+		JsonObject regionalDifficultyScale = new JsonObject();
+		regionalDifficultyScale.addProperty(MadokuMobConfigManager.FIELD_ENABLED, true);
+		regionalDifficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 20.0d);
+		regionalDifficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 5.0d);
+		regionalDifficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 2.0d);
+		regionalDifficultyScale.addProperty("flying_speed", 2.0d);
+		regionalDifficultyScale.addProperty(MadokuMobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 10.0d);
+		bee.add(MadokuMobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
 
 		JsonObject defaultGroup = new JsonObject();
 		defaultGroup.addProperty(MadokuMobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d);
