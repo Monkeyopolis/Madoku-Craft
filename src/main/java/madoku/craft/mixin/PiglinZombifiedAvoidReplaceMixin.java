@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +17,7 @@ public abstract class PiglinZombifiedAvoidReplaceMixin {
 		cancellable = true
 	)
 	private static void madoku$disableVanillaZombifiedProximityCheck(Piglin piglin, CallbackInfoReturnable<Boolean> cir) {
-		if (MadokuMob.shouldReplaceVanillaPiglinZombifiedAvoid()) {
+		if (MadokuMobManager.shouldReplaceVanillaPiglinZombifiedAvoid()) {
 			cir.setReturnValue(false);
 		}
 	}
@@ -32,8 +32,9 @@ public abstract class PiglinZombifiedAvoidReplaceMixin {
 		LivingEntity target,
 		CallbackInfo ci
 	) {
-		if (MadokuMob.shouldReplaceVanillaPiglinZombifiedAvoid() && target != null && target.getType() == net.minecraft.world.entity.EntityType.ZOMBIFIED_PIGLIN) {
+		if (MadokuMobManager.shouldReplaceVanillaPiglinZombifiedAvoid() && target != null && target.getType() == net.minecraft.world.entity.EntityType.ZOMBIFIED_PIGLIN) {
 			ci.cancel();
 		}
 	}
 }
+

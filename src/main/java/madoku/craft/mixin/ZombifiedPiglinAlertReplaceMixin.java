@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -10,8 +10,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ZombifiedPiglinAlertReplaceMixin {
 	@Inject(method = "maybeAlertOthers", at = @At("HEAD"), cancellable = true)
 	private void madoku$replaceVanillaZombifiedPiglinAlertBroadcast(CallbackInfo ci) {
-		if (MadokuMob.shouldReplaceVanillaZombifiedPiglinBroadcast()) {
+		if (MadokuMobManager.shouldReplaceVanillaZombifiedPiglinBroadcast()) {
 			ci.cancel();
 		}
 	}
 }
+

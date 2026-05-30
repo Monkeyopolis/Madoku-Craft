@@ -10,6 +10,8 @@
     "AbstractFurnaceServerTickMixin",
     "AbstractSkeletonArrowInvoker",
     "AbstractSkeletonRangedAttackMixin",
+    "BeeGrowCropGoalDisableMixin",
+    "BeeScaleAttributeMixin",
     "BiomeSeasonalFreezeMixin",
     "BiomeSeasonalPrecipitationMixin",
     "BlockItemPlacedBlocksMixin",

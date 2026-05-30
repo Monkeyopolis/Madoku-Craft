@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.illager.Pillager;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,8 +13,9 @@ public abstract class PillagerRangedAttackMixin {
 	@Inject(method = "performRangedAttack", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyCustomRangedAttack(LivingEntity target, float pullProgress, CallbackInfo ci) {
 		Pillager pillager = (Pillager) (Object) this;
-		if (MadokuMob.applyCustomPillagerRangedShot(pillager, target, 1.6F)) {
+		if (MadokuMobManager.applyCustomPillagerRangedShot(pillager, target, 1.6F)) {
 			ci.cancel();
 		}
 	}
 }
+

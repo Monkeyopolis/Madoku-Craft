@@ -9,7 +9,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.mixin.MobExperienceAccessor;
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.Holder;
@@ -1207,7 +1207,7 @@ public final class MadokuDifficulty {
 		}
 
 			private ResolvedIncrements resolveIncrements(Mob mob) {
-				if (!MadokuMob.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
+				if (!MadokuMobManager.isEnabled() || mob == null || mobScalingIncrements.isEmpty()) {
 					return new ResolvedIncrements(increments, "global");
 				}
 			for (String key : resolveMobScalingFileKeys(mob.getType())) {
@@ -1301,3 +1301,4 @@ public final class MadokuDifficulty {
 			private static final StructureContext NONE = new StructureContext(null, 0);
 		}
 	}
+

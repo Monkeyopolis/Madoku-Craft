@@ -146,7 +146,7 @@ public final class MadokuDebug {
 			}
 			RECENT_EVENTS.addLast(formatted);
 		}
-		LOGGER.debug("{}{}", formatted, System.lineSeparator());
+		LOGGER.info("{}{}", formatted, System.lineSeparator());
 	}
 
 	private static String format(DebugEvent debugEvent) {
@@ -190,9 +190,19 @@ public final class MadokuDebug {
 	}
 
 	private static void loadConfig(JsonObject source, JsonObject defaults) {
-		enabled = getBoolean(source, "enabled", false);
-		applyActiveDomains(getArray(source, "active-domains"), defaults);
-		applyDisabledMetrics(getArray(source, "disabled-metrics"));
+		JsonObject general = getObject(source, "general");
+		JsonObject main = getObject(source, "main");
+		enabled = getBoolean(source, "enabled", getBoolean(general, "enabled", false));
+		JsonArray activeDomains = getArray(source, "active-domains");
+		if (activeDomains == null) {
+			activeDomains = getArray(main, "active-domains");
+		}
+		JsonArray disabledMetrics = getArray(source, "disabled-metrics");
+		if (disabledMetrics == null) {
+			disabledMetrics = getArray(main, "disabled-metrics");
+		}
+		applyActiveDomains(activeDomains, defaults);
+		applyDisabledMetrics(disabledMetrics);
 	}
 
 	private static void applyActiveDomains(JsonArray domains, JsonObject defaults) {
@@ -311,6 +321,17 @@ public final class MadokuDebug {
 			return null;
 		}
 		return element.getAsJsonArray();
+	}
+
+	private static JsonObject getObject(JsonObject object, String key) {
+		if (object == null) {
+			return null;
+		}
+		JsonElement element = object.get(key);
+		if (element == null || !element.isJsonObject()) {
+			return null;
+		}
+		return element.getAsJsonObject();
 	}
 
 	private static Domain normalizeDomain(Domain domain) {

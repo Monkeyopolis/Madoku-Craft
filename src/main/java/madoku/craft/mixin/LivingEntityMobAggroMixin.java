@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -22,7 +22,8 @@ public abstract class LivingEntityMobAggroMixin {
 		CallbackInfoReturnable<Boolean> cir
 	) {
 		if (cir.getReturnValueZ()) {
-			MadokuMob.handleMobDamaged((LivingEntity) (Object) this, source);
+			MadokuMobManager.handleMobDamaged((LivingEntity) (Object) this, source);
 		}
 	}
 }
+

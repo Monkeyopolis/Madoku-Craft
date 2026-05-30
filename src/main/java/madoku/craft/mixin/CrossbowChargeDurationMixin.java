@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
@@ -17,9 +17,10 @@ public abstract class CrossbowChargeDurationMixin {
 		LivingEntity user,
 		CallbackInfoReturnable<Integer> cir
 	) {
-		int chargeUpTicks = MadokuMob.resolveCrossbowChargeDurationOverride(user);
+		int chargeUpTicks = MadokuMobManager.resolveCrossbowChargeDurationOverride(user);
 		if (chargeUpTicks > 0) {
 			cir.setReturnValue(chargeUpTicks);
 		}
 	}
 }
+

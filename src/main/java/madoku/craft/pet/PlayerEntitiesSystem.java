@@ -13,7 +13,7 @@ import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -1864,7 +1864,7 @@ public final class PlayerEntitiesSystem {
 		float soundPitch = 1.0F / (player.getRandom().nextFloat() * 0.4F + 0.8F);
 		boolean spawned;
 		if (PET_ABILITY_RANGED_HOMING_ARROW.equals(rule.abilityType)) {
-			spawned = MadokuMob.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage);
+			spawned = MadokuMobManager.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage);
 		} else if (PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType)) {
 			spawned = spawnManagedWebProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
 		} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType)) {
@@ -3275,3 +3275,4 @@ public final class PlayerEntitiesSystem {
 	}
 
 }
+

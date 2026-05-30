@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobSpider;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.SpawnGroupData;
@@ -21,6 +21,7 @@ public abstract class SpiderSpawnOverridesMixin {
 		SpawnGroupData spawnGroupData,
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
-		MadokuMob.applySpiderSpawnOverrides((Spider) (Object) this, world, difficulty, spawnReason);
+		MadokuMobSpider.applySpawnOverrides((Spider) (Object) this, world, difficulty, spawnReason);
 	}
 }
+

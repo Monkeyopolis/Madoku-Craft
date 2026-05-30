@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,15 +25,15 @@ public abstract class AbstractArrowDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedArrowDamage(Entity entity, DamageSource source, float originalDamage) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
-		if (MadokuMob.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
+		if (MadokuMobManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
 			livingEntity.invulnerableTime = 0;
 			livingEntity.hurtTime = 0;
 		}
-		float resolvedDamage = MadokuMob.resolveProjectileDamageOverride(arrow, originalDamage);
+		float resolvedDamage = MadokuMobManager.resolveProjectileDamageOverride(arrow, originalDamage);
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
-		MadokuMob.clearInvulnerabilityBypass(arrow);
+		MadokuMobManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
-			MadokuMob.applyWitherSkeletonArrowHitEffect(livingEntity, arrow.getOwner());
+			MadokuMobManager.applyWitherSkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}
 		return hit;
 	}
@@ -46,8 +46,9 @@ public abstract class AbstractArrowDamageMixin {
 		)
 	)
 	private void madokuCraft$skipHomingArrowKnockback(AbstractArrow arrow, LivingEntity target, DamageSource source) {
-		if (!MadokuMob.isManagedHomingArrow(arrow)) {
+		if (!MadokuMobManager.isManagedHomingArrow(arrow)) {
 			this.doKnockback(target, source);
 		}
 	}
 }
+

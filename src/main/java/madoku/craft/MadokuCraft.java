@@ -20,7 +20,7 @@ import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.luck.MadokuPlacedBlocks;
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.network.HungerHudSync;
 import madoku.craft.network.ItemProfileSync;
 import madoku.craft.network.PetAbilityHudSync;
@@ -65,7 +65,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuComposter.initialize();
 		MadokuFarming.initialize();
 		MadokuEcosystem.initialize();
-		MadokuMob.initialize();
+		MadokuMobManager.initialize();
 		MadokuRarity.initialize();
 		MadokuItemStack.initialize();
 		MadokuAttributes.initialize();
@@ -131,7 +131,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuOxygen.onServerStarted(server);
 			MadokuEntities.onServerStarted(server);
 			PlayerEntitiesSystem.onServerStarted(server);
-			MadokuMob.onServerStarted(server);
+			MadokuMobManager.onServerStarted(server);
 			MadokuDifficulty.onServerStarted(server);
 			MadokuTime.update(server);
 			WorldTimeSync.reset();
@@ -173,7 +173,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuPlacedBlocks.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuDifficulty.onServerStopped();
-			MadokuMob.onServerStopped();
+			MadokuMobManager.onServerStopped();
 			MadokuHealth.reset();
 			MadokuHunger.reset();
 			MadokuOxygen.reset();
@@ -211,7 +211,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuItemStack.autosavePersistedData(server);
 			MadokuSeason.onServerTick(server);
 			MadokuDifficulty.onServerTick(server);
-			MadokuMob.onServerTick(server);
+			MadokuMobManager.onServerTick(server);
 			MadokuLevels.flushDirtySyncs(server);
 			WorldTimeSync.broadcastIfChanged(server);
 			WorldDifficultySync.broadcastIfChanged(server);
@@ -219,3 +219,4 @@ public class MadokuCraft implements ModInitializer {
 		});
 	}
 }
+

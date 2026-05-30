@@ -1,0 +1,238 @@
+{
+    "general":  {
+                    "version":  "1.1.6",
+                    "type":  "dynamic",
+                    "enabled":  true
+                },
+    "main":  {
+                 "override-stats":  true,
+                 "override-spawn-rules":  true,
+                 "override-behavior":  true,
+                 "override-goals":  true,
+                 "mob-variant":  false,
+                 "mob-baby":  true,
+                 "bee":  {
+                             "difficulty-scaling":  true,
+                             "difficulty-scale":  {
+                                                      "health":  0.2,
+                                                      "damage":  0.5,
+                                                      "movement_speed":  0.1,
+                                                      "experience_drop":  0.25
+                                                  },
+                             "default":  {
+                                             "spawn_weight":  100,
+                                             "mob-stats":  {
+                                                               "health":  10,
+                                                               "damage":  2,
+                                                               "movement_speed":  0.3,
+                                                               "flying_speed":  0.6
+                                                           },
+                                             "mob-behavior":  {
+                                                                  "pollination":  {
+                                                                                      "enabled":  false,
+                                                                                      "flower_search_radius":  5,
+                                                                                      "min_pollination_ticks":  400,
+                                                                                      "max_pollination_ticks":  600,
+                                                                                      "max_crops_growable":  10,
+                                                                                      "arrival_threshold":  0.1,
+                                                                                      "position_change_chance":  25,
+                                                                                      "speed_modifier":  0.35,
+                                                                                      "hover_height_within_flower":  0.6,
+                                                                                      "hover_pos_offset":  0.33333334
+                                                                                  },
+                                                                  "pollinate-crops":  {
+                                                                                           "enabled":  true,
+                                                                                           "nectar_total_charges":  10,
+                                                                                           "search_duration_ticks":  1200,
+                                                                                           "search_radius_horizontal":  12,
+                                                                                           "search_radius_vertical":  3,
+                                                                                           "crop_reach_distance_sqr":  4.0,
+                                                                                           "crop_reservation_ttl_ticks":  40,
+                                                                                           "move_speed_modifier":  1.1,
+                                                                                           "charges_spend_divisor":  2,
+                                                                                           "growth_percent_per_charge":  1.0
+                                                                                       },
+                                                                  "hive":  {
+                                                                               "enabled":  true,
+                                                                               "hive_search_distance":  20,
+                                                                               "pathfind_to_hive_when_closer_than":  16,
+                                                                               "hive_close_enough_distance":  2,
+                                                                               "too_far_distance":  48,
+                                                                               "ticks_without_nectar_before_going_home":  3600,
+                                                                               "locate_hive_cooldown_ticks":  200,
+                                                                               "locate_flower_cooldown_ticks":  200,
+                                                                               "locate_flower_cooldown_min_ticks":  20,
+                                                                               "locate_flower_cooldown_max_ticks":  60,
+                                                                               "ticks_before_going_to_known_flower":  600,
+                                                                               "return_if_environment_demands_hive":  true,
+                                                                               "max_travelling_ticks":  2400,
+                                                                               "max_blacklisted_hive_targets":  3,
+                                                                               "ticks_before_hive_drop":  60
+                                                                           },
+                                                                  "aggression":  {
+                                                                                     "enabled":  true,
+                                                                                     "retaliate_when_hurt":  true,
+                                                                                     "persistent_anger_time_min_seconds":  20,
+                                                                                     "persistent_anger_time_max_seconds":  39,
+                                                                                     "min_attack_distance":  4,
+                                                                                     "target_players_when_angry":  true
+                                                                                 },
+                                                                  "stinging":  {
+                                                                                   "enabled":  true,
+                                                                                   "sting_on_target":  true,
+                                                                                   "self_destruct_after_sting":  true,
+                                                                                   "sting_death_countdown_ticks":  1200,
+                                                                                   "poison_seconds_normal":  10,
+                                                                                   "poison_seconds_hard":  18,
+                                                                                   "poison_amplifier":  0
+                                                                               },
+                                                                  "breeding":  {
+                                                                                   "enabled":  true,
+                                                                                   "favorite_food":  "minecraft:flower",
+                                                                                   "baby_spawn_count_min":  1,
+                                                                                   "baby_spawn_count_max":  1,
+                                                                                   "breed_cooldown_ticks":  6000
+                                                                               },
+                                                                  "wandering":  {
+                                                                                    "enabled":  true,
+                                                                                    "default_wander_distance_reduction":  16,
+                                                                                    "restricted_wander_distance_reduction":  24,
+                                                                                    "wander_trigger_chance":  10,
+                                                                                    "wander_horizontal_range":  8,
+                                                                                    "wander_vertical_range":  7
+                                                                                }
+                                                              },
+                                             "mob-goals":  {
+                                                               "enabled":  true,
+                                                               "bee_attack":  {
+                                                                                  "enabled":  true,
+                                                                                  "priority":  0,
+                                                                                  "weight":  100,
+                                                                                  "cooldown_ticks":  0,
+                                                                                  "speed_modifier":  1.4,
+                                                                                  "long_memory":  true
+                                                                              },
+                                                               "enter_hive":  {
+                                                                                  "enabled":  true,
+                                                                                  "priority":  1,
+                                                                                  "weight":  100,
+                                                                                  "cooldown_ticks":  0
+                                                                              },
+                                                               "breed":  {
+                                                                             "enabled":  true,
+                                                                             "priority":  2,
+                                                                             "weight":  100,
+                                                                             "cooldown_ticks":  0,
+                                                                             "speed_modifier":  1
+                                                                         },
+                                                               "tempt_flower":  {
+                                                                                    "enabled":  true,
+                                                                                    "priority":  3,
+                                                                                    "weight":  100,
+                                                                                    "cooldown_ticks":  0,
+                                                                                    "speed_modifier":  1.25
+                                                                                },
+                                                               "validate_hive":  {
+                                                                                     "enabled":  true,
+                                                                                     "priority":  3,
+                                                                                     "weight":  100,
+                                                                                     "cooldown_ticks":  0
+                                                                                 },
+                                                               "validate_flower":  {
+                                                                                       "enabled":  true,
+                                                                                       "priority":  3,
+                                                                                       "weight":  100,
+                                                                                       "cooldown_ticks":  0
+                                                                                   },
+                                                               "pollinate":  {
+                                                                                 "enabled":  true,
+                                                                                 "priority":  4,
+                                                                                 "weight":  100,
+                                                                                 "cooldown_ticks":  0
+                                                                             },
+                                                               "follow_parent":  {
+                                                                                     "enabled":  true,
+                                                                                     "priority":  5,
+                                                                                     "weight":  100,
+                                                                                     "cooldown_ticks":  0,
+                                                                                     "speed_modifier":  1.25
+                                                                                 },
+                                                               "locate_hive":  {
+                                                                                   "enabled":  true,
+                                                                                   "priority":  5,
+                                                                                   "weight":  100,
+                                                                                   "cooldown_ticks":  0
+                                                                               },
+                                                               "go_to_hive":  {
+                                                                                  "enabled":  true,
+                                                                                  "priority":  5,
+                                                                                  "weight":  100,
+                                                                                  "cooldown_ticks":  0
+                                                                              },
+                                                               "go_to_known_flower":  {
+                                                                                          "enabled":  true,
+                                                                                          "priority":  6,
+                                                                                          "weight":  100,
+                                                                                          "cooldown_ticks":  0
+                                                                                      },
+                                                               "grow_crop":  {
+                                                                                 "enabled":  true,
+                                                                                 "priority":  7,
+                                                                                 "weight":  100,
+                                                                                 "cooldown_ticks":  0,
+                                                                                 "growth_chance":  30
+                                                                             },
+                                                               "wander":  {
+                                                                              "enabled":  true,
+                                                                              "priority":  8,
+                                                                              "weight":  100,
+                                                                              "cooldown_ticks":  0
+                                                                          },
+                                                               "float":  {
+                                                                             "enabled":  true,
+                                                                             "priority":  9,
+                                                                             "weight":  100,
+                                                                             "cooldown_ticks":  0
+                                                                         },
+                                                               "hurt_by_target":  {
+                                                                                      "enabled":  true,
+                                                                                      "priority":  1,
+                                                                                      "weight":  100,
+                                                                                      "cooldown_ticks":  0,
+                                                                                      "alert_others":  true
+                                                                                  },
+                                                               "become_angry_target":  {
+                                                                                           "enabled":  true,
+                                                                                           "priority":  2,
+                                                                                           "weight":  100,
+                                                                                           "cooldown_ticks":  0
+                                                                                       },
+                                                               "reset_universal_anger_target":  {
+                                                                                                    "enabled":  true,
+                                                                                                    "priority":  3,
+                                                                                                    "weight":  100,
+                                                                                                    "cooldown_ticks":  0
+                                                                                                }
+                                                           },
+                                             "adult":  {
+                                                           "mob-stats":  {
+                                                                             "scale":  1,
+                                                                             "experience_drop":  3
+                                                                         },
+                                                           "mob-spawn-rules":  {
+                                                                                   "spawn_weight":  100
+                                                                               }
+                                                       },
+                                             "baby":  {
+                                                          "mob-stats":  {
+                                                                            "scale":  0.5,
+                                                                            "experience_drop":  0
+                                                                        },
+                                                          "mob-spawn-rules":  {
+                                                                                  "spawn_weight":  0
+                                                                              }
+                                                      }
+                                         }
+                         }
+             }
+}

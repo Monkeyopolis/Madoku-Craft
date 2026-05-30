@@ -1,0 +1,48 @@
+Compiled from "Bee.java"
+class net.minecraft.world.entity.animal.bee.Bee$BeeHurtByOtherGoal extends net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal {
+  final net.minecraft.world.entity.animal.bee.Bee this$0;
+
+  net.minecraft.world.entity.animal.bee.Bee$BeeHurtByOtherGoal(net.minecraft.world.entity.animal.bee.Bee, net.minecraft.world.entity.animal.bee.Bee);
+    Code:
+         0: aload_0
+         1: aload_1
+         2: dup
+         3: invokestatic  #1                  // Method java/util/Objects.requireNonNull:(Ljava/lang/Object;)Ljava/lang/Object;
+         6: pop
+         7: putfield      #7                  // Field this$0:Lnet/minecraft/world/entity/animal/bee/Bee;
+        10: aload_0
+        11: aload_2
+        12: iconst_0
+        13: anewarray     #13                 // class java/lang/Class
+        16: invokespecial #15                 // Method net/minecraft/world/entity/ai/goal/target/HurtByTargetGoal."<init>":(Lnet/minecraft/world/entity/PathfinderMob;[Ljava/lang/Class;)V
+        19: return
+
+  public boolean canContinueToUse();
+    Code:
+         0: aload_0
+         1: getfield      #7                  // Field this$0:Lnet/minecraft/world/entity/animal/bee/Bee;
+         4: invokevirtual #21                 // Method net/minecraft/world/entity/animal/bee/Bee.isAngry:()Z
+         7: ifeq          21
+        10: aload_0
+        11: invokespecial #27                 // Method net/minecraft/world/entity/ai/goal/target/HurtByTargetGoal.canContinueToUse:()Z
+        14: ifeq          21
+        17: iconst_1
+        18: goto          22
+        21: iconst_0
+        22: ireturn
+
+  protected void alertOther(net.minecraft.world.entity.Mob, net.minecraft.world.entity.LivingEntity);
+    Code:
+         0: aload_1
+         1: instanceof    #22                 // class net/minecraft/world/entity/animal/bee/Bee
+         4: ifeq          23
+         7: aload_0
+         8: getfield      #30                 // Field mob:Lnet/minecraft/world/entity/Mob;
+        11: aload_2
+        12: invokevirtual #34                 // Method net/minecraft/world/entity/Mob.hasLineOfSight:(Lnet/minecraft/world/entity/Entity;)Z
+        15: ifeq          23
+        18: aload_1
+        19: aload_2
+        20: invokevirtual #40                 // Method net/minecraft/world/entity/Mob.setTarget:(Lnet/minecraft/world/entity/LivingEntity;)V
+        23: return
+}

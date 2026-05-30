@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.RangedCrossbowAttackGoal;
 import net.minecraft.world.entity.monster.Monster;
@@ -22,7 +22,7 @@ public abstract class RangedCrossbowAttackGoalMixin {
 
 	@Inject(method = "tick", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyPillagerPostShotCooldown(CallbackInfo ci) {
-		if (MadokuMob.tickPillagerAttackCooldown(mob)) {
+		if (MadokuMobManager.tickPillagerAttackCooldown(mob)) {
 			ci.cancel();
 		}
 	}
@@ -37,7 +37,7 @@ public abstract class RangedCrossbowAttackGoalMixin {
 		)
 	)
 	private void madokuCraft$reducePillagerPostChargeDelay(RangedCrossbowAttackGoal<?> goal, int vanillaDelay) {
-		int resolvedDelay = MadokuMob.resolveCrossbowPostChargeDelay(mob, vanillaDelay);
+		int resolvedDelay = MadokuMobManager.resolveCrossbowPostChargeDelay(mob, vanillaDelay);
 		((RangedCrossbowAttackGoalAccessor) goal).madokuCraft$setAttackDelay(resolvedDelay);
 	}
 
@@ -54,6 +54,7 @@ public abstract class RangedCrossbowAttackGoalMixin {
 		float pullProgress
 	) {
 		rangedAttackMob.performRangedAttack(target, pullProgress);
-		MadokuMob.markPillagerAttackCooldownFromShot(mob);
+		MadokuMobManager.markPillagerAttackCooldownFromShot(mob);
 	}
 }
+

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.level.ServerExplosion;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,6 +22,7 @@ public abstract class ServerExplosionBlockRadiusMixin {
 		)
 	)
 	private float madokuCraft$useGriefOnlyRadius(ServerExplosion explosion) {
-		return MadokuMob.resolveCreeperGriefExplosionRadius((ServerExplosion) (Object) this, radius);
+		return MadokuMobManager.resolveCreeperGriefExplosionRadius((ServerExplosion) (Object) this, radius);
 	}
 }
+

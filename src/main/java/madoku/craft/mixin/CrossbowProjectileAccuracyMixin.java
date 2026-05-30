@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.CrossbowItem;
@@ -32,7 +32,7 @@ public abstract class CrossbowProjectileAccuracyMixin {
 		float simulated,
 		LivingEntity target
 	) {
-		if (!MadokuMob.applyPillagerProjectileAccuracyOverride(
+		if (!MadokuMobManager.applyPillagerProjectileAccuracyOverride(
 			projectile,
 			shooter,
 			target,
@@ -46,3 +46,4 @@ public abstract class CrossbowProjectileAccuracyMixin {
 		}
 	}
 }
+

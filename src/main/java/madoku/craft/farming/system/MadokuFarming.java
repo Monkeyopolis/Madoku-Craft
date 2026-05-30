@@ -251,6 +251,54 @@ public final class MadokuFarming {
 		return settings.enabled;
 	}
 
+	public static boolean applyExternalGrowthPercent(ServerLevel world, BlockPos cropPos, double growthPercent, String source) {
+		if (!settings.enabled || world == null || cropPos == null || growthPercent <= 0.0d) {
+			return false;
+		}
+		BlockState state = world.getBlockState(cropPos);
+		CropRule rule = resolveCropRuleByCropState(state);
+		if (rule == null) {
+			return false;
+		}
+
+		trackCrop(world, cropPos, state);
+		CropState crop = cropsByKey.get(cropKey(world, cropPos));
+		if (crop == null) {
+			return false;
+		}
+
+		double requiredTicks = Math.max(1.0d, crop.requiredGrowthTicks);
+		double deltaTicks = requiredTicks * (growthPercent / 100.0d);
+		if (!(deltaTicks > 0.0d)) {
+			return false;
+		}
+		double before = Math.max(0.0d, Math.min(requiredTicks, crop.progressGrowthTicks));
+		double updated = Math.min(requiredTicks, before + deltaTicks);
+		if (updated <= before + 1.0e-6d) {
+			return false;
+		}
+
+		crop.progressGrowthTicks = updated;
+		crop.lastProcessedAbsoluteDayTime = Math.max(crop.lastProcessedAbsoluteDayTime, resolveAbsoluteDayTime(world));
+		dirty = true;
+		updateCropBlockAge(world, cropPos, world.getBlockState(cropPos), rule, crop);
+
+		emitFarmingDebug(
+			"farming.external_growth",
+			world,
+			"crop:" + cropPos.toShortString(),
+			Map.of(
+				"source", source == null ? "" : source,
+				"percent", Double.toString(growthPercent),
+				"ticks_added", Double.toString(deltaTicks),
+				"before", Double.toString(before),
+				"after", Double.toString(updated),
+				"required", Double.toString(requiredTicks)
+			)
+		);
+		return true;
+	}
+
 	private static void syncChunkProcessorActivation() {
 		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, settings.enabled);
 	}
