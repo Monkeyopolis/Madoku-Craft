@@ -67,7 +67,7 @@ public final class MadokuMobBee {
 		}
 		JsonObject behaviorRoot = MadokuMobManager.resolveBeeBehaviorRoot(bee);
 		JsonObject pollinateCropsRoot = getObject(behaviorRoot, "pollinate-crops");
-		return getBoolean(pollinateCropsRoot, MadokuMobConfigManager.FIELD_ENABLED, false);
+		return getBoolean(pollinateCropsRoot, MobConfigManager.FIELD_ENABLED, false);
 	}
 
 	public static void resetRuntimeState() {
@@ -116,7 +116,7 @@ public final class MadokuMobBee {
 			}
 			JsonObject behaviorRoot = MadokuMobManager.resolveBeeBehaviorRoot(bee);
 			JsonObject pollinateCropsRoot = getObject(behaviorRoot, "pollinate-crops");
-			boolean pollinateCropsEnabled = getBoolean(pollinateCropsRoot, MadokuMobConfigManager.FIELD_ENABLED, false);
+			boolean pollinateCropsEnabled = getBoolean(pollinateCropsRoot, MobConfigManager.FIELD_ENABLED, false);
 			if (!pollinateCropsEnabled) {
 				allowBeeHiveReturn(bee);
 				emitBeeStateDebug(level, bee, "pollinate-crops disabled");
@@ -793,3 +793,4 @@ public final class MadokuMobBee {
 		}
 	}
 }
+

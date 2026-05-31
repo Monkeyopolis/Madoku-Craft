@@ -2,13 +2,13 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-public final class MobSystemConfigParched {
-	private MobSystemConfigParched() {
+public final class MobConfigStray {
+	private MobConfigStray() {
 	}
 
 	public static JsonObject buildDefaults() {
-		return MadokuMobConfigManager.buildSkeletonDefaults(
-			MadokuMobConfigManager.FILE_PARCHED,
+		return MobConfigManager.buildSkeletonDefaults(
+			MobConfigManager.FILE_STRAY,
 			12.0d,
 			0.0d,
 			2.0d,
@@ -20,5 +20,6 @@ public final class MobSystemConfigParched {
 		);
 	}
 }
+
 
 

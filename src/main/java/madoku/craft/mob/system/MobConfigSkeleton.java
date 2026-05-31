@@ -2,13 +2,13 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-public final class MobSystemConfigSkeleton {
-	private MobSystemConfigSkeleton() {
+public final class MobConfigSkeleton {
+	private MobConfigSkeleton() {
 	}
 
 	public static JsonObject buildDefaults() {
-		return MadokuMobConfigManager.buildSkeletonDefaults(
-			MadokuMobConfigManager.FILE_SKELETON,
+		return MobConfigManager.buildSkeletonDefaults(
+			MobConfigManager.FILE_SKELETON,
 			16.0d,
 			0.0d,
 			3.0d,
@@ -20,5 +20,6 @@ public final class MobSystemConfigSkeleton {
 		);
 	}
 }
+
 
 

@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public final class MadokuMobConfigManager {
+public final class MobConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
 
 	public static final String FIELD_HEALTH = "health";
@@ -112,7 +112,7 @@ public final class MadokuMobConfigManager {
 
 	private static final Map<String, JsonObject> DEFAULT_FILE_DEFAULTS = buildDefaults();
 
-	private MadokuMobConfigManager() {
+	private MobConfigManager() {
 	}
 
 	public static JsonObject buildMobSystemDefaults() {
@@ -142,23 +142,23 @@ public final class MadokuMobConfigManager {
 
 	private static Map<String, JsonObject> buildDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put(FILE_CREEPER, MobSystemConfigCreeper.buildDefaults());
-		defaults.put(FILE_SKELETON, MobSystemConfigSkeleton.buildDefaults());
-		defaults.put(FILE_STRAY, MobSystemConfigStray.buildDefaults());
-		defaults.put(FILE_BOGGED, MobSystemConfigBogged.buildDefaults());
-		defaults.put(FILE_PARCHED, MobSystemConfigParched.buildDefaults());
-		defaults.put(FILE_SPIDER, MobSystemConfigSpider.buildDefaults());
-		defaults.put(FILE_CAVE_SPIDER, MobSystemConfigCaveSpider.buildDefaults());
-		defaults.put(FILE_ZOMBIE, MobSystemConfigZombie.buildDefaults());
-		defaults.put(FILE_HUSK, MobSystemConfigHusk.buildDefaults());
-		defaults.put(FILE_DROWNED, MobSystemConfigDrowned.buildDefaults());
-		defaults.put(FILE_ZOMBIE_VILLAGER, MobSystemConfigZombieVillager.buildDefaults());
-		defaults.put(FILE_PIGLIN, MobSystemConfigPiglin.buildDefaults());
-		defaults.put(FILE_ZOMBIFIED_PIGLIN, MobSystemConfigZombifiedPiglin.buildDefaults());
-		defaults.put(FILE_PILLAGER, MobSystemConfigPillager.buildDefaults());
-		defaults.put(FILE_WITHER_SKELETON, MobSystemConfigWitherSkeleton.buildDefaults());
-		defaults.put(FILE_HAG, MobSystemConfigHag.buildDefaults());
-		defaults.put(FILE_BEE, MobSystemConfigBee.buildDefaults());
+		defaults.put(FILE_CREEPER, MobConfigCreeper.buildDefaults());
+		defaults.put(FILE_SKELETON, MobConfigSkeleton.buildDefaults());
+		defaults.put(FILE_STRAY, MobConfigStray.buildDefaults());
+		defaults.put(FILE_BOGGED, MobConfigBogged.buildDefaults());
+		defaults.put(FILE_PARCHED, MobConfigParched.buildDefaults());
+		defaults.put(FILE_SPIDER, MobConfigSpider.buildDefaults());
+		defaults.put(FILE_CAVE_SPIDER, MobConfigCaveSpider.buildDefaults());
+		defaults.put(FILE_ZOMBIE, MobConfigZombie.buildDefaults());
+		defaults.put(FILE_HUSK, MobConfigHusk.buildDefaults());
+		defaults.put(FILE_DROWNED, MobConfigDrowned.buildDefaults());
+		defaults.put(FILE_ZOMBIE_VILLAGER, MobConfigZombieVillager.buildDefaults());
+		defaults.put(FILE_PIGLIN, MobConfigPiglin.buildDefaults());
+		defaults.put(FILE_ZOMBIFIED_PIGLIN, MobConfigZombifiedPiglin.buildDefaults());
+		defaults.put(FILE_PILLAGER, MobConfigPillager.buildDefaults());
+		defaults.put(FILE_WITHER_SKELETON, MobConfigWitherSkeleton.buildDefaults());
+		defaults.put(FILE_HAG, MobConfigHag.buildDefaults());
+		defaults.put(FILE_BEE, MobConfigBee.buildDefaults());
 		return defaults;
 	}
 
@@ -500,5 +500,6 @@ public final class MadokuMobConfigManager {
 		return created;
 	}
 }
+
 
 
