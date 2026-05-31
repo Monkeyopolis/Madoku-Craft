@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.loot.system.MadokuLootTableSystem;
+import madoku.craft.loot.system.MadokuLootTableManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,7 +36,7 @@ public interface ContainerEntityLootMixin {
 
 		boolean handled = false;
 		try {
-			handled = MadokuLootTableSystem.applyManagedLootTable(
+			handled = MadokuLootTableManager.applyManagedLootTable(
 				container,
 				lootTableKey,
 				lootTableSeed,
@@ -56,3 +56,4 @@ public interface ContainerEntityLootMixin {
 		ci.cancel();
 	}
 }
+

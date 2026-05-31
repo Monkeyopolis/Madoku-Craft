@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.loot.system.MadokuLootTableSystem;
+import madoku.craft.loot.system.MadokuLootTableManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -23,11 +23,12 @@ public class LootTableDynamicMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> cir
 	) {
-		List<ItemStack> generated = MadokuLootTableSystem.generateManagedLootForContext(lootContext);
+		List<ItemStack> generated = MadokuLootTableManager.generateManagedLootForContext(lootContext);
 		if (generated == null) {
 			return;
 		}
 		cir.setReturnValue(new ObjectArrayList<>(generated));
 	}
 }
+
 

@@ -82,8 +82,10 @@ public final class MobConfigManager {
 	public static final String FIELD_ARMOR_SET = "armor-set";
 	public static final String FIELD_ARMOR_RARITY = "armor-rarity";
 	public static final String FIELD_MOB_STATS = "mob-stats";
+	public static final String FIELD_MOB_DROPS = "mob-drops";
 	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
+	public static final String FIELD_CUSTOM_MOB_DROPS = "custom-mob-drops";
 	public static final String FIELD_OVERRIDE_STATS = "override-stats";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
 	public static final String FIELD_OVERRIDE_BEHAVIOR = "override-behavior";
@@ -193,6 +195,7 @@ public final class MobConfigManager {
 		root.add(FIELD_ATTACK_INTERVAL, null);
 		root.add(FIELD_ATTACK_ACCURACY, null);
 		root.add(FIELD_CHARGE_UP_TICKS, null);
+		root.add(FIELD_MOB_DROPS, null);
 		if (isNonZero(health)) {
 			root.addProperty(FIELD_HEALTH, health);
 		}

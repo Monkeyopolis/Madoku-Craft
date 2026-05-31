@@ -1058,6 +1058,32 @@ public final class MadokuMobManager {
 		return readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_GOALS, true);
 	}
 
+	public static boolean isBeeCustomMobDropsEnabled(LivingEntity entity) {
+		if (entity == null
+			|| entity.getType() != EntityType.BEE
+			|| !snapshot.enabled
+			|| !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
+			return false;
+		}
+		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
+		JsonObject resolvedBeeRoot = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
+		return readBoolean(
+			resolvedBeeRoot,
+			MobConfigManager.FIELD_CUSTOM_MOB_DROPS,
+			readBoolean(beeFileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
+		);
+	}
+
+	public static String resolveBeeMobDropsConfigReference(LivingEntity entity) {
+		if (entity == null || entity.getType() != EntityType.BEE) {
+			return "";
+		}
+		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
+		JsonObject resolvedBeeRoot = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
+		JsonObject statsRoot = readMobStatsRoot(resolvedBeeRoot);
+		return readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
+	}
+
 	private static boolean isBeeRegionalDifficultyScalingEnabled(LivingEntity entity) {
 		if (entity == null || entity.getType() != EntityType.BEE || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
 			return false;
@@ -2959,6 +2985,22 @@ public final class MadokuMobManager {
 		try {
 			double value = element.getAsDouble();
 			return Double.isFinite(value) ? value : fallback;
+		} catch (RuntimeException ignored) {
+			return fallback;
+		}
+	}
+
+	private static String readString(JsonObject root, String key, String fallback) {
+		if (root == null) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+			return fallback;
+		}
+		try {
+			String value = element.getAsString();
+			return value == null ? fallback : value;
 		} catch (RuntimeException ignored) {
 			return fallback;
 		}

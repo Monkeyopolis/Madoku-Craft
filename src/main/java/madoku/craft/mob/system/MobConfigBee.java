@@ -17,6 +17,7 @@ public final class MobConfigBee {
 		root.addProperty(MobConfigManager.FIELD_MOB_BABY, true);
 
 		JsonObject bee = new JsonObject();
+		bee.addProperty(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true);
 		bee.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALING, true);
 		JsonObject difficultyScale = new JsonObject();
 		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
@@ -53,6 +54,7 @@ public final class MobConfigBee {
 		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, 0.30d);
 		stats.addProperty("flying_speed", 0.60d);
 		stats.addProperty(MobConfigManager.FIELD_SCALE, 0.5d);
+		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, "minecraft-entities-bee.json");
 		return stats;
 	}
 
