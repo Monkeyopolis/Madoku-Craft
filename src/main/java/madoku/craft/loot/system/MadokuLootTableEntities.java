@@ -7,6 +7,7 @@ import com.google.gson.JsonPrimitive;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.debug.MadokuDebug;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -55,6 +56,8 @@ public final class MadokuLootTableEntities {
 	private static final String GROUP_TAG_MADOKU_PETS = "madoku-pets";
 	private static final String GROUP_TAG_MADOKU_LUCK = "madoku-luck";
 	private static final String GROUP_TAG_MADOKU_RARITY = "madoku-rarity";
+	private static final String METRIC_ZOMBIE_DROPS_RESOLUTION = "mob.zombie_drop_loot_resolution";
+	private static final String METRIC_LOOT_CONTEXT_PROBE = "mob.loot_context_probe";
 	private static final long RELOAD_INTERVAL_MILLIS = 1_500L;
 
 	private static volatile Settings settings = Settings.defaults();
@@ -82,7 +85,7 @@ public final class MadokuLootTableEntities {
 
 		reloadIfNeeded();
 		Settings activeSettings = settings;
-		if (!activeSettings.enabled) {
+		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
 			return false;
 		}
 
@@ -100,35 +103,108 @@ public final class MadokuLootTableEntities {
 
 	public static List<ItemStack> generateManagedLootForContext(LootContext lootContext) {
 		if (lootContext == null) {
+			emitLootContextProbe(null, "skip_null_context", "", null, false, "", "none", null, true);
 			return null;
 		}
 
 		reloadIfNeeded();
 		Settings activeSettings = settings;
-		if (!activeSettings.enabled) {
+		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
+			emitLootContextProbe(lootContext, "skip_settings_disabled", "", null, false, "", "none", null, true);
 			return null;
 		}
 
 		String tableId = resolveQueriedLootTableId(lootContext);
 		if (tableId.isBlank()) {
+			emitLootContextProbe(lootContext, "skip_blank_table_id", tableId, null, false, "", "none", null, true);
 			return null;
 		}
 
 		ManagedLootTable managed = null;
 		LivingEntity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", LivingEntity.class);
-		if (thisEntity != null && thisEntity.getType() == EntityType.BEE) {
+		boolean zombieEntity = thisEntity != null && isZombieMobType(thisEntity.getType());
+		String zombieConfiguredReference = "";
+		boolean zombieCustomDropsEnabled = false;
+		String zombieResolutionSource = "none";
+		if (thisEntity != null && thisEntity.getType() == EntityType.BEE && MadokuMobManager.isEnabled()) {
 			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(thisEntity)) {
+				emitLootContextProbe(
+					lootContext,
+					"skip_bee_custom_drops_disabled",
+					tableId,
+					thisEntity,
+					false,
+					"",
+					"bee_custom_drops_disabled",
+					null,
+					true
+				);
 				return null;
 			}
 			String configuredReference = MadokuMobManager.resolveBeeMobDropsConfigReference(thisEntity);
 			managed = resolveManagedTableByConfigReference(configuredReference);
 		}
+		if (managed == null && thisEntity != null && MadokuMobManager.isEnabled() && zombieEntity) {
+			zombieCustomDropsEnabled = MadokuMobManager.isZombieCustomMobDropsEnabled(thisEntity);
+			if (zombieCustomDropsEnabled) {
+				zombieConfiguredReference = MadokuMobManager.resolveZombieMobDropsConfigReference(thisEntity);
+				managed = resolveManagedTableByConfigReference(zombieConfiguredReference);
+				zombieResolutionSource = managed != null ? "zombie_config_reference" : "zombie_config_reference_missing";
+			} else {
+				zombieResolutionSource = "zombie_custom_drops_disabled";
+			}
+		}
 		if (managed == null) {
 			managed = resolveManagedTableByLootId(tableId);
+			if (zombieEntity && managed != null) {
+				zombieResolutionSource = "loot_table_id_fallback";
+			}
 		}
 		if (managed == null) {
+			if (zombieEntity) {
+				emitZombieDropsResolutionDebug(
+					thisEntity,
+					tableId,
+					zombieConfiguredReference,
+					zombieCustomDropsEnabled,
+					zombieResolutionSource,
+					"none"
+				);
+			}
+			emitLootContextProbe(
+				lootContext,
+				"no_managed_table",
+				tableId,
+				thisEntity,
+				zombieCustomDropsEnabled,
+				zombieConfiguredReference,
+				zombieResolutionSource,
+				null,
+				true
+			);
 			return null;
 		}
+		if (zombieEntity) {
+			emitZombieDropsResolutionDebug(
+				thisEntity,
+				tableId,
+				zombieConfiguredReference,
+				zombieCustomDropsEnabled,
+				zombieResolutionSource,
+				managed.tableId()
+			);
+		}
+		emitLootContextProbe(
+			lootContext,
+			"managed_table_resolved",
+			tableId,
+			thisEntity,
+			zombieCustomDropsEnabled,
+			zombieConfiguredReference,
+			zombieResolutionSource,
+			managed,
+			false
+		);
 
 		RandomSource random = lootContext.getRandom();
 		if (random == null) {
@@ -137,6 +213,91 @@ public final class MadokuLootTableEntities {
 		}
 		ServerPlayer player = resolveLootContextPlayer(lootContext);
 		return rollManagedLootTable(managed, random, player, activeSettings);
+	}
+
+	public static List<ItemStack> generateManagedLootForReference(String configuredReference, ServerPlayer player, RandomSource random) {
+		reloadIfNeeded();
+		Settings activeSettings = settings;
+		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
+			return null;
+		}
+		ManagedLootTable managed = resolveManagedTableByConfigReference(configuredReference);
+		if (managed == null) {
+			return null;
+		}
+		RandomSource resolvedRandom = random == null ? RandomSource.create() : random;
+		return rollManagedLootTable(managed, resolvedRandom, player, activeSettings);
+	}
+
+	private static void emitZombieDropsResolutionDebug(
+		LivingEntity entity,
+		String queriedLootTableId,
+		String configuredReference,
+		boolean customDropsEnabled,
+		String resolutionSource,
+		String resolvedManagedTableId
+	) {
+		if (entity == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_DROPS_RESOLUTION)) {
+			return;
+		}
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS_RESOLUTION, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject("zombie:" + entity.getUUID())
+			.field("mob_type", entity.getType().toShortString())
+			.field("is_baby", entity instanceof net.minecraft.world.entity.monster.zombie.Zombie zombie && zombie.isBaby())
+			.field("custom_drops_enabled", customDropsEnabled)
+			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference)
+			.field("queried_loot_table_id", queriedLootTableId == null || queriedLootTableId.isBlank() ? "unset" : queriedLootTableId)
+			.field("resolution_source", resolutionSource == null || resolutionSource.isBlank() ? "unknown" : resolutionSource)
+			.field("resolved_managed_table", resolvedManagedTableId == null || resolvedManagedTableId.isBlank() ? "none" : resolvedManagedTableId);
+		if (entity.level() instanceof ServerLevel level) {
+			event.tick(level.getGameTime()).world(level.dimension().toString());
+		}
+		event.log();
+	}
+
+	private static void emitLootContextProbe(
+		LootContext lootContext,
+		String phase,
+		String queriedLootTableId,
+		LivingEntity thisEntity,
+		boolean customDropsEnabled,
+		String configuredReference,
+		String resolutionSource,
+		ManagedLootTable managed,
+		boolean vanillaFallback
+	) {
+		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_LOOT_CONTEXT_PROBE)) {
+			return;
+		}
+		String subject = thisEntity == null ? "loot-context:no-entity" : "loot-context:" + thisEntity.getUUID();
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_LOOT_CONTEXT_PROBE, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject(subject)
+			.field("phase", phase == null || phase.isBlank() ? "unknown" : phase)
+			.field("queried_loot_table_id", queriedLootTableId == null || queriedLootTableId.isBlank() ? "unset" : queriedLootTableId)
+			.field("has_this_entity", thisEntity != null)
+			.field("this_entity_type", thisEntity == null ? "none" : thisEntity.getType().toShortString())
+			.field("this_entity_is_baby", thisEntity instanceof net.minecraft.world.entity.AgeableMob ageableMob && ageableMob.isBaby())
+			.field("is_zombie_entity", thisEntity != null && isZombieMobType(thisEntity.getType()))
+			.field("mob_system_enabled", MadokuMobManager.isEnabled())
+			.field("custom_drops_enabled", customDropsEnabled)
+			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference)
+			.field("resolution_source", resolutionSource == null || resolutionSource.isBlank() ? "none" : resolutionSource)
+			.field("resolved_managed_table", managed == null ? "none" : managed.tableId())
+			.field("vanilla_fallback", vanillaFallback);
+		ServerLevel level = lootContext == null ? null : lootContext.getLevel();
+		if (level != null) {
+			event.tick(level.getGameTime()).world(level.dimension().toString());
+		}
+		event.log();
+	}
+
+	private static boolean isZombieMobType(EntityType<?> type) {
+		return type == EntityType.ZOMBIE
+			|| type == EntityType.HUSK
+			|| type == EntityType.DROWNED
+			|| type == EntityType.ZOMBIE_VILLAGER;
 	}
 
 	private static void fillContainer(Container container, List<ItemStack> generated, RandomSource random) {
@@ -964,17 +1125,23 @@ public final class MadokuLootTableEntities {
 	private static final class Settings {
 		private final boolean enabled;
 		private final boolean useMadokuLuck;
+		private final boolean overrideStructureLootTables;
+		private final boolean overrideEntityLootTables;
 		private final LuckCurve rollCurve;
 		private final EnumMap<MadokuLootRarity, LuckCurve> rarityCurves;
 
 		private Settings(
 			boolean enabled,
 			boolean useMadokuLuck,
+			boolean overrideStructureLootTables,
+			boolean overrideEntityLootTables,
 			LuckCurve rollCurve,
 			EnumMap<MadokuLootRarity, LuckCurve> rarityCurves
 		) {
 			this.enabled = enabled;
 			this.useMadokuLuck = useMadokuLuck;
+			this.overrideStructureLootTables = overrideStructureLootTables;
+			this.overrideEntityLootTables = overrideEntityLootTables;
 			this.rollCurve = rollCurve;
 			this.rarityCurves = rarityCurves;
 		}
@@ -982,17 +1149,15 @@ public final class MadokuLootTableEntities {
 		private static Settings defaults() {
 			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
 			JsonObject defaults = LootTableConfigManager.buildSettingsDefaults();
-			JsonObject curvesRoot = readJsonObject(defaults, LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS);
 			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				curves.put(rarity, parseCurve(readJsonObject(curvesRoot, rarity.id()), defaultCurve(rarity)));
+				curves.put(rarity, defaultCurve(rarity));
 			}
-			LuckCurve rollCurve = parseCurve(
-				readJsonObject(defaults, LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER),
-				defaultRollCurve()
-			);
+			LuckCurve rollCurve = defaultRollCurve();
 			return new Settings(
 				readBoolean(defaults, LootTableConfigManager.FIELD_ENABLED, true),
 				readBoolean(defaults, LootTableConfigManager.FIELD_USE_MADOKU_LUCK, true),
+				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true),
+				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true),
 				rollCurve,
 				curves
 			);
@@ -1001,21 +1166,24 @@ public final class MadokuLootTableEntities {
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
-			JsonObject curvesRoot = readJsonObject(source, LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS);
-
 			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				LuckCurve fallbackCurve = defaults.rarityCurves.get(rarity);
-				LuckCurve curve = parseCurve(readJsonObject(curvesRoot, rarity.id()), fallbackCurve);
-				curves.put(rarity, curve == null ? fallbackCurve : curve);
+				curves.put(rarity, defaults.rarityCurves.get(rarity));
 			}
-			LuckCurve rollCurve = parseCurve(
-				readJsonObject(source, LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER),
-				defaults.rollCurve
-			);
+			LuckCurve rollCurve = defaults.rollCurve;
 
 			return new Settings(
 				readBoolean(source, LootTableConfigManager.FIELD_ENABLED, defaults.enabled),
 				readBoolean(source, LootTableConfigManager.FIELD_USE_MADOKU_LUCK, defaults.useMadokuLuck),
+				readBoolean(
+					source,
+					LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES,
+					defaults.overrideStructureLootTables
+				),
+				readBoolean(
+					source,
+					LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES,
+					defaults.overrideEntityLootTables
+				),
 				rollCurve,
 				curves
 			);
@@ -1025,64 +1193,8 @@ public final class MadokuLootTableEntities {
 			JsonObject root = new JsonObject();
 			root.addProperty(LootTableConfigManager.FIELD_ENABLED, enabled);
 			root.addProperty(LootTableConfigManager.FIELD_USE_MADOKU_LUCK, useMadokuLuck);
-			root.add(LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER, curveToJson(rollCurve));
-
-			JsonObject curvesRoot = new JsonObject();
-			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				LuckCurve curve = rarityCurves.getOrDefault(rarity, defaultCurve(rarity));
-				curvesRoot.add(rarity.id(), curveToJson(curve));
-			}
-			root.add(LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS, curvesRoot);
-			return root;
-		}
-
-		private static LuckCurve parseCurve(JsonObject curveRoot, LuckCurve fallback) {
-			if (curveRoot == null || curveRoot.isEmpty()) {
-				return fallback;
-			}
-
-			List<Double> points = readDoubleArray(curveRoot.get(LootTableConfigManager.FIELD_LUCK_POINTS));
-			List<Double> multipliers = readDoubleArray(curveRoot.get(LootTableConfigManager.FIELD_MULTIPLIERS));
-			if (points.size() < 2 || points.size() != multipliers.size()) {
-				return fallback;
-			}
-
-			for (int index = 1; index < points.size(); index++) {
-				if (points.get(index) <= points.get(index - 1)) {
-					return fallback;
-				}
-			}
-			return new LuckCurve(List.copyOf(points), List.copyOf(multipliers));
-		}
-
-		private static List<Double> readDoubleArray(JsonElement element) {
-			if (!(element instanceof JsonArray array) || array.isEmpty()) {
-				return List.of();
-			}
-			List<Double> values = new ArrayList<>(array.size());
-			for (JsonElement entry : array) {
-				if (!(entry instanceof JsonPrimitive primitive) || !primitive.isNumber()) {
-					return List.of();
-				}
-				values.add(primitive.getAsDouble());
-			}
-			return values;
-		}
-
-		private static JsonObject curveToJson(LuckCurve curve) {
-			JsonObject root = new JsonObject();
-			JsonArray points = new JsonArray();
-			JsonArray multipliers = new JsonArray();
-
-			List<Double> curvePoints = curve == null ? List.of(0.0d, 100.0d) : curve.points();
-			List<Double> curveValues = curve == null ? List.of(1.0d, 1.0d) : curve.values();
-			int pairs = Math.min(curvePoints.size(), curveValues.size());
-			for (int index = 0; index < pairs; index++) {
-				points.add(curvePoints.get(index));
-				multipliers.add(curveValues.get(index));
-			}
-			root.add(LootTableConfigManager.FIELD_LUCK_POINTS, points);
-			root.add(LootTableConfigManager.FIELD_MULTIPLIERS, multipliers);
+			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, overrideStructureLootTables);
+			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, overrideEntityLootTables);
 			return root;
 		}
 

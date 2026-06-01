@@ -11,7 +11,6 @@ public final class MobConfigSpider {
 		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		JsonObject spider = new JsonObject();
 		JsonObject spawnRules = MobConfigManager.getOrCreateObject(spider, MobConfigManager.FIELD_SPAWN_RULES);
-		spawnRules.addProperty(MobConfigManager.FIELD_SCALE_DIFFICULTY_STEP, 0.05d);
 		spawnRules.addProperty(MobConfigManager.FIELD_SPIDER_SPAWN_WEIGHT, 90.0d);
 		spawnRules.addProperty(MobConfigManager.FIELD_CAVE_SPIDER_SPAWN_WEIGHT, 5.0d);
 		spawnRules.addProperty(MobConfigManager.FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0d);

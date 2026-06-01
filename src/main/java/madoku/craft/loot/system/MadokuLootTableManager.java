@@ -17,6 +17,7 @@ public final class MadokuLootTableManager {
 	public static void initialize() {
 		MadokuLootTableStructures.initialize();
 		MadokuLootTableEntities.initialize();
+		MadokuLootTableEquipments.initialize();
 	}
 
 	public static boolean applyManagedLootTable(

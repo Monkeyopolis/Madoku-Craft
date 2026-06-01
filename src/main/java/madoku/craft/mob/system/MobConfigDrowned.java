@@ -7,10 +7,8 @@ public final class MobConfigDrowned {
 	}
 
 	public static JsonObject buildDefaults() {
-		return MobConfigManager.buildZombieTypeDefaults(
+		return MobConfigZombie.buildZombieTypeDefaults(
 			MobConfigManager.FILE_DROWNED,
-			MobConfigManager.FIELD_ADULT_DROWNED,
-			MobConfigManager.FIELD_BABY_DROWNED,
 			20.0d,
 			10.0d,
 			0.0d,

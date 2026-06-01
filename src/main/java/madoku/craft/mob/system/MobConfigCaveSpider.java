@@ -10,8 +10,6 @@ public final class MobConfigCaveSpider {
 		JsonObject root = new JsonObject();
 		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		JsonObject caveSpider = new JsonObject();
-		JsonObject spawnRules = MobConfigManager.getOrCreateObject(caveSpider, MobConfigManager.FIELD_SPAWN_RULES);
-		spawnRules.addProperty(MobConfigManager.FIELD_SCALE_DIFFICULTY_STEP, 0.05d);
 		caveSpider.add(
 			MobConfigManager.FIELD_MOB_STATS,
 			MobConfigManager.buildMobStatsDefaults(12.0d, 0.0d, 3.0d, 0.3d, 0.0d, 0.7d, 7)

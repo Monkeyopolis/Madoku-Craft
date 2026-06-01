@@ -23,15 +23,11 @@ public final class MobConfigBee {
 		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
 		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d);
 		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
+		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_FLYING_SPEED, 0.10d);
 		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
 		bee.add(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
 		JsonObject regionalDifficultyScale = new JsonObject();
 		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 20.0d);
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 5.0d);
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 2.0d);
-		regionalDifficultyScale.addProperty("flying_speed", 2.0d);
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 10.0d);
 		bee.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
 
 		JsonObject defaultGroup = new JsonObject();

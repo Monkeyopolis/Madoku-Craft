@@ -78,7 +78,7 @@ public final class MadokuLootTableStructures {
 
 		reloadIfNeeded();
 		Settings activeSettings = settings;
-		if (!activeSettings.enabled) {
+		if (!activeSettings.enabled || !activeSettings.overrideStructureLootTables) {
 			return false;
 		}
 
@@ -101,7 +101,7 @@ public final class MadokuLootTableStructures {
 
 		reloadIfNeeded();
 		Settings activeSettings = settings;
-		if (!activeSettings.enabled) {
+		if (!activeSettings.enabled || !activeSettings.overrideStructureLootTables) {
 			return null;
 		}
 
@@ -951,17 +951,23 @@ public final class MadokuLootTableStructures {
 	private static final class Settings {
 		private final boolean enabled;
 		private final boolean useMadokuLuck;
+		private final boolean overrideStructureLootTables;
+		private final boolean overrideEntityLootTables;
 		private final LuckCurve rollCurve;
 		private final EnumMap<MadokuLootRarity, LuckCurve> rarityCurves;
 
 		private Settings(
 			boolean enabled,
 			boolean useMadokuLuck,
+			boolean overrideStructureLootTables,
+			boolean overrideEntityLootTables,
 			LuckCurve rollCurve,
 			EnumMap<MadokuLootRarity, LuckCurve> rarityCurves
 		) {
 			this.enabled = enabled;
 			this.useMadokuLuck = useMadokuLuck;
+			this.overrideStructureLootTables = overrideStructureLootTables;
+			this.overrideEntityLootTables = overrideEntityLootTables;
 			this.rollCurve = rollCurve;
 			this.rarityCurves = rarityCurves;
 		}
@@ -969,17 +975,15 @@ public final class MadokuLootTableStructures {
 		private static Settings defaults() {
 			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
 			JsonObject defaults = LootTableConfigManager.buildSettingsDefaults();
-			JsonObject curvesRoot = readJsonObject(defaults, LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS);
 			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				curves.put(rarity, parseCurve(readJsonObject(curvesRoot, rarity.id()), defaultCurve(rarity)));
+				curves.put(rarity, defaultCurve(rarity));
 			}
-			LuckCurve rollCurve = parseCurve(
-				readJsonObject(defaults, LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER),
-				defaultRollCurve()
-			);
+			LuckCurve rollCurve = defaultRollCurve();
 			return new Settings(
 				readBoolean(defaults, LootTableConfigManager.FIELD_ENABLED, true),
 				readBoolean(defaults, LootTableConfigManager.FIELD_USE_MADOKU_LUCK, true),
+				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true),
+				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true),
 				rollCurve,
 				curves
 			);
@@ -988,21 +992,24 @@ public final class MadokuLootTableStructures {
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
 			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
-			JsonObject curvesRoot = readJsonObject(source, LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS);
-
 			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				LuckCurve fallbackCurve = defaults.rarityCurves.get(rarity);
-				LuckCurve curve = parseCurve(readJsonObject(curvesRoot, rarity.id()), fallbackCurve);
-				curves.put(rarity, curve == null ? fallbackCurve : curve);
+				curves.put(rarity, defaults.rarityCurves.get(rarity));
 			}
-			LuckCurve rollCurve = parseCurve(
-				readJsonObject(source, LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER),
-				defaults.rollCurve
-			);
+			LuckCurve rollCurve = defaults.rollCurve;
 
 			return new Settings(
 				readBoolean(source, LootTableConfigManager.FIELD_ENABLED, defaults.enabled),
 				readBoolean(source, LootTableConfigManager.FIELD_USE_MADOKU_LUCK, defaults.useMadokuLuck),
+				readBoolean(
+					source,
+					LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES,
+					defaults.overrideStructureLootTables
+				),
+				readBoolean(
+					source,
+					LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES,
+					defaults.overrideEntityLootTables
+				),
 				rollCurve,
 				curves
 			);
@@ -1012,64 +1019,8 @@ public final class MadokuLootTableStructures {
 			JsonObject root = new JsonObject();
 			root.addProperty(LootTableConfigManager.FIELD_ENABLED, enabled);
 			root.addProperty(LootTableConfigManager.FIELD_USE_MADOKU_LUCK, useMadokuLuck);
-			root.add(LootTableConfigManager.FIELD_ROLL_LUCK_MULTIPLIER, curveToJson(rollCurve));
-
-			JsonObject curvesRoot = new JsonObject();
-			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
-				LuckCurve curve = rarityCurves.getOrDefault(rarity, defaultCurve(rarity));
-				curvesRoot.add(rarity.id(), curveToJson(curve));
-			}
-			root.add(LootTableConfigManager.FIELD_RARITY_LUCK_MULTIPLIERS, curvesRoot);
-			return root;
-		}
-
-		private static LuckCurve parseCurve(JsonObject curveRoot, LuckCurve fallback) {
-			if (curveRoot == null || curveRoot.isEmpty()) {
-				return fallback;
-			}
-
-			List<Double> points = readDoubleArray(curveRoot.get(LootTableConfigManager.FIELD_LUCK_POINTS));
-			List<Double> multipliers = readDoubleArray(curveRoot.get(LootTableConfigManager.FIELD_MULTIPLIERS));
-			if (points.size() < 2 || points.size() != multipliers.size()) {
-				return fallback;
-			}
-
-			for (int index = 1; index < points.size(); index++) {
-				if (points.get(index) <= points.get(index - 1)) {
-					return fallback;
-				}
-			}
-			return new LuckCurve(List.copyOf(points), List.copyOf(multipliers));
-		}
-
-		private static List<Double> readDoubleArray(JsonElement element) {
-			if (!(element instanceof JsonArray array) || array.isEmpty()) {
-				return List.of();
-			}
-			List<Double> values = new ArrayList<>(array.size());
-			for (JsonElement entry : array) {
-				if (!(entry instanceof JsonPrimitive primitive) || !primitive.isNumber()) {
-					return List.of();
-				}
-				values.add(primitive.getAsDouble());
-			}
-			return values;
-		}
-
-		private static JsonObject curveToJson(LuckCurve curve) {
-			JsonObject root = new JsonObject();
-			JsonArray points = new JsonArray();
-			JsonArray multipliers = new JsonArray();
-
-			List<Double> curvePoints = curve == null ? List.of(0.0d, 100.0d) : curve.points();
-			List<Double> curveValues = curve == null ? List.of(1.0d, 1.0d) : curve.values();
-			int pairs = Math.min(curvePoints.size(), curveValues.size());
-			for (int index = 0; index < pairs; index++) {
-				points.add(curvePoints.get(index));
-				multipliers.add(curveValues.get(index));
-			}
-			root.add(LootTableConfigManager.FIELD_LUCK_POINTS, points);
-			root.add(LootTableConfigManager.FIELD_MULTIPLIERS, multipliers);
+			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, overrideStructureLootTables);
+			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, overrideEntityLootTables);
 			return root;
 		}
 

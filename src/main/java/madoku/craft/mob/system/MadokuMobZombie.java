@@ -1,11 +1,38 @@
 package madoku.craft.mob.system;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonNull;
+import madoku.craft.debug.MadokuDebug;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.level.ServerLevelAccessor;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 public final class MadokuMobZombie {
+	private static final String ZOMBIE_VARIANT_TAG_PREFIX = "madoku-craft.zombie.variant:";
+	private static final String ZOMBIE_VARIANT_DEFAULT_KEY = "default";
+	private static final String METRIC_ZOMBIE_EQUIPMENT = "mob.zombie_equipment_runtime";
+	private static final String METRIC_ZOMBIE_DROPS = "mob.zombie_drop_runtime";
+
 	private MadokuMobZombie() {
 	}
 
@@ -15,7 +42,820 @@ public final class MadokuMobZombie {
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
-		MadokuMobManager.applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
+		if (zombie == null || world == null || difficulty == null) {
+			return;
+		}
+		boolean mobSystemEnabled = MadokuMobManager.isEnabled();
+		String fileKey = fileKeyForType(zombie.getType());
+		if (fileKey.isBlank()) {
+			return;
+		}
+		if (!mobSystemEnabled) {
+			EquipmentLoadoutResult result = applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombie, world.getRandom());
+			emitZombieEquipmentDebug(zombie, "spawn_mob_system_disabled", fileKey, result);
+			return;
+		}
+		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
+		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, world, true);
+		JsonObject adult = resolveAgeVariantRoot(variantGroup, false);
+		JsonObject baby = resolveAgeVariantRoot(variantGroup, true);
+		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		boolean babyEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_BABY, true);
+
+		if (overrideSpawnRules) {
+			boolean shouldBeBaby = false;
+			if (babyEnabled) {
+				double babyChance = MadokuMobManager.resolveZombieBabyChanceForRuntime(
+					MadokuMobManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D),
+					MadokuMobManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D),
+					difficulty,
+					zombie
+				);
+				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
+			}
+			zombie.setBaby(shouldBeBaby);
+			if (!shouldBeBaby && zombie.getType() == EntityType.ZOMBIE && zombie.getVehicle() != null && zombie.getVehicle().getType() == EntityType.CHICKEN) {
+				zombie.stopRiding();
+			}
+		}
+
+		JsonObject variant = zombie.isBaby() ? baby : adult;
+		variant = mergeZombieFileSettings(fileRoot, variant);
+		if (overrideSpawnRules) {
+			applyConfiguredZombieJockeyMount(zombie, world, difficulty, variant);
+			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(zombie, variant, world.getRandom());
+			emitZombieEquipmentDebug(zombie, "spawn_mob_system_enabled", fileKey, result);
+		}
+		applyWeaponDamagePolicy(zombie, variant);
+		applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
+		if (overrideStats) {
+			MadokuMobManager.applyUniversalStatsForRuntime(zombie, variant);
+		}
+	}
+
+	public static boolean applyLoadedEntityOverrides(LivingEntity entity) {
+		if (!(entity instanceof Zombie zombie) || entity.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = fileKeyForType(zombie.getType());
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
+		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
+		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		variant = mergeZombieFileSettings(fileRoot, variant);
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalStatsForRuntime(zombie, variant);
+		applyWeaponDamagePolicy(zombie, variant);
+		applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
+		return modified;
+	}
+
+	static boolean isCustomMobDropsEnabled(LivingEntity entity) {
+		if (!(entity instanceof Zombie zombie) || entity.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = fileKeyForType(zombie.getType());
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject resolved = resolveActiveZombieRoot(zombie, fileConfigRoot);
+		boolean enabled = readBoolean(
+			resolved,
+			MobConfigManager.FIELD_CUSTOM_MOB_DROPS,
+			true
+		);
+		emitZombieDropsDebug(zombie, "custom_drop_gate", fileKey, enabled, "");
+		return enabled;
+	}
+
+	static String resolveMobDropsConfigReference(LivingEntity entity) {
+		if (!(entity instanceof Zombie zombie) || !MadokuMobManager.isEnabled()) {
+			return "";
+		}
+		String fileKey = fileKeyForType(zombie.getType());
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return "";
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject resolved = resolveActiveZombieRoot(zombie, fileConfigRoot);
+		JsonObject statsRoot = readObject(resolved, MobConfigManager.FIELD_MOB_STATS);
+		String reference = readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
+		emitZombieDropsDebug(zombie, "custom_drop_reference", fileKey, true, reference);
+		return reference;
+	}
+
+	private static JsonObject resolveActiveZombieRoot(Zombie zombie, JsonObject fileConfigRoot) {
+		if (zombie == null) {
+			return new JsonObject();
+		}
+		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
+		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
+		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		return mergeZombieFileSettings(fileRoot, variant);
+	}
+
+	private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(Zombie zombie, RandomSource random) {
+		if (zombie == null || random == null) {
+			return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
+		}
+		if (!ZombieEquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+			return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
+		}
+		String equipmentReference = resolveDefaultMobEquipmentReference(zombie.getType());
+		if (equipmentReference.isBlank()) {
+			return new EquipmentLoadoutResult(false, "default_reference_blank", equipmentReference, 0.0D, "none", 0, 0);
+		}
+		return applyEquipmentSetLoadout(
+			zombie,
+			equipmentReference,
+			ZombieEquipmentConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
+			random
+		);
+	}
+
+	private static EquipmentLoadoutResult applySpawnEquipmentSetLoadout(Zombie zombie, JsonObject variantRoot, RandomSource random) {
+		if (zombie == null || variantRoot == null || random == null) {
+			return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
+		}
+		if (!ZombieEquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+			return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
+		}
+		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject equipmentSet = readObject(spawnRules, MobConfigManager.FIELD_EQUIPMENT_SET);
+		if (equipmentSet.entrySet().isEmpty()) {
+			return new EquipmentLoadoutResult(false, "equipment_set_missing", "", 0.0D, "none", 0, 0);
+		}
+		if (!readBoolean(equipmentSet, MobConfigManager.FIELD_ENABLED, true)) {
+			return new EquipmentLoadoutResult(false, "equipment_set_disabled", "", 0.0D, "none", 0, 0);
+		}
+		double chancePercent = Math.max(0.0D, Math.min(100.0D, readDouble(equipmentSet, MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0D)));
+		String equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
+		return applyEquipmentSetLoadout(zombie, equipmentReference, chancePercent, random);
+	}
+
+	private static void applyConfiguredZombieJockeyMount(
+		Zombie zombie,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		JsonObject variantRoot
+	) {
+		if (zombie == null || world == null || difficulty == null || variantRoot == null || zombie.getVehicle() != null) {
+			return;
+		}
+		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
+		if (jockeyRoot.entrySet().isEmpty() || !readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
+			return;
+		}
+
+		EntityType<?> mountType = resolveConfiguredJockeyMountType(jockeyRoot, zombie.isBaby());
+		if (mountType == null) {
+			return;
+		}
+
+		ServerLevel level = world.getLevel();
+		Entity mount = mountType.create(level, EntitySpawnReason.JOCKEY);
+		if (mount == null) {
+			return;
+		}
+		mount.setPos(zombie.getX(), zombie.getY(), zombie.getZ());
+		mount.setYRot(zombie.getYRot());
+		mount.setXRot(zombie.getXRot());
+		if (mount instanceof Mob mobMount) {
+			mobMount.finalizeSpawn(world, difficulty, EntitySpawnReason.JOCKEY, null);
+		}
+		level.tryAddFreshEntityWithPassengers(mount);
+		if (!zombie.startRiding(mount) && mount.isAlive()) {
+			mount.discard();
+		}
+	}
+
+	private static EntityType<?> resolveConfiguredJockeyMountType(JsonObject jockeyRoot, boolean babyZombie) {
+		if (jockeyRoot == null || jockeyRoot.entrySet().isEmpty()) {
+			return null;
+		}
+		JsonElement mobElement = jockeyRoot.get(MobConfigManager.FIELD_MOB);
+		if (mobElement == null || mobElement.isJsonNull()) {
+			return null;
+		}
+
+		String mobId = "";
+		if (mobElement.isJsonPrimitive() && mobElement.getAsJsonPrimitive().isString()) {
+			mobId = mobElement.getAsString();
+		} else if (mobElement.isJsonObject()) {
+			JsonObject byAge = mobElement.getAsJsonObject();
+			String primaryKey = babyZombie ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP;
+			String fallbackKey = babyZombie ? MobConfigManager.FIELD_ADULT_GROUP : MobConfigManager.FIELD_BABY_GROUP;
+			mobId = readString(byAge, primaryKey, "");
+			if (mobId.isBlank()) {
+				mobId = readString(byAge, fallbackKey, "");
+			}
+		}
+		return resolveEntityTypeById(mobId);
+	}
+
+	private static EntityType<?> resolveEntityTypeById(String entityTypeId) {
+		if (entityTypeId == null || entityTypeId.isBlank()) {
+			return null;
+		}
+		Identifier id = Identifier.tryParse(entityTypeId.trim());
+		if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
+			return null;
+		}
+		return BuiltInRegistries.ENTITY_TYPE.getValue(id);
+	}
+
+	private static EquipmentLoadoutResult applyEquipmentSetLoadout(Zombie zombie, String equipmentReference, double chancePercent, RandomSource random) {
+		if (zombie == null || random == null) {
+			return new EquipmentLoadoutResult(false, "invalid_inputs", equipmentReference, chancePercent, "none", 0, 0);
+		}
+		if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
+			return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
+		}
+		ZombieEquipmentConfigManager.EquipmentProfile profile = ZombieEquipmentConfigManager.resolveProfile(equipmentReference, zombie.getType());
+		if (profile == null || !profile.enabled()) {
+			return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
+		}
+
+		ArmorSetSelection selection = rollArmorSetSelection(profile.armorSetWeights(), random);
+		if (selection == null) {
+			return new EquipmentLoadoutResult(false, "armor_set_roll_failed", equipmentReference, chancePercent, "none", 0, 0);
+		}
+		Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
+		for (EquipmentSlot slot : selection.requiredSlots()) {
+			ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
+			if (rolled.isEmpty()) {
+				continue;
+			}
+			rolledBySlot.put(slot, rolled);
+		}
+		if (rolledBySlot.isEmpty()) {
+			return new EquipmentLoadoutResult(
+				false,
+				"slot_pool_empty",
+				equipmentReference,
+				chancePercent,
+				selection.name().toLowerCase(Locale.ROOT),
+				0,
+				selection.requiredSlots().size()
+			);
+		}
+		MadokuMobManager.clearArmorSlotsForRuntime(zombie);
+		for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
+			zombie.setItemSlot(entry.getKey(), entry.getValue());
+		}
+		return new EquipmentLoadoutResult(
+			true,
+			"applied",
+			equipmentReference,
+			chancePercent,
+			selection.name().toLowerCase(Locale.ROOT),
+			rolledBySlot.size(),
+			selection.requiredSlots().size()
+		);
+	}
+
+	private static void emitZombieEquipmentDebug(Zombie zombie, String phase, String fileKey, EquipmentLoadoutResult result) {
+		if (zombie == null || result == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_EQUIPMENT)) {
+			return;
+		}
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_EQUIPMENT, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject("zombie:" + zombie.getUUID())
+			.field("phase", phase)
+			.field("file_key", fileKey)
+			.field("mob_type", zombie.getType().toShortString())
+			.field("is_baby", zombie.isBaby())
+			.field("applied", result.applied())
+			.field("reason", result.reason())
+			.field("equipment_ref", result.equipmentReference())
+			.field("chance_percent", result.chancePercent())
+			.field("armor_set", result.armorSet())
+			.field("equipped_pieces", result.equippedPieces())
+			.field("required_pieces", result.requiredPieces());
+		if (zombie.level() instanceof ServerLevel level) {
+			event.tick(level.getGameTime()).world(level.dimension().toString());
+		}
+		event.log();
+	}
+
+	private static void emitZombieDropsDebug(Zombie zombie, String phase, String fileKey, boolean customDropsEnabled, String configuredReference) {
+		if (zombie == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_DROPS)) {
+			return;
+		}
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject("zombie:" + zombie.getUUID())
+			.field("phase", phase)
+			.field("file_key", fileKey)
+			.field("mob_type", zombie.getType().toShortString())
+			.field("is_baby", zombie.isBaby())
+			.field("custom_drops_enabled", customDropsEnabled)
+			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference);
+		if (zombie.level() instanceof ServerLevel level) {
+			event.tick(level.getGameTime()).world(level.dimension().toString());
+		}
+		event.log();
+	}
+
+	private static ItemStack rollArmorItemForSlot(
+		ZombieEquipmentConfigManager.EquipmentProfile profile,
+		EquipmentSlot slot,
+		RandomSource random
+	) {
+		if (profile == null || slot == null || random == null) {
+			return ItemStack.EMPTY;
+		}
+		List<ZombieEquipmentConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
+		if (entries == null || entries.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+		double totalWeight = 0.0D;
+		for (ZombieEquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry != null) {
+				totalWeight += Math.max(0.0D, entry.weight());
+			}
+		}
+		if (totalWeight <= 0.0D) {
+			return ItemStack.EMPTY;
+		}
+		double roll = random.nextDouble() * totalWeight;
+		double cursor = 0.0D;
+		for (ZombieEquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
+				continue;
+			}
+			cursor += entry.weight();
+			if (roll < cursor) {
+				return new ItemStack(entry.item());
+			}
+		}
+		ZombieEquipmentConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
+		return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
+	}
+
+	private static ArmorSetSelection rollArmorSetSelection(
+		ZombieEquipmentConfigManager.ArmorSetWeights weights,
+		RandomSource random
+	) {
+		if (weights == null || random == null) {
+			return null;
+		}
+		double partial = Math.max(0.0D, weights.partialSetWeight());
+		double half = Math.max(0.0D, weights.halfSetWeight());
+		double full = Math.max(0.0D, weights.fullSetWeight());
+		double total = partial + half + full;
+		if (total <= 0.0D) {
+			return null;
+		}
+		double roll = random.nextDouble() * total;
+		if (roll < partial) {
+			return ArmorSetSelection.PARTIAL_SET;
+		}
+		roll -= partial;
+		if (roll < half) {
+			return ArmorSetSelection.HALF_SET;
+		}
+		return ArmorSetSelection.FULL_SET;
+	}
+
+	private static JsonObject resolveZombieVariantGroupRoot(
+		Zombie zombie,
+		JsonObject fileConfigRoot,
+		JsonObject fileRoot,
+		ServerLevelAccessor world,
+		boolean spawnContext
+	) {
+		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		if (defaultGroup.entrySet().isEmpty()) {
+			clearZombieVariantTag(zombie);
+			return new JsonObject();
+		}
+		boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+		if (!variantEnabled) {
+			clearZombieVariantTag(zombie);
+			return defaultGroup;
+		}
+
+		String storedVariant = readStoredZombieVariantKey(zombie);
+		if (!storedVariant.isBlank()) {
+			if (ZOMBIE_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
+				return defaultGroup;
+			}
+			JsonObject known = resolveZombieVariantRootByKey(fileRoot, storedVariant);
+			if (!known.entrySet().isEmpty()) {
+				return resolveEffectiveZombieVariantGroup(defaultGroup, known);
+			}
+		}
+
+		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		if (!spawnContext || !overrideSpawnRules || world == null) {
+			return defaultGroup;
+		}
+
+		String selectedVariant = selectZombieVariantKey(fileRoot, world);
+		if (selectedVariant.isBlank()) {
+			selectedVariant = ZOMBIE_VARIANT_DEFAULT_KEY;
+		}
+		writeZombieVariantTag(zombie, selectedVariant);
+		if (ZOMBIE_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
+			return defaultGroup;
+		}
+		JsonObject selected = resolveZombieVariantRootByKey(fileRoot, selectedVariant);
+		return selected.entrySet().isEmpty() ? defaultGroup : resolveEffectiveZombieVariantGroup(defaultGroup, selected);
+	}
+
+	private static JsonObject resolveEffectiveZombieVariantGroup(JsonObject defaultGroup, JsonObject variantGroup) {
+		if (variantGroup == null || variantGroup.entrySet().isEmpty()) {
+			return defaultGroup == null ? new JsonObject() : defaultGroup;
+		}
+		boolean sharedComponents = readBoolean(variantGroup, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
+		if (!sharedComponents) {
+			return variantGroup;
+		}
+		JsonObject overlay = variantGroup.deepCopy();
+		overlay.remove(MobConfigManager.FIELD_SHARED_COMPONENTS);
+		return mergeJsonWithOverride(defaultGroup, overlay);
+	}
+
+	private static JsonObject resolveAgeVariantRoot(JsonObject variantGroupRoot, boolean baby) {
+		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		JsonObject sharedRoot = variantGroupRoot.deepCopy();
+		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
+		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
+		JsonObject ageOverride = readObject(
+			variantGroupRoot,
+			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
+		);
+		if (ageOverride.entrySet().isEmpty()) {
+			return sharedRoot;
+		}
+		return mergeJsonWithOverride(sharedRoot, ageOverride);
+	}
+
+	private static JsonObject mergeZombieFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
+		JsonObject merged = variantRoot == null ? new JsonObject() : variantRoot.deepCopy();
+		if (fileRoot == null || fileRoot.entrySet().isEmpty()) {
+			return merged;
+		}
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALING);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALE);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
+		return merged;
+	}
+
+	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
+		if (target == null || source == null || key == null || key.isBlank()) {
+			return;
+		}
+		if (!target.has(key) && source.has(key)) {
+			target.add(key, source.get(key).deepCopy());
+		}
+	}
+
+	private static String selectZombieVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
+		double defaultWeight = Math.max(0.0D, resolveZombieVariantSpawnWeight(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), 100.0D));
+		List<ZombieVariantWeight> weightedVariants = new ArrayList<>();
+		double total = defaultWeight;
+		for (Map.Entry<String, JsonObject> entry : collectZombieVariantRoots(fileRoot).entrySet()) {
+			double weight = Math.max(0.0D, resolveZombieVariantSpawnWeight(entry.getValue(), 0.0D));
+			if (weight <= 0.0D) {
+				continue;
+			}
+			total += weight;
+			weightedVariants.add(new ZombieVariantWeight(entry.getKey(), weight));
+		}
+		if (total <= 0.0D || world == null) {
+			return ZOMBIE_VARIANT_DEFAULT_KEY;
+		}
+		double roll = world.getRandom().nextDouble() * total;
+		if (roll < defaultWeight) {
+			return ZOMBIE_VARIANT_DEFAULT_KEY;
+		}
+		double cursor = defaultWeight;
+		for (ZombieVariantWeight variant : weightedVariants) {
+			cursor += variant.weight();
+			if (roll < cursor) {
+				return variant.key();
+			}
+		}
+		return ZOMBIE_VARIANT_DEFAULT_KEY;
+	}
+
+	private static double resolveZombieVariantSpawnWeight(JsonObject variantRoot, double fallback) {
+		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
+			return fallback;
+		}
+		double direct = readSpawnWeight(variantRoot, Double.NaN);
+		if (Double.isFinite(direct)) {
+			return direct;
+		}
+		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
+		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
+		double adultWeight = Math.max(0.0D, readSpawnWeight(adult, 0.0D));
+		double babyWeight = Math.max(0.0D, readSpawnWeight(baby, 0.0D));
+		double summed = adultWeight + babyWeight;
+		return summed > 0.0D ? summed : fallback;
+	}
+
+	private static double readSpawnWeight(JsonObject root, double fallback) {
+		JsonObject spawnRules = readObject(root, MobConfigManager.FIELD_SPAWN_RULES);
+		return readDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT, fallback);
+	}
+
+	private static Map<String, JsonObject> collectZombieVariantRoots(JsonObject fileRoot) {
+		Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
+		if (fileRoot == null) {
+			return variants;
+		}
+		for (Map.Entry<String, JsonElement> entry : fileRoot.entrySet()) {
+			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
+				continue;
+			}
+			String key = normalizeKey(entry.getKey());
+			if (isReservedZombieGroupKey(key)) {
+				continue;
+			}
+			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
+		}
+		return variants;
+	}
+
+	private static boolean isReservedZombieGroupKey(String normalizedKey) {
+		if (normalizedKey == null || normalizedKey.isBlank()) {
+			return true;
+		}
+		return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DIFFICULTY_SCALING))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DIFFICULTY_SCALE))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
+	}
+
+	private static JsonObject resolveZombieVariantRootByKey(JsonObject fileRoot, String variantKey) {
+		if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
+			return new JsonObject();
+		}
+		JsonObject variant = collectZombieVariantRoots(fileRoot).get(normalizeKey(variantKey));
+		return variant == null ? new JsonObject() : variant;
+	}
+
+	private static String readStoredZombieVariantKey(Zombie zombie) {
+		if (zombie == null) {
+			return "";
+		}
+		for (String tag : zombie.entityTags()) {
+			if (tag == null || !tag.startsWith(ZOMBIE_VARIANT_TAG_PREFIX)) {
+				continue;
+			}
+			String normalized = normalizeKey(tag.substring(ZOMBIE_VARIANT_TAG_PREFIX.length()));
+			if (!normalized.isBlank()) {
+				return normalized;
+			}
+		}
+		return "";
+	}
+
+	private static void writeZombieVariantTag(Zombie zombie, String variantKey) {
+		if (zombie == null || variantKey == null || variantKey.isBlank()) {
+			return;
+		}
+		clearZombieVariantTag(zombie);
+		zombie.addTag(ZOMBIE_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
+	}
+
+	private static void clearZombieVariantTag(Zombie zombie) {
+		if (zombie == null) {
+			return;
+		}
+		String existing = null;
+		for (String tag : zombie.entityTags()) {
+			if (tag != null && tag.startsWith(ZOMBIE_VARIANT_TAG_PREFIX)) {
+				existing = tag;
+				break;
+			}
+		}
+		if (existing != null) {
+			zombie.removeTag(existing);
+		}
+	}
+
+	private static void applyZombieBehaviorToggles(Zombie zombie, JsonObject fileRoot, JsonObject variantRoot) {
+		if (zombie == null) {
+			return;
+		}
+		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variantRoot);
+		JsonObject goalsRoot = MadokuMobManager.readMobGoalsRootForRuntime(variantRoot);
+		boolean goalsEnabled = readBoolean(goalsRoot, MobConfigManager.FIELD_ENABLED, true);
+
+		boolean overrideBehavior = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
+		boolean overrideGoals = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_GOALS, true);
+
+		if (overrideBehavior) {
+			zombie.setCanPickUpLoot(MadokuMobManager.readMobBehaviorBooleanForRuntime(variantRoot, MobConfigManager.FIELD_CAN_PICK_UP_LOOT, false));
+		}
+		if (overrideBehavior || overrideGoals) {
+			boolean canBreakDoors = overrideGoals && goalsEnabled && hasGoalEnabled(goalsRoot, "break_door")
+				? readGoalEnabled(goalsRoot, "break_door", false)
+				: readBoolean(behaviorRoot, MobConfigManager.FIELD_CAN_BREAK_DOORS, false);
+			zombie.setCanBreakDoors(canBreakDoors);
+		}
+		if (overrideBehavior) {
+			boolean callsReinforcements = readBoolean(behaviorRoot, "calls_reinforcements_when_hurt", !zombie.isBaby());
+			if (!callsReinforcements) {
+				MadokuMobManager.disableZombieReinforcementsForRuntime(zombie);
+			}
+		}
+	}
+
+	private static void applyWeaponDamagePolicy(Zombie zombie, JsonObject resolvedZombieRoot) {
+		if (zombie == null || resolvedZombieRoot == null) {
+			return;
+		}
+		boolean weaponDamageEnabled = readBoolean(resolvedZombieRoot, MobConfigManager.FIELD_WEAPON_DAMAGE, true);
+		if (weaponDamageEnabled) {
+			return;
+		}
+		stripHeldAttackDamageModifiers(zombie, EquipmentSlot.MAINHAND);
+		stripHeldAttackDamageModifiers(zombie, EquipmentSlot.OFFHAND);
+	}
+
+	private static void stripHeldAttackDamageModifiers(Zombie zombie, EquipmentSlot slot) {
+		if (zombie == null || slot == null) {
+			return;
+		}
+		ItemStack stack = zombie.getItemBySlot(slot);
+		if (stack == null || stack.isEmpty()) {
+			return;
+		}
+		ItemStack normalized = stack.copy();
+		normalized.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
+		zombie.setItemSlot(slot, normalized);
+	}
+
+	private static boolean hasGoalEnabled(JsonObject goalsRoot, String goalKey) {
+		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
+			return false;
+		}
+		JsonElement goal = goalsRoot.get(goalKey);
+		return goal != null && goal.isJsonObject() && goal.getAsJsonObject().has(MobConfigManager.FIELD_ENABLED);
+	}
+
+	private static boolean readGoalEnabled(JsonObject goalsRoot, String goalKey, boolean fallback) {
+		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
+			return fallback;
+		}
+		JsonElement goal = goalsRoot.get(goalKey);
+		if (goal == null || !goal.isJsonObject()) {
+			return fallback;
+		}
+		return readBoolean(goal.getAsJsonObject(), MobConfigManager.FIELD_ENABLED, fallback);
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return fallback;
+		}
+		return element.getAsBoolean();
+	}
+
+	private static double readDouble(JsonObject root, String key, double fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+			return fallback;
+		}
+		try {
+			double value = element.getAsDouble();
+			return Double.isFinite(value) ? value : fallback;
+		} catch (RuntimeException ignored) {
+			return fallback;
+		}
+	}
+
+	private static String readString(JsonObject root, String key, String fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+			return fallback;
+		}
+		return element.getAsString();
+	}
+
+	private static JsonObject readObject(JsonObject root, String key) {
+		if (root == null || key == null || key.isBlank()) {
+			return new JsonObject();
+		}
+		JsonElement element = root.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
+	}
+
+	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
+		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
+		if (override == null) {
+			return merged;
+		}
+		deepMergeOverride(merged, override);
+		return merged;
+	}
+
+	private static void deepMergeOverride(JsonObject target, JsonObject override) {
+		if (target == null || override == null) {
+			return;
+		}
+		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
+			String key = entry.getKey();
+			JsonElement value = entry.getValue();
+			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
+				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
+				continue;
+			}
+			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
+		}
+	}
+
+	private static String normalizeKey(String value) {
+		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+	}
+
+	private static String fileKeyForType(EntityType<?> type) {
+		if (type == EntityType.ZOMBIE) {
+			return MobConfigManager.FILE_ZOMBIE;
+		}
+		if (type == EntityType.HUSK) {
+			return MobConfigManager.FILE_HUSK;
+		}
+		if (type == EntityType.DROWNED) {
+			return MobConfigManager.FILE_DROWNED;
+		}
+		if (type == EntityType.ZOMBIE_VILLAGER) {
+			return MobConfigManager.FILE_ZOMBIE_VILLAGER;
+		}
+		return "";
+	}
+
+	private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
+		if (type == EntityType.HUSK) {
+			return "minecraft-equipment-husk.json";
+		}
+		if (type == EntityType.DROWNED) {
+			return "minecraft-equipment-drowned.json";
+		}
+		if (type == EntityType.ZOMBIE_VILLAGER) {
+			return "minecraft-equipment-zombie-villager.json";
+		}
+		if (type == EntityType.ZOMBIE) {
+			return "minecraft-equipment-zombie.json";
+		}
+		return "";
+	}
+
+	private record ZombieVariantWeight(String key, double weight) {}
+	private record EquipmentLoadoutResult(
+		boolean applied,
+		String reason,
+		String equipmentReference,
+		double chancePercent,
+		String armorSet,
+		int equippedPieces,
+		int requiredPieces
+	) {}
+
+	private enum ArmorSetSelection {
+		PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
+		HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
+		FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
+
+		private final List<EquipmentSlot> requiredSlots;
+
+		ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
+			this.requiredSlots = requiredSlots;
+		}
+
+		private List<EquipmentSlot> requiredSlots() {
+			return requiredSlots;
+		}
 	}
 }
-

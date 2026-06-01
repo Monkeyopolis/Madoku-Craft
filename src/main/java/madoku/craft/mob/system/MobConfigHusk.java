@@ -7,10 +7,8 @@ public final class MobConfigHusk {
 	}
 
 	public static JsonObject buildDefaults() {
-		return MobConfigManager.buildZombieTypeDefaults(
+		return MobConfigZombie.buildZombieTypeDefaults(
 			MobConfigManager.FILE_HUSK,
-			MobConfigManager.FIELD_ADULT_HUSK,
-			MobConfigManager.FIELD_BABY_HUSK,
 			20.0d,
 			10.0d,
 			1.0d,

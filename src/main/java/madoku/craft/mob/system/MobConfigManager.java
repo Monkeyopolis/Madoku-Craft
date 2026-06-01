@@ -55,16 +55,6 @@ public final class MobConfigManager {
 	public static final String FIELD_ADULT_ZOMBIFIED_PIGLIN = "adult_zombified_piglin";
 	public static final String FIELD_BABY_ZOMBIFIED_PIGLIN = "baby_zombified_piglin";
 
-	public static final String FIELD_ADULT_ZOMBIE = "adult_zombie";
-	public static final String FIELD_BABY_ZOMBIE = "baby_zombie";
-	public static final String FIELD_ADULT_HUSK = "adult_husk";
-	public static final String FIELD_BABY_HUSK = "baby_husk";
-	public static final String FIELD_ADULT_DROWNED = "adult_drowned";
-	public static final String FIELD_BABY_DROWNED = "baby_drowned";
-	public static final String FIELD_ADULT_ZOMBIE_VILLAGER = "adult_zombie_villager";
-	public static final String FIELD_BABY_ZOMBIE_VILLAGER = "baby_zombie_villager";
-
-	public static final String FIELD_SCALE_DIFFICULTY_STEP = "scale_difficulty_step";
 	public static final String FIELD_SPIDER_SPAWN_WEIGHT = "spider_spawn_weight";
 	public static final String FIELD_CAVE_SPIDER_SPAWN_WEIGHT = "cave_spider_spawn_weight";
 	public static final String FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT = "spider_jockey_spawn_weight";
@@ -83,14 +73,21 @@ public final class MobConfigManager {
 	public static final String FIELD_ARMOR_RARITY = "armor-rarity";
 	public static final String FIELD_MOB_STATS = "mob-stats";
 	public static final String FIELD_MOB_DROPS = "mob-drops";
+	public static final String FIELD_WEAPON_DAMAGE = "weapon-damage";
 	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
 	public static final String FIELD_CUSTOM_MOB_DROPS = "custom-mob-drops";
+	public static final String FIELD_EQUIPMENT_SET = "equipment-set";
+	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
+	public static final String FIELD_EQUIPMENT_CHANCE = "equipment-chance";
+	public static final String FIELD_MOB_JOCKEY = "mob-jockey";
+	public static final String FIELD_MOB = "mob";
 	public static final String FIELD_OVERRIDE_STATS = "override-stats";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
 	public static final String FIELD_OVERRIDE_BEHAVIOR = "override-behavior";
 	public static final String FIELD_OVERRIDE_GOALS = "override-goals";
 	public static final String FIELD_MOB_VARIANT = "mob-variant";
+	public static final String FIELD_SHARED_COMPONENTS = "shared-components";
 	public static final String FIELD_MOB_BABY = "mob-baby";
 	public static final String FIELD_DEFAULT_GROUP = "default";
 	public static final String FIELD_BABY_GROUP = "baby";
@@ -101,8 +98,16 @@ public final class MobConfigManager {
 	public static final String FIELD_DIFFICULTY_SCALE_HEALTH = "health";
 	public static final String FIELD_DIFFICULTY_SCALE_DAMAGE = "damage";
 	public static final String FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_DIFFICULTY_SCALE_FLYING_SPEED = "flying_speed";
 	public static final String FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP = "experience_drop";
 	public static final String FIELD_DIFFICULTY_SCALE_SCALE = "scale";
+	public static final String FIELD_PARTIAL_SET = "partial-set";
+	public static final String FIELD_HALF_SET = "half-set";
+	public static final String FIELD_FULL_SET = "full-set";
+	public static final String FIELD_HELMET = "helmet";
+	public static final String FIELD_CHESTPLATE = "chestplate";
+	public static final String FIELD_LEGGINGS = "leggings";
+	public static final String FIELD_BOOTS = "boots";
 
 	public static final String FIELD_GRIEF_POWER_MULTIPLIER = "grief_power_multiplier";
 	public static final String FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP = "explosion_destruction_difficulty_step";
@@ -255,81 +260,6 @@ public final class MobConfigManager {
 		return root;
 	}
 
-	static JsonObject buildZombieTypeDefaults(
-		String mobKey,
-		String adultKey,
-		String babyKey,
-		double adultHealth,
-		double babyHealth,
-		double armor,
-		double adultDamage,
-		double babyDamage,
-		double adultSpeed,
-		double babySpeed,
-		double scale,
-		int experience
-	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		JsonObject mob = new JsonObject();
-		mob.add(adultKey, buildZombieVariant(adultHealth, armor, adultDamage, adultSpeed, scale, experience, false, false, 95.0d));
-		mob.add(babyKey, buildZombieBabyVariant(babyHealth, babyDamage, babySpeed, 5, false, false, 5.0d));
-		root.add(mobKey, mob);
-		return root;
-	}
-
-	private static JsonObject buildZombieVariant(
-		double health,
-		double armor,
-		double damage,
-		double movementSpeed,
-		double scale,
-		int experience,
-		boolean canBreakDoors,
-		boolean canPickUpLoot,
-		double spawnWeight
-	) {
-		JsonObject root = new JsonObject();
-		root.add(
-			FIELD_MOB_STATS,
-			buildMobStatsDefaults(health, armor, damage, movementSpeed, armor > 0.0d ? 0.2d : 0.0d, scale, experience)
-		);
-		addArmorSpawnDefaults(root);
-		JsonObject mobBehavior = new JsonObject();
-		mobBehavior.addProperty(FIELD_CAN_BREAK_DOORS, canBreakDoors);
-		mobBehavior.addProperty(FIELD_CAN_PICK_UP_LOOT, canPickUpLoot);
-		root.add(FIELD_MOB_BEHAVIOR, mobBehavior);
-		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		spawnRules.addProperty(FIELD_SPAWN_WEIGHT, spawnWeight);
-		ensureMobSchema(root, canBreakDoors, canPickUpLoot);
-		return root;
-	}
-
-	private static JsonObject buildZombieBabyVariant(
-		double health,
-		double damage,
-		double movementSpeed,
-		int experience,
-		boolean canBreakDoors,
-		boolean canPickUpLoot,
-		double spawnWeight
-	) {
-		JsonObject root = new JsonObject();
-		root.add(
-			FIELD_MOB_STATS,
-			buildMobStatsDefaults(health, null, damage, movementSpeed, null, null, experience)
-		);
-		addArmorSpawnDefaults(root);
-		JsonObject mobBehavior = new JsonObject();
-		mobBehavior.addProperty(FIELD_CAN_BREAK_DOORS, canBreakDoors);
-		mobBehavior.addProperty(FIELD_CAN_PICK_UP_LOOT, canPickUpLoot);
-		root.add(FIELD_MOB_BEHAVIOR, mobBehavior);
-		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		spawnRules.addProperty(FIELD_SPAWN_WEIGHT, spawnWeight);
-		ensureMobSchema(root, canBreakDoors, canPickUpLoot);
-		return root;
-	}
-
 	static void ensureMobSchema(JsonObject mobRoot, boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
 		if (mobRoot == null) {
 			return;
@@ -358,7 +288,6 @@ public final class MobConfigManager {
 		root.addProperty(FIELD_SPIDER_SPAWN_WEIGHT, 90.0d);
 		root.addProperty(FIELD_CAVE_SPIDER_SPAWN_WEIGHT, 5.0d);
 		root.addProperty(FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0d);
-		root.addProperty(FIELD_SCALE_DIFFICULTY_STEP, 0.05d);
 		root.addProperty(FIELD_CROSSBOW_SPAWN_WEIGHT, 50.0d);
 		root.addProperty(FIELD_GOLDEN_SWORD_SPAWN_WEIGHT, 50.0d);
 		root.addProperty(FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2d);
