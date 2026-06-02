@@ -81,6 +81,7 @@ public final class MobConfigZombie {
 		mob.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
 		if (zombieFile) {
 			mob.add("zombie-jockey", buildZombieJockeyVariantDefaults());
+			mob.add("zombie-villager", buildZombieVillagerVariantDefaults());
 		}
 		root.add(mobKey, mob);
 		return root;
@@ -100,6 +101,22 @@ public final class MobConfigZombie {
 		jockeyMob.addProperty(MobConfigManager.FIELD_BABY_GROUP, "minecraft:chicken");
 		jockey.add(MobConfigManager.FIELD_MOB, jockeyMob);
 		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
+
+		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		return variant;
+	}
+
+	private static JsonObject buildZombieVillagerVariantDefaults() {
+		JsonObject variant = new JsonObject();
+		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
+
+		JsonObject spawnRules = new JsonObject();
+		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
+
+		JsonObject alternativeMob = new JsonObject();
+		alternativeMob.addProperty(MobConfigManager.FIELD_ENABLED, true);
+		alternativeMob.addProperty(MobConfigManager.FIELD_MOB, "minecraft:zombie_villager");
+		spawnRules.add(MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB, alternativeMob);
 
 		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
 		return variant;
@@ -155,7 +172,8 @@ public final class MobConfigZombie {
 
 	private static JsonObject buildZombieSpawnRulesDefaults(String mobKey) {
 		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d);
+		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT,
+			MobConfigManager.FILE_ZOMBIE.equals(mobKey) ? 80.0d : 90.0d);
 		spawnRules.add(MobConfigManager.FIELD_EQUIPMENT_SET, buildZombieEquipmentSetDefaults(mobKey));
 		return spawnRules;
 	}

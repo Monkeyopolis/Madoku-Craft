@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -6,9 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.loot.system.EquipmentsConfigZombie;
-import madoku.craft.loot.system.LootTableConfigManager;
-import madoku.craft.loot.system.LootTableEquipmentsConfig;
+import madoku.craft.mob.system.MobConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
@@ -24,17 +22,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-final class ZombieEquipmentConfigManager {
+public final class EquipmentConfigManager {
 	private static final String ROOT_FOLDER = "madoku-craft-loot-tables";
 	private static final String SETTINGS_FILE = "madoku-loot-tables";
 	private static final String EQUIPMENT_FOLDER = "madoku-equipments";
 
 	private static volatile Snapshot snapshot = Snapshot.disabled();
 
-	private ZombieEquipmentConfigManager() {
+	private EquipmentConfigManager() {
 	}
 
-	static void reloadConfig() {
+	public static void reloadConfig() {
 		try {
 			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ROOT_FOLDER);
 			Path settingsFile = resolveJsonFile(rootDirectory, SETTINGS_FILE);
@@ -78,11 +76,11 @@ final class ZombieEquipmentConfigManager {
 		}
 	}
 
-	static boolean isCustomEntityEquipmentEnabled() {
+	public static boolean isCustomEntityEquipmentEnabled() {
 		return snapshot.customEntityEquipmentEnabled();
 	}
 
-	static EquipmentProfile resolveProfile(String rawReference, EntityType<?> mobType) {
+	public static EquipmentProfile resolveProfile(String rawReference, EntityType<?> mobType) {
 		Snapshot active = snapshot;
 		if (!active.customEntityEquipmentEnabled()) {
 			return null;
@@ -97,7 +95,7 @@ final class ZombieEquipmentConfigManager {
 		return active.profilesByFileKey().get(key);
 	}
 
-	static double customEntityEquipmentChanceWhenMobSystemDisabled() {
+	public static double customEntityEquipmentChanceWhenMobSystemDisabled() {
 		return snapshot.customEntityEquipmentChanceWhenMobSystemDisabled();
 	}
 
@@ -174,7 +172,7 @@ final class ZombieEquipmentConfigManager {
 		if (mapped != null) {
 			return mapped.deepCopy();
 		}
-		return EquipmentsConfigZombie.buildZombieDefaults();
+		return EquipmentConfigZombie.buildZombieDefaults();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -284,13 +282,13 @@ final class ZombieEquipmentConfigManager {
 		return element.getAsString();
 	}
 
-	record EquipmentProfile(boolean enabled, ArmorSetWeights armorSetWeights, Map<EquipmentSlot, List<WeightedArmorEntry>> slotEntries) {
+	public record EquipmentProfile(boolean enabled, ArmorSetWeights armorSetWeights, Map<EquipmentSlot, List<WeightedArmorEntry>> slotEntries) {
 	}
 
-	record ArmorSetWeights(double partialSetWeight, double halfSetWeight, double fullSetWeight) {
+	public record ArmorSetWeights(double partialSetWeight, double halfSetWeight, double fullSetWeight) {
 	}
 
-	record WeightedArmorEntry(Item item, double weight) {
+	public record WeightedArmorEntry(Item item, double weight) {
 	}
 
 	private record Snapshot(

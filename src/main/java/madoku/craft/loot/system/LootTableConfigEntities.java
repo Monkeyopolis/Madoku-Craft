@@ -49,6 +49,7 @@ public final class LootTableConfigEntities {
 		put(defaults, "minecraft:entities/stray", ConfigEntitiesStray.buildDefaults());
 		put(defaults, "minecraft:entities/wither_skeleton", ConfigEntitiesWitherSkeleton.buildDefaults());
 		put(defaults, "minecraft:entities/zombie", ConfigEntitiesZombie.buildDefaults());
+		put(defaults, "minecraft:entities/zombie_villager", ConfigEntitiesZombieVillager.buildDefaults());
 		put(defaults, "minecraft:entities/zombified_piglin", ConfigEntitiesZombifiedPiglin.buildDefaults());
 		return defaults;
 	}

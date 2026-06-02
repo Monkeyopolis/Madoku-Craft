@@ -30,11 +30,10 @@ public final class LootTableEquipmentsConfig {
 
 	public static Map<String, JsonObject> buildDefaultEquipmentTableFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("minecraft-equipment-zombie", EquipmentsConfigZombie.buildZombieDefaults());
-		defaults.put("minecraft-equipment-husk", EquipmentsConfigZombie.buildHuskDefaults());
-		defaults.put("minecraft-equipment-drowned", EquipmentsConfigZombie.buildDrownedDefaults());
-		defaults.put("minecraft-equipment-zombie-villager", EquipmentsConfigZombie.buildZombieVillagerDefaults());
+		defaults.put("minecraft-equipment-zombie", EquipmentConfigZombie.buildZombieDefaults());
+		defaults.put("minecraft-equipment-husk", EquipmentConfigZombie.buildHuskDefaults());
+		defaults.put("minecraft-equipment-drowned", EquipmentConfigZombie.buildDrownedDefaults());
+		defaults.put("minecraft-equipment-zombie-villager", EquipmentConfigZombieVillager.buildZombieVillagerDefaults());
 		return defaults;
 	}
 }
-

@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.mob.system.MadokuMobZombie;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.SpawnGroupData;
@@ -13,6 +14,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Zombie.class)
 public abstract class ZombieSpawnOverridesMixin {
+	@Inject(method = "finalizeSpawn", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$applyZombieSpawnOverridesBeforeVanilla(
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason,
+		SpawnGroupData spawnGroupData,
+		CallbackInfoReturnable<SpawnGroupData> cir
+	) {
+		Zombie zombie = (Zombie) (Object) this;
+		if (MadokuMobZombie.shouldOverrideSpawnRules(zombie)) {
+			MadokuMobManager.applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
+			cir.setReturnValue(spawnGroupData);
+		}
+	}
+
 	@Inject(method = "finalizeSpawn", at = @At("TAIL"))
 	private void madokuCraft$applyZombieSpawnOverrides(
 		ServerLevelAccessor world,

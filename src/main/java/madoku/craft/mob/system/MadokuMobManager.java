@@ -10,6 +10,7 @@ import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.luck.MadokuLuck;
+import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
@@ -63,6 +64,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -107,6 +109,7 @@ public final class MadokuMobManager {
 	private static final java.util.Set<UUID> INVULNERABILITY_BYPASS_ARROWS = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Integer> PILLAGER_ATTACK_COOLDOWNS = new ConcurrentHashMap<>();
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
+	private static final Map<UUID, PendingZombieReplacement> PENDING_ZOMBIE_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
 
 	private static volatile Snapshot snapshot = Snapshot.disabled();
@@ -141,6 +144,7 @@ public final class MadokuMobManager {
 		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
+		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
@@ -161,6 +165,7 @@ public final class MadokuMobManager {
 		INVULNERABILITY_BYPASS_ARROWS.clear();
 		PILLAGER_ATTACK_COOLDOWNS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
+		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 	}
@@ -221,7 +226,20 @@ public final class MadokuMobManager {
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
+		if (zombie instanceof ZombieVillager zombieVillager) {
+			MadokuMobZombieVillager.applySpawnOverrides(zombieVillager, world, difficulty, spawnReason);
+			return;
+		}
 		MadokuMobZombie.applySpawnOverrides(zombie, world, difficulty, spawnReason);
+	}
+
+	static void queueZombieReplacement(Zombie zombie, EntityType<?> replacementType, EntitySpawnReason spawnReason) {
+		if (zombie == null || replacementType == null || replacementType == EntityType.ZOMBIE || spawnReason == null) {
+			return;
+		}
+		PENDING_ZOMBIE_REPLACEMENTS.put(zombie.getUUID(), new PendingZombieReplacement(replacementType, spawnReason));
+		MinecraftServer server = resolveServer(zombie);
+		requestRuntimeProcessing(server, 1L);
 	}
 
 	public static void applySpiderSpawnOverrides(
@@ -836,6 +854,9 @@ public final class MadokuMobManager {
 		if (entity == null || entity.level().isClientSide() || !snapshot.enabled) {
 			return false;
 		}
+		if (entity instanceof ZombieVillager zombieVillager) {
+			return MadokuMobZombieVillager.applyLoadedEntityOverrides(zombieVillager);
+		}
 		if (entity instanceof Zombie zombie) {
 			return MadokuMobZombie.applyLoadedEntityOverrides(zombie);
 		}
@@ -1019,10 +1040,16 @@ public final class MadokuMobManager {
 	}
 
 	public static boolean isZombieCustomMobDropsEnabled(LivingEntity entity) {
+		if (entity instanceof ZombieVillager zombieVillager) {
+			return MadokuMobZombieVillager.isCustomMobDropsEnabled(zombieVillager);
+		}
 		return MadokuMobZombie.isCustomMobDropsEnabled(entity);
 	}
 
 	public static String resolveZombieMobDropsConfigReference(LivingEntity entity) {
+		if (entity instanceof ZombieVillager zombieVillager) {
+			return MadokuMobZombieVillager.resolveMobDropsConfigReference(zombieVillager);
+		}
 		return MadokuMobZombie.resolveMobDropsConfigReference(entity);
 	}
 
@@ -1717,6 +1744,7 @@ public final class MadokuMobManager {
 			PILLAGER_ATTACK_COOLDOWNS.remove(id);
 		}
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
+		PENDING_ZOMBIE_REPLACEMENTS.remove(id);
 		MadokuMobBee.onEntityCleanup(entity);
 	}
 
@@ -1728,6 +1756,7 @@ public final class MadokuMobManager {
 		tickManagedMobArrows(server);
 		tickHomingProjectiles(server);
 		processPendingCaveSpiderReplacements(server);
+		processPendingZombieReplacements(server);
 		suppressBabyPiglinCombat(server);
 		boolean beeRuntimeActive = MadokuMobBee.tickRuntime(
 			server,
@@ -1738,6 +1767,7 @@ public final class MadokuMobManager {
 		if (!MANAGED_MOB_ARROWS.isEmpty()
 			|| !HOMING_ARROWS.isEmpty()
 			|| !PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()
+			|| !PENDING_ZOMBIE_REPLACEMENTS.isEmpty()
 			|| beeRuntimeActive) {
 			requestRuntimeProcessing(server, 1L);
 		}
@@ -1862,6 +1892,51 @@ public final class MadokuMobManager {
 			level.tryAddFreshEntityWithPassengers(caveSpider);
 			spider.discard();
 			PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
+		}
+	}
+
+	private static void processPendingZombieReplacements(MinecraftServer server) {
+		if (server == null || PENDING_ZOMBIE_REPLACEMENTS.isEmpty()) {
+			return;
+		}
+		for (Map.Entry<UUID, PendingZombieReplacement> entry : PENDING_ZOMBIE_REPLACEMENTS.entrySet()) {
+			Entity entity = findEntity(server, entry.getKey());
+			if (!(entity instanceof Zombie zombie) || !zombie.isAlive() || zombie.getType() != EntityType.ZOMBIE) {
+				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
+				continue;
+			}
+			if (!(zombie.level() instanceof ServerLevel level)) {
+				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
+				continue;
+			}
+			PendingZombieReplacement replacement = entry.getValue();
+			if (replacement == null) {
+				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
+				continue;
+			}
+			EntityType<?> replacementType = replacement.replacementType();
+			if (replacementType == null || replacementType == EntityType.ZOMBIE) {
+				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
+				continue;
+			}
+			EntitySpawnReason reason = replacement.reason() == null ? EntitySpawnReason.NATURAL : replacement.reason();
+			Entity replacementEntity = replacementType.create(level, reason);
+			if (replacementEntity == null) {
+				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
+				continue;
+			}
+			replacementEntity.setPos(zombie.getX(), zombie.getY(), zombie.getZ());
+			replacementEntity.setYRot(zombie.getYRot());
+			replacementEntity.setXRot(zombie.getXRot());
+			if (replacementEntity instanceof Zombie replacementZombie) {
+				replacementZombie.setBaby(zombie.isBaby());
+			}
+			if (replacementEntity instanceof Mob mobReplacement) {
+				mobReplacement.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(zombie.position())), reason, null);
+			}
+			level.tryAddFreshEntityWithPassengers(replacementEntity);
+			zombie.discard();
+			PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
 		}
 	}
 
@@ -2082,6 +2157,8 @@ public final class MadokuMobManager {
 		ensureBowEquipped(skeleton);
 		skeleton.startRiding(spider);
 	}
+
+	private record PendingZombieReplacement(EntityType<?> replacementType, EntitySpawnReason reason) {}
 
 	private static MinecraftServer resolveServer(Entity entity) {
 		if (entity == null || !(entity.level() instanceof ServerLevel serverLevel)) {
@@ -2379,7 +2456,7 @@ public final class MadokuMobManager {
 		} catch (IOException | RuntimeException exception) {
 			snapshot = Snapshot.disabled();
 		}
-		ZombieEquipmentConfigManager.reloadConfig();
+		EquipmentConfigManager.reloadConfig();
 		emitConfigLoaded();
 	}
 

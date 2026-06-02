@@ -3,30 +3,14 @@ package madoku.craft.loot.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-public final class EquipmentsConfigZombie {
-	private EquipmentsConfigZombie() {
-	}
-
-	public static JsonObject buildZombieDefaults() {
-		return buildDefaults("minecraft:zombie");
-	}
-
-	public static JsonObject buildHuskDefaults() {
-		return buildDefaults("minecraft:husk");
-	}
-
-	public static JsonObject buildDrownedDefaults() {
-		return buildDefaults("minecraft:drowned");
+public final class EquipmentConfigZombieVillager {
+	private EquipmentConfigZombieVillager() {
 	}
 
 	public static JsonObject buildZombieVillagerDefaults() {
-		return buildDefaults("minecraft:zombie_villager");
-	}
-
-	public static JsonObject buildDefaults(String mobId) {
 		JsonObject root = new JsonObject();
 		root.addProperty(LootTableEquipmentsConfig.FIELD_ENABLED, true);
-		root.addProperty(LootTableEquipmentsConfig.FIELD_MOB_ID, mobId == null ? "" : mobId);
+		root.addProperty(LootTableEquipmentsConfig.FIELD_MOB_ID, "minecraft:zombie_villager");
 
 		JsonObject armorSet = new JsonObject();
 		armorSet.addProperty(LootTableEquipmentsConfig.FIELD_PARTIAL_SET, 60.0D);
@@ -59,4 +43,3 @@ public final class EquipmentsConfigZombie {
 		return entry;
 	}
 }
-

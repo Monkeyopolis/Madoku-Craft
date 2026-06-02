@@ -81,6 +81,7 @@ public final class MobConfigManager {
 	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
 	public static final String FIELD_EQUIPMENT_CHANCE = "equipment-chance";
 	public static final String FIELD_MOB_JOCKEY = "mob-jockey";
+	public static final String FIELD_SPAWN_ALTERNATIVE_MOB = "spawn-alternative-mob";
 	public static final String FIELD_MOB = "mob";
 	public static final String FIELD_OVERRIDE_STATS = "override-stats";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";

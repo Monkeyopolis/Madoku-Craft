@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonNull;
 import madoku.craft.debug.MadokuDebug;
+import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -79,13 +80,14 @@ public final class MadokuMobZombie {
 				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
 			}
 			zombie.setBaby(shouldBeBaby);
-			if (!shouldBeBaby && zombie.getType() == EntityType.ZOMBIE && zombie.getVehicle() != null && zombie.getVehicle().getType() == EntityType.CHICKEN) {
-				zombie.stopRiding();
-			}
+			clearVanillaZombieJockeyMount(zombie);
 		}
 
 		JsonObject variant = zombie.isBaby() ? baby : adult;
 		variant = mergeZombieFileSettings(fileRoot, variant);
+		if (overrideSpawnRules && applyConfiguredZombieAlternativeMobReplacement(zombie, variant, spawnReason)) {
+			return;
+		}
 		if (overrideSpawnRules) {
 			applyConfiguredZombieJockeyMount(zombie, world, difficulty, variant);
 			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(zombie, variant, world.getRandom());
@@ -96,6 +98,17 @@ public final class MadokuMobZombie {
 		if (overrideStats) {
 			MadokuMobManager.applyUniversalStatsForRuntime(zombie, variant);
 		}
+	}
+
+	public static boolean shouldOverrideSpawnRules(Zombie zombie) {
+		if (zombie == null || zombie.getType() != EntityType.ZOMBIE) {
+			return false;
+		}
+		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_ZOMBIE)) {
+			return false;
+		}
+		JsonObject zombieFileRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(MobConfigManager.FILE_ZOMBIE);
+		return readBoolean(zombieFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 	}
 
 	public static boolean applyLoadedEntityOverrides(LivingEntity entity) {
@@ -115,6 +128,7 @@ public final class MadokuMobZombie {
 		boolean modified = overrideStats && MadokuMobManager.applyUniversalStatsForRuntime(zombie, variant);
 		applyWeaponDamagePolicy(zombie, variant);
 		applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
+		modified |= applyConfiguredZombieAlternativeMobReplacement(zombie, variant, EntitySpawnReason.NATURAL);
 		return modified;
 	}
 
@@ -167,7 +181,7 @@ public final class MadokuMobZombie {
 		if (zombie == null || random == null) {
 			return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
 		}
-		if (!ZombieEquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+		if (!EquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
 			return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
 		}
 		String equipmentReference = resolveDefaultMobEquipmentReference(zombie.getType());
@@ -177,7 +191,7 @@ public final class MadokuMobZombie {
 		return applyEquipmentSetLoadout(
 			zombie,
 			equipmentReference,
-			ZombieEquipmentConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
+			EquipmentConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
 			random
 		);
 	}
@@ -186,7 +200,7 @@ public final class MadokuMobZombie {
 		if (zombie == null || variantRoot == null || random == null) {
 			return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
 		}
-		if (!ZombieEquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+		if (!EquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
 			return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
 		}
 		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
@@ -217,7 +231,7 @@ public final class MadokuMobZombie {
 			return;
 		}
 
-		EntityType<?> mountType = resolveConfiguredJockeyMountType(jockeyRoot, zombie.isBaby());
+		EntityType<?> mountType = resolveConfiguredMobEntityType(jockeyRoot, zombie.isBaby());
 		if (mountType == null) {
 			return;
 		}
@@ -239,11 +253,46 @@ public final class MadokuMobZombie {
 		}
 	}
 
-	private static EntityType<?> resolveConfiguredJockeyMountType(JsonObject jockeyRoot, boolean babyZombie) {
-		if (jockeyRoot == null || jockeyRoot.entrySet().isEmpty()) {
+	private static boolean applyConfiguredZombieAlternativeMobReplacement(
+		Zombie zombie,
+		JsonObject variantRoot,
+		EntitySpawnReason spawnReason
+	) {
+		if (zombie == null || variantRoot == null || zombie.getType() != EntityType.ZOMBIE) {
+			return false;
+		}
+		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject alternativeMobRoot = readObject(spawnRules, MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB);
+		if (alternativeMobRoot.entrySet().isEmpty() || !readBoolean(alternativeMobRoot, MobConfigManager.FIELD_ENABLED, false)) {
+			return false;
+		}
+		EntityType<?> replacementType = resolveConfiguredMobEntityType(alternativeMobRoot, zombie.isBaby());
+		if (replacementType == null || replacementType == EntityType.ZOMBIE) {
+			return false;
+		}
+		MadokuMobManager.queueZombieReplacement(zombie, replacementType, spawnReason);
+		return true;
+	}
+
+	private static void clearVanillaZombieJockeyMount(Zombie zombie) {
+		if (zombie == null) {
+			return;
+		}
+		Entity vehicle = zombie.getVehicle();
+		if (vehicle == null || vehicle.getType() != EntityType.CHICKEN) {
+			return;
+		}
+		zombie.stopRiding();
+		if (vehicle.isAlive()) {
+			vehicle.discard();
+		}
+	}
+
+	private static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot, boolean babyZombie) {
+		if (mobRoot == null || mobRoot.entrySet().isEmpty()) {
 			return null;
 		}
-		JsonElement mobElement = jockeyRoot.get(MobConfigManager.FIELD_MOB);
+		JsonElement mobElement = mobRoot.get(MobConfigManager.FIELD_MOB);
 		if (mobElement == null || mobElement.isJsonNull()) {
 			return null;
 		}
@@ -281,7 +330,7 @@ public final class MadokuMobZombie {
 		if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
 			return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
 		}
-		ZombieEquipmentConfigManager.EquipmentProfile profile = ZombieEquipmentConfigManager.resolveProfile(equipmentReference, zombie.getType());
+		EquipmentConfigManager.EquipmentProfile profile = EquipmentConfigManager.resolveProfile(equipmentReference, zombie.getType());
 		if (profile == null || !profile.enabled()) {
 			return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
 		}
@@ -368,19 +417,19 @@ public final class MadokuMobZombie {
 	}
 
 	private static ItemStack rollArmorItemForSlot(
-		ZombieEquipmentConfigManager.EquipmentProfile profile,
+		EquipmentConfigManager.EquipmentProfile profile,
 		EquipmentSlot slot,
 		RandomSource random
 	) {
 		if (profile == null || slot == null || random == null) {
 			return ItemStack.EMPTY;
 		}
-		List<ZombieEquipmentConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
+		List<EquipmentConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
 		if (entries == null || entries.isEmpty()) {
 			return ItemStack.EMPTY;
 		}
 		double totalWeight = 0.0D;
-		for (ZombieEquipmentConfigManager.WeightedArmorEntry entry : entries) {
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
 			if (entry != null) {
 				totalWeight += Math.max(0.0D, entry.weight());
 			}
@@ -390,7 +439,7 @@ public final class MadokuMobZombie {
 		}
 		double roll = random.nextDouble() * totalWeight;
 		double cursor = 0.0D;
-		for (ZombieEquipmentConfigManager.WeightedArmorEntry entry : entries) {
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
 			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
 				continue;
 			}
@@ -399,12 +448,12 @@ public final class MadokuMobZombie {
 				return new ItemStack(entry.item());
 			}
 		}
-		ZombieEquipmentConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
+		EquipmentConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
 		return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
 	}
 
 	private static ArmorSetSelection rollArmorSetSelection(
-		ZombieEquipmentConfigManager.ArmorSetWeights weights,
+		EquipmentConfigManager.ArmorSetWeights weights,
 		RandomSource random
 	) {
 		if (weights == null || random == null) {
