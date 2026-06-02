@@ -39,7 +39,7 @@ public final class MobConfigZombieVillager {
 				20.0d,
 				0.0d,
 				5.0d,
-				0.25d,
+				0.24d,
 				0.25d,
 				1.0d,
 				7,
@@ -50,7 +50,7 @@ public final class MobConfigZombieVillager {
 		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieVillagerBehaviorDefaults(false, false));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildZombieVillagerGoalsDefaults());
 		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieVillagerAgeOverride(false, null, null, null, 7, 95.0d));
-		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieVillagerAgeOverride(true, 10.0d, 2.5d, 0.25d, 3, 5.0d));
+		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieVillagerAgeOverride(true, 10.0d, 2.5d, 0.24d, 3, 5.0d));
 		zombieVillager.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
 
 		root.add(MobConfigManager.FILE_ZOMBIE_VILLAGER, zombieVillager);
@@ -113,7 +113,7 @@ public final class MobConfigZombieVillager {
 	private static JsonObject buildZombieVillagerGoalsDefaults() {
 		JsonObject goals = new JsonObject();
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addBeeGoal(goals, "break_door", false, 1, 100.0d, 0);
+		MobConfigManager.addBeeGoal(goals, "break_door", true, 1, 100.0d, 0);
 		return goals;
 	}
 

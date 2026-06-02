@@ -88,6 +88,8 @@
     "StemBlockFarmingMixin",
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerSleepTimeMixin",
+    "HuskSpawnOverridesMixin",
+    "HuskHungerEffectMixin",
     "ZombifiedPiglinAggressionTickMixin",
     "ZombifiedPiglinAlertReplaceMixin",
     "WitherSkeletonWitherEffectMixin",

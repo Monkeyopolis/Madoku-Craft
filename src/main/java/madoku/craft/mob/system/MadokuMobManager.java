@@ -48,6 +48,7 @@ import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import net.minecraft.world.entity.monster.spider.CaveSpider;
 import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
@@ -857,6 +858,9 @@ public final class MadokuMobManager {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.applyLoadedEntityOverrides(zombieVillager);
 		}
+		if (entity instanceof Husk husk) {
+			return MadokuMobHusk.applyLoadedEntityOverrides(husk);
+		}
 		if (entity instanceof Zombie zombie) {
 			return MadokuMobZombie.applyLoadedEntityOverrides(zombie);
 		}
@@ -1043,12 +1047,18 @@ public final class MadokuMobManager {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.isCustomMobDropsEnabled(zombieVillager);
 		}
+		if (entity instanceof Husk husk) {
+			return MadokuMobHusk.isCustomMobDropsEnabled(husk);
+		}
 		return MadokuMobZombie.isCustomMobDropsEnabled(entity);
 	}
 
 	public static String resolveZombieMobDropsConfigReference(LivingEntity entity) {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.resolveMobDropsConfigReference(zombieVillager);
+		}
+		if (entity instanceof Husk husk) {
+			return MadokuMobHusk.resolveMobDropsConfigReference(husk);
 		}
 		return MadokuMobZombie.resolveMobDropsConfigReference(entity);
 	}
@@ -2545,9 +2555,6 @@ public final class MadokuMobManager {
 		if (type == EntityType.ZOMBIE) {
 			return fileMobRoot(MobConfigManager.FILE_ZOMBIE);
 		}
-		if (type == EntityType.HUSK) {
-			return fileMobRoot(MobConfigManager.FILE_HUSK);
-		}
 		if (type == EntityType.DROWNED) {
 			return fileMobRoot(MobConfigManager.FILE_DROWNED);
 		}
@@ -2559,6 +2566,17 @@ public final class MadokuMobManager {
 
 	static JsonObject resolveZombieRootForRuntime(EntityType<?> type) {
 		return zombieRoot(type);
+	}
+
+	private static JsonObject huskRoot(EntityType<?> type) {
+		if (type == EntityType.HUSK) {
+			return fileMobRoot(MobConfigManager.FILE_HUSK);
+		}
+		return new JsonObject();
+	}
+
+	static JsonObject resolveHuskRootForRuntime(EntityType<?> type) {
+		return huskRoot(type);
 	}
 
 	private static JsonObject zombieAdultRoot(JsonObject root) {

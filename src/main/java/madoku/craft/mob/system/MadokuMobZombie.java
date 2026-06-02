@@ -853,9 +853,6 @@ public final class MadokuMobZombie {
 		if (type == EntityType.ZOMBIE) {
 			return MobConfigManager.FILE_ZOMBIE;
 		}
-		if (type == EntityType.HUSK) {
-			return MobConfigManager.FILE_HUSK;
-		}
 		if (type == EntityType.DROWNED) {
 			return MobConfigManager.FILE_DROWNED;
 		}
@@ -866,9 +863,6 @@ public final class MadokuMobZombie {
 	}
 
 	private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
-		if (type == EntityType.HUSK) {
-			return "minecraft-equipment-husk.json";
-		}
 		if (type == EntityType.DROWNED) {
 			return "minecraft-equipment-drowned.json";
 		}

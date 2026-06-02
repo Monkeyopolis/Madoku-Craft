@@ -76,6 +76,7 @@ public final class MobConfigManager {
 	public static final String FIELD_WEAPON_DAMAGE = "weapon-damage";
 	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
+	public static final String FIELD_APPLIES_HUNGER_ON_HIT = "applies_hunger_on_hit";
 	public static final String FIELD_CUSTOM_MOB_DROPS = "custom-mob-drops";
 	public static final String FIELD_EQUIPMENT_SET = "equipment-set";
 	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
