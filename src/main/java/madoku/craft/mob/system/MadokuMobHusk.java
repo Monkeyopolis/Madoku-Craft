@@ -6,8 +6,6 @@ import com.google.gson.JsonObject;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -17,7 +15,6 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.zombie.Husk;
@@ -92,7 +89,6 @@ public final class MadokuMobHusk {
 		JsonObject variant = husk.isBaby() ? baby : adult;
 		variant = mergeHuskFileSettings(fileRoot, variant);
 		if (overrideSpawnRules) {
-			applyConfiguredHuskJockeyMount(husk, world, difficulty, variant);
 			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(husk, variant, world.getRandom());
 			emitHuskEquipmentDebug(husk, "spawn_mob_system_enabled", fileKey, result);
 		}
@@ -277,87 +273,6 @@ public final class MadokuMobHusk {
 			rolledBySlot.size(),
 			selection.requiredSlots().size()
 		);
-	}
-
-	private static void applyConfiguredHuskJockeyMount(
-		Husk husk,
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		JsonObject variantRoot
-	) {
-		if (husk == null || world == null || difficulty == null || variantRoot == null || husk.getVehicle() != null) {
-			return;
-		}
-		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
-		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
-		if (jockeyRoot.entrySet().isEmpty() || !readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
-			return;
-		}
-
-		EntityType<?> mountType = resolveConfiguredMobEntityType(jockeyRoot, husk.isBaby());
-		if (mountType == null) {
-			return;
-		}
-
-		ServerLevel level = world.getLevel();
-		Entity mount = mountType.create(level, EntitySpawnReason.JOCKEY);
-		if (mount == null) {
-			return;
-		}
-		mount.setPos(husk.getX(), husk.getY(), husk.getZ());
-		mount.setYRot(husk.getYRot());
-		mount.setXRot(husk.getXRot());
-		if (mount instanceof Mob mobMount) {
-			mobMount.finalizeSpawn(world, difficulty, EntitySpawnReason.JOCKEY, null);
-		}
-		level.tryAddFreshEntityWithPassengers(mount);
-		if (!husk.startRiding(mount)) {
-			if (mount.isAlive()) {
-				mount.discard();
-			}
-			return;
-		}
-
-		if (!husk.isBaby() && mountType == EntityType.CAMEL) {
-			Entity passenger = EntityType.PARCHED.create(level, EntitySpawnReason.JOCKEY);
-			if (passenger == null) {
-				return;
-			}
-			passenger.setPos(husk.getX(), husk.getY(), husk.getZ());
-			passenger.setYRot(husk.getYRot());
-			passenger.setXRot(husk.getXRot());
-			if (passenger instanceof Mob mobPassenger) {
-				mobPassenger.finalizeSpawn(world, difficulty, EntitySpawnReason.JOCKEY, null);
-			}
-			level.tryAddFreshEntityWithPassengers(passenger);
-			if (!passenger.startRiding(mount) && passenger.isAlive()) {
-				passenger.discard();
-			}
-		}
-	}
-
-	private static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot, boolean babyHusk) {
-		if (mobRoot == null || mobRoot.entrySet().isEmpty()) {
-			return null;
-		}
-		JsonElement mobElement = mobRoot.get(MobConfigManager.FIELD_MOB);
-		if (mobElement == null || mobElement.isJsonNull()) {
-			return null;
-		}
-
-		String mobId = "";
-		if (mobElement.isJsonPrimitive() && mobElement.getAsJsonPrimitive().isString()) {
-			mobId = mobElement.getAsString();
-		} else if (mobElement.isJsonObject()) {
-			JsonObject byAge = mobElement.getAsJsonObject();
-			String primaryKey = babyHusk ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP;
-			String fallbackKey = babyHusk ? MobConfigManager.FIELD_ADULT_GROUP : MobConfigManager.FIELD_BABY_GROUP;
-			mobId = readString(byAge, primaryKey, "");
-			if (mobId.isBlank()) {
-				mobId = readString(byAge, fallbackKey, "");
-			}
-		}
-		return resolveEntityTypeById(mobId);
 	}
 
 	private static void applyHuskBehaviorToggles(Husk husk, JsonObject fileRoot, JsonObject variantRoot) {
@@ -848,17 +763,6 @@ public final class MadokuMobHusk {
 		}
 		JsonElement element = root.get(key);
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
-	}
-
-	private static EntityType<?> resolveEntityTypeById(String entityTypeId) {
-		if (entityTypeId == null || entityTypeId.isBlank()) {
-			return null;
-		}
-		Identifier id = Identifier.tryParse(entityTypeId.trim());
-		if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
-			return null;
-		}
-		return BuiltInRegistries.ENTITY_TYPE.getValue(id);
 	}
 
 	private static String normalizeKey(String value) {

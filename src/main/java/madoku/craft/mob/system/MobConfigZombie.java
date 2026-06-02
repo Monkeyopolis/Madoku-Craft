@@ -148,18 +148,12 @@ public final class MobConfigZombie {
 		if (MobConfigManager.FILE_DROWNED.equals(mobKey)) {
 			return "minecraft-entities-drowned.json";
 		}
-		if (MobConfigManager.FILE_ZOMBIE_VILLAGER.equals(mobKey)) {
-			return "minecraft-entities-zombie.json";
-		}
 		return "minecraft-entities-zombie.json";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(String mobKey) {
 		if (MobConfigManager.FILE_DROWNED.equals(mobKey)) {
 			return "minecraft-equipment-drowned.json";
-		}
-		if (MobConfigManager.FILE_ZOMBIE_VILLAGER.equals(mobKey)) {
-			return "minecraft-equipment-zombie-villager.json";
 		}
 		return "minecraft-equipment-zombie.json";
 	}

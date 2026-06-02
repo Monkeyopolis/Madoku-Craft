@@ -49,7 +49,7 @@ public final class MadokuMobZombieVillager {
 		}
 
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
-		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombieVillager.getType());
+		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
 		if (defaultGroup.entrySet().isEmpty()) {
 			return;
@@ -98,7 +98,7 @@ public final class MadokuMobZombieVillager {
 		}
 
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
-		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombieVillager.getType());
+		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
 		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
 		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
@@ -143,7 +143,7 @@ public final class MadokuMobZombieVillager {
 		if (zombieVillager == null) {
 			return new JsonObject();
 		}
-		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombieVillager.getType());
+		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
 		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
 		return mergeZombieVillagerFileSettings(fileRoot, variant);

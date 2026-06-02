@@ -1115,11 +1115,13 @@ public final class MadokuMobManager {
 				: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
 				: "";
 		}
+		if (entity instanceof ZombieVillager) {
+			return MobConfigManager.FILE_ZOMBIE_VILLAGER;
+		}
 		if (entity instanceof Zombie zombie) {
 			return zombie.getType() == EntityType.ZOMBIE ? MobConfigManager.FILE_ZOMBIE
 				: zombie.getType() == EntityType.HUSK ? MobConfigManager.FILE_HUSK
 				: zombie.getType() == EntityType.DROWNED ? MobConfigManager.FILE_DROWNED
-				: zombie.getType() == EntityType.ZOMBIE_VILLAGER ? MobConfigManager.FILE_ZOMBIE_VILLAGER
 				: zombie.getType() == EntityType.ZOMBIFIED_PIGLIN ? MobConfigManager.FILE_ZOMBIFIED_PIGLIN
 				: "";
 		}
@@ -2558,14 +2560,22 @@ public final class MadokuMobManager {
 		if (type == EntityType.DROWNED) {
 			return fileMobRoot(MobConfigManager.FILE_DROWNED);
 		}
+		return new JsonObject();
+	}
+
+	static JsonObject resolveZombieRootForRuntime(EntityType<?> type) {
+		return zombieRoot(type);
+	}
+
+	private static JsonObject zombieVillagerRoot(EntityType<?> type) {
 		if (type == EntityType.ZOMBIE_VILLAGER) {
 			return fileMobRoot(MobConfigManager.FILE_ZOMBIE_VILLAGER);
 		}
 		return new JsonObject();
 	}
 
-	static JsonObject resolveZombieRootForRuntime(EntityType<?> type) {
-		return zombieRoot(type);
+	static JsonObject resolveZombieVillagerRootForRuntime(EntityType<?> type) {
+		return zombieVillagerRoot(type);
 	}
 
 	private static JsonObject huskRoot(EntityType<?> type) {

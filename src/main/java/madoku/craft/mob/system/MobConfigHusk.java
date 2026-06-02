@@ -52,7 +52,6 @@ public final class MobConfigHusk {
 		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildHuskAgeOverride(false, 0.4, 7, 90.0d, null, null, null));
 		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildHuskAgeOverride(true, 0.2d, 3, 10.0d, 14.0d, 1.0d, 3.5d));
 		husk.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
-		husk.add("husk-jockey", buildHuskJockeyVariantDefaults());
 
 		root.add(MobConfigManager.FILE_HUSK, husk);
 		return root;
@@ -117,25 +116,6 @@ public final class MobConfigHusk {
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		MobConfigManager.addBeeGoal(goals, "break_door", true, 1, 100.0d, 0);
 		return goals;
-	}
-
-	private static JsonObject buildHuskJockeyVariantDefaults() {
-		JsonObject variant = new JsonObject();
-		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
-
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
-
-		JsonObject jockey = new JsonObject();
-		jockey.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		JsonObject jockeyMob = new JsonObject();
-		jockeyMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:camel");
-		jockeyMob.addProperty(MobConfigManager.FIELD_BABY_GROUP, "minecraft:chicken");
-		jockey.add(MobConfigManager.FIELD_MOB, jockeyMob);
-		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
-
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
-		return variant;
 	}
 
 	private static JsonObject buildHuskAgeOverride(

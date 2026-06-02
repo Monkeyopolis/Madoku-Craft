@@ -856,18 +856,12 @@ public final class MadokuMobZombie {
 		if (type == EntityType.DROWNED) {
 			return MobConfigManager.FILE_DROWNED;
 		}
-		if (type == EntityType.ZOMBIE_VILLAGER) {
-			return MobConfigManager.FILE_ZOMBIE_VILLAGER;
-		}
 		return "";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
 		if (type == EntityType.DROWNED) {
 			return "minecraft-equipment-drowned.json";
-		}
-		if (type == EntityType.ZOMBIE_VILLAGER) {
-			return "minecraft-equipment-zombie-villager.json";
 		}
 		if (type == EntityType.ZOMBIE) {
 			return "minecraft-equipment-zombie.json";
