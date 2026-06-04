@@ -76,8 +76,8 @@ public final class MobConfigZombie {
 		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildZombieSpawnRulesDefaults(mobKey));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieBehaviorDefaults(false, false));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildZombieGoalsDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieAgeOverride(false, null, null, null, null, experience, 90.0d));
-		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieAgeOverride(true, babyHealth, babyDamage, babySpeed, 0.0d, 3, 10.0d));
+		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieAgeOverride(false, null, null, null, null, null, experience, 90.0d));
+		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieAgeOverride(true, babyHealth, babyDamage, babySpeed, 0.0d, 0.0d, 3, 10.0d));
 		mob.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
 		if (zombieFile) {
 			mob.add("zombie-jockey", buildZombieJockeyVariantDefaults());
@@ -145,16 +145,10 @@ public final class MobConfigZombie {
 	}
 
 	private static String resolveDefaultMobDropsReference(String mobKey) {
-		if (MobConfigManager.FILE_DROWNED.equals(mobKey)) {
-			return "minecraft-entities-drowned.json";
-		}
 		return "minecraft-entities-zombie.json";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(String mobKey) {
-		if (MobConfigManager.FILE_DROWNED.equals(mobKey)) {
-			return "minecraft-equipment-drowned.json";
-		}
 		return "minecraft-equipment-zombie.json";
 	}
 
@@ -185,7 +179,7 @@ public final class MobConfigZombie {
 	private static JsonObject buildZombieGoalsDefaults() {
 		JsonObject goals = new JsonObject();
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addBeeGoal(goals, "break_door", true, 1, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
 		return goals;
 	}
 
@@ -194,6 +188,7 @@ public final class MobConfigZombie {
 		Double health,
 		Double damage,
 		Double movementSpeed,
+		Double armor,
 		Double knockbackResistance,
 		int experience,
 		double spawnWeight
@@ -210,6 +205,9 @@ public final class MobConfigZombie {
 			}
 			if (movementSpeed != null) {
 				stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
+			}
+			if (armor != null) {
+				stats.addProperty(MobConfigManager.FIELD_ARMOR, armor);
 			}
 			if (knockbackResistance != null) {
 				stats.addProperty(MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);

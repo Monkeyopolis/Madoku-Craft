@@ -114,7 +114,7 @@ public final class MobConfigHusk {
 	private static JsonObject buildHuskGoalsDefaults() {
 		JsonObject goals = new JsonObject();
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addBeeGoal(goals, "break_door", true, 1, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
 		return goals;
 	}
 

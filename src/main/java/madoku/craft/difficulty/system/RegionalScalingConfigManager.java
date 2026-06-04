@@ -27,6 +27,10 @@ public final class RegionalScalingConfigManager {
 			knockbackResistance,
 			experienceDrop
 		));
+		defaults.put("zombie", RegionalScalingConfigZombie.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("husk", RegionalScalingConfigHusk.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("drowned", RegionalScalingConfigDrowned.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("zombie-villager", RegionalScalingConfigZombieVillager.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		return defaults;
 	}
 
@@ -34,6 +38,46 @@ public final class RegionalScalingConfigManager {
 		String normalized = fileKey == null ? "" : fileKey.trim().toLowerCase();
 		if ("bee".equals(normalized) || "minecraft:bee".equals(normalized)) {
 			return RegionalScalingConfigBee.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("drowned".equals(normalized) || "minecraft:drowned".equals(normalized)) {
+			return RegionalScalingConfigDrowned.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("zombie".equals(normalized) || "minecraft:zombie".equals(normalized)) {
+			return RegionalScalingConfigZombie.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("husk".equals(normalized) || "minecraft:husk".equals(normalized)) {
+			return RegionalScalingConfigHusk.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("zombie-villager".equals(normalized) || "minecraft:zombie_villager".equals(normalized)) {
+			return RegionalScalingConfigZombieVillager.buildDefaults(
 				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,

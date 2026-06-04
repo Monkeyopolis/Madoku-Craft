@@ -31,6 +31,9 @@ public abstract class AbstractArrowDamageMixin {
 		}
 		float resolvedDamage = MadokuMobManager.resolveProjectileDamageOverride(arrow, originalDamage);
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
+		if (hit && MadokuMobManager.isManagedHomingArrow(arrow)) {
+			MadokuMobManager.clearProjectileHoming(arrow);
+		}
 		MadokuMobManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
 			MadokuMobManager.applyWitherSkeletonArrowHitEffect(livingEntity, arrow.getOwner());

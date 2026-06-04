@@ -139,30 +139,30 @@ public final class MobConfigBee {
 	private static JsonObject buildSharedBeeGoalsDefaults() {
 		JsonObject goals = new JsonObject();
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addBeeGoal(goals, "bee_attack", true, 0, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "bee_attack", true, 0, 100.0d, 0);
 		goals.getAsJsonObject("bee_attack").addProperty("speed_modifier", 1.4d);
 		goals.getAsJsonObject("bee_attack").addProperty("long_memory", true);
-		MobConfigManager.addBeeGoal(goals, "enter_hive", true, 1, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "breed", true, 2, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "enter_hive", true, 1, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "breed", true, 2, 100.0d, 0);
 		goals.getAsJsonObject("breed").addProperty("speed_modifier", 1.0d);
-		MobConfigManager.addBeeGoal(goals, "tempt_flower", true, 3, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "tempt_flower", true, 3, 100.0d, 0);
 		goals.getAsJsonObject("tempt_flower").addProperty("speed_modifier", 1.25d);
-		MobConfigManager.addBeeGoal(goals, "validate_hive", true, 3, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "validate_flower", true, 3, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "pollinate", true, 4, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "follow_parent", true, 5, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "validate_hive", true, 3, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "validate_flower", true, 3, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "pollinate", true, 4, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "follow_parent", true, 5, 100.0d, 0);
 		goals.getAsJsonObject("follow_parent").addProperty("speed_modifier", 1.25d);
-		MobConfigManager.addBeeGoal(goals, "locate_hive", true, 5, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "go_to_hive", true, 5, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "go_to_known_flower", true, 6, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "grow_crop", true, 7, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "locate_hive", true, 5, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "go_to_hive", true, 5, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "go_to_known_flower", true, 6, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "grow_crop", true, 7, 100.0d, 0);
 		goals.getAsJsonObject("grow_crop").addProperty("growth_chance", 30);
-		MobConfigManager.addBeeGoal(goals, "wander", true, 8, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "float", true, 9, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "hurt_by_target", true, 1, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "wander", true, 8, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "float", true, 9, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "hurt_by_target", true, 1, 100.0d, 0);
 		goals.getAsJsonObject("hurt_by_target").addProperty("alert_others", true);
-		MobConfigManager.addBeeGoal(goals, "become_angry_target", true, 2, 100.0d, 0);
-		MobConfigManager.addBeeGoal(goals, "reset_universal_anger_target", true, 3, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "become_angry_target", true, 2, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "reset_universal_anger_target", true, 3, 100.0d, 0);
 		return goals;
 	}
 
@@ -193,10 +193,10 @@ public final class MobConfigBee {
 			group.add(MobConfigManager.FIELD_MOB_BEHAVIOR, behavior);
 
 			JsonObject goals = new JsonObject();
-			MobConfigManager.addBeeGoal(goals, "bee_attack", false, 0, 100.0d, 0);
-			MobConfigManager.addBeeGoal(goals, "hurt_by_target", false, 1, 100.0d, 0);
-			MobConfigManager.addBeeGoal(goals, "become_angry_target", false, 2, 100.0d, 0);
-			MobConfigManager.addBeeGoal(goals, "reset_universal_anger_target", false, 3, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "bee_attack", false, 0, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "hurt_by_target", false, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "become_angry_target", false, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "reset_universal_anger_target", false, 3, 100.0d, 0);
 			group.add(MobConfigManager.FIELD_MOB_GOALS, goals);
 		}
 		return group;

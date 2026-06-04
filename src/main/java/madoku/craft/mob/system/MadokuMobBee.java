@@ -58,6 +58,10 @@ public final class MadokuMobBee {
 		return MadokuMobManager.applyBeeLoadedEntityOverrides(entity);
 	}
 
+	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		return MadokuMobManager.applyBeeDifficultyOverrides(entity);
+	}
+
 	public static boolean isPollinateCropsEnabled(Bee bee) {
 		if (bee == null || !MadokuMobManager.isEnabled()) {
 			return false;

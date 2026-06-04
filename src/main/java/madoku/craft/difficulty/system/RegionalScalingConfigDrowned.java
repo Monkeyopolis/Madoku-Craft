@@ -1,9 +1,10 @@
 package madoku.craft.difficulty.system;
 
 import com.google.gson.JsonObject;
+import madoku.craft.mob.system.MobConfigManager;
 
-public final class RegionalScalingConfigBee {
-	private RegionalScalingConfigBee() {
+public final class RegionalScalingConfigDrowned {
+	private RegionalScalingConfigDrowned() {
 	}
 
 	public static JsonObject buildDefaults(
@@ -15,7 +16,7 @@ public final class RegionalScalingConfigBee {
 		double experienceDrop
 	) {
 		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
-			"minecraft:bee",
+			"minecraft:drowned",
 			health,
 			movementSpeed,
 			armor,
@@ -26,7 +27,14 @@ public final class RegionalScalingConfigBee {
 			null
 		);
 		root.add(
-			RegionalDifficultyConfigManager.FIELD_FLYING_SPEED,
+			RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE,
+			RegionalDifficultyConfigManager.buildScalingValueRule(
+				RegionalDifficultyConfigManager.SCALING_TYPE_MULTIPLY,
+				5.0d
+			)
+		);
+		root.add(
+			MobConfigManager.FIELD_SWIMMING_SPEED,
 			RegionalDifficultyConfigManager.buildScalingValueRule(
 				RegionalDifficultyConfigManager.SCALING_TYPE_MULTIPLY,
 				2.0d

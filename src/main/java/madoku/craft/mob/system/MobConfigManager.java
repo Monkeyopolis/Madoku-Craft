@@ -12,6 +12,7 @@ public final class MobConfigManager {
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
 	public static final String FIELD_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_SWIMMING_SPEED = "swimming_speed";
 	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback_resistance";
 	public static final String FIELD_SCALE = "scale";
 	public static final String FIELD_EXPERIENCE_DROP = "experience_drop";
@@ -36,6 +37,8 @@ public final class MobConfigManager {
 
 	public static final String FIELD_CAN_BREAK_DOORS = "can_break_doors";
 	public static final String FIELD_CAN_PICK_UP_LOOT = "can_pick_up_loot";
+	public static final String FIELD_TRIDENT_ATTACK = "trident-attack";
+	public static final String FIELD_TRIDENT_GROUND_CLEAR_TICKS = "trident_ground_clear_ticks";
 	public static final String FIELD_SPAWN_WEIGHT = "spawn_weight";
 	public static final String FIELD_ARMOR_SPAWN_WEIGHT = "armor_spawn_weight";
 	public static final String FIELD_NO_ARMOR_SPAWN_WEIGHT = "no_armor_spawn_weight";
@@ -65,9 +68,12 @@ public final class MobConfigManager {
 	public static final String FIELD_WITHER_BOW_SPAWN_WEIGHT = "wither_bow_spawn_weight";
 	public static final String FIELD_REGULAR_SPAWN_WEIGHT = "regular_spawn_weight";
 	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
-	public static final String FIELD_ATTACK_INTERVAL = "attack_interval";
-	public static final String FIELD_ATTACK_ACCURACY = "attack_accuracy";
-	public static final String FIELD_CHARGE_UP_TICKS = "charge_up_ticks";
+	public static final String FIELD_ATTACK_INTERVAL = "attack-interval";
+	public static final String FIELD_ATTACK_ACCURACY = "attack-accuracy";
+	public static final String FIELD_CHARGE_UP_TICKS = "charge-upticks";
+	public static final String FIELD_ATTACK_INTERVAL_LEGACY = "attack_interval";
+	public static final String FIELD_ATTACK_ACCURACY_LEGACY = "attack_accuracy";
+	public static final String FIELD_CHARGE_UP_TICKS_LEGACY = "charge_up_ticks";
 	public static final String FIELD_SPAWN_RULES = "mob-spawn-rules";
 	public static final String FIELD_ARMOR_SET = "armor-set";
 	public static final String FIELD_ARMOR_RARITY = "armor-rarity";
@@ -341,7 +347,7 @@ public final class MobConfigManager {
 		return root;
 	}
 
-	static void addBeeGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
+	static void addMobGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
 		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
 			return;
 		}
@@ -354,7 +360,7 @@ public final class MobConfigManager {
 	}
 
 	private static void addGenericGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
-		addBeeGoal(goalsRoot, goalKey, enabled, priority, weight, cooldownTicks);
+		addMobGoal(goalsRoot, goalKey, enabled, priority, weight, cooldownTicks);
 	}
 
 	static void mergeMissing(JsonObject target, JsonObject defaults) {

@@ -119,16 +119,52 @@ public final class MadokuMobZombie {
 		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
 			return false;
 		}
+		if (zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
+			JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+			JsonObject variant = MadokuMobManager.resolveZombifiedPiglinVariantRootForRuntime(fileConfigRoot, zombie.isBaby());
+			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+			boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(zombie, variant);
+			applyWeaponDamagePolicy(zombie, variant);
+			applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
+			return modified;
+		}
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
 		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
 		variant = mergeZombieFileSettings(fileRoot, variant);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
-		boolean modified = overrideStats && MadokuMobManager.applyUniversalStatsForRuntime(zombie, variant);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(zombie, variant);
 		applyWeaponDamagePolicy(zombie, variant);
 		applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
 		modified |= applyConfiguredZombieAlternativeMobReplacement(zombie, variant, EntitySpawnReason.NATURAL);
+		return modified;
+	}
+
+	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		if (!(entity instanceof Zombie zombie) || entity.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = fileKeyForType(zombie.getType());
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+		if (zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
+			JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+			JsonObject variant = MadokuMobManager.resolveZombifiedPiglinVariantRootForRuntime(fileConfigRoot, zombie.isBaby());
+			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+			boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(zombie, variant);
+			applyWeaponDamagePolicy(zombie, variant);
+			applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
+			return modified;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
+		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
+		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		variant = mergeZombieFileSettings(fileRoot, variant);
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(zombie, variant);
 		return modified;
 	}
 
@@ -853,16 +889,10 @@ public final class MadokuMobZombie {
 		if (type == EntityType.ZOMBIE) {
 			return MobConfigManager.FILE_ZOMBIE;
 		}
-		if (type == EntityType.DROWNED) {
-			return MobConfigManager.FILE_DROWNED;
-		}
 		return "";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
-		if (type == EntityType.DROWNED) {
-			return "minecraft-equipment-drowned.json";
-		}
 		if (type == EntityType.ZOMBIE) {
 			return "minecraft-equipment-zombie.json";
 		}

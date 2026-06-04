@@ -125,7 +125,28 @@ public final class MadokuMobHusk {
 		variant = mergeHuskFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
-		boolean modified = overrideStats && MadokuMobManager.applyUniversalStatsForRuntime(husk, variant);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(husk, variant);
+		applyWeaponDamagePolicy(husk, variant);
+		applyHuskBehaviorToggles(husk, fileConfigRoot, variant);
+		return modified;
+	}
+
+	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		if (!(entity instanceof Husk husk) || entity.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = fileKeyForType(husk.getType());
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
+		JsonObject variant = resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+		variant = mergeHuskFileSettings(fileRoot, variant);
+
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(husk, variant);
 		applyWeaponDamagePolicy(husk, variant);
 		applyHuskBehaviorToggles(husk, fileConfigRoot, variant);
 		return modified;

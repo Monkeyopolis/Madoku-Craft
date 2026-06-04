@@ -40,7 +40,7 @@ public final class MobConfigZombieVillager {
 				0.0d,
 				5.0d,
 				0.24d,
-				0.25d,
+				0.0d,
 				1.0d,
 				7,
 				resolveDefaultMobDropsReference()
@@ -113,7 +113,7 @@ public final class MobConfigZombieVillager {
 	private static JsonObject buildZombieVillagerGoalsDefaults() {
 		JsonObject goals = new JsonObject();
 		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addBeeGoal(goals, "break_door", true, 1, 100.0d, 0);
+		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
 		return goals;
 	}
 

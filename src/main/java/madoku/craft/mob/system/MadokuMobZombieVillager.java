@@ -104,7 +104,29 @@ public final class MadokuMobZombieVillager {
 		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
-		boolean modified = overrideStats && MadokuMobManager.applyUniversalStatsForRuntime(zombieVillager, variant);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(zombieVillager, variant);
+		applyWeaponDamagePolicy(zombieVillager, variant);
+		applyZombieVillagerBehaviorToggles(zombieVillager, fileConfigRoot, variant);
+		return modified;
+	}
+
+	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		if (!(entity instanceof ZombieVillager zombieVillager) || entity.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = MobConfigManager.FILE_ZOMBIE_VILLAGER;
+		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
+		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
+
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(zombieVillager, variant);
 		applyWeaponDamagePolicy(zombieVillager, variant);
 		applyZombieVillagerBehaviorToggles(zombieVillager, fileConfigRoot, variant);
 		return modified;

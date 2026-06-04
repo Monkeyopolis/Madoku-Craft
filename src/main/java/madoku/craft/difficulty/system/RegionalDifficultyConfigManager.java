@@ -21,6 +21,7 @@ public final class RegionalDifficultyConfigManager {
 	public static final String FIELD_DIFFICULTY_SCALING = "difficulty_scaling";
 	public static final String FIELD_HEALTH = "health";
 	public static final String FIELD_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_FLYING_SPEED = "flying_speed";
 	public static final String FIELD_SCALE = "scale";
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
@@ -43,6 +44,7 @@ public final class RegionalDifficultyConfigManager {
 
 	public static final double DEFAULT_HEALTH_INCREMENT = 20.0d;
 	public static final double DEFAULT_MOVEMENT_SPEED_INCREMENT = 2.0d;
+	public static final double DEFAULT_FLYING_SPEED_INCREMENT = 2.0d;
 	public static final double DEFAULT_SCALE_INCREMENT = 0.0d;
 	public static final double DEFAULT_ARMOR_INCREMENT = 0.2d;
 	public static final double DEFAULT_DAMAGE_INCREMENT = 5.0d;
@@ -64,6 +66,7 @@ public final class RegionalDifficultyConfigManager {
 			JsonObject scaling = new JsonObject();
 			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
 			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
+			scaling.add(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT));
 			scaling.addProperty(FIELD_SCALE, DEFAULT_SCALE_INCREMENT);
 			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
 			scaling.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT));

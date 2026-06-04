@@ -47,6 +47,7 @@ import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import net.minecraft.world.entity.monster.spider.CaveSpider;
 import net.minecraft.world.entity.monster.spider.Spider;
+import net.minecraft.world.entity.monster.zombie.Drowned;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.monster.zombie.Husk;
 import net.minecraft.world.entity.player.Player;
@@ -232,6 +233,18 @@ public final class MadokuMobManager {
 			return;
 		}
 		MadokuMobZombie.applySpawnOverrides(zombie, world, difficulty, spawnReason);
+	}
+
+	public static void applyDrownedSpawnOverrides(
+		Drowned drowned,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason
+	) {
+		if (drowned == null || world == null || difficulty == null) {
+			return;
+		}
+		MadokuMobDrowned.applySpawnOverrides(drowned, world, difficulty, spawnReason);
 	}
 
 	static void queueZombieReplacement(Zombie zombie, EntityType<?> replacementType, EntitySpawnReason spawnReason) {
@@ -651,7 +664,7 @@ public final class MadokuMobManager {
 		if (arrow == null) {
 			return fallbackDamage;
 		}
-		Float fixed = FIXED_ARROW_DAMAGE.remove(arrow.getUUID());
+		Float fixed = FIXED_ARROW_DAMAGE.get(arrow.getUUID());
 		if (fixed != null) {
 			return Math.max(0.0F, fixed);
 		}
@@ -685,6 +698,33 @@ public final class MadokuMobManager {
 		double damage = resolveScaledRangedDamage(readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 6.0D), livingOwner.level().getDifficulty(), isHardcoreWorld(livingOwner.level()));
 		damage = livingOwner instanceof Mob mob ? MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(mob, damage) : damage;
 		return (float) Math.max(0.0D, damage);
+	}
+
+	public static void setProjectileDamageOverride(AbstractArrow arrow, float damage) {
+		if (arrow == null) {
+			return;
+		}
+		FIXED_ARROW_DAMAGE.put(arrow.getUUID(), Math.max(0.0F, damage));
+	}
+
+	public static void startProjectileHoming(AbstractArrow arrow, LivingEntity target, MinecraftServer server) {
+		if (arrow == null || target == null || server == null) {
+			return;
+		}
+		double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
+		arrow.setNoGravity(true);
+		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
+		requestRuntimeProcessing(server, 1L);
+	}
+
+	public static void clearProjectileHoming(AbstractArrow arrow) {
+		if (arrow == null) {
+			return;
+		}
+		HOMING_ARROWS.remove(arrow.getUUID());
+		if (arrow.isAlive()) {
+			arrow.setNoGravity(false);
+		}
 	}
 
 	public static boolean spawnManagedHomingArrow(
@@ -858,6 +898,9 @@ public final class MadokuMobManager {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.applyLoadedEntityOverrides(zombieVillager);
 		}
+		if (entity instanceof Drowned drowned) {
+			return MadokuMobDrowned.applyLoadedEntityOverrides(drowned);
+		}
 		if (entity instanceof Husk husk) {
 			return MadokuMobHusk.applyLoadedEntityOverrides(husk);
 		}
@@ -867,10 +910,10 @@ public final class MadokuMobManager {
 		if (entity instanceof Spider spider) {
 			if (spider.getType() == EntityType.CAVE_SPIDER) {
 				JsonObject root = fileMobRoot(MobConfigManager.FILE_CAVE_SPIDER);
-				return isMobFileEnabled(MobConfigManager.FILE_CAVE_SPIDER) && applyUniversalStats(spider, root);
+				return isMobFileEnabled(MobConfigManager.FILE_CAVE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 			}
 			JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
-			return isMobFileEnabled(MobConfigManager.FILE_SPIDER) && applyUniversalStats(spider, root);
+			return isMobFileEnabled(MobConfigManager.FILE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 		}
 			if (entity instanceof AbstractSkeleton skeleton) {
 				JsonObject root = skeletonRoot(skeleton.getType());
@@ -880,7 +923,7 @@ public final class MadokuMobManager {
 					: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
 					: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
 					: "";
-				boolean modified = !skeletonFileKey.isBlank() && isMobFileEnabled(skeletonFileKey) && applyUniversalStats(skeleton, root);
+				boolean modified = !skeletonFileKey.isBlank() && isMobFileEnabled(skeletonFileKey) && applyUniversalBaseStatsForRuntime(skeleton, root);
 				if (skeleton.getType() == EntityType.WITHER_SKELETON) {
 					modified |= normalizeWitherSkeletonWeapon(skeleton);
 				}
@@ -888,7 +931,7 @@ public final class MadokuMobManager {
 			}
 			if (entity instanceof Pillager pillager) {
 				JsonObject root = fileMobRoot(MobConfigManager.FILE_PILLAGER);
-				return isMobFileEnabled(MobConfigManager.FILE_PILLAGER) && applyUniversalStats(pillager, root);
+				return isMobFileEnabled(MobConfigManager.FILE_PILLAGER) && applyUniversalBaseStatsForRuntime(pillager, root);
 			}
 			if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
 				JsonObject root = fileMobRoot(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
@@ -896,7 +939,7 @@ public final class MadokuMobManager {
 					return false;
 				}
 				JsonObject variant = zombifiedPiglinVariantRoot(root, pigman.isBaby());
-				boolean modified = applyUniversalStats(pigman, variant);
+				boolean modified = applyUniversalBaseStatsForRuntime(pigman, variant);
 				enforceZombifiedPiglinWeaponLoadout(pigman);
 				return modified;
 			}
@@ -906,7 +949,7 @@ public final class MadokuMobManager {
 					return false;
 				}
 				JsonObject variant = piglinVariantRoot(root, piglin.isBaby());
-				boolean modified = applyUniversalStats(piglin, variant);
+				boolean modified = applyUniversalBaseStatsForRuntime(piglin, variant);
 				if (modified) {
 					if (piglin.isBaby()) {
 						clearPiglinMainHand(piglin);
@@ -925,7 +968,7 @@ public final class MadokuMobManager {
 			}
 			if (entity.getType() == MadokuEntities.HAG) {
 				JsonObject root = fileMobRoot(MobConfigManager.FILE_HAG);
-				return isMobFileEnabled(MobConfigManager.FILE_HAG) && applyUniversalStats(entity, root);
+				return isMobFileEnabled(MobConfigManager.FILE_HAG) && applyUniversalBaseStatsForRuntime(entity, root);
 			}
 			return false;
 	}
@@ -939,9 +982,94 @@ public final class MadokuMobManager {
 		}
 		if (loadedMobOverridesApplied && mob instanceof DifficultyScaledMob scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
 			MadokuRegionalDifficultyManager.reapplySpawnScalingFromStoredAdjustment(mob);
+		} else {
+			MadokuRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, level);
+		}
+		applyLoadedEntityDifficultyScaling(entity);
+	}
+
+	private static void applyLoadedEntityDifficultyScaling(LivingEntity entity) {
+		if (entity == null || entity.level().isClientSide() || !snapshot.enabled) {
 			return;
 		}
-		MadokuRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, level);
+		if (entity instanceof ZombieVillager zombieVillager) {
+			MadokuMobZombieVillager.applyLoadedEntityDifficultyOverrides(zombieVillager);
+			return;
+		}
+		if (entity instanceof Drowned drowned) {
+			MadokuMobDrowned.applyLoadedEntityDifficultyOverrides(drowned);
+			return;
+		}
+		if (entity instanceof Husk husk) {
+			MadokuMobHusk.applyLoadedEntityDifficultyOverrides(husk);
+			return;
+		}
+		if (entity instanceof Spider spider) {
+			if (spider.getType() == EntityType.CAVE_SPIDER) {
+				JsonObject root = fileMobRoot(MobConfigManager.FILE_CAVE_SPIDER);
+				if (isMobFileEnabled(MobConfigManager.FILE_CAVE_SPIDER)) {
+					applyUniversalDifficultyStatsForRuntime(spider, root);
+				}
+				return;
+			}
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
+			if (isMobFileEnabled(MobConfigManager.FILE_SPIDER)) {
+				applyUniversalDifficultyStatsForRuntime(spider, root);
+			}
+			return;
+		}
+		if (entity instanceof AbstractSkeleton skeleton) {
+			JsonObject root = skeletonRoot(skeleton.getType());
+			String skeletonFileKey = skeleton.getType() == EntityType.SKELETON ? MobConfigManager.FILE_SKELETON
+				: skeleton.getType() == EntityType.STRAY ? MobConfigManager.FILE_STRAY
+				: skeleton.getType() == EntityType.BOGGED ? MobConfigManager.FILE_BOGGED
+				: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
+				: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
+				: "";
+			if (!skeletonFileKey.isBlank() && isMobFileEnabled(skeletonFileKey)) {
+				applyUniversalDifficultyStatsForRuntime(skeleton, root);
+			}
+			return;
+		}
+		if (entity instanceof Pillager pillager) {
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_PILLAGER);
+			if (isMobFileEnabled(MobConfigManager.FILE_PILLAGER)) {
+				applyUniversalDifficultyStatsForRuntime(pillager, root);
+			}
+			return;
+		}
+		if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
+			if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN)) {
+				return;
+			}
+			JsonObject variant = zombifiedPiglinVariantRoot(root, pigman.isBaby());
+			applyUniversalDifficultyStatsForRuntime(pigman, variant);
+			return;
+		}
+		if (entity instanceof Zombie zombie) {
+			MadokuMobZombie.applyLoadedEntityDifficultyOverrides(zombie);
+			return;
+		}
+		if (entity instanceof Piglin piglin) {
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_PIGLIN);
+			if (!isMobFileEnabled(MobConfigManager.FILE_PIGLIN)) {
+				return;
+			}
+			JsonObject variant = piglinVariantRoot(root, piglin.isBaby());
+			applyUniversalDifficultyStatsForRuntime(piglin, variant);
+			return;
+		}
+		if (entity.getType() == EntityType.BEE) {
+			MadokuMobBee.applyLoadedEntityDifficultyOverrides(entity);
+			return;
+		}
+		if (entity.getType() == MadokuEntities.HAG) {
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_HAG);
+			if (isMobFileEnabled(MobConfigManager.FILE_HAG)) {
+				applyUniversalDifficultyStatsForRuntime(entity, root);
+			}
+		}
 	}
 
 	static void applyCreeperSpawnOverrides(Creeper creeper, ServerLevelAccessor world, DifficultyInstance difficulty) {
@@ -986,7 +1114,30 @@ public final class MadokuMobManager {
 		}
 		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
 		JsonObject resolved = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
-		return applyBeeOverrides(entity, beeFileRoot, resolved);
+		return applyBeeBaseOverrides(entity, beeFileRoot, resolved);
+	}
+
+	static boolean applyBeeBaseOverrides(LivingEntity entity, JsonObject beeFileRoot, JsonObject resolvedRoot) {
+		if (entity == null || beeFileRoot == null || resolvedRoot == null || resolvedRoot.entrySet().isEmpty()) {
+			return false;
+		}
+		boolean overrideStats = readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		if (!overrideStats) {
+			return false;
+		}
+		return applyUniversalBaseStatsForRuntime(entity, resolvedRoot);
+	}
+
+	static boolean applyBeeDifficultyOverrides(LivingEntity entity) {
+		if (entity == null || entity.level().isClientSide() || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
+			return false;
+		}
+		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
+		JsonObject resolved = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
+		if (resolved.entrySet().isEmpty() || !readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true)) {
+			return false;
+		}
+		return applyUniversalDifficultyStatsForRuntime(entity, resolved);
 	}
 
 	static JsonObject resolveBeeBehaviorRoot(LivingEntity entity) {
@@ -1047,6 +1198,9 @@ public final class MadokuMobManager {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.isCustomMobDropsEnabled(zombieVillager);
 		}
+		if (entity instanceof Drowned drowned) {
+			return MadokuMobDrowned.isCustomMobDropsEnabled(drowned);
+		}
 		if (entity instanceof Husk husk) {
 			return MadokuMobHusk.isCustomMobDropsEnabled(husk);
 		}
@@ -1056,6 +1210,9 @@ public final class MadokuMobManager {
 	public static String resolveZombieMobDropsConfigReference(LivingEntity entity) {
 		if (entity instanceof ZombieVillager zombieVillager) {
 			return MadokuMobZombieVillager.resolveMobDropsConfigReference(zombieVillager);
+		}
+		if (entity instanceof Drowned drowned) {
+			return MadokuMobDrowned.resolveMobDropsConfigReference(drowned);
 		}
 		if (entity instanceof Husk husk) {
 			return MadokuMobHusk.resolveMobDropsConfigReference(husk);
@@ -1118,10 +1275,12 @@ public final class MadokuMobManager {
 		if (entity instanceof ZombieVillager) {
 			return MobConfigManager.FILE_ZOMBIE_VILLAGER;
 		}
+		if (entity instanceof Drowned) {
+			return MobConfigManager.FILE_DROWNED;
+		}
 		if (entity instanceof Zombie zombie) {
 			return zombie.getType() == EntityType.ZOMBIE ? MobConfigManager.FILE_ZOMBIE
 				: zombie.getType() == EntityType.HUSK ? MobConfigManager.FILE_HUSK
-				: zombie.getType() == EntityType.DROWNED ? MobConfigManager.FILE_DROWNED
 				: zombie.getType() == EntityType.ZOMBIFIED_PIGLIN ? MobConfigManager.FILE_ZOMBIFIED_PIGLIN
 				: "";
 		}
@@ -1297,6 +1456,184 @@ public final class MadokuMobManager {
 		return applyUniversalStats(entity, root);
 	}
 
+	static boolean applyUniversalBaseStatsForRuntime(LivingEntity entity, JsonObject root) {
+		if (entity == null || root == null) {
+			return false;
+		}
+		boolean modified = false;
+		double oldMaxHealth = entity.getMaxHealth();
+		JsonObject statsRoot = readMobStatsRoot(root);
+		modified |= setBaseValueIfPresent(entity, Attributes.MAX_HEALTH, readOptionalPositive(statsRoot, MobConfigManager.FIELD_HEALTH));
+		modified |= setBaseValueIfPresent(entity, Attributes.ARMOR, readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_ARMOR));
+		modified |= setBaseValueIfPresent(entity, Attributes.ATTACK_DAMAGE, readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_DAMAGE));
+		modified |= setBaseValueIfPresent(entity, Attributes.MOVEMENT_SPEED, readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED));
+		modified |= setBaseValueIfPresent(entity, Attributes.FLYING_SPEED, readOptionalPositive(statsRoot, FIELD_FLYING_SPEED));
+		modified |= setBaseValueIfPresent(
+			entity,
+			Attributes.KNOCKBACK_RESISTANCE,
+			clampOptional(readOptionalDouble(statsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D)
+		);
+		Double baseScale = readOptionalPositive(statsRoot, MobConfigManager.FIELD_SCALE);
+		if (baseScale != null) {
+			modified |= setBaseValue(entity, Attributes.SCALE, baseScale);
+		}
+		Integer baseExperienceDrop = readOptionalIntNonNegative(statsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
+		if (baseExperienceDrop != null) {
+			applyExperienceDrop(entity, Math.max(0, baseExperienceDrop));
+			modified = true;
+		}
+		rescaleCurrentHealth(entity, oldMaxHealth);
+		return modified;
+	}
+
+	static boolean applyUniversalDifficultyStatsForRuntime(LivingEntity entity, JsonObject root) {
+		if (entity == null || root == null) {
+			return false;
+		}
+		boolean modified = false;
+		double oldMaxHealth = entity.getMaxHealth();
+		boolean hardcore = isHardcoreWorld(entity.level());
+		JsonObject statsRoot = readMobStatsRoot(root);
+		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_DIFFICULTY_SCALE);
+		boolean difficultyScalingEnabled = readBoolean(root, MobConfigManager.FIELD_DIFFICULTY_SCALING, false);
+		Double baseHealth = readOptionalPositive(statsRoot, MobConfigManager.FIELD_HEALTH);
+		if (baseHealth != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.MAX_HEALTH,
+				resolveScaledStat(
+					readAttributeBaseValue(entity, Attributes.MAX_HEALTH),
+					entity.level().getDifficulty(),
+					hardcore,
+					HEALTH_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH
+				)
+			);
+		}
+		Double baseArmor = readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_ARMOR);
+		if (baseArmor != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.ARMOR,
+				resolveUniversalBaseStat(
+					readAttributeBaseValue(entity, Attributes.ARMOR),
+					entity.level().getDifficulty(),
+					hardcore,
+					ARMOR_DIFFICULTY_STEP,
+					0.0D
+				)
+			);
+		}
+		Double baseDamage = readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_DAMAGE);
+		if (baseDamage != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.ATTACK_DAMAGE,
+				resolveScaledStat(
+					readAttributeBaseValue(entity, Attributes.ATTACK_DAMAGE),
+					entity.level().getDifficulty(),
+					hardcore,
+					DAMAGE_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE
+				)
+			);
+		}
+		Double baseMovementSpeed = readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED);
+		if (baseMovementSpeed != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.MOVEMENT_SPEED,
+				resolveScaledStat(
+					readAttributeBaseValue(entity, Attributes.MOVEMENT_SPEED),
+					entity.level().getDifficulty(),
+					hardcore,
+					MOVEMENT_SPEED_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED
+				)
+			);
+		}
+		Double baseFlyingSpeed = readOptionalPositive(statsRoot, FIELD_FLYING_SPEED);
+		if (baseFlyingSpeed != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.FLYING_SPEED,
+				resolveScaledStat(
+					readAttributeBaseValue(entity, Attributes.FLYING_SPEED),
+					entity.level().getDifficulty(),
+					hardcore,
+					MOVEMENT_SPEED_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_FLYING_SPEED
+				)
+			);
+		}
+		Double baseKnockbackResistance = clampOptional(readOptionalDouble(statsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D);
+		if (baseKnockbackResistance != null) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.KNOCKBACK_RESISTANCE,
+				resolveUniversalBaseStat(
+					readAttributeBaseValue(entity, Attributes.KNOCKBACK_RESISTANCE),
+					entity.level().getDifficulty(),
+					hardcore,
+					KNOCKBACK_RESISTANCE_DIFFICULTY_STEP,
+					0.0D
+				)
+			);
+		}
+		Double baseScale = readOptionalPositive(statsRoot, MobConfigManager.FIELD_SCALE);
+		if (baseScale != null) {
+			Double resolvedScale = readAttributeBaseValue(entity, Attributes.SCALE);
+			if (difficultyScalingEnabled) {
+				Double perStep = readOptionalDouble(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_SCALE);
+				if (perStep != null) {
+					resolvedScale = resolveDifficultyAdjustedPercentValue(
+						entity.level().getDifficulty(),
+						hardcore,
+						Math.max(0.0D, resolvedScale),
+						perStep,
+						0.01D
+					);
+				}
+			}
+			modified |= setBaseValueIfPresent(entity, Attributes.SCALE, resolvedScale);
+		}
+		Integer baseExperienceDrop = readOptionalIntNonNegative(statsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
+		if (baseExperienceDrop != null) {
+			int currentExperienceDrop = resolveMobExperienceDrop(entity);
+			int resolvedExperienceDrop = currentExperienceDrop;
+			if (difficultyScalingEnabled) {
+				Double perStep = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP);
+				if (perStep != null) {
+					resolvedExperienceDrop = (int) Math.round(
+						resolveDifficultyAdjustedPercentValue(
+							entity.level().getDifficulty(),
+							hardcore,
+							currentExperienceDrop,
+							perStep,
+							0.0D
+						)
+					);
+				}
+			}
+			applyExperienceDrop(entity, Math.max(0, resolvedExperienceDrop));
+			modified = true;
+		}
+		rescaleCurrentHealth(entity, oldMaxHealth);
+		return modified;
+	}
+
 	private static boolean applyCreeperRuntimeStats(Creeper creeper, JsonObject root) {
 		boolean modified = false;
 		JsonObject variant = creeper.isPowered() ? readObject(root, MobConfigManager.FIELD_CHARGED_CREEPER) : readObject(root, MobConfigManager.FIELD_CREEPER);
@@ -1454,6 +1791,10 @@ public final class MadokuMobManager {
 
 	private static JsonObject zombifiedPiglinVariantRoot(JsonObject root, boolean baby) {
 		return baby ? zombifiedPiglinBabyRoot(root) : zombifiedPiglinAdultRoot(root);
+	}
+
+	static JsonObject resolveZombifiedPiglinVariantRootForRuntime(JsonObject root, boolean baby) {
+		return zombifiedPiglinVariantRoot(root, baby);
 	}
 
 	private static JsonObject zombifiedPiglinAdultRoot(JsonObject root) {
@@ -1715,6 +2056,21 @@ public final class MadokuMobManager {
 		if (entity instanceof Mob mob && experienceDrop != null) {
 			((MobExperienceAccessor) mob).madokuCraft$setXpReward(Math.max(0, experienceDrop));
 		}
+	}
+
+	private static int resolveMobExperienceDrop(LivingEntity entity) {
+		if (entity instanceof Mob mob) {
+			return ((MobExperienceAccessor) mob).madokuCraft$getXpReward();
+		}
+		return 0;
+	}
+
+	private static double readAttributeBaseValue(LivingEntity entity, Holder<Attribute> attribute) {
+		if (entity == null || attribute == null) {
+			return 0.0D;
+		}
+		AttributeInstance instance = entity.getAttribute(attribute);
+		return instance == null ? 0.0D : instance.getBaseValue();
 	}
 
 	private static boolean setBaseValue(LivingEntity entity, Holder<Attribute> attribute, double value) {
@@ -2557,14 +2913,22 @@ public final class MadokuMobManager {
 		if (type == EntityType.ZOMBIE) {
 			return fileMobRoot(MobConfigManager.FILE_ZOMBIE);
 		}
+		return new JsonObject();
+	}
+
+	static JsonObject resolveZombieRootForRuntime(EntityType<?> type) {
+		return zombieRoot(type);
+	}
+
+	private static JsonObject drownedRoot(EntityType<?> type) {
 		if (type == EntityType.DROWNED) {
 			return fileMobRoot(MobConfigManager.FILE_DROWNED);
 		}
 		return new JsonObject();
 	}
 
-	static JsonObject resolveZombieRootForRuntime(EntityType<?> type) {
-		return zombieRoot(type);
+	static JsonObject resolveDrownedRootForRuntime(EntityType<?> type) {
+		return drownedRoot(type);
 	}
 
 	private static JsonObject zombieVillagerRoot(EntityType<?> type) {
@@ -2636,6 +3000,9 @@ public final class MadokuMobManager {
 			return new JsonObject();
 		}
 		JsonElement element = root.get(key);
+		if (element == null) {
+			element = root.get(legacyKeyAlias(key));
+		}
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
@@ -2976,6 +3343,9 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
+		if (element == null) {
+			element = root.get(legacyKeyAlias(key));
+		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
 			return fallback;
 		}
@@ -2987,6 +3357,9 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
+		if (element == null) {
+			element = root.get(legacyKeyAlias(key));
+		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
 			return fallback;
 		}
@@ -3003,6 +3376,9 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
+		if (element == null) {
+			element = root.get(legacyKeyAlias(key));
+		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
 			return fallback;
 		}
@@ -3012,6 +3388,19 @@ public final class MadokuMobManager {
 		} catch (RuntimeException ignored) {
 			return fallback;
 		}
+	}
+
+	private static String legacyKeyAlias(String key) {
+		if (key == null || key.isBlank()) {
+			return key;
+		}
+		if (key.indexOf('-') >= 0) {
+			return key.replace('-', '_');
+		}
+		if (key.indexOf('_') >= 0) {
+			return key.replace('_', '-');
+		}
+		return key;
 	}
 
 	private static Double readOptionalDouble(JsonObject root, String key) {
