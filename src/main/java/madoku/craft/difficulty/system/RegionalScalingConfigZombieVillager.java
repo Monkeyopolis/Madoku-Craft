@@ -18,10 +18,14 @@ public final class RegionalScalingConfigZombieVillager {
 			"minecraft:zombie_villager",
 			health,
 			movementSpeed,
+			null,
+			null,
+			null,
 			armor,
 			damage,
 			knockbackResistance,
 			experienceDrop,
+			null,
 			null,
 			null
 		);

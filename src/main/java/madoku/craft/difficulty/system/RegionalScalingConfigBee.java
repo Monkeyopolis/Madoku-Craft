@@ -14,24 +14,20 @@ public final class RegionalScalingConfigBee {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
+		return RegionalScalingConfigManager.buildMobScalingDefaults(
 			"minecraft:bee",
 			health,
 			movementSpeed,
+			null,
+			2.0d,
+			null,
 			armor,
 			damage,
 			knockbackResistance,
 			experienceDrop,
 			null,
+			null,
 			null
 		);
-		root.add(
-			RegionalDifficultyConfigManager.FIELD_FLYING_SPEED,
-			RegionalDifficultyConfigManager.buildScalingValueRule(
-				RegionalDifficultyConfigManager.SCALING_TYPE_MULTIPLY,
-				2.0d
-			)
-		);
-		return root;
 	}
 }

@@ -2,8 +2,8 @@ package madoku.craft.difficulty.system;
 
 import com.google.gson.JsonObject;
 
-public final class RegionalScalingConfigHusk {
-	private RegionalScalingConfigHusk() {
+public final class RegionalScalingConfigSpider {
+	private RegionalScalingConfigSpider() {
 	}
 
 	public static JsonObject buildDefaults(
@@ -15,12 +15,12 @@ public final class RegionalScalingConfigHusk {
 		double experienceDrop
 	) {
 		return RegionalScalingConfigManager.buildMobScalingDefaults(
-			"minecraft:husk",
+			"minecraft:spider",
 			health,
 			movementSpeed,
 			null,
 			null,
-			null,
+			10.0d,
 			armor,
 			damage,
 			knockbackResistance,

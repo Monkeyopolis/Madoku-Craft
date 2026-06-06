@@ -18,10 +18,14 @@ public final class RegionalScalingConfigZombie {
 			"minecraft:zombie",
 			health,
 			movementSpeed,
+			null,
+			null,
+			null,
 			armor,
 			damage,
 			knockbackResistance,
 			experienceDrop,
+			null,
 			null,
 			null
 		);

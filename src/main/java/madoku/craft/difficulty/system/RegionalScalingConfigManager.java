@@ -27,6 +27,7 @@ public final class RegionalScalingConfigManager {
 			knockbackResistance,
 			experienceDrop
 		));
+		defaults.put("spider", RegionalScalingConfigSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("zombie", RegionalScalingConfigZombie.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("husk", RegionalScalingConfigHusk.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("drowned", RegionalScalingConfigDrowned.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
@@ -48,6 +49,16 @@ public final class RegionalScalingConfigManager {
 		}
 		if ("drowned".equals(normalized) || "minecraft:drowned".equals(normalized)) {
 			return RegionalScalingConfigDrowned.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("spider".equals(normalized) || "minecraft:spider".equals(normalized)) {
+			return RegionalScalingConfigSpider.buildDefaults(
 				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
@@ -91,24 +102,32 @@ public final class RegionalScalingConfigManager {
 
 	public static JsonObject buildMobScalingDefaults(
 		String mobId,
-		double health,
-		double movementSpeed,
-		double armor,
-		double damage,
-		double knockbackResistance,
-		double experienceDrop,
+		Double health,
+		Double movementSpeed,
+		Double swimmingSpeed,
+		Double flyingSpeed,
 		Double scale,
+		Double armor,
+		Double damage,
+		Double knockbackResistance,
+		Double experienceDrop,
+		Double rangedDamage,
+		Double attackAccuracy,
 		Double explosionPower
 	) {
 		return RegionalDifficultyConfigManager.buildMobScalingDefaults(
 			mobId,
 			health,
 			movementSpeed,
+			swimmingSpeed,
+			flyingSpeed,
+			scale,
 			armor,
 			damage,
 			knockbackResistance,
 			experienceDrop,
-			scale,
+			rangedDamage,
+			attackAccuracy,
 			explosionPower
 		);
 	}

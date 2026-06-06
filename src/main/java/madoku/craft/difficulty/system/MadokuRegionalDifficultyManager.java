@@ -61,7 +61,6 @@ public final class MadokuRegionalDifficultyManager {
 	private static final long TIME_SCHEDULER_MAX_INTERVAL_TICKS = 100L;
 	private static final double RANGED_DAMAGE_SCALE_STEP_PERCENT = 0.05D;
 	private static final double ATTACK_ACCURACY_SCALE_STEP = 0.02D;
-	private static final double SCALE_SCALE_STEP = 0.02D;
 	private static final double CREEPER_EXPLOSION_POWER_SCALE_STEP = 0.2D;
 	private static final double SCALING_ROUND_STEP = 0.05D;
 
@@ -399,14 +398,14 @@ public final class MadokuRegionalDifficultyManager {
 			);
 				Map<String, JsonObject> normalizedMobScaling = DynamicStaticSystem.ensureManagedFolder(
 					rulesDirectory.resolve(DIFFICULTY_CONFIG_MOB_SCALING_FOLDER_NAME),
-						RegionalScalingConfigManager.buildDefaultMobScalingFileDefaults(
-							defaultHealthIncrement,
-							defaultMovementSpeedIncrement,
-							defaultArmorIncrement,
-							defaultDamageIncrement,
-							defaultKnockbackResistanceIncrement,
-							defaultExperienceDropIncrement
-						),
+					RegionalScalingConfigManager.buildDefaultMobScalingFileDefaults(
+						defaultHealthIncrement,
+						defaultMovementSpeedIncrement,
+						defaultArmorIncrement,
+						defaultDamageIncrement,
+						defaultKnockbackResistanceIncrement,
+						defaultExperienceDropIncrement
+					),
 					RegionalScalingConfigManager::buildDynamicMobScalingDefaults,
 					MadokuRegionalDifficultyManager::isSupportedMobScalingFile,
 					null
@@ -440,8 +439,9 @@ public final class MadokuRegionalDifficultyManager {
 			StatIncrements increments = new StatIncrements(
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_HEALTH, RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT),
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_MOVEMENT_SPEED, RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT),
+				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_SWIMMING_SPEED, RegionalDifficultyConfigManager.DEFAULT_SWIMMING_SPEED_INCREMENT),
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_FLYING_SPEED, RegionalDifficultyConfigManager.DEFAULT_FLYING_SPEED_INCREMENT),
-				readFiniteDouble(scaling, RegionalDifficultyConfigManager.FIELD_SCALE, RegionalDifficultyConfigManager.DEFAULT_SCALE_INCREMENT),
+				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_SCALE, RegionalDifficultyConfigManager.DEFAULT_SCALE_INCREMENT),
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_ARMOR, RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT),
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_DAMAGE, RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT),
 				readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT),
@@ -588,15 +588,16 @@ public final class MadokuRegionalDifficultyManager {
 		return new StatIncrements(
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_HEALTH, fallbackIncrements.health()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_MOVEMENT_SPEED, fallbackIncrements.movementSpeed()),
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_SWIMMING_SPEED, fallbackIncrements.swimmingSpeed()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_FLYING_SPEED, fallbackIncrements.flyingSpeed()),
-			readFiniteDouble(root, RegionalDifficultyConfigManager.FIELD_SCALE, fallbackIncrements.scale()),
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_SCALE, fallbackIncrements.scale()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_ARMOR, fallbackIncrements.armor()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_DAMAGE, fallbackIncrements.damage()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, fallbackIncrements.knockbackResistance()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, fallbackIncrements.experienceDrop()),
-			readFiniteDouble(root, RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE, fallbackIncrements.rangedDamage()),
-			readFiniteDouble(root, RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY, fallbackIncrements.attackAccuracy()),
-			readFiniteDouble(root, RegionalDifficultyConfigManager.FIELD_EXPLOSION_POWER, fallbackIncrements.explosionPower())
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE, fallbackIncrements.rangedDamage()),
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY, fallbackIncrements.attackAccuracy()),
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_EXPLOSION_POWER, fallbackIncrements.explosionPower())
 		);
 	}
 
@@ -604,7 +605,9 @@ public final class MadokuRegionalDifficultyManager {
 		return new StatModes(
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_HEALTH, fallbackModes.healthMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_MOVEMENT_SPEED, fallbackModes.movementSpeedMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_SWIMMING_SPEED, fallbackModes.swimmingSpeedMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_FLYING_SPEED, fallbackModes.flyingSpeedMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_SCALE, fallbackModes.scaleMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_ARMOR, fallbackModes.armorMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_DAMAGE, fallbackModes.damageMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, fallbackModes.knockbackResistanceMode()),
@@ -874,10 +877,11 @@ public final class MadokuRegionalDifficultyManager {
 			double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
 			double healthAddition = resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
 			double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
+			double swimmingSpeedAddition = fullStatScaling ? resolveSwimmingSpeedScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
 			double flyingSpeedAddition = fullStatScaling && mob.getType() == EntityType.BEE
 				? resolveFlyingSpeedScalingAmount(mob, increments, modes, totalAdjustment)
 				: 0.0D;
-			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(increments, totalAdjustment) : 0.0D;
+			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
 			double armorAddition = fullStatScaling ? resolveArmorScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
 			double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
 			double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
@@ -887,6 +891,7 @@ public final class MadokuRegionalDifficultyManager {
 		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
 		if (fullStatScaling) {
 			addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
+			addAttribute(mob, Attributes.WATER_MOVEMENT_EFFICIENCY, swimmingSpeedAddition);
 			if (mob.getType() == EntityType.BEE) {
 				addAttribute(mob, Attributes.FLYING_SPEED, flyingSpeedAddition);
 			}
@@ -966,6 +971,19 @@ public final class MadokuRegionalDifficultyManager {
 		return resolveScaledAddition(currentSpeed, increments.movementSpeed(), modes.movementSpeedMode(), totalAdjustment);
 	}
 
+	private static double resolveSwimmingSpeedScalingAmount(
+		Mob mob,
+		StatIncrements increments,
+		StatModes modes,
+		int totalAdjustment
+	) {
+		if (mob == null) {
+			return 0.0D;
+		}
+		double currentSpeed = Math.max(0.0D, mob.getAttributeValue(Attributes.WATER_MOVEMENT_EFFICIENCY));
+		return resolveScaledAddition(currentSpeed, increments.swimmingSpeed(), modes.swimmingSpeedMode(), totalAdjustment);
+	}
+
 	private static double resolveFlyingSpeedScalingAmount(
 		Mob mob,
 		StatIncrements increments,
@@ -979,8 +997,17 @@ public final class MadokuRegionalDifficultyManager {
 		return resolveScaledAddition(currentSpeed, increments.flyingSpeed(), modes.flyingSpeedMode(), totalAdjustment);
 	}
 
-	private static double resolveScaleScalingAmount(StatIncrements increments, int totalAdjustment) {
-		return roundToNearestStep(Math.max(0.0D, increments.scale()) * SCALE_SCALE_STEP * totalAdjustment, SCALING_ROUND_STEP);
+	private static double resolveScaleScalingAmount(
+		Mob mob,
+		StatIncrements increments,
+		StatModes modes,
+		int totalAdjustment
+	) {
+		if (mob == null) {
+			return 0.0D;
+		}
+		double currentScale = Math.max(0.0D, mob.getAttributeValue(Attributes.SCALE));
+		return resolveScaledAddition(currentScale, increments.scale(), modes.scaleMode(), totalAdjustment);
 	}
 
 	private static double resolveArmorScalingAmount(Mob mob, StatIncrements increments, StatModes modes, int totalAdjustment) {
@@ -1134,7 +1161,10 @@ public final class MadokuRegionalDifficultyManager {
 			return fallback;
 		}
 		JsonElement statElement = root.get(statField);
-		if (statElement == null || !statElement.isJsonObject()) {
+		if (statElement == null) {
+			return fallback;
+		}
+		if (!statElement.isJsonObject()) {
 			return fallback;
 		}
 		JsonObject statObject = statElement.getAsJsonObject();
@@ -1154,11 +1184,14 @@ public final class MadokuRegionalDifficultyManager {
 			return fallback;
 		}
 		JsonElement statElement = root.get(statField);
-		if (statElement == null || !statElement.isJsonObject()) {
+		if (statElement == null) {
 			return fallback;
 		}
-		JsonObject statObject = statElement.getAsJsonObject();
-		return readFiniteDouble(statObject, RegionalDifficultyConfigManager.FIELD_SCALING_VALUE, fallback);
+		if (statElement.isJsonObject()) {
+			JsonObject statObject = statElement.getAsJsonObject();
+			return readFiniteDouble(statObject, RegionalDifficultyConfigManager.FIELD_SCALING_VALUE, fallback);
+		}
+		return fallback;
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -1266,7 +1299,7 @@ public final class MadokuRegionalDifficultyManager {
 			private static Snapshot disabled() {
 					return new Snapshot(
 						false,
-						new StatIncrements(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D),
+						new StatIncrements(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D),
 						StatModes.defaults(),
 						new RegionalBiomeDifficultyRuntime(false, RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT, Map.of()),
 						new RegionalStructureDifficultyRuntime(false, RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT, Map.of()),
@@ -1304,6 +1337,7 @@ public final class MadokuRegionalDifficultyManager {
 	private record StatIncrements(
 		double health,
 		double movementSpeed,
+		double swimmingSpeed,
 		double flyingSpeed,
 		double scale,
 		double armor,
@@ -1331,7 +1365,9 @@ public final class MadokuRegionalDifficultyManager {
 	private record StatModes(
 		ScalingMode healthMode,
 		ScalingMode movementSpeedMode,
+		ScalingMode swimmingSpeedMode,
 		ScalingMode flyingSpeedMode,
+		ScalingMode scaleMode,
 		ScalingMode armorMode,
 		ScalingMode damageMode,
 		ScalingMode knockbackResistanceMode,
@@ -1339,6 +1375,8 @@ public final class MadokuRegionalDifficultyManager {
 	) {
 		private static StatModes defaults() {
 			return new StatModes(
+				ScalingMode.MULTIPLY,
+				ScalingMode.MULTIPLY,
 				ScalingMode.MULTIPLY,
 				ScalingMode.MULTIPLY,
 				ScalingMode.MULTIPLY,

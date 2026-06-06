@@ -21,6 +21,7 @@ public final class RegionalDifficultyConfigManager {
 	public static final String FIELD_DIFFICULTY_SCALING = "difficulty_scaling";
 	public static final String FIELD_HEALTH = "health";
 	public static final String FIELD_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_SWIMMING_SPEED = "swimming_speed";
 	public static final String FIELD_FLYING_SPEED = "flying_speed";
 	public static final String FIELD_SCALE = "scale";
 	public static final String FIELD_ARMOR = "armor";
@@ -44,6 +45,7 @@ public final class RegionalDifficultyConfigManager {
 
 	public static final double DEFAULT_HEALTH_INCREMENT = 20.0d;
 	public static final double DEFAULT_MOVEMENT_SPEED_INCREMENT = 2.0d;
+	public static final double DEFAULT_SWIMMING_SPEED_INCREMENT = 0.0d;
 	public static final double DEFAULT_FLYING_SPEED_INCREMENT = 2.0d;
 	public static final double DEFAULT_SCALE_INCREMENT = 0.0d;
 	public static final double DEFAULT_ARMOR_INCREMENT = 0.2d;
@@ -66,12 +68,16 @@ public final class RegionalDifficultyConfigManager {
 			JsonObject scaling = new JsonObject();
 			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
 			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
+			scaling.add(FIELD_SWIMMING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_SWIMMING_SPEED_INCREMENT));
 			scaling.add(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT));
-			scaling.addProperty(FIELD_SCALE, DEFAULT_SCALE_INCREMENT);
+			scaling.add(FIELD_SCALE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_SCALE_INCREMENT));
 			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
 			scaling.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT));
 			scaling.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT));
 			scaling.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT));
+			scaling.add(FIELD_RANGED_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, 0.0d));
+			scaling.add(FIELD_ATTACK_ACCURACY, buildScalingValueRule(SCALING_TYPE_MULTIPLY, 0.0d));
+			scaling.add(FIELD_EXPLOSION_POWER, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPLOSION_POWER_INCREMENT));
 			root.add(FIELD_DIFFICULTY_SCALING, scaling);
 			return root;
 		}
@@ -155,28 +161,21 @@ public final class RegionalDifficultyConfigManager {
 		double experienceDrop
 	) {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("creeper", buildMobScalingDefaults("minecraft:creeper", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null, damage));
-		defaults.put("skeleton", buildMobScalingDefaults("minecraft:skeleton", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("stray", buildMobScalingDefaults("minecraft:stray", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("bogged", buildMobScalingDefaults("minecraft:bogged", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("parched", buildMobScalingDefaults("minecraft:parched", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("wither-skeleton", buildMobScalingDefaults("minecraft:wither_skeleton", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("spider", buildMobScalingDefaults("minecraft:spider", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, 1.0d));
-		defaults.put("cave-spider", buildMobScalingDefaults("minecraft:cave_spider", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, 1.0d));
-		defaults.put("zombie", buildMobScalingDefaults("minecraft:zombie", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("husk", buildMobScalingDefaults("minecraft:husk", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("drowned", buildMobScalingDefaults("minecraft:drowned", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("zombie-villager", buildMobScalingDefaults("minecraft:zombie_villager", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("pillager", buildMobScalingDefaults("minecraft:pillager", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("piglin", buildMobScalingDefaults("minecraft:piglin", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		defaults.put("hag", buildMobScalingDefaults("madoku-craft:hag", health, movementSpeed, armor, damage, knockbackResistance, experienceDrop, null));
-		addRangedScalingDefaults(defaults.get("skeleton"));
-		addRangedScalingDefaults(defaults.get("stray"));
-		addRangedScalingDefaults(defaults.get("bogged"));
-		addRangedScalingDefaults(defaults.get("parched"));
-		addRangedScalingDefaults(defaults.get("wither-skeleton"));
-		addRangedScalingDefaults(defaults.get("pillager"));
-		addRangedScalingDefaults(defaults.get("piglin"));
+		defaults.put("creeper", buildMobScalingDefaults("minecraft:creeper", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, damage));
+		defaults.put("skeleton", buildMobScalingDefaults("minecraft:skeleton", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("stray", buildMobScalingDefaults("minecraft:stray", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("bogged", buildMobScalingDefaults("minecraft:bogged", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("parched", buildMobScalingDefaults("minecraft:parched", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("wither-skeleton", buildMobScalingDefaults("minecraft:wither_skeleton", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("spider", buildMobScalingDefaults("minecraft:spider", health, movementSpeed, null, null, 1.0d, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("cave-spider", buildMobScalingDefaults("minecraft:cave_spider", health, movementSpeed, null, null, 1.0d, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("zombie", buildMobScalingDefaults("minecraft:zombie", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("husk", buildMobScalingDefaults("minecraft:husk", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("drowned", buildMobScalingDefaults("minecraft:drowned", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("zombie-villager", buildMobScalingDefaults("minecraft:zombie_villager", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
+		defaults.put("pillager", buildMobScalingDefaults("minecraft:pillager", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("piglin", buildMobScalingDefaults("minecraft:piglin", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("hag", buildMobScalingDefaults("madoku-craft:hag", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		return defaults;
 	}
 
@@ -187,12 +186,16 @@ public final class RegionalDifficultyConfigManager {
 					mobId,
 					DEFAULT_HEALTH_INCREMENT,
 					DEFAULT_MOVEMENT_SPEED_INCREMENT,
-						DEFAULT_ARMOR_INCREMENT,
+					DEFAULT_SWIMMING_SPEED_INCREMENT,
+					DEFAULT_FLYING_SPEED_INCREMENT,
+					null,
+					DEFAULT_ARMOR_INCREMENT,
 					DEFAULT_DAMAGE_INCREMENT,
 					DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
 					DEFAULT_EXPERIENCE_DROP_INCREMENT,
-					null,
-						DEFAULT_EXPLOSION_POWER_INCREMENT
+					0.0d,
+					0.0d,
+					DEFAULT_EXPLOSION_POWER_INCREMENT
 					);
 				}
 					if ("minecraft:skeleton".equals(mobId)
@@ -203,23 +206,37 @@ public final class RegionalDifficultyConfigManager {
 						|| "minecraft:pillager".equals(mobId)
 						|| "minecraft:piglin".equals(mobId)
 						|| "madoku-craft:hag".equals(mobId)) {
-						JsonObject defaults = buildMobScalingDefaults(mobId);
-						if (!"madoku-craft:hag".equals(mobId)) {
-							addRangedScalingDefaults(defaults);
-						}
-						return defaults;
+						return buildMobScalingDefaults(
+							mobId,
+							DEFAULT_HEALTH_INCREMENT,
+							DEFAULT_MOVEMENT_SPEED_INCREMENT,
+							DEFAULT_SWIMMING_SPEED_INCREMENT,
+							DEFAULT_FLYING_SPEED_INCREMENT,
+							null,
+							DEFAULT_ARMOR_INCREMENT,
+							DEFAULT_DAMAGE_INCREMENT,
+							DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+							DEFAULT_EXPERIENCE_DROP_INCREMENT,
+							1.0d,
+							1.0d,
+							null
+						);
 				}
 				if ("minecraft:spider".equals(mobId) || "minecraft:cave_spider".equals(mobId)) {
 					return buildMobScalingDefaults(
 						mobId,
-					DEFAULT_HEALTH_INCREMENT,
-					DEFAULT_MOVEMENT_SPEED_INCREMENT,
-					DEFAULT_ARMOR_INCREMENT,
-					DEFAULT_DAMAGE_INCREMENT,
-					DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
-					DEFAULT_EXPERIENCE_DROP_INCREMENT,
-					1.0d,
-					null
+						DEFAULT_HEALTH_INCREMENT,
+						DEFAULT_MOVEMENT_SPEED_INCREMENT,
+						DEFAULT_SWIMMING_SPEED_INCREMENT,
+						DEFAULT_FLYING_SPEED_INCREMENT,
+						1.0d,
+						DEFAULT_ARMOR_INCREMENT,
+						DEFAULT_DAMAGE_INCREMENT,
+						DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+						DEFAULT_EXPERIENCE_DROP_INCREMENT,
+						null,
+						null,
+						null
 				);
 			}
 		return buildMobScalingDefaults(mobId);
@@ -252,10 +269,14 @@ public final class RegionalDifficultyConfigManager {
 			mobId,
 			DEFAULT_HEALTH_INCREMENT,
 			DEFAULT_MOVEMENT_SPEED_INCREMENT,
+			DEFAULT_SWIMMING_SPEED_INCREMENT,
+			DEFAULT_FLYING_SPEED_INCREMENT,
+			null,
 			DEFAULT_ARMOR_INCREMENT,
 			DEFAULT_DAMAGE_INCREMENT,
 			DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
 			DEFAULT_EXPERIENCE_DROP_INCREMENT,
+			null,
 			null,
 			null
 		);
@@ -263,53 +284,34 @@ public final class RegionalDifficultyConfigManager {
 
 	public static JsonObject buildMobScalingDefaults(
 		String mobId,
-		double health,
-		double movementSpeed,
-		double armor,
-		double damage,
-		double knockbackResistance,
-		double experienceDrop,
-		Double scale
-	) {
-		return buildMobScalingDefaults(
-			mobId,
-			health,
-			movementSpeed,
-			armor,
-			damage,
-			knockbackResistance,
-			experienceDrop,
-			scale,
-			null
-		);
-	}
-
-	public static JsonObject buildMobScalingDefaults(
-		String mobId,
-		double health,
-		double movementSpeed,
-		double armor,
-		double damage,
-		double knockbackResistance,
-		double experienceDrop,
+		Double health,
+		Double movementSpeed,
+		Double swimmingSpeed,
+		Double flyingSpeed,
 		Double scale,
+		Double armor,
+		Double damage,
+		Double knockbackResistance,
+		Double experienceDrop,
+		Double rangedDamage,
+		Double attackAccuracy,
 		Double explosionPower
 	) {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
 		root.addProperty(FIELD_MOB_ID, normalizeMobId(mobId));
-		root.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, health));
-		root.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, movementSpeed));
-		root.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, armor));
-		root.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, damage));
-		root.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, knockbackResistance));
-		root.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, experienceDrop));
-		if (scale != null) {
-			root.addProperty(FIELD_SCALE, scale);
-		}
-		if (explosionPower != null) {
-			root.addProperty(FIELD_EXPLOSION_POWER, explosionPower);
-		}
+		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_MOVEMENT_SPEED, movementSpeed, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_SWIMMING_SPEED, swimmingSpeed, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_FLYING_SPEED, flyingSpeed, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_SCALE, scale, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_ARMOR, armor, SCALING_TYPE_ADD);
+		addScalingEntry(root, FIELD_DAMAGE, damage, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_KNOCKBACK_RESISTANCE, knockbackResistance, SCALING_TYPE_ADD);
+		addScalingEntry(root, FIELD_EXPERIENCE_DROP, experienceDrop, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_RANGED_DAMAGE, rangedDamage, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_ATTACK_ACCURACY, attackAccuracy, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_EXPLOSION_POWER, explosionPower, SCALING_TYPE_MULTIPLY);
 		return root;
 	}
 
@@ -346,6 +348,13 @@ public final class RegionalDifficultyConfigManager {
 		return rule;
 	}
 
+	private static void addScalingEntry(JsonObject root, String field, Double value, String type) {
+		if (root == null || field == null || field.isBlank() || value == null) {
+			return;
+		}
+		root.add(field, buildScalingValueRule(type, value));
+	}
+
 	private static String resolveMobIdFromFileKey(String fileKey) {
 		String normalized = fileKey == null ? "" : fileKey.trim().toLowerCase(Locale.ROOT);
 		if (normalized.isBlank()) {
@@ -369,14 +378,6 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 		public record TimeTierDefinition(int minDay, int maxDay, int adjustment) {
-		}
-
-		private static void addRangedScalingDefaults(JsonObject root) {
-			if (root == null) {
-				return;
-			}
-			root.addProperty(FIELD_RANGED_DAMAGE, 1.0d);
-			root.addProperty(FIELD_ATTACK_ACCURACY, 1.0d);
 		}
 	}
 
