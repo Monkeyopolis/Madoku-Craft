@@ -42,30 +42,21 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.Creeper;
-import net.minecraft.world.entity.monster.illager.Pillager;
-import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
-import net.minecraft.world.entity.monster.spider.CaveSpider;
 import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.entity.monster.zombie.Drowned;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.monster.zombie.Husk;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.entity.projectile.arrow.Arrow;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 
 import java.io.IOException;
@@ -92,10 +83,6 @@ public final class MadokuMobManager {
 	private static final double ATTACK_ACCURACY_DIFFICULTY_STEP = 0.05D;
 	private static final double CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP = 1.0D;
 	private static final double CREEPER_POWER_PER_DAMAGE = 0.2D;
-	private static final double ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE = 8.0D;
-	private static final double ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE = 4.0D;
-	private static final double ZOMBIFIED_PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
-	private static final double PIGLIN_ANGER_BROADCAST_RANGE = 8.0D;
 	private static final double MIN_HOMING_SPEED = 0.75D;
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
@@ -109,7 +96,7 @@ public final class MadokuMobManager {
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> MANAGED_MOB_ARROWS = new ConcurrentHashMap<>();
 	private static final java.util.Set<UUID> INVULNERABILITY_BYPASS_ARROWS = ConcurrentHashMap.newKeySet();
-	private static final Map<UUID, Integer> PILLAGER_ATTACK_COOLDOWNS = new ConcurrentHashMap<>();
+	private static final Map<UUID, EntitySpawnReason> PENDING_SPIDER_JOCKEY_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingZombieReplacement> PENDING_ZOMBIE_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
@@ -144,7 +131,7 @@ public final class MadokuMobManager {
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
 		INVULNERABILITY_BYPASS_ARROWS.clear();
-		PILLAGER_ATTACK_COOLDOWNS.clear();
+		PENDING_SPIDER_JOCKEY_REPLACEMENTS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -165,7 +152,7 @@ public final class MadokuMobManager {
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
 		INVULNERABILITY_BYPASS_ARROWS.clear();
-		PILLAGER_ATTACK_COOLDOWNS.clear();
+		PENDING_SPIDER_JOCKEY_REPLACEMENTS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -176,48 +163,21 @@ public final class MadokuMobManager {
 		return snapshot.enabled;
 	}
 
-	public static boolean shouldReplaceVanillaZombifiedPiglinBroadcast() {
-		return snapshot.enabled && isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
-	}
-
-	public static boolean shouldReplaceVanillaPiglinZombifiedAvoid() {
-		return snapshot.enabled && isMobFileEnabled(MobConfigManager.FILE_PIGLIN);
-	}
-
-	public static void applyCustomZombifiedPiglinAggressionTick(Zombie pigman) {
-		if (pigman == null || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN) || !pigman.isAlive()) {
-			return;
-		}
-		enforceZombifiedPiglinWeaponLoadout(pigman);
-		if (pigman.isBaby()) {
-			pigman.setTarget(null);
-			pigman.setAggressive(false);
-			return;
-		}
-		if (!(pigman.level() instanceof ServerLevel level)) {
-			return;
-		}
-		LivingEntity target = resolveZombifiedPiglinTarget(level, pigman);
-		if (target != null && target.isAlive() && target != pigman) {
-			pigman.setTarget(target);
-		}
-	}
-
 	public static void applyMobSpawnOverridesFromGenericMixin(
 		Mob mob,
 		ServerLevelAccessor world,
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
-		) {
-			if (mob instanceof Creeper creeper) {
-				MadokuMobCreeper.applySpawnOverrides(creeper, world, difficulty);
-		} else if (mob.getType() == EntityType.ZOMBIFIED_PIGLIN && mob instanceof Zombie zombifiedPiglin) {
-			MadokuMobZombifiedPiglin.applySpawnOverrides(zombifiedPiglin, world);
-		} else if (mob instanceof Piglin piglin) {
-			MadokuMobPiglin.applySpawnOverrides(piglin, world);
-		} else if (mob.getType() == EntityType.BEE) {
+	) {
+		if (mob instanceof Creeper creeper) {
+			MadokuMobCreeper.applySpawnOverrides(creeper, world, difficulty);
+			return;
+		}
+		if (mob.getType() == EntityType.BEE) {
 			MadokuMobBee.applySpawnOverrides(mob, world);
-		} else if (mob.getType() == MadokuEntities.HAG) {
+			return;
+		}
+		if (mob.getType() == MadokuEntities.HAG) {
 			MadokuMobHag.applySpawnOverrides(mob);
 		}
 	}
@@ -256,44 +216,31 @@ public final class MadokuMobManager {
 		requestRuntimeProcessing(server, 1L);
 	}
 
+	static void queueCaveSpiderReplacement(Spider spider, EntitySpawnReason spawnReason) {
+		if (spider == null || spawnReason == null || spider.getType() != EntityType.SPIDER) {
+			return;
+		}
+		PENDING_CAVE_SPIDER_REPLACEMENTS.put(spider.getUUID(), spawnReason);
+		MinecraftServer server = resolveServer(spider);
+		requestRuntimeProcessing(server, 1L);
+	}
+
+	static void queueSpiderJockeyReplacement(Spider spider, EntitySpawnReason spawnReason) {
+		if (spider == null || spawnReason == null || spider.getType() != EntityType.SPIDER) {
+			return;
+		}
+		PENDING_SPIDER_JOCKEY_REPLACEMENTS.put(spider.getUUID(), spawnReason);
+		MinecraftServer server = resolveServer(spider);
+		requestRuntimeProcessing(server, 1L);
+	}
+
 	public static void applySpiderSpawnOverrides(
 		Spider spider,
 		ServerLevelAccessor world,
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
-		if (spider == null || world == null || difficulty == null || !snapshot.enabled) {
-			return;
-		}
-		JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
-		if (spider.getType() != EntityType.SPIDER || spawnReason == EntitySpawnReason.JOCKEY || !isMobFileEnabled(MobConfigManager.FILE_SPIDER)) {
-			return;
-		}
-
-		clearExistingSkeletonPassengers(spider);
-		SpawnWeightPair caveShifted = resolveDifficultyShiftedSpawnWeights(
-			readSpawnRuleDouble(root, MobConfigManager.FIELD_SPIDER_SPAWN_WEIGHT, 90.0D),
-			readSpawnRuleDouble(root, MobConfigManager.FIELD_CAVE_SPIDER_SPAWN_WEIGHT, 5.0D),
-			difficulty.getDifficulty(),
-			isHardcoreWorld(spider.level()),
-			SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP
-		);
-		SpawnWeightPair jockeyShifted = resolveDifficultyShiftedSpawnWeights(
-			caveShifted.regularWeight,
-			readSpawnRuleDouble(root, MobConfigManager.FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0D),
-			difficulty.getDifficulty(),
-			isHardcoreWorld(spider.level()),
-			SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP
-		);
-		SpawnOutcome outcome = rollSpiderSpawnOutcome(world.getRandom(), jockeyShifted.regularWeight, caveShifted.specialWeight, jockeyShifted.specialWeight);
-		if (outcome == SpawnOutcome.CAVE_SPIDER) {
-			PENDING_CAVE_SPIDER_REPLACEMENTS.put(spider.getUUID(), spawnReason);
-			requestRuntimeProcessing(world.getLevel().getServer(), 1L);
-			return;
-		}
-		if (outcome == SpawnOutcome.SPIDER_JOCKEY) {
-			spawnSpiderJockey(spider, world, difficulty);
-		}
+		MadokuMobSpider.applySpawnOverrides(spider, world, difficulty, spawnReason);
 	}
 
 	public static void applySkeletonSpawnOverrides(
@@ -461,25 +408,6 @@ public final class MadokuMobManager {
 		return Math.max(1, (int) Math.round(charge));
 	}
 
-	public static boolean applyCustomPillagerRangedShot(Pillager pillager, LivingEntity target, float speed) {
-		if (pillager == null || target == null || !target.isAlive() || !snapshot.enabled) {
-			return false;
-		}
-		if (!isMobFileEnabled(MobConfigManager.FILE_PILLAGER)) {
-			return false;
-		}
-		InteractionHand hand = ProjectileUtil.getWeaponHoldingHand(pillager, Items.CROSSBOW);
-		ItemStack stack = pillager.getItemInHand(hand);
-		if (!(stack.getItem() instanceof CrossbowItem crossbowItem)) {
-			return false;
-		}
-		float spread = 14.0F - (pillager.level().getDifficulty().getId() * 4.0F);
-			crossbowItem.performShooting(pillager.level(), pillager, hand, stack, speed, spread, target);
-				pillager.onCrossbowAttackPerformed();
-				markCrossbowAttackCooldown(pillager);
-				return true;
-			}
-
 	public static void applyWitherSkeletonArrowHitEffect(LivingEntity target, Entity attacker) {
 		applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
 	}
@@ -492,31 +420,10 @@ public final class MadokuMobManager {
 		if (attacker == null || !attacker.isAlive() || attacker == victim) {
 			return;
 		}
-		if (!(victim.level() instanceof ServerLevel level)) {
+		if (!(victim.level() instanceof ServerLevel)) {
 			return;
 		}
 
-		if (victim.getType() == EntityType.ZOMBIFIED_PIGLIN && victim instanceof Zombie pigman) {
-			if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN) || pigman.isBaby()) {
-				return;
-			}
-			pigman.setTarget(attacker);
-			pigman.setAggressive(true);
-			broadcastZombifiedPiglinAnger(level, pigman, attacker);
-			return;
-		}
-		if (victim instanceof Piglin piglin) {
-			if (!isMobFileEnabled(MobConfigManager.FILE_PIGLIN) || piglin.isBaby()) {
-				return;
-			}
-			piglin.setTarget(attacker);
-			piglin.setAggressive(true);
-			piglin.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, attacker);
-			clearPiglinFleeMemories(piglin);
-			if (attacker.getType() == EntityType.ZOMBIFIED_PIGLIN) {
-				broadcastPiglinAnger(level, piglin, attacker);
-			}
-		}
 	}
 
 	private static void applyWitherSkeletonHitEffect(LivingEntity target, Entity attacker, int durationTicks) {
@@ -530,134 +437,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		target.addEffect(new MobEffectInstance(MobEffects.WITHER, durationTicks), skeleton);
-	}
-
-	static void applyPiglinSpawnOverrides(Piglin piglin, ServerLevelAccessor world) {
-		if (piglin == null || world == null || !snapshot.enabled) {
-			return;
-		}
-		JsonObject root = fileMobRoot(MobConfigManager.FILE_PIGLIN);
-		if (!isMobFileEnabled(MobConfigManager.FILE_PIGLIN)) {
-			return;
-		}
-			boolean baby = rollPiglinBabySpawn(root, world);
-			piglin.setBaby(baby);
-			JsonObject variant = piglinVariantRoot(root, baby);
-			clearMobEquipment(piglin);
-			applySpawnArmorLoadout(piglin, variant, world.getRandom());
-			if (!baby) {
-				equipPiglinWeapon(piglin, piglinAdultRoot(root), world.getRandom());
-				normalizePiglinWeapon(piglin);
-			}
-			applyUniversalStats(piglin, variant);
-	}
-
-	static void applyZombifiedPiglinSpawnOverrides(Zombie pigman, ServerLevelAccessor world) {
-		if (pigman == null || world == null || !snapshot.enabled) {
-			return;
-		}
-		JsonObject root = fileMobRoot(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
-		if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN)) {
-			return;
-		}
-		boolean baby = rollZombifiedPiglinBabySpawn(root, world);
-		pigman.setBaby(baby);
-		JsonObject variant = zombifiedPiglinVariantRoot(root, baby);
-		clearMobEquipment(pigman);
-		applySpawnArmorLoadout(pigman, variant, world.getRandom());
-		enforceZombifiedPiglinWeaponLoadout(pigman);
-		applyUniversalStats(pigman, variant);
-	}
-
-	public static boolean tickPillagerAttackCooldown(Monster attacker) {
-		String fileKey = resolveCrossbowShooterFileKey(attacker);
-		if (fileKey == null || !snapshot.enabled) {
-			return false;
-		}
-		if (!isMobFileEnabled(fileKey)) {
-			return false;
-		}
-		Integer remaining = PILLAGER_ATTACK_COOLDOWNS.get(attacker.getUUID());
-		if (remaining == null || remaining <= 0) {
-			PILLAGER_ATTACK_COOLDOWNS.remove(attacker.getUUID());
-			return false;
-		}
-		if (remaining == 1) {
-			PILLAGER_ATTACK_COOLDOWNS.remove(attacker.getUUID());
-			return false;
-		}
-		PILLAGER_ATTACK_COOLDOWNS.put(attacker.getUUID(), remaining - 1);
-		return true;
-	}
-
-	public static void markPillagerAttackCooldownFromShot(Monster attacker) {
-		if (attacker != null) {
-			markCrossbowAttackCooldown(attacker);
-		}
-	}
-
-	public static int resolveCrossbowPostChargeDelay(Monster attacker, int vanillaDelay) {
-		if (resolveCrossbowShooterFileKey(attacker) == null) {
-			return vanillaDelay;
-		}
-		return resolveCrossbowChargeUpTicks(attacker) > 0 ? 1 : vanillaDelay;
-	}
-
-	public static int resolveCrossbowChargeDurationOverride(LivingEntity user) {
-		return user instanceof Monster monster ? resolveCrossbowChargeUpTicks(monster) : -1;
-	}
-
-	public static boolean applyPillagerProjectileAccuracyOverride(
-		Projectile projectile,
-		LivingEntity shooter,
-		LivingEntity target,
-		double velocityX,
-		double velocityY,
-		double velocityZ,
-		float speed,
-		float divergence
-	) {
-		String fileKey = resolveCrossbowShooterFileKey(shooter);
-		if (fileKey == null || target == null || !target.isAlive() || !snapshot.enabled) {
-			return false;
-		}
-		JsonObject root = crossbowShooterRoot(shooter);
-		if (!isMobFileEnabled(fileKey)) {
-			return false;
-		}
-		if (root.entrySet().isEmpty()) {
-			return false;
-		}
-		double accuracy = resolveScaledAttackAccuracy(readMobStatDouble(root, MobConfigManager.FIELD_ATTACK_ACCURACY, 0.7D), shooter.level().getDifficulty(), isHardcoreWorld(shooter.level()));
-		accuracy = shooter instanceof Mob mob ? MadokuRegionalDifficultyManager.resolveMobAttackAccuracyScaling(mob, accuracy) : accuracy;
-		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
-		if (shooter.getRandom().nextDouble() <= accuracy) {
-			projectile.shoot(velocityX, velocityY, velocityZ, speed, 0.0F);
-			if (projectile instanceof AbstractArrow arrow) {
-				trackManagedMobArrow(arrow, resolveServer(shooter));
-				if (shooter instanceof Pillager || shooter instanceof Piglin) {
-					double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
-					arrow.setNoGravity(true);
-					arrow.addTag(HOMING_PROJECTILE_TAG);
-					HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
-					requestRuntimeProcessing(resolveServer(shooter), 1L);
-					if (shooter instanceof Piglin) {
-						arrow.setRemainingFireTicks(100);
-					}
-				}
-			}
-			return true;
-		}
-		Vec3 missed = resolveMissVector(velocityX, velocityY, velocityZ, accuracy, shooter);
-		projectile.shoot(missed.x, missed.y, missed.z, speed, 0.0F);
-		if (projectile instanceof AbstractArrow arrow) {
-			trackManagedMobArrow(arrow, resolveServer(shooter));
-			if (shooter instanceof Piglin) {
-				arrow.setRemainingFireTicks(100);
-			}
-			HOMING_ARROWS.remove(arrow.getUUID());
-		}
-		return true;
 	}
 
 	public static float resolveProjectileDamageOverride(AbstractArrow arrow, float fallbackDamage) {
@@ -680,24 +459,7 @@ public final class MadokuMobManager {
 				return (float) Math.max(0.0D, resolveSkeletonRangedDamage(skeleton, root));
 			}
 		}
-		Entity owner = arrow.getOwner();
-		if (!(owner instanceof LivingEntity livingOwner) || !snapshot.enabled) {
-			return fallbackDamage;
-		}
-		String fileKey = resolveCrossbowShooterFileKey(livingOwner);
-		if (fileKey == null) {
-			return fallbackDamage;
-		}
-		JsonObject root = crossbowShooterRoot(livingOwner);
-		if (!isMobFileEnabled(fileKey)) {
-			return fallbackDamage;
-		}
-		if (root.entrySet().isEmpty()) {
-			return fallbackDamage;
-		}
-		double damage = resolveScaledRangedDamage(readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 6.0D), livingOwner.level().getDifficulty(), isHardcoreWorld(livingOwner.level()));
-		damage = livingOwner instanceof Mob mob ? MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(mob, damage) : damage;
-		return (float) Math.max(0.0D, damage);
+		return fallbackDamage;
 	}
 
 	public static void setProjectileDamageOverride(AbstractArrow arrow, float damage) {
@@ -912,7 +674,7 @@ public final class MadokuMobManager {
 				JsonObject root = fileMobRoot(MobConfigManager.FILE_CAVE_SPIDER);
 				return isMobFileEnabled(MobConfigManager.FILE_CAVE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 			}
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
+			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
 			return isMobFileEnabled(MobConfigManager.FILE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 		}
 			if (entity instanceof AbstractSkeleton skeleton) {
@@ -926,36 +688,6 @@ public final class MadokuMobManager {
 				boolean modified = !skeletonFileKey.isBlank() && isMobFileEnabled(skeletonFileKey) && applyUniversalBaseStatsForRuntime(skeleton, root);
 				if (skeleton.getType() == EntityType.WITHER_SKELETON) {
 					modified |= normalizeWitherSkeletonWeapon(skeleton);
-				}
-				return modified;
-			}
-			if (entity instanceof Pillager pillager) {
-				JsonObject root = fileMobRoot(MobConfigManager.FILE_PILLAGER);
-				return isMobFileEnabled(MobConfigManager.FILE_PILLAGER) && applyUniversalBaseStatsForRuntime(pillager, root);
-			}
-			if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
-				JsonObject root = fileMobRoot(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
-				if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN)) {
-					return false;
-				}
-				JsonObject variant = zombifiedPiglinVariantRoot(root, pigman.isBaby());
-				boolean modified = applyUniversalBaseStatsForRuntime(pigman, variant);
-				enforceZombifiedPiglinWeaponLoadout(pigman);
-				return modified;
-			}
-			if (entity instanceof Piglin piglin) {
-				JsonObject root = fileMobRoot(MobConfigManager.FILE_PIGLIN);
-				if (!isMobFileEnabled(MobConfigManager.FILE_PIGLIN)) {
-					return false;
-				}
-				JsonObject variant = piglinVariantRoot(root, piglin.isBaby());
-				boolean modified = applyUniversalBaseStatsForRuntime(piglin, variant);
-				if (modified) {
-					if (piglin.isBaby()) {
-						clearPiglinMainHand(piglin);
-					} else {
-						normalizePiglinWeapon(piglin);
-					}
 				}
 				return modified;
 			}
@@ -1012,7 +744,7 @@ public final class MadokuMobManager {
 				}
 				return;
 			}
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
+			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
 			if (isMobFileEnabled(MobConfigManager.FILE_SPIDER)) {
 				applyUniversalDifficultyStatsForRuntime(spider, root);
 			}
@@ -1031,33 +763,8 @@ public final class MadokuMobManager {
 			}
 			return;
 		}
-		if (entity instanceof Pillager pillager) {
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_PILLAGER);
-			if (isMobFileEnabled(MobConfigManager.FILE_PILLAGER)) {
-				applyUniversalDifficultyStatsForRuntime(pillager, root);
-			}
-			return;
-		}
-		if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_ZOMBIFIED_PIGLIN);
-			if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIFIED_PIGLIN)) {
-				return;
-			}
-			JsonObject variant = zombifiedPiglinVariantRoot(root, pigman.isBaby());
-			applyUniversalDifficultyStatsForRuntime(pigman, variant);
-			return;
-		}
 		if (entity instanceof Zombie zombie) {
 			MadokuMobZombie.applyLoadedEntityDifficultyOverrides(zombie);
-			return;
-		}
-		if (entity instanceof Piglin piglin) {
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_PIGLIN);
-			if (!isMobFileEnabled(MobConfigManager.FILE_PIGLIN)) {
-				return;
-			}
-			JsonObject variant = piglinVariantRoot(root, piglin.isBaby());
-			applyUniversalDifficultyStatsForRuntime(piglin, variant);
 			return;
 		}
 		if (entity.getType() == EntityType.BEE) {
@@ -1245,15 +952,6 @@ public final class MadokuMobManager {
 			return new JsonObject();
 		}
 
-		if (entity.getType() == EntityType.ZOMBIFIED_PIGLIN && entity instanceof Zombie pigman) {
-			JsonObject root = fileMobRoot(fileKey);
-			return zombifiedPiglinVariantRoot(root, pigman.isBaby());
-		}
-		if (entity instanceof Piglin piglin) {
-			JsonObject root = fileMobRoot(fileKey);
-			return piglinVariantRoot(root, piglin.isBaby());
-		}
-
 		return fileMobRoot(fileKey);
 	}
 
@@ -1281,14 +979,7 @@ public final class MadokuMobManager {
 		if (entity instanceof Zombie zombie) {
 			return zombie.getType() == EntityType.ZOMBIE ? MobConfigManager.FILE_ZOMBIE
 				: zombie.getType() == EntityType.HUSK ? MobConfigManager.FILE_HUSK
-				: zombie.getType() == EntityType.ZOMBIFIED_PIGLIN ? MobConfigManager.FILE_ZOMBIFIED_PIGLIN
 				: "";
-		}
-		if (entity instanceof Piglin) {
-			return MobConfigManager.FILE_PIGLIN;
-		}
-		if (entity instanceof Pillager) {
-			return MobConfigManager.FILE_PILLAGER;
 		}
 		if (entity instanceof Creeper) {
 			return MobConfigManager.FILE_CREEPER;
@@ -1717,150 +1408,7 @@ public final class MadokuMobManager {
 		mob.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
 	}
 
-	private static void equipPiglinWeapon(Piglin piglin, JsonObject root, RandomSource random) {
-		if (piglin == null || root == null || random == null) {
-			return;
-		}
-		ItemStack weapon = rollPiglinSpawnWeapon(root, random);
-		if (!weapon.isEmpty()) {
-			piglin.setItemSlot(EquipmentSlot.MAINHAND, weapon);
-		}
-	}
-
-	private static ItemStack rollPiglinSpawnWeapon(JsonObject root, RandomSource random) {
-		double crossbow = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_CROSSBOW_SPAWN_WEIGHT, 50.0D));
-		double goldenSword = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_GOLDEN_SWORD_SPAWN_WEIGHT, 50.0D));
-		double total = crossbow + goldenSword;
-		if (total <= 0.0D) {
-			return ItemStack.EMPTY;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < crossbow) {
-			return new ItemStack(Items.CROSSBOW);
-		}
-		return piglinSwordStack();
-	}
-
-	private static ItemStack piglinSwordStack() {
-		ItemStack sword = new ItemStack(Items.GOLDEN_SWORD);
-		sword.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
-		return sword;
-	}
-
-	private static boolean rollPiglinBabySpawn(JsonObject root, ServerLevelAccessor world) {
-		if (root == null || world == null) {
-			return false;
-		}
-		JsonObject adult = piglinAdultRoot(root);
-		JsonObject baby = piglinBabyRoot(root);
-		double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D));
-		double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D));
-		double total = adultWeight + babyWeight;
-		if (total <= 0.0D) {
-			return false;
-		}
-		return (world.getRandom().nextDouble() * total) < babyWeight;
-	}
-
-	private static JsonObject piglinVariantRoot(JsonObject root, boolean baby) {
-		return baby ? piglinBabyRoot(root) : piglinAdultRoot(root);
-	}
-
-	private static JsonObject piglinAdultRoot(JsonObject root) {
-		return readObject(root, MobConfigManager.FIELD_ADULT_PIGLIN);
-	}
-
-	private static JsonObject piglinBabyRoot(JsonObject root) {
-		return readObject(root, MobConfigManager.FIELD_BABY_PIGLIN);
-	}
-
-	private static boolean rollZombifiedPiglinBabySpawn(JsonObject root, ServerLevelAccessor world) {
-		if (root == null || world == null) {
-			return false;
-		}
-		JsonObject adult = zombifiedPiglinAdultRoot(root);
-		JsonObject baby = zombifiedPiglinBabyRoot(root);
-		double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D));
-		double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D));
-		double total = adultWeight + babyWeight;
-		if (total <= 0.0D) {
-			return false;
-		}
-		return (world.getRandom().nextDouble() * total) < babyWeight;
-	}
-
-	private static JsonObject zombifiedPiglinVariantRoot(JsonObject root, boolean baby) {
-		return baby ? zombifiedPiglinBabyRoot(root) : zombifiedPiglinAdultRoot(root);
-	}
-
-	static JsonObject resolveZombifiedPiglinVariantRootForRuntime(JsonObject root, boolean baby) {
-		return zombifiedPiglinVariantRoot(root, baby);
-	}
-
-	private static JsonObject zombifiedPiglinAdultRoot(JsonObject root) {
-		return readObject(root, MobConfigManager.FIELD_ADULT_ZOMBIFIED_PIGLIN);
-	}
-
-	private static JsonObject zombifiedPiglinBabyRoot(JsonObject root) {
-		return readObject(root, MobConfigManager.FIELD_BABY_ZOMBIFIED_PIGLIN);
-	}
-
-	private static void clearPiglinMainHand(Piglin piglin) {
-		if (piglin == null) {
-			return;
-		}
-		piglin.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-	}
-
-	private static void normalizePiglinWeapon(Piglin piglin) {
-		if (piglin == null) {
-			return;
-		}
-		ItemStack mainHand = piglin.getMainHandItem();
-		if (mainHand.is(Items.GOLDEN_SWORD)) {
-			stripWeaponAttributeModifiers(mainHand);
-		}
-	}
-
-	private static void equipZombifiedPiglinWeapon(Mob pigman) {
-		if (pigman == null) {
-			return;
-		}
-		pigman.setItemSlot(EquipmentSlot.MAINHAND, zombifiedPiglinSwordStack());
-	}
-
-	private static ItemStack zombifiedPiglinSwordStack() {
-		ItemStack sword = new ItemStack(Items.IRON_SWORD);
-		sword.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
-		return sword;
-	}
-
-	private static void normalizeZombifiedPiglinWeapon(Mob pigman) {
-		if (pigman == null) {
-			return;
-		}
-		ItemStack mainHand = pigman.getMainHandItem();
-		if (mainHand.is(Items.IRON_SWORD)) {
-			stripWeaponAttributeModifiers(mainHand);
-		}
-	}
-
-	private static void enforceZombifiedPiglinWeaponLoadout(Zombie pigman) {
-		if (pigman == null || pigman.getType() != EntityType.ZOMBIFIED_PIGLIN) {
-			return;
-		}
-		if (pigman.isBaby()) {
-			pigman.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-			return;
-		}
-		ItemStack mainHand = pigman.getMainHandItem();
-		if (!mainHand.is(Items.IRON_SWORD)) {
-			equipZombifiedPiglinWeapon(pigman);
-		}
-		normalizeZombifiedPiglinWeapon(pigman);
-	}
-
-	private static void applyWitherSkeletonSpawnOverrides(AbstractSkeleton skeleton, ServerLevelAccessor world) {
+    private static void applyWitherSkeletonSpawnOverrides(AbstractSkeleton skeleton, ServerLevelAccessor world) {
 		if (skeleton == null || world == null) {
 			return;
 		}
@@ -2107,10 +1655,7 @@ public final class MadokuMobManager {
 			HOMING_ARROWS.remove(id);
 			FIXED_ARROW_DAMAGE.remove(id);
 			MANAGED_MOB_ARROWS.remove(id);
-		}
-		if (entity instanceof Pillager) {
-			PILLAGER_ATTACK_COOLDOWNS.remove(id);
-		}
+		}		PENDING_SPIDER_JOCKEY_REPLACEMENTS.remove(id);
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
 		PENDING_ZOMBIE_REPLACEMENTS.remove(id);
 		MadokuMobBee.onEntityCleanup(entity);
@@ -2123,9 +1668,9 @@ public final class MadokuMobManager {
 		runtimeTaskScheduled = false;
 		tickManagedMobArrows(server);
 		tickHomingProjectiles(server);
+		processPendingSpiderJockeyReplacements(server);
 		processPendingCaveSpiderReplacements(server);
 		processPendingZombieReplacements(server);
-		suppressBabyPiglinCombat(server);
 		boolean beeRuntimeActive = MadokuMobBee.tickRuntime(
 			server,
 			TRACKED_ENTITIES.values(),
@@ -2134,6 +1679,7 @@ public final class MadokuMobManager {
 		);
 		if (!MANAGED_MOB_ARROWS.isEmpty()
 			|| !HOMING_ARROWS.isEmpty()
+			|| !PENDING_SPIDER_JOCKEY_REPLACEMENTS.isEmpty()
 			|| !PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()
 			|| !PENDING_ZOMBIE_REPLACEMENTS.isEmpty()
 			|| beeRuntimeActive) {
@@ -2238,28 +1784,56 @@ public final class MadokuMobManager {
 			return;
 		}
 		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_CAVE_SPIDER_REPLACEMENTS.entrySet()) {
-			Entity entity = findEntity(server, entry.getKey());
-			if (!(entity instanceof Spider spider) || !spider.isAlive() || spider.getType() != EntityType.SPIDER) {
-				PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			if (!(spider.level() instanceof ServerLevel level)) {
-				PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			EntitySpawnReason reason = entry.getValue() == null ? EntitySpawnReason.NATURAL : entry.getValue();
-			CaveSpider caveSpider = EntityType.CAVE_SPIDER.create(level, reason);
-			if (caveSpider == null) {
-				PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			caveSpider.setPos(spider.getX(), spider.getY(), spider.getZ());
-			caveSpider.setYRot(spider.getYRot());
-			caveSpider.setXRot(spider.getXRot());
-			caveSpider.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(spider.position())), reason, null);
-			level.tryAddFreshEntityWithPassengers(caveSpider);
-			spider.discard();
+			emitRuntimeSpawnDebug(
+				"process_begin",
+				entry.getKey(),
+				EntityType.SPIDER,
+				EntityType.CAVE_SPIDER,
+				entry.getValue(),
+				"deferred_cave_spider"
+			);
+			processQueuedRuntimeReplacement(
+				server,
+				entry.getKey(),
+				EntityType.SPIDER,
+				entry.getValue(),
+				EntityType.CAVE_SPIDER,
+				false,
+				"process_cave_spider_missing",
+				"process_cave_spider_create_failed",
+				"process_cave_spider_spawned",
+				"replaced_with_cave_spider"
+			);
 			PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
+		}
+	}
+
+	private static void processPendingSpiderJockeyReplacements(MinecraftServer server) {
+		if (server == null || PENDING_SPIDER_JOCKEY_REPLACEMENTS.isEmpty()) {
+			return;
+		}
+		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_SPIDER_JOCKEY_REPLACEMENTS.entrySet()) {
+			emitRuntimeSpawnDebug(
+				"process_begin",
+				entry.getKey(),
+				EntityType.SPIDER,
+				EntityType.SKELETON,
+				entry.getValue(),
+				"deferred_spider_jockey"
+			);
+			processQueuedRuntimeReplacement(
+				server,
+				entry.getKey(),
+				EntityType.SPIDER,
+				entry.getValue(),
+				EntityType.SKELETON,
+				true,
+				"process_spider_jockey_missing",
+				"process_spider_jockey_create_failed",
+				"process_spider_jockey_spawned",
+				"skeleton_attached"
+			);
+			PENDING_SPIDER_JOCKEY_REPLACEMENTS.remove(entry.getKey());
 		}
 	}
 
@@ -2268,203 +1842,94 @@ public final class MadokuMobManager {
 			return;
 		}
 		for (Map.Entry<UUID, PendingZombieReplacement> entry : PENDING_ZOMBIE_REPLACEMENTS.entrySet()) {
-			Entity entity = findEntity(server, entry.getKey());
-			if (!(entity instanceof Zombie zombie) || !zombie.isAlive() || zombie.getType() != EntityType.ZOMBIE) {
-				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			if (!(zombie.level() instanceof ServerLevel level)) {
-				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
 			PendingZombieReplacement replacement = entry.getValue();
 			if (replacement == null) {
 				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
 				continue;
 			}
-			EntityType<?> replacementType = replacement.replacementType();
-			if (replacementType == null || replacementType == EntityType.ZOMBIE) {
-				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			EntitySpawnReason reason = replacement.reason() == null ? EntitySpawnReason.NATURAL : replacement.reason();
-			Entity replacementEntity = replacementType.create(level, reason);
-			if (replacementEntity == null) {
-				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			replacementEntity.setPos(zombie.getX(), zombie.getY(), zombie.getZ());
-			replacementEntity.setYRot(zombie.getYRot());
-			replacementEntity.setXRot(zombie.getXRot());
-			if (replacementEntity instanceof Zombie replacementZombie) {
-				replacementZombie.setBaby(zombie.isBaby());
-			}
-			if (replacementEntity instanceof Mob mobReplacement) {
-				mobReplacement.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(zombie.position())), reason, null);
-			}
-			level.tryAddFreshEntityWithPassengers(replacementEntity);
-			zombie.discard();
+			emitRuntimeSpawnDebug(
+				"process_begin",
+				entry.getKey(),
+				EntityType.ZOMBIE,
+				replacement.replacementType(),
+				replacement.reason(),
+				"deferred_zombie_replacement"
+			);
+			processQueuedRuntimeReplacement(
+				server,
+				entry.getKey(),
+				EntityType.ZOMBIE,
+				replacement.reason(),
+				replacement.replacementType(),
+				false,
+				"process_zombie_missing",
+				"process_zombie_create_failed",
+				"process_zombie_spawned",
+				"replaced_with_custom_entity"
+			);
 			PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
 		}
 	}
 
-	private static void clearPiglinFleeMemories(Piglin piglin) {
-		if (piglin == null) {
+	private static void processQueuedRuntimeReplacement(
+		MinecraftServer server,
+		UUID sourceId,
+		EntityType<?> expectedSourceType,
+		EntitySpawnReason spawnReason,
+		EntityType<?> spawnedType,
+		boolean attachToSource,
+		String missingPhase,
+		String createFailedPhase,
+		String completedPhase,
+		String completedDetail
+	) {
+		if (server == null || sourceId == null || spawnedType == null) {
 			return;
 		}
-		piglin.getBrain().eraseMemory(MemoryModuleType.AVOID_TARGET);
-		piglin.getBrain().eraseMemory(MemoryModuleType.NEAREST_VISIBLE_ZOMBIFIED);
-	}
-
-	private static void broadcastPiglinAnger(ServerLevel level, Piglin source, LivingEntity target) {
-		if (level == null || source == null || target == null || !target.isAlive()) {
+		Entity source = findEntity(server, sourceId);
+		if (source == null || !source.isAlive() || (expectedSourceType != null && source.getType() != expectedSourceType)) {
+			emitRuntimeSpawnDebug(missingPhase, sourceId, expectedSourceType, spawnedType, spawnReason, "missing_or_invalid");
 			return;
 		}
-		AABB bounds = source.getBoundingBox().inflate(PIGLIN_ANGER_BROADCAST_RANGE);
-		for (Piglin piglin : level.getEntitiesOfClass(Piglin.class, bounds, candidate -> candidate != null && candidate.isAlive() && !candidate.isBaby())) {
-			piglin.setTarget(target);
-			piglin.setAggressive(true);
-			piglin.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, target);
-			clearPiglinFleeMemories(piglin);
-		}
-	}
-
-	private static void broadcastZombifiedPiglinAnger(ServerLevel level, Zombie source, LivingEntity target) {
-		if (level == null || source == null || target == null || !target.isAlive()) {
+		emitRuntimeSpawnDebug("source_found", sourceId, source.getType(), spawnedType, spawnReason, "source_alive");
+		if (!(source.level() instanceof ServerLevel level)) {
+			emitRuntimeSpawnDebug(missingPhase, sourceId, source.getType(), spawnedType, spawnReason, "not_server_level");
 			return;
 		}
-		AABB bounds = source.getBoundingBox().inflate(ZOMBIFIED_PIGLIN_ANGER_BROADCAST_RANGE);
-		for (Zombie pigman : level.getEntitiesOfClass(
-			Zombie.class,
-			bounds,
-			candidate -> candidate != null
-				&& candidate.isAlive()
-				&& candidate.getType() == EntityType.ZOMBIFIED_PIGLIN
-				&& !candidate.isBaby()
-		)) {
-			pigman.setTarget(target);
-			pigman.setAggressive(true);
-		}
-	}
 
-	private static LivingEntity resolveZombifiedPiglinTarget(ServerLevel level, Zombie pigman) {
-		if (level == null || pigman == null || !pigman.isAlive()) {
-			return null;
-		}
-		Piglin nearbyPiglin = findNearestPiglin(level, pigman, ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE);
-		if (nearbyPiglin != null) {
-			return nearbyPiglin;
-		}
-		LivingEntity current = pigman.getTarget();
-		if (isValidZombifiedPiglinCurrentTarget(pigman, current)) {
-			return current;
-		}
-		return findNearestUnarmoredPlayer(level, pigman, ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE);
-	}
-
-	private static Player findNearestUnarmoredPlayer(ServerLevel level, Mob pigman, double radius) {
-		double safeRadius = Math.max(0.0D, radius);
-		double radiusSqr = safeRadius * safeRadius;
-		AABB bounds = pigman.getBoundingBox().inflate(safeRadius);
-		Player nearest = null;
-		double nearestDistance = Double.MAX_VALUE;
-		for (Player player : level.getEntitiesOfClass(Player.class, bounds, MadokuMobManager::isValidAggroPlayerTarget)) {
-			if (isPlayerWearingIronArmor(player)) {
-				continue;
-			}
-			double distance = pigman.distanceToSqr(player);
-			if (distance > radiusSqr || !pigman.hasLineOfSight(player)) {
-				continue;
-			}
-			if (distance < nearestDistance) {
-				nearest = player;
-				nearestDistance = distance;
-			}
-		}
-		return nearest;
-	}
-
-	private static Piglin findNearestPiglin(ServerLevel level, Mob pigman, double radius) {
-		double safeRadius = Math.max(0.0D, radius);
-		double radiusSqr = safeRadius * safeRadius;
-		AABB bounds = pigman.getBoundingBox().inflate(safeRadius);
-		Piglin nearest = null;
-		double nearestDistance = Double.MAX_VALUE;
-		for (Piglin piglin : level.getEntitiesOfClass(Piglin.class, bounds, candidate -> candidate != null && candidate.isAlive())) {
-			double distance = pigman.distanceToSqr(piglin);
-			if (distance > radiusSqr || !pigman.hasLineOfSight(piglin)) {
-				continue;
-			}
-			if (distance < nearestDistance) {
-				nearest = piglin;
-				nearestDistance = distance;
-			}
-		}
-		return nearest;
-	}
-
-	private static boolean isValidZombifiedPiglinCurrentTarget(Zombie pigman, LivingEntity current) {
-		if (pigman == null || current == null || !current.isAlive()) {
-			return false;
-		}
-		if (current instanceof Piglin) {
-			return isVisibleWithinRange(pigman, current, ZOMBIFIED_PIGLIN_PIGLIN_AGGRO_RANGE);
-		}
-		if (current instanceof Player player) {
-			return !isPlayerWearingIronArmor(player)
-				&& isValidAggroPlayerTarget(player)
-				&& isVisibleWithinRange(pigman, player, ZOMBIFIED_PIGLIN_PLAYER_AGGRO_RANGE);
-		}
-		return true;
-	}
-
-	private static boolean isVisibleWithinRange(Mob viewer, LivingEntity target, double range) {
-		if (viewer == null || target == null || !target.isAlive()) {
-			return false;
-		}
-		double safeRange = Math.max(0.0D, range);
-		return viewer.distanceToSqr(target) <= (safeRange * safeRange) && viewer.hasLineOfSight(target);
-	}
-
-	private static void suppressBabyPiglinCombat(MinecraftServer server) {
-		if (server == null || !snapshot.enabled) {
+		EntitySpawnReason reason = spawnReason == null ? EntitySpawnReason.NATURAL : spawnReason;
+		Entity spawnedEntity = spawnedType.create(level, reason);
+		if (spawnedEntity == null) {
+			emitRuntimeSpawnDebug(createFailedPhase, sourceId, source.getType(), spawnedType, reason, "create_returned_null");
 			return;
 		}
-		for (Entity entity : TRACKED_ENTITIES.values()) {
-			if (entity instanceof Piglin piglin && piglin.isAlive() && piglin.isBaby()) {
-				piglin.setTarget(null);
-				piglin.setAggressive(false);
-				continue;
+		emitRuntimeSpawnDebug("entity_created", sourceId, source.getType(), spawnedType, reason, "spawned_entity_created");
+
+		spawnedEntity.setPos(source.getX(), source.getY(), source.getZ());
+		spawnedEntity.setYRot(source.getYRot());
+		spawnedEntity.setXRot(source.getXRot());
+		if (spawnedEntity instanceof Zombie replacementZombie && source instanceof Zombie zombie) {
+			replacementZombie.setBaby(zombie.isBaby());
+		}
+		if (spawnedEntity instanceof Mob mobSpawned) {
+			mobSpawned.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(source.position())), reason, null);
+		}
+		if (spawnedEntity instanceof AbstractSkeleton skeleton) {
+			ensureBowEquipped(skeleton);
+		}
+		level.tryAddFreshEntityWithPassengers(spawnedEntity);
+		if (attachToSource) {
+			emitRuntimeSpawnDebug("attach_begin", sourceId, source.getType(), spawnedType, reason, "attaching_spawned_entity");
+			if (!spawnedEntity.startRiding(source) && spawnedEntity.isAlive()) {
+				spawnedEntity.discard();
+				emitRuntimeSpawnDebug("attach_failed", sourceId, source.getType(), spawnedType, reason, "start_riding_failed");
+				return;
 			}
-			if (entity instanceof Zombie zombie && zombie.isAlive() && zombie.isBaby() && zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
-				zombie.setTarget(null);
-				zombie.setAggressive(false);
-			}
+		} else {
+			emitRuntimeSpawnDebug("replace_begin", sourceId, source.getType(), spawnedType, reason, "discarding_source_after_spawn");
+			source.discard();
 		}
-	}
-
-	private static boolean isValidAggroPlayerTarget(Player player) {
-		return player != null && player.isAlive() && !player.isCreative() && !player.isSpectator();
-	}
-
-	private static boolean isPlayerWearingIronArmor(Player player) {
-		if (player == null) {
-			return false;
-		}
-		return isIronArmorPiece(player.getItemBySlot(EquipmentSlot.HEAD))
-			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.CHEST))
-			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.LEGS))
-			|| isIronArmorPiece(player.getItemBySlot(EquipmentSlot.FEET));
-	}
-
-	private static boolean isIronArmorPiece(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return false;
-		}
-		return stack.is(Items.IRON_HELMET)
-			|| stack.is(Items.IRON_CHESTPLATE)
-			|| stack.is(Items.IRON_LEGGINGS)
-			|| stack.is(Items.IRON_BOOTS);
+		emitRuntimeSpawnDebug(completedPhase, sourceId, source.getType(), spawnedType, reason, completedDetail);
 	}
 
 	private static Entity findEntity(MinecraftServer server, UUID entityId) {
@@ -2512,20 +1977,6 @@ public final class MadokuMobManager {
 		INVULNERABILITY_BYPASS_ARROWS.remove(arrowId);
 	}
 
-	private static void spawnSpiderJockey(Spider spider, ServerLevelAccessor world, DifficultyInstance difficulty) {
-		ServerLevel level = world.getLevel();
-		AbstractSkeleton skeleton = EntityType.SKELETON.create(level, EntitySpawnReason.JOCKEY);
-		if (skeleton == null) {
-			return;
-		}
-		skeleton.setPos(spider.getX(), spider.getY(), spider.getZ());
-		skeleton.setYRot(spider.getYRot());
-		skeleton.setXRot(0.0F);
-		skeleton.finalizeSpawn(world, difficulty, EntitySpawnReason.JOCKEY, null);
-		ensureBowEquipped(skeleton);
-		skeleton.startRiding(spider);
-	}
-
 	private record PendingZombieReplacement(EntityType<?> replacementType, EntitySpawnReason reason) {}
 
 	private static MinecraftServer resolveServer(Entity entity) {
@@ -2547,94 +1998,7 @@ public final class MadokuMobManager {
 		return direct instanceof LivingEntity livingDirect ? livingDirect : null;
 	}
 
-	private static SpawnOutcome rollSpiderSpawnOutcome(RandomSource random, double spiderWeight, double caveWeight, double jockeyWeight) {
-		double s = Math.max(0.0D, spiderWeight);
-		double c = Math.max(0.0D, caveWeight);
-		double j = Math.max(0.0D, jockeyWeight);
-		double total = s + c + j;
-		if (total <= 0.0D) {
-			return SpawnOutcome.SPIDER;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < s) {
-			return SpawnOutcome.SPIDER;
-		}
-		roll -= s;
-		return roll < c ? SpawnOutcome.CAVE_SPIDER : SpawnOutcome.SPIDER_JOCKEY;
-	}
-
-	private static void clearExistingSkeletonPassengers(Spider spider) {
-		for (Entity passenger : new ArrayList<>(spider.getPassengers())) {
-			if (passenger.getType() == EntityType.SKELETON) {
-				passenger.stopRiding();
-				passenger.discard();
-			}
-		}
-	}
-
-	private static void markCrossbowAttackCooldown(Monster attacker) {
-		int cooldownTicks = Math.max(0, resolveCrossbowAttackIntervalTicks(attacker));
-		if (cooldownTicks <= 0) {
-			PILLAGER_ATTACK_COOLDOWNS.remove(attacker.getUUID());
-			return;
-		}
-		PILLAGER_ATTACK_COOLDOWNS.put(attacker.getUUID(), cooldownTicks);
-	}
-
-	private static int resolveCrossbowAttackIntervalTicks(Monster attacker) {
-		String fileKey = resolveCrossbowShooterFileKey(attacker);
-		if (fileKey == null || !snapshot.enabled) {
-			return -1;
-		}
-		JsonObject root = crossbowShooterRoot(attacker);
-		if (!isMobFileEnabled(fileKey)) {
-			return -1;
-		}
-		if (root.entrySet().isEmpty()) {
-			return -1;
-		}
-		double interval = readMobStatDouble(root, MobConfigManager.FIELD_ATTACK_INTERVAL, 20.0D);
-		return Math.max(1, (int) Math.round(interval));
-	}
-
-	private static int resolveCrossbowChargeUpTicks(Monster attacker) {
-		String fileKey = resolveCrossbowShooterFileKey(attacker);
-		if (fileKey == null || !snapshot.enabled) {
-			return -1;
-		}
-		JsonObject root = crossbowShooterRoot(attacker);
-		if (!isMobFileEnabled(fileKey)) {
-			return -1;
-		}
-		if (root.entrySet().isEmpty()) {
-			return -1;
-		}
-		double charge = readMobStatDouble(root, MobConfigManager.FIELD_CHARGE_UP_TICKS, 10.0D);
-		return Math.max(1, (int) Math.round(charge));
-	}
-
-	private static JsonObject crossbowShooterRoot(LivingEntity shooter) {
-		if (shooter instanceof Pillager) {
-			return fileMobRoot(MobConfigManager.FILE_PILLAGER);
-		}
-		if (shooter instanceof Piglin piglin) {
-			JsonObject root = fileMobRoot(MobConfigManager.FILE_PIGLIN);
-			return piglinVariantRoot(root, piglin.isBaby());
-		}
-		return new JsonObject();
-	}
-
-	private static String resolveCrossbowShooterFileKey(LivingEntity shooter) {
-		if (shooter instanceof Pillager) {
-			return MobConfigManager.FILE_PILLAGER;
-		}
-		if (shooter instanceof Piglin) {
-			return MobConfigManager.FILE_PIGLIN;
-		}
-		return null;
-	}
-
-	private static InteractionHand resolveBowHand(AbstractSkeleton skeleton) {
+    private static InteractionHand resolveBowHand(AbstractSkeleton skeleton) {
 		if (skeleton.getMainHandItem().is(Items.BOW)) {
 			return InteractionHand.MAIN_HAND;
 		}
@@ -2867,6 +2231,29 @@ public final class MadokuMobManager {
 			.subject("arrow:" + arrow.getUUID())
 			.field("owner", owner == null ? "unknown" : owner.getType().toShortString())
 			.field("reason", "lifetime_reached")
+			.log();
+	}
+
+	private static void emitRuntimeSpawnDebug(
+		String phase,
+		UUID sourceId,
+		EntityType<?> sourceType,
+		EntityType<?> spawnedType,
+		EntitySpawnReason spawnReason,
+		String detail
+	) {
+		String metricId = "mob.runtime_spawn";
+		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+			return;
+		}
+		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject((sourceType == null ? "entity" : sourceType.toShortString()) + ":" + (sourceId == null ? "unknown" : sourceId))
+			.field("phase", phase)
+			.field("source_type", sourceType == null ? "unknown" : sourceType.toShortString())
+			.field("spawned_type", spawnedType == null ? "unknown" : spawnedType.toShortString())
+			.field("spawn_reason", spawnReason == null ? "unknown" : spawnReason.toString())
+			.field("detail", detail == null ? "" : detail)
 			.log();
 	}
 
@@ -3479,12 +2866,6 @@ public final class MadokuMobManager {
 		HELMET_ONLY,
 		HELMET_BOOTS,
 		FULL_SET
-	}
-
-	private enum SpawnOutcome {
-		SPIDER,
-		CAVE_SPIDER,
-		SPIDER_JOCKEY
 	}
 
 	private record Snapshot(boolean enabled, Map<String, JsonObject> files) {

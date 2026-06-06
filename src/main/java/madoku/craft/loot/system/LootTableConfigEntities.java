@@ -42,15 +42,12 @@ public final class LootTableConfigEntities {
 		put(defaults, "minecraft:entities/creeper", ConfigEntitiesCreeper.buildDefaults());
 		put(defaults, "minecraft:entities/drowned", ConfigEntitiesDrowned.buildDefaults());
 		put(defaults, "minecraft:entities/husk", ConfigEntitiesHusk.buildDefaults());
-		put(defaults, "minecraft:entities/piglin", ConfigEntitiesPiglin.buildDefaults());
-		put(defaults, "minecraft:entities/pillager", ConfigEntitiesPillager.buildDefaults());
 		put(defaults, "minecraft:entities/skeleton", ConfigEntitiesSkeleton.buildDefaults());
 		put(defaults, "minecraft:entities/spider", ConfigEntitiesSpider.buildDefaults());
 		put(defaults, "minecraft:entities/stray", ConfigEntitiesStray.buildDefaults());
 		put(defaults, "minecraft:entities/wither_skeleton", ConfigEntitiesWitherSkeleton.buildDefaults());
 		put(defaults, "minecraft:entities/zombie", ConfigEntitiesZombie.buildDefaults());
 		put(defaults, "minecraft:entities/zombie_villager", ConfigEntitiesZombieVillager.buildDefaults());
-		put(defaults, "minecraft:entities/zombified_piglin", ConfigEntitiesZombifiedPiglin.buildDefaults());
 		return defaults;
 	}
 

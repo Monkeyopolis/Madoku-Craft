@@ -119,15 +119,6 @@ public final class MadokuMobZombie {
 		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
 			return false;
 		}
-		if (zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
-			JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject variant = MadokuMobManager.resolveZombifiedPiglinVariantRootForRuntime(fileConfigRoot, zombie.isBaby());
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
-			boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(zombie, variant);
-			applyWeaponDamagePolicy(zombie, variant);
-			applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
-			return modified;
-		}
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
@@ -148,15 +139,6 @@ public final class MadokuMobZombie {
 		String fileKey = fileKeyForType(zombie.getType());
 		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
 			return false;
-		}
-		if (zombie.getType() == EntityType.ZOMBIFIED_PIGLIN) {
-			JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject variant = MadokuMobManager.resolveZombifiedPiglinVariantRootForRuntime(fileConfigRoot, zombie.isBaby());
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
-			boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(zombie, variant);
-			applyWeaponDamagePolicy(zombie, variant);
-			applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
-			return modified;
 		}
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());

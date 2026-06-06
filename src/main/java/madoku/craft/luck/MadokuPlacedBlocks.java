@@ -1,35 +1,39 @@
 package madoku.craft.luck;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import madoku.craft.MadokuCraft;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Comparator;
+import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 public final class MadokuPlacedBlocks {
-	private static final String DATA_FOLDER_NAME = "madoku-craft-luck";
-	private static final String DATA_FILE_NAME = "madoku-placed-blocks";
+	private static final String DATA_ID = "madoku_placed_blocks";
 	private static final String FIELD_LEVELS = "levels";
-	private static final String FIELD_LEVEL_ID = "level-id";
-	private static final String FIELD_POSITIONS = "positions";
-	private static final String FIELD_POSITION = "position";
 	private static final String FIELD_TRACKED_SINCE_GAMEPLAY_TICK = "tracked-since-gameplay-tick";
-	private static final long PLACED_BLOCK_RETENTION_DAYS = 28L;
+	private static final long PLACED_BLOCK_RETENTION_DAYS = 336L;
 
-	private static final Map<String, Set<Long>> PLACED_BLOCKS_BY_LEVEL = new HashMap<>();
-	private static boolean dirty = false;
-	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static long trackedSinceGameplayTick = -1L;
+	private static final SavedDataType<PlacedBlockData> TYPE = new SavedDataType<>(
+		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, DATA_ID),
+		PlacedBlockData::new,
+		PlacedBlockData.CODEC,
+		null
+	);
 
 	private MadokuPlacedBlocks() {
 	}
@@ -38,10 +42,6 @@ public final class MadokuPlacedBlocks {
 	}
 
 	public static void reset() {
-		PLACED_BLOCKS_BY_LEVEL.clear();
-		dirty = false;
-		lastAutosaveBucket = Long.MIN_VALUE;
-		trackedSinceGameplayTick = -1L;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -49,10 +49,7 @@ public final class MadokuPlacedBlocks {
 			return;
 		}
 
-		applyPersistedData(DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData()));
-		clearExpiredPlacedBlocks(null);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		getData(server).clearExpiredPlacedBlocks(null);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -60,17 +57,7 @@ public final class MadokuPlacedBlocks {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
-		if (bucket == lastAutosaveBucket) {
-			return;
-		}
-
-		lastAutosaveBucket = bucket;
-		clearExpiredPlacedBlocks(null);
-		if (dirty) {
-			savePersistedData(server);
-		}
+		getData(server).clearExpiredPlacedBlocks(null);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -78,9 +65,7 @@ public final class MadokuPlacedBlocks {
 			return;
 		}
 
-		clearExpiredPlacedBlocks(null);
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
-		dirty = false;
+		getData(server).clearExpiredPlacedBlocks(null);
 	}
 
 	public static void recordPlacedBlock(ServerLevel level, BlockPos pos) {
@@ -88,33 +73,10 @@ public final class MadokuPlacedBlocks {
 			return;
 		}
 
-		clearExpiredPlacedBlocks(level);
-
-		String levelId = levelId(level);
-		if (levelId.isBlank()) {
-			return;
+		PlacedBlockData data = getData(level.getServer());
+		if (data != null) {
+			data.recordPlacedBlock(level, pos);
 		}
-
-		if (!hasTrackedBlocks()) {
-			trackedSinceGameplayTick = MadokuTicks.getGameplayTicks();
-		}
-
-		Set<Long> positions = PLACED_BLOCKS_BY_LEVEL.computeIfAbsent(levelId, ignored -> new HashSet<>());
-		if (!positions.add(pos.asLong())) {
-			return;
-		}
-
-		dirty = true;
-		MadokuLuck.emitLuckDebug(
-			"luck.place_recorded",
-			level,
-			pos,
-			"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
-			Map.of(
-				"tracked_count", Integer.toString(positions.size()),
-				"tracked_since_gameplay_tick", Long.toString(Math.max(0L, trackedSinceGameplayTick))
-			)
-		);
 	}
 
 	public static boolean isPlayerPlacedBlock(ServerLevel level, BlockPos pos) {
@@ -122,21 +84,8 @@ public final class MadokuPlacedBlocks {
 			return false;
 		}
 
-		clearExpiredPlacedBlocks(level);
-
-		Set<Long> positions = PLACED_BLOCKS_BY_LEVEL.get(levelId(level));
-		boolean tracked = positions != null && positions.contains(pos.asLong());
-		MadokuLuck.emitLuckDebug(
-			"luck.place_lookup",
-			level,
-			pos,
-			"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
-			Map.of(
-				"tracked", Boolean.toString(tracked),
-				"tracked_count", Integer.toString(positions == null ? 0 : positions.size())
-			)
-		);
-		return tracked;
+		PlacedBlockData data = getData(level.getServer());
+		return data != null && data.isPlayerPlacedBlock(level, pos);
 	}
 
 	public static boolean consumePlacedBlock(ServerLevel level, BlockPos pos) {
@@ -144,30 +93,21 @@ public final class MadokuPlacedBlocks {
 			return false;
 		}
 
-		clearExpiredPlacedBlocks(level);
+		PlacedBlockData data = getData(level.getServer());
+		return data != null && data.consumePlacedBlock(level, pos);
+	}
 
-		String levelId = levelId(level);
-		Set<Long> positions = PLACED_BLOCKS_BY_LEVEL.get(levelId);
-		if (positions == null || !positions.remove(pos.asLong())) {
-			return false;
+	private static PlacedBlockData getData(MinecraftServer server) {
+		if (server == null) {
+			return null;
 		}
 
-		if (positions.isEmpty()) {
-			PLACED_BLOCKS_BY_LEVEL.remove(levelId);
-		}
-		if (!hasTrackedBlocks()) {
-			trackedSinceGameplayTick = -1L;
+		ServerLevel level = server.getLevel(ServerLevel.OVERWORLD);
+		if (level == null) {
+			return new PlacedBlockData();
 		}
 
-		dirty = true;
-		MadokuLuck.emitLuckDebug(
-			"luck.place_consumed",
-			level,
-			pos,
-			"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
-			Map.of("remaining_count", Integer.toString(positions.size()))
-		);
-		return true;
+		return level.getDataStorage().computeIfAbsent(TYPE);
 	}
 
 	private static String levelId(ServerLevel world) {
@@ -177,174 +117,300 @@ public final class MadokuPlacedBlocks {
 		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
-	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(FIELD_LEVELS, new JsonArray());
-		root.addProperty(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, -1L);
-		return root;
-	}
-
-	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, trackedSinceGameplayTick);
-		JsonArray levels = new JsonArray();
-		for (Map.Entry<String, Set<Long>> entry : PLACED_BLOCKS_BY_LEVEL.entrySet()) {
-			if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null || entry.getValue().isEmpty()) {
-				continue;
-			}
-
-			JsonObject level = new JsonObject();
-			level.addProperty(FIELD_LEVEL_ID, entry.getKey());
-			JsonArray positions = new JsonArray();
-			for (Long position : entry.getValue()) {
-				if (position == null) {
-					continue;
-				}
-
-				JsonObject positionObject = new JsonObject();
-				positionObject.addProperty(FIELD_POSITION, position);
-				positions.add(positionObject);
-			}
-			level.add(FIELD_POSITIONS, positions);
-			levels.add(level);
-		}
-		root.add(FIELD_LEVELS, levels);
-		return root;
-	}
-
-	private static void applyPersistedData(JsonObject source) {
-		PLACED_BLOCKS_BY_LEVEL.clear();
-		trackedSinceGameplayTick = -1L;
-		if (source == null) {
-			return;
-		}
-
-		long nowGameplayTick = MadokuTicks.getGameplayTicks();
-		trackedSinceGameplayTick = readLong(source, FIELD_TRACKED_SINCE_GAMEPLAY_TICK, -1L);
-		if (!source.has(FIELD_LEVELS) || !source.get(FIELD_LEVELS).isJsonArray()) {
-			return;
-		}
-
-		JsonArray levels = source.getAsJsonArray(FIELD_LEVELS);
-		for (JsonElement levelElement : levels) {
-			if (levelElement == null || !levelElement.isJsonObject()) {
-				continue;
-			}
-
-			JsonObject levelObject = levelElement.getAsJsonObject();
-			String levelId = readString(levelObject, FIELD_LEVEL_ID);
-			if (levelId.isBlank() || !levelObject.has(FIELD_POSITIONS) || !levelObject.get(FIELD_POSITIONS).isJsonArray()) {
-				continue;
-			}
-
-			Set<Long> positions = new HashSet<>();
-			for (JsonElement positionElement : levelObject.getAsJsonArray(FIELD_POSITIONS)) {
-				if (positionElement == null) {
-					continue;
-				}
-				if (positionElement.isJsonPrimitive() && positionElement.getAsJsonPrimitive().isNumber()) {
-					positions.add(positionElement.getAsLong());
-					continue;
-				}
-				if (!positionElement.isJsonObject()) {
-					continue;
-				}
-
-				long position = readLong(positionElement.getAsJsonObject(), FIELD_POSITION, Long.MIN_VALUE);
-				if (position != Long.MIN_VALUE) {
-					positions.add(position);
-				}
-			}
-
-			if (!positions.isEmpty()) {
-				PLACED_BLOCKS_BY_LEVEL.put(levelId, positions);
-			}
-		}
-
-		if (hasTrackedBlocks() && trackedSinceGameplayTick < 0L) {
-			trackedSinceGameplayTick = nowGameplayTick;
-			dirty = true;
-		}
-	}
-
-	private static String readString(JsonObject object, String key) {
-		if (object == null || key == null || !object.has(key)) {
-			return "";
-		}
-		JsonElement element = object.get(key);
-		return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-			? element.getAsString().trim()
-			: "";
-	}
-
-	private static long readLong(JsonObject object, String key, long fallback) {
-		if (object == null || key == null || !object.has(key)) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-		try {
-			return element.getAsLong();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	private static boolean clearExpiredPlacedBlocks(ServerLevel level) {
-		if (!hasTrackedBlocks() || trackedSinceGameplayTick < 0L) {
-			if (!hasTrackedBlocks()) {
-				trackedSinceGameplayTick = -1L;
-			}
-			return false;
-		}
-
-		long expiresAfterTicks = resolvePlacedBlockRetentionTicks();
-		long nowGameplayTick = MadokuTicks.getGameplayTicks();
-		if (nowGameplayTick - trackedSinceGameplayTick < expiresAfterTicks) {
-			return false;
-		}
-
-		int expiredLevels = PLACED_BLOCKS_BY_LEVEL.size();
-		int expiredBlocks = totalTrackedBlocks();
-		PLACED_BLOCKS_BY_LEVEL.clear();
-		trackedSinceGameplayTick = -1L;
-		dirty = true;
-		MadokuLuck.emitLuckDebug(
-			"luck.place_list_expired",
-			level,
-			null,
-			"global",
-			Map.of(
-				"expired_levels", Integer.toString(expiredLevels),
-				"expired_blocks", Integer.toString(expiredBlocks),
-				"expiry_ticks", Long.toString(expiresAfterTicks)
-			)
-		);
-		return true;
-	}
-
-	private static boolean hasTrackedBlocks() {
-		return totalTrackedBlocks() > 0;
-	}
-
-	private static int totalTrackedBlocks() {
-		int count = 0;
-		for (Set<Long> positions : PLACED_BLOCKS_BY_LEVEL.values()) {
-			if (positions != null) {
-				count += positions.size();
-			}
-		}
-		return count;
-	}
-
 	private static long resolvePlacedBlockRetentionTicks() {
 		long dayTicks = Math.max(1L, MadokuTime.getGameplayTicksPerDay());
 		try {
 			return Math.max(1L, Math.multiplyExact(PLACED_BLOCK_RETENTION_DAYS, dayTicks));
 		} catch (ArithmeticException exception) {
 			return Long.MAX_VALUE;
+		}
+	}
+
+	private static long packChunk(int chunkX, int chunkZ) {
+		return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
+	}
+
+	private static int packLocalBlockPos(BlockPos pos) {
+		int localX = pos.getX() & 15;
+		int localZ = pos.getZ() & 15;
+		int localY = pos.getY() & 0xFFFF;
+		return (localY << 8) | (localX << 4) | localZ;
+	}
+
+	private static final class PlacedBlockData extends SavedData {
+		private static final Codec<PlacedBlockData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+			Codec.LONG.fieldOf(FIELD_TRACKED_SINCE_GAMEPLAY_TICK).forGetter(data -> data.trackedSinceGameplayTick),
+			Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(Codec.LONG, Codec.INT.listOf()))
+				.fieldOf(FIELD_LEVELS)
+				.forGetter(PlacedBlockData::encodedLevels)
+		).apply(instance, PlacedBlockData::new));
+
+		private final Map<String, Map<Long, Set<Integer>>> placedBlocksByLevel = new HashMap<>();
+		private long trackedSinceGameplayTick = -1L;
+
+		private PlacedBlockData() {
+		}
+
+		private PlacedBlockData(long trackedSinceGameplayTick, Map<String, Map<Long, List<Integer>>> encodedLevels) {
+			this.trackedSinceGameplayTick = trackedSinceGameplayTick;
+			importEncodedLevels(encodedLevels);
+			normalizeLoadedState();
+		}
+
+		private void recordPlacedBlock(ServerLevel level, BlockPos pos) {
+			clearExpiredPlacedBlocks(level);
+
+			String levelId = levelId(level);
+			if (levelId.isBlank()) {
+				return;
+			}
+
+			if (!hasTrackedBlocks()) {
+				trackedSinceGameplayTick = MadokuTicks.getGameplayTicks();
+			}
+
+			long packedChunk = packChunk(pos.getX() >> 4, pos.getZ() >> 4);
+			int packedLocalPos = packLocalBlockPos(pos);
+			Map<Long, Set<Integer>> chunks = placedBlocksByLevel.computeIfAbsent(levelId, ignored -> new HashMap<>());
+			Set<Integer> positions = chunks.computeIfAbsent(packedChunk, ignored -> new HashSet<>());
+			if (!positions.add(packedLocalPos)) {
+				return;
+			}
+
+			setDirty();
+			MadokuLuck.emitLuckDebug(
+				"luck.place_recorded",
+				level,
+				pos,
+				"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
+				Map.of(
+					"tracked_count", Integer.toString(countTrackedBlocksInLevel(levelId)),
+					"tracked_since_gameplay_tick", Long.toString(Math.max(0L, trackedSinceGameplayTick))
+				)
+			);
+		}
+
+		private boolean isPlayerPlacedBlock(ServerLevel level, BlockPos pos) {
+			clearExpiredPlacedBlocks(level);
+
+			String levelId = levelId(level);
+			Map<Long, Set<Integer>> chunks = placedBlocksByLevel.get(levelId);
+			long packedChunk = packChunk(pos.getX() >> 4, pos.getZ() >> 4);
+			Set<Integer> positions = chunks == null ? null : chunks.get(packedChunk);
+			boolean tracked = positions != null && positions.contains(packLocalBlockPos(pos));
+			MadokuLuck.emitLuckDebug(
+				"luck.place_lookup",
+				level,
+				pos,
+				"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
+				Map.of(
+					"tracked", Boolean.toString(tracked),
+					"tracked_count", Integer.toString(countTrackedBlocksInLevel(levelId))
+				)
+			);
+			return tracked;
+		}
+
+		private boolean consumePlacedBlock(ServerLevel level, BlockPos pos) {
+			clearExpiredPlacedBlocks(level);
+
+			String levelId = levelId(level);
+			Map<Long, Set<Integer>> chunks = placedBlocksByLevel.get(levelId);
+			if (chunks == null) {
+				return false;
+			}
+
+			long packedChunk = packChunk(pos.getX() >> 4, pos.getZ() >> 4);
+			Set<Integer> positions = chunks.get(packedChunk);
+			if (positions == null || !positions.remove(packLocalBlockPos(pos))) {
+				return false;
+			}
+
+			if (positions.isEmpty()) {
+				chunks.remove(packedChunk);
+			}
+			if (chunks.isEmpty()) {
+				placedBlocksByLevel.remove(levelId);
+			}
+			if (!hasTrackedBlocks()) {
+				trackedSinceGameplayTick = -1L;
+			}
+
+			setDirty();
+			MadokuLuck.emitLuckDebug(
+				"luck.place_consumed",
+				level,
+				pos,
+				"block:" + pos.getX() + "," + pos.getY() + "," + pos.getZ(),
+				Map.of("remaining_count", Integer.toString(positions.size()))
+			);
+			return true;
+		}
+
+		private void clearExpiredPlacedBlocks(ServerLevel level) {
+			if (!hasTrackedBlocks() || trackedSinceGameplayTick < 0L) {
+				if (!hasTrackedBlocks()) {
+					trackedSinceGameplayTick = -1L;
+				}
+				return;
+			}
+
+			long expiresAfterTicks = resolvePlacedBlockRetentionTicks();
+			long nowGameplayTick = MadokuTicks.getGameplayTicks();
+			if (nowGameplayTick - trackedSinceGameplayTick < expiresAfterTicks) {
+				return;
+			}
+
+			int expiredLevels = placedBlocksByLevel.size();
+			int expiredBlocks = totalTrackedBlocks();
+			placedBlocksByLevel.clear();
+			trackedSinceGameplayTick = -1L;
+			setDirty();
+			MadokuLuck.emitLuckDebug(
+				"luck.place_list_expired",
+				level,
+				null,
+				"global",
+				Map.of(
+					"expired_levels", Integer.toString(expiredLevels),
+					"expired_blocks", Integer.toString(expiredBlocks),
+					"expiry_ticks", Long.toString(expiresAfterTicks)
+				)
+			);
+		}
+
+		private void normalizeLoadedState() {
+			if (!hasTrackedBlocks()) {
+				trackedSinceGameplayTick = -1L;
+				return;
+			}
+
+			if (trackedSinceGameplayTick < 0L) {
+				trackedSinceGameplayTick = MadokuTicks.getGameplayTicks();
+				setDirty();
+			}
+		}
+
+		private void importEncodedLevels(Map<String, Map<Long, List<Integer>>> encodedLevels) {
+			placedBlocksByLevel.clear();
+			if (encodedLevels == null || encodedLevels.isEmpty()) {
+				return;
+			}
+
+			for (Map.Entry<String, Map<Long, List<Integer>>> levelEntry : encodedLevels.entrySet()) {
+				if (levelEntry == null) {
+					continue;
+				}
+
+				String levelId = levelEntry.getKey();
+				Map<Long, List<Integer>> encodedChunks = levelEntry.getValue();
+				if (levelId == null || levelId.isBlank() || encodedChunks == null || encodedChunks.isEmpty()) {
+					continue;
+				}
+
+				Map<Long, Set<Integer>> chunks = new HashMap<>();
+				for (Map.Entry<Long, List<Integer>> chunkEntry : encodedChunks.entrySet()) {
+					if (chunkEntry == null) {
+						continue;
+					}
+
+					Long packedChunk = chunkEntry.getKey();
+					List<Integer> encodedPositions = chunkEntry.getValue();
+					if (packedChunk == null || encodedPositions == null || encodedPositions.isEmpty()) {
+						continue;
+					}
+
+					Set<Integer> positions = new HashSet<>();
+					for (Integer packedLocalPos : encodedPositions) {
+						if (packedLocalPos != null) {
+							positions.add(packedLocalPos);
+						}
+					}
+
+					if (!positions.isEmpty()) {
+						chunks.put(packedChunk, positions);
+					}
+				}
+
+				if (!chunks.isEmpty()) {
+					placedBlocksByLevel.put(levelId, chunks);
+				}
+			}
+		}
+
+		private Map<String, Map<Long, List<Integer>>> encodedLevels() {
+			Map<String, Map<Long, List<Integer>>> encoded = new LinkedHashMap<>();
+			List<String> levelIds = new ArrayList<>(placedBlocksByLevel.keySet());
+			levelIds.sort(String::compareTo);
+
+			for (String levelId : levelIds) {
+				if (levelId == null || levelId.isBlank()) {
+					continue;
+				}
+
+				Map<Long, Set<Integer>> chunks = placedBlocksByLevel.get(levelId);
+				if (chunks == null || chunks.isEmpty()) {
+					continue;
+				}
+
+				Map<Long, List<Integer>> encodedChunks = new LinkedHashMap<>();
+				List<Long> packedChunks = new ArrayList<>(chunks.keySet());
+				packedChunks.sort(Comparator.naturalOrder());
+
+				for (Long packedChunk : packedChunks) {
+					if (packedChunk == null) {
+						continue;
+					}
+
+					Set<Integer> positions = chunks.get(packedChunk);
+					if (positions == null || positions.isEmpty()) {
+						continue;
+					}
+
+					List<Integer> encodedPositions = new ArrayList<>(positions);
+					encodedPositions.sort(Comparator.naturalOrder());
+					encodedChunks.put(packedChunk, encodedPositions);
+				}
+
+				if (!encodedChunks.isEmpty()) {
+					encoded.put(levelId, encodedChunks);
+				}
+			}
+			return encoded;
+		}
+
+		private boolean hasTrackedBlocks() {
+			return totalTrackedBlocks() > 0;
+		}
+
+		private int totalTrackedBlocks() {
+			int count = 0;
+			for (Map<Long, Set<Integer>> chunks : placedBlocksByLevel.values()) {
+				if (chunks == null) {
+					continue;
+				}
+				for (Set<Integer> positions : chunks.values()) {
+					if (positions != null) {
+						count += positions.size();
+					}
+				}
+			}
+			return count;
+		}
+
+		private int countTrackedBlocksInLevel(String levelId) {
+			Map<Long, Set<Integer>> chunks = placedBlocksByLevel.get(levelId);
+			if (chunks == null || chunks.isEmpty()) {
+				return 0;
+			}
+
+			int count = 0;
+			for (Set<Integer> positions : chunks.values()) {
+				if (positions != null) {
+					count += positions.size();
+				}
+			}
+			return count;
 		}
 	}
 }

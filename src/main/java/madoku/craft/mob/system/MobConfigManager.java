@@ -28,9 +28,6 @@ public final class MobConfigManager {
 	public static final String FILE_HUSK = "husk";
 	public static final String FILE_DROWNED = "drowned";
 	public static final String FILE_ZOMBIE_VILLAGER = "zombie-villager";
-	public static final String FILE_PIGLIN = "piglin";
-	public static final String FILE_ZOMBIFIED_PIGLIN = "zombified-piglin";
-	public static final String FILE_PILLAGER = "pillager";
 	public static final String FILE_WITHER_SKELETON = "wither-skeleton";
 	public static final String FILE_HAG = "hag";
 	public static final String FILE_BEE = "bee";
@@ -51,12 +48,6 @@ public final class MobConfigManager {
 	public static final String FIELD_ARMOR_HELMET_ONLY_WEIGHT = "armor_helmet_only_weight";
 	public static final String FIELD_ARMOR_HELMET_BOOTS_WEIGHT = "armor_helmet_boots_weight";
 	public static final String FIELD_ARMOR_FULL_SET_WEIGHT = "armor_full_set_weight";
-	public static final String FIELD_CROSSBOW_SPAWN_WEIGHT = "crossbow_spawn_weight";
-	public static final String FIELD_GOLDEN_SWORD_SPAWN_WEIGHT = "golden_sword_spawn_weight";
-	public static final String FIELD_ADULT_PIGLIN = "adult_piglin";
-	public static final String FIELD_BABY_PIGLIN = "baby_piglin";
-	public static final String FIELD_ADULT_ZOMBIFIED_PIGLIN = "adult_zombified_piglin";
-	public static final String FIELD_BABY_ZOMBIFIED_PIGLIN = "baby_zombified_piglin";
 
 	public static final String FIELD_SPIDER_SPAWN_WEIGHT = "spider_spawn_weight";
 	public static final String FIELD_CAVE_SPIDER_SPAWN_WEIGHT = "cave_spider_spawn_weight";
@@ -168,9 +159,6 @@ public final class MobConfigManager {
 		defaults.put(FILE_HUSK, MobConfigHusk.buildDefaults());
 		defaults.put(FILE_DROWNED, MobConfigDrowned.buildDefaults());
 		defaults.put(FILE_ZOMBIE_VILLAGER, MobConfigZombieVillager.buildDefaults());
-		defaults.put(FILE_PIGLIN, MobConfigPiglin.buildDefaults());
-		defaults.put(FILE_ZOMBIFIED_PIGLIN, MobConfigZombifiedPiglin.buildDefaults());
-		defaults.put(FILE_PILLAGER, MobConfigPillager.buildDefaults());
 		defaults.put(FILE_WITHER_SKELETON, MobConfigWitherSkeleton.buildDefaults());
 		defaults.put(FILE_HAG, MobConfigHag.buildDefaults());
 		defaults.put(FILE_BEE, MobConfigBee.buildDefaults());
@@ -296,8 +284,6 @@ public final class MobConfigManager {
 		root.addProperty(FIELD_SPIDER_SPAWN_WEIGHT, 90.0d);
 		root.addProperty(FIELD_CAVE_SPIDER_SPAWN_WEIGHT, 5.0d);
 		root.addProperty(FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0d);
-		root.addProperty(FIELD_CROSSBOW_SPAWN_WEIGHT, 50.0d);
-		root.addProperty(FIELD_GOLDEN_SWORD_SPAWN_WEIGHT, 50.0d);
 		root.addProperty(FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2d);
 		root.addProperty(FIELD_ARMOR_SPAWN_WEIGHT, 10.0d);
 		root.addProperty(FIELD_NO_ARMOR_SPAWN_WEIGHT, 90.0d);
@@ -378,20 +364,6 @@ public final class MobConfigManager {
 				mergeMissing(target.getAsJsonObject(key), value.getAsJsonObject());
 			}
 		}
-	}
-
-	static void applyPiglinGoldArmorDefaults(JsonObject root) {
-		if (root == null) {
-			return;
-		}
-		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		JsonObject armorRarity = getOrCreateObject(spawnRules, FIELD_ARMOR_RARITY);
-		armorRarity.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 100.0d);
-		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 0.0d);
 	}
 
 	static void applyIronArmorDefaults(JsonObject root) {

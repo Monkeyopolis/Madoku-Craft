@@ -27,8 +27,6 @@
     "CreeperExplosionMixin",
     "CreeperPoweredAccessor",
     "CropBlockFarmingMixin",
-    "CrossbowChargeDurationMixin",
-    "CrossbowProjectileAccuracyMixin",
     "DifficultyInstanceRegionalDifficultyMixin",
     "DrownedRangedTridentAttackMixin",
     "DrownedRuntimeTickMixin",
@@ -72,8 +70,6 @@
     "MobExperienceAccessor",
     "MobPetSoundMixin",
     "MobSpawnOverridesMixin",
-    "PiglinZombifiedAvoidReplaceMixin",
-    "PillagerRangedAttackMixin",
     "PlayerEatGateMixin",
     "PlayerEntitiesInventoryMixin",
     "PlayerExperienceMadokuLevelsMixin",
@@ -84,7 +80,6 @@
     "RandomizableContainerLootMixin",
     "RangedBowAttackGoalChargeUpMixin",
     "RangedCrossbowAttackGoalAccessor",
-    "RangedCrossbowAttackGoalMixin",
     "RecipeManagerRecipeOverridesMixin",
     "ResultSlotRarityMixin",
     "SaturationMobEffectMixin",
@@ -102,9 +97,7 @@
     "ThrownTridentGroundClearMixin",
     "ThrownTridentDamageMixin",
     "WitherSkeletonWitherEffectMixin",
-    "ZombieSpawnOverridesMixin",
-    "ZombifiedPiglinAggressionTickMixin",
-    "ZombifiedPiglinAlertReplaceMixin"
+    "ZombieSpawnOverridesMixin"
   ],
   "client": [
     "client.AbstractContainerScreenAccessor",

@@ -105,7 +105,6 @@ public final class LootTableConfigStructures {
 		put(defaults, "minecraft:structure_chests/igloo", ConfigStructuresIgloo.buildDefaults());
 		put(defaults, "minecraft:structure_chests/jungle_temple", ConfigStructuresJungleTemple.buildDefaults());
 		put(defaults, "minecraft:structure_chests/nether_fortress", ConfigStructuresNetherFortress.buildDefaults());
-		put(defaults, "minecraft:structure_chests/pillager_outpost", ConfigStructuresPillagerOutpost.buildDefaults());
 		put(defaults, "minecraft:structure_chests/ruined_portal", ConfigStructuresRuinedPortal.buildDefaults());
 		put(defaults, "minecraft:structure_chests/shipwreck", ConfigStructuresShipwreck.buildDefaults());
 		put(defaults, "minecraft:structure_chests/starter_chest", ConfigStructuresStarterChest.buildDefaults());
