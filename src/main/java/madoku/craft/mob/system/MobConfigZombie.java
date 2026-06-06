@@ -91,9 +91,6 @@ public final class MobConfigZombie {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
-
 		JsonObject jockey = new JsonObject();
 		jockey.addProperty(MobConfigManager.FIELD_ENABLED, true);
 
@@ -112,9 +109,10 @@ public final class MobConfigZombie {
 		mount.add(MobConfigManager.FIELD_MOB, mountMob);
 		jockey.add(MobConfigManager.FIELD_JOCKEY_MOUNT, mount);
 
-		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
-
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).mobJockey(jockey).build()
+		);
 		return variant;
 	}
 
@@ -122,15 +120,13 @@ public final class MobConfigZombie {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
-
 		JsonObject alternativeMob = new JsonObject();
 		alternativeMob.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		alternativeMob.addProperty(MobConfigManager.FIELD_MOB, "minecraft:zombie_villager");
-		spawnRules.add(MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB, alternativeMob);
-
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).spawnAlternativeMob(alternativeMob).build()
+		);
 		return variant;
 	}
 
@@ -171,11 +167,10 @@ public final class MobConfigZombie {
 	}
 
 	private static JsonObject buildZombieSpawnRulesDefaults(String mobKey) {
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT,
-			MobConfigManager.FILE_ZOMBIE.equals(mobKey) ? 80.0d : 90.0d);
-		spawnRules.add(MobConfigManager.FIELD_EQUIPMENT_SET, buildZombieEquipmentSetDefaults(mobKey));
-		return spawnRules;
+		return MobConfigManager.mobSpawnRules()
+			.spawnWeight(MobConfigManager.FILE_ZOMBIE.equals(mobKey) ? 80.0d : 90.0d)
+			.equipmentSet(buildZombieEquipmentSetDefaults(mobKey))
+			.build();
 	}
 
 	private static JsonObject buildZombieEquipmentSetDefaults(String mobKey) {
@@ -234,9 +229,10 @@ public final class MobConfigZombie {
 			);
 		}
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);
-		root.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		root.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()
+		);
 
 		if (baby) {
 			JsonObject behavior = new JsonObject();

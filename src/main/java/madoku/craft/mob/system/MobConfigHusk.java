@@ -94,10 +94,10 @@ public final class MobConfigHusk {
 	}
 
 	private static JsonObject buildHuskSpawnRulesDefaults() {
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0d);
-		spawnRules.add(MobConfigManager.FIELD_EQUIPMENT_SET, buildHuskEquipmentSetDefaults());
-		return spawnRules;
+		return MobConfigManager.mobSpawnRules()
+			.spawnWeight(90.0d)
+			.equipmentSet(buildHuskEquipmentSetDefaults())
+			.build();
 	}
 
 	private static JsonObject buildHuskEquipmentSetDefaults() {
@@ -154,9 +154,10 @@ public final class MobConfigHusk {
 			)
 		);
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);
-		root.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		root.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()
+		);
 		return root;
 	}
 }

@@ -55,12 +55,13 @@ public final class MobConfigSpider {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 
-		JsonObject spawnRules = buildSpiderVariantSpawnRulesDefaults(10.0d);
 		JsonObject alternativeMob = new JsonObject();
 		alternativeMob.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		alternativeMob.addProperty(MobConfigManager.FIELD_MOB, "minecraft:cave_spider");
-		spawnRules.add(MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB, alternativeMob);
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).spawnAlternativeMob(alternativeMob).build()
+		);
 		return variant;
 	}
 
@@ -68,7 +69,6 @@ public final class MobConfigSpider {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 
-		JsonObject spawnRules = buildSpiderVariantSpawnRulesDefaults(10.0d);
 		JsonObject jockey = new JsonObject();
 		jockey.addProperty(MobConfigManager.FIELD_ENABLED, true);
 
@@ -85,8 +85,10 @@ public final class MobConfigSpider {
 		mount.add(MobConfigManager.FIELD_MOB, mountMob);
 		jockey.add(MobConfigManager.FIELD_JOCKEY_MOUNT, mount);
 
-		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).mobJockey(jockey).build()
+		);
 		return variant;
 	}
 
@@ -110,9 +112,7 @@ public final class MobConfigSpider {
 	}
 
 	private static JsonObject buildSpiderVariantSpawnRulesDefaults(double spawnWeight) {
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);
-		return spawnRules;
+		return MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build();
 	}
 
 	private static JsonObject buildSpiderBehaviorDefaults() {

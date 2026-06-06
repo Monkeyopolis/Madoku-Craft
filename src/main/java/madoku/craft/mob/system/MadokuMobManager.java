@@ -2632,14 +2632,14 @@ public final class MadokuMobManager {
 		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
 			return fallback;
 		}
-		Double direct = readOptionalDouble(variantRoot, MobConfigManager.FIELD_SPAWN_WEIGHT);
-		if (direct != null) {
-			return direct;
-		}
 		JsonObject spawnRules = readSpawnRulesRoot(variantRoot);
 		Double nested = readOptionalDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT);
 		if (nested != null) {
 			return nested;
+		}
+		Double direct = readOptionalDouble(variantRoot, MobConfigManager.FIELD_SPAWN_WEIGHT);
+		if (direct != null) {
+			return direct;
 		}
 		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
 		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);

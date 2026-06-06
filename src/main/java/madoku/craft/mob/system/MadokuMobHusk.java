@@ -380,16 +380,7 @@ public final class MadokuMobHusk {
 	}
 
 	private static double resolveHuskVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
-			return fallback;
-		}
-		double direct = readSpawnWeight(variantRoot, Double.NaN);
-		if (Double.isFinite(direct)) {
-			return direct;
-		}
-		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
-		double nested = readDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT, Double.NaN);
-		return Double.isFinite(nested) ? nested : fallback;
+		return MadokuMobManager.resolveVariantSpawnWeight(variantRoot, fallback);
 	}
 
 	private static Map<String, JsonObject> collectHuskVariantRoots(JsonObject fileRoot) {

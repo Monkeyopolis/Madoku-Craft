@@ -10,7 +10,7 @@ public final class ConfigEntitiesHusk {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, false, 1, 2);
+		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, true, 1, 2);
 		JsonArray groups = new JsonArray();
 
 		JsonObject commonGroup = new JsonObject();

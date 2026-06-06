@@ -196,9 +196,10 @@ public final class MobConfigBee {
 			)
 		);
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, baby ? 20.0d : 80.0d);
-		group.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		group.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(baby ? 20.0d : 80.0d).build()
+		);
 
 		if (baby) {
 			JsonObject behavior = new JsonObject();

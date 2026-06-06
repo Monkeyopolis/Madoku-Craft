@@ -17,9 +17,13 @@ public final class MobConfigCreeper {
 		creeperStats.addProperty(MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_CHANCE, 0.4d);
 		creeperStats.addProperty(MobConfigManager.FIELD_FUSE_LENGTH, 30.0d);
 		creeper.add(MobConfigManager.FIELD_MOB_STATS, creeperStats);
-		JsonObject creeperSpawnRules = MobConfigManager.getOrCreateObject(creeper, MobConfigManager.FIELD_SPAWN_RULES);
-		creeperSpawnRules.addProperty(MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2d);
-		creeperSpawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0d);
+		creeper.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules()
+				.explosionDestructionDifficultyStep(0.2d)
+				.spawnWeight(95.0d)
+				.build()
+		);
 
 		JsonObject charged = new JsonObject();
 		JsonObject chargedStats = MobConfigManager.buildMobStatsDefaults(12.0d, 1.0d, null, 0.3d, 0.2d, null, 11);
@@ -28,9 +32,13 @@ public final class MobConfigCreeper {
 		chargedStats.addProperty(MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_CHANCE, 0.6d);
 		chargedStats.addProperty(MobConfigManager.FIELD_FUSE_LENGTH, 24.0d);
 		charged.add(MobConfigManager.FIELD_MOB_STATS, chargedStats);
-		JsonObject chargedSpawnRules = MobConfigManager.getOrCreateObject(charged, MobConfigManager.FIELD_SPAWN_RULES);
-		chargedSpawnRules.addProperty(MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2d);
-		chargedSpawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0d);
+		charged.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules()
+				.explosionDestructionDifficultyStep(0.2d)
+				.spawnWeight(5.0d)
+				.build()
+		);
 
 		MobConfigManager.ensureMobSchema(creeper, false, false);
 		MobConfigManager.ensureMobSchema(charged, false, false);

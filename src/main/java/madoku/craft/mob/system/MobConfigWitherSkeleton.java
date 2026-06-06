@@ -11,9 +11,13 @@ public final class MobConfigWitherSkeleton {
 		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		JsonObject witherSkeleton = new JsonObject();
 		MobConfigManager.addArmorSpawnDefaults(witherSkeleton);
-		JsonObject spawnRules = MobConfigManager.getOrCreateObject(witherSkeleton, MobConfigManager.FIELD_SPAWN_RULES);
-		spawnRules.addProperty(MobConfigManager.FIELD_WITHER_SWORD_SPAWN_WEIGHT, 90.0d);
-		spawnRules.addProperty(MobConfigManager.FIELD_WITHER_BOW_SPAWN_WEIGHT, 10.0d);
+		witherSkeleton.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules()
+				.witherSwordSpawnWeight(90.0d)
+				.witherBowSpawnWeight(10.0d)
+				.build()
+		);
 		JsonObject mobStats = MobConfigManager.buildMobStatsDefaults(20.0d, 0.0d, 7.0d, 0.25d, 0.0d, 1.0d, 11);
 		mobStats.addProperty(MobConfigManager.FIELD_RANGED_DAMAGE, 6.0d);
 		mobStats.addProperty(MobConfigManager.FIELD_ATTACK_INTERVAL, 20.0d);

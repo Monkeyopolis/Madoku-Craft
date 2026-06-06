@@ -302,11 +302,15 @@ public final class MobConfigManager {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
 		JsonObject mob = new JsonObject();
-		JsonObject spawnRules = getOrCreateObject(mob, FIELD_SPAWN_RULES);
-		spawnRules.addProperty(FIELD_WITH_BOW_SPAWN_WEIGHT, 95.0d);
-		spawnRules.addProperty(FIELD_WITHOUT_BOW_SPAWN_WEIGHT, 5.0d);
-		spawnRules.addProperty(FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0d);
-		spawnRules.addProperty(FIELD_REGULAR_SPAWN_WEIGHT, 95.0d);
+		mob.add(
+			FIELD_SPAWN_RULES,
+			mobSpawnRules()
+				.withBowSpawnWeight(95.0d)
+				.withoutBowSpawnWeight(5.0d)
+				.spiderJockeySpawnWeight(5.0d)
+				.regularSpawnWeight(95.0d)
+				.build()
+		);
 		addArmorSpawnDefaults(mob);
 		JsonObject mobStats = buildMobStatsDefaults(
 			health,
@@ -349,35 +353,161 @@ public final class MobConfigManager {
 	}
 
 	static JsonObject buildMobSpawnRulesDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_SPAWN_WEIGHT, 100.0d);
-		root.addProperty(FIELD_WITH_BOW_SPAWN_WEIGHT, 95.0d);
-		root.addProperty(FIELD_WITHOUT_BOW_SPAWN_WEIGHT, 5.0d);
-		root.addProperty(FIELD_WITHER_SWORD_SPAWN_WEIGHT, 90.0d);
-		root.addProperty(FIELD_WITHER_BOW_SPAWN_WEIGHT, 10.0d);
-		root.addProperty(FIELD_REGULAR_SPAWN_WEIGHT, 95.0d);
-		root.addProperty(FIELD_SPIDER_SPAWN_WEIGHT, 90.0d);
-		root.addProperty(FIELD_CAVE_SPIDER_SPAWN_WEIGHT, 5.0d);
-		root.addProperty(FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0d);
-		root.addProperty(FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2d);
-		root.addProperty(FIELD_ARMOR_SPAWN_WEIGHT, 10.0d);
-		root.addProperty(FIELD_NO_ARMOR_SPAWN_WEIGHT, 90.0d);
+		return mobSpawnRules()
+			.spawnWeight(100.0d)
+			.withBowSpawnWeight(95.0d)
+			.withoutBowSpawnWeight(5.0d)
+			.witherSwordSpawnWeight(90.0d)
+			.witherBowSpawnWeight(10.0d)
+			.regularSpawnWeight(95.0d)
+			.spiderSpawnWeight(90.0d)
+			.caveSpiderSpawnWeight(5.0d)
+			.spiderJockeySpawnWeight(5.0d)
+			.explosionDestructionDifficultyStep(0.2d)
+			.armorSpawnWeight(10.0d)
+			.noArmorSpawnWeight(90.0d)
+			.armorRarity(
+				buildArmorRarityDefaults(1.0d, 5.0d, 10.0d, 17.0d, 28.0d, 39.0d)
+			)
+			.armorSet(buildArmorSetDefaults(60.0d, 30.0d, 10.0d))
+			.build();
+	}
 
+	static MobSpawnRulesBuilder mobSpawnRules() {
+		return new MobSpawnRulesBuilder();
+	}
+
+	static final class MobSpawnRulesBuilder {
+		private final JsonObject root = new JsonObject();
+
+		MobSpawnRulesBuilder spawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder armorSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_ARMOR_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder noArmorSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_NO_ARMOR_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder armorRarity(JsonObject value) {
+			addOptionalObject(root, FIELD_ARMOR_RARITY, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder armorSet(JsonObject value) {
+			addOptionalObject(root, FIELD_ARMOR_SET, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder spiderSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_SPIDER_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder caveSpiderSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_CAVE_SPIDER_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder spiderJockeySpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder withBowSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_WITH_BOW_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder withoutBowSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_WITHOUT_BOW_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder witherSwordSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_WITHER_SWORD_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder witherBowSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_WITHER_BOW_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder regularSpawnWeight(Double value) {
+			addOptionalDouble(root, FIELD_REGULAR_SPAWN_WEIGHT, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder explosionDestructionDifficultyStep(Double value) {
+			addOptionalDouble(root, FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder equipmentSet(JsonObject value) {
+			addOptionalObject(root, FIELD_EQUIPMENT_SET, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder mobJockey(JsonObject value) {
+			addOptionalObject(root, FIELD_MOB_JOCKEY, value);
+			return this;
+		}
+
+		MobSpawnRulesBuilder spawnAlternativeMob(JsonObject value) {
+			addOptionalObject(root, FIELD_SPAWN_ALTERNATIVE_MOB, value);
+			return this;
+		}
+
+		JsonObject build() {
+			return root;
+		}
+	}
+
+	private static JsonObject buildArmorRarityDefaults(
+		Double netheriteWeight,
+		Double diamondWeight,
+		Double goldWeight,
+		Double ironWeight,
+		Double copperWeight,
+		Double leatherWeight
+	) {
 		JsonObject armorRarity = new JsonObject();
-		armorRarity.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 1.0d);
-		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 5.0d);
-		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 10.0d);
-		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 17.0d);
-		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 28.0d);
-		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 39.0d);
-		root.add(FIELD_ARMOR_RARITY, armorRarity);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_NETHERITE_WEIGHT, netheriteWeight);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_DIAMOND_WEIGHT, diamondWeight);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_GOLD_WEIGHT, goldWeight);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_IRON_WEIGHT, ironWeight);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_COPPER_WEIGHT, copperWeight);
+		addOptionalDouble(armorRarity, FIELD_ARMOR_LEATHER_WEIGHT, leatherWeight);
+		return armorRarity;
+	}
 
+	private static JsonObject buildArmorSetDefaults(Double helmetOnlyWeight, Double helmetBootsWeight, Double fullSetWeight) {
 		JsonObject armorSet = new JsonObject();
-		armorSet.addProperty(FIELD_ARMOR_HELMET_ONLY_WEIGHT, 60.0d);
-		armorSet.addProperty(FIELD_ARMOR_HELMET_BOOTS_WEIGHT, 30.0d);
-		armorSet.addProperty(FIELD_ARMOR_FULL_SET_WEIGHT, 10.0d);
-		root.add(FIELD_ARMOR_SET, armorSet);
-		return root;
+		addOptionalDouble(armorSet, FIELD_ARMOR_HELMET_ONLY_WEIGHT, helmetOnlyWeight);
+		addOptionalDouble(armorSet, FIELD_ARMOR_HELMET_BOOTS_WEIGHT, helmetBootsWeight);
+		addOptionalDouble(armorSet, FIELD_ARMOR_FULL_SET_WEIGHT, fullSetWeight);
+		return armorSet;
+	}
+
+	private static void addOptionalDouble(JsonObject target, String key, Double value) {
+		if (target == null || key == null || key.isBlank() || value == null) {
+			return;
+		}
+		target.addProperty(key, value);
+	}
+
+	private static void addOptionalObject(JsonObject target, String key, JsonObject value) {
+		if (target == null || key == null || key.isBlank() || value == null || value.entrySet().isEmpty()) {
+			return;
+		}
+		target.add(key, value.deepCopy());
 	}
 
 	static JsonObject buildMobBehaviorDefaults(boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
@@ -460,19 +590,15 @@ public final class MobConfigManager {
 			return;
 		}
 		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		spawnRules.addProperty(FIELD_ARMOR_SPAWN_WEIGHT, 10.0d);
-		spawnRules.addProperty(FIELD_NO_ARMOR_SPAWN_WEIGHT, 90.0d);
-		JsonObject armorRarity = getOrCreateObject(spawnRules, FIELD_ARMOR_RARITY);
-		armorRarity.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 1.0d);
-		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 5.0d);
-		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 10.0d);
-		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 17.0d);
-		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 28.0d);
-		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 39.0d);
-		JsonObject armorSet = getOrCreateObject(spawnRules, FIELD_ARMOR_SET);
-		armorSet.addProperty(FIELD_ARMOR_HELMET_ONLY_WEIGHT, 60.0d);
-		armorSet.addProperty(FIELD_ARMOR_HELMET_BOOTS_WEIGHT, 30.0d);
-		armorSet.addProperty(FIELD_ARMOR_FULL_SET_WEIGHT, 10.0d);
+		mergeMissing(
+			spawnRules,
+			mobSpawnRules()
+				.armorSpawnWeight(10.0d)
+				.noArmorSpawnWeight(90.0d)
+				.armorRarity(buildArmorRarityDefaults(1.0d, 5.0d, 10.0d, 17.0d, 28.0d, 39.0d))
+				.armorSet(buildArmorSetDefaults(60.0d, 30.0d, 10.0d))
+				.build()
+		);
 	}
 
 	static JsonObject getOrCreateObject(JsonObject parent, String key) {

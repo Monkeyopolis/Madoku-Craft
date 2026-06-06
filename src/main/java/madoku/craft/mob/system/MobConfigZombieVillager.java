@@ -94,10 +94,10 @@ public final class MobConfigZombieVillager {
 	}
 
 	private static JsonObject buildZombieVillagerSpawnRulesDefaults() {
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d);
-		spawnRules.add(MobConfigManager.FIELD_EQUIPMENT_SET, buildZombieVillagerEquipmentSetDefaults());
-		return spawnRules;
+		return MobConfigManager.mobSpawnRules()
+			.spawnWeight(100.0d)
+			.equipmentSet(buildZombieVillagerEquipmentSetDefaults())
+			.build();
 	}
 
 	private static JsonObject buildZombieVillagerEquipmentSetDefaults() {
@@ -154,9 +154,10 @@ public final class MobConfigZombieVillager {
 			);
 		}
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);
-		root.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		root.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()
+		);
 
 		if (baby) {
 			JsonObject behavior = new JsonObject();

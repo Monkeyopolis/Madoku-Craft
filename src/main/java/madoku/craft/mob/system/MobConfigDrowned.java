@@ -93,10 +93,10 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedSpawnRulesDefaults() {
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0d);
-		spawnRules.add(MobConfigManager.FIELD_EQUIPMENT_SET, buildDrownedEquipmentSetDefaults());
-		return spawnRules;
+		return MobConfigManager.mobSpawnRules()
+			.spawnWeight(90.0d)
+			.equipmentSet(buildDrownedEquipmentSetDefaults())
+			.build();
 	}
 
 	private static JsonObject buildDrownedEquipmentSetDefaults() {
@@ -123,9 +123,10 @@ public final class MobConfigDrowned {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).build()
+		);
 		return variant;
 	}
 
@@ -176,9 +177,10 @@ public final class MobConfigDrowned {
 			);
 		}
 
-		JsonObject spawnRules = new JsonObject();
-		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, baby ? 10.0d : 90.0d);
-		root.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
+		root.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()
+		);
 		return root;
 	}
 
