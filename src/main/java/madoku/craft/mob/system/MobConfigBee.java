@@ -44,14 +44,22 @@ public final class MobConfigBee {
 	}
 
 	private static JsonObject buildSharedBeeStatsDefaults() {
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_HEALTH, 10.0d);
-		stats.addProperty(MobConfigManager.FIELD_DAMAGE, 2.0d);
-		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, 0.30d);
-		stats.addProperty("flying_speed", 0.60d);
-		stats.addProperty(MobConfigManager.FIELD_SCALE, 0.5d);
-		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, "minecraft-entities-bee.json");
-		return stats;
+		return MobConfigManager.buildMobStatsDefaults(
+			10.0d,
+			null,
+			2.0d,
+			0.30d,
+			null,
+			0.60d,
+			null,
+			0.5d,
+			null,
+			null,
+			null,
+			null,
+			null,
+			"minecraft-entities-bee.json"
+		);
 	}
 
 	private static JsonObject buildSharedBeeBehaviorDefaults() {
@@ -168,14 +176,25 @@ public final class MobConfigBee {
 
 	private static JsonObject buildBeeAgeOverrides(boolean baby) {
 		JsonObject group = new JsonObject();
-		JsonObject stats = new JsonObject();
-		if (baby) {
-			stats.addProperty(MobConfigManager.FIELD_HEALTH, 5.0d);
-			stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, 0.25d);
-			stats.addProperty("flying_speed", 0.45d);
-		}
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, baby ? 1 : 3);
-		group.add(MobConfigManager.FIELD_MOB_STATS, stats);
+		group.add(
+			MobConfigManager.FIELD_MOB_STATS,
+			MobConfigManager.buildMobStatsDefaults(
+				baby ? 5.0d : null,
+				null,
+				null,
+				baby ? 0.25d : null,
+				null,
+				baby ? 0.45d : null,
+				null,
+				null,
+				baby ? 1 : 3,
+				null,
+				null,
+				null,
+				null,
+				null
+			)
+		);
 
 		JsonObject spawnRules = new JsonObject();
 		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, baby ? 20.0d : 80.0d);

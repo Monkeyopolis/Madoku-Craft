@@ -74,19 +74,22 @@ public final class MobConfigDrowned {
 		double chargeUpTicks,
 		String mobDropsReference
 	) {
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_HEALTH, health);
-		stats.addProperty(MobConfigManager.FIELD_DAMAGE, damage);
-		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
-		stats.addProperty(MobConfigManager.FIELD_SWIMMING_SPEED, swimmingSpeed);
-		stats.addProperty(MobConfigManager.FIELD_SCALE, scale);
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, experienceDrop);
-		stats.addProperty(MobConfigManager.FIELD_RANGED_DAMAGE, rangedDamage);
-		stats.addProperty(MobConfigManager.FIELD_ATTACK_ACCURACY, attackAccuracy);
-		stats.addProperty(MobConfigManager.FIELD_ATTACK_INTERVAL, attackInterval);
-		stats.addProperty(MobConfigManager.FIELD_CHARGE_UP_TICKS, chargeUpTicks);
-		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, mobDropsReference);
-		return stats;
+		return MobConfigManager.buildMobStatsDefaults(
+			health,
+			null,
+			damage,
+			movementSpeed,
+			swimmingSpeed,
+			null,
+			null,
+			scale,
+			experienceDrop,
+			rangedDamage,
+			attackAccuracy,
+			attackInterval,
+			chargeUpTicks,
+			mobDropsReference
+		);
 	}
 
 	private static JsonObject buildDrownedSpawnRulesDefaults() {
@@ -152,13 +155,25 @@ public final class MobConfigDrowned {
 	private static JsonObject buildDrownedAgeOverride(boolean baby) {
 		JsonObject root = new JsonObject();
 		if (baby) {
-			JsonObject stats = new JsonObject();
-			stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, 3);
-			stats.addProperty(MobConfigManager.FIELD_HEALTH, 10.0d);
-			stats.addProperty(MobConfigManager.FIELD_DAMAGE, 2.5d);
-			stats.addProperty(MobConfigManager.FIELD_RANGED_DAMAGE, 4.5d);
-			stats.addProperty(MobConfigManager.FIELD_ATTACK_ACCURACY, 0.6d);
-			root.add(MobConfigManager.FIELD_MOB_STATS, stats);
+			root.add(
+				MobConfigManager.FIELD_MOB_STATS,
+				MobConfigManager.buildMobStatsDefaults(
+					10.0d,
+					null,
+					2.5d,
+					null,
+					null,
+					null,
+					null,
+					null,
+					3,
+					4.5d,
+					0.6d,
+					null,
+					null,
+					null
+				)
+			);
 		}
 
 		JsonObject spawnRules = new JsonObject();

@@ -1,7 +1,6 @@
 package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
@@ -55,8 +54,8 @@ public final class MadokuMobZombieVillager {
 			return;
 		}
 
-		JsonObject adult = resolveAgeVariantRoot(defaultGroup, false);
-		JsonObject baby = resolveAgeVariantRoot(defaultGroup, true);
+		JsonObject adult = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, false);
+		JsonObject baby = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, true);
 		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		boolean babyEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_BABY, true);
@@ -64,7 +63,7 @@ public final class MadokuMobZombieVillager {
 		if (overrideSpawnRules) {
 			boolean shouldBeBaby = false;
 			if (babyEnabled) {
-				double babyChance = MadokuMobManager.resolveZombieBabyChanceForRuntime(
+				double babyChance = MadokuMobManager.resolveAgeVariantChanceForRuntime(
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D),
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D),
 					difficulty,
@@ -100,7 +99,7 @@ public final class MadokuMobZombieVillager {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
 		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -122,7 +121,7 @@ public final class MadokuMobZombieVillager {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
 		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -167,7 +166,7 @@ public final class MadokuMobZombieVillager {
 		}
 		JsonObject fileRoot = MadokuMobManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
 		return mergeZombieVillagerFileSettings(fileRoot, variant);
 	}
 
@@ -446,46 +445,6 @@ public final class MadokuMobZombieVillager {
 		event.log();
 	}
 
-	private static JsonObject resolveAgeVariantRoot(JsonObject defaultGroupRoot, boolean baby) {
-		if (defaultGroupRoot == null || defaultGroupRoot.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject sharedRoot = defaultGroupRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject ageOverride = readObject(
-			defaultGroupRoot,
-			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
-		);
-		if (ageOverride.entrySet().isEmpty()) {
-			return sharedRoot;
-		}
-		return mergeJsonWithOverride(sharedRoot, ageOverride);
-	}
-
-	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
-		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
-		if (override == null) {
-			return merged;
-		}
-		deepMergeOverride(merged, override);
-		return merged;
-	}
-
-	private static void deepMergeOverride(JsonObject target, JsonObject override) {
-		if (target == null || override == null) {
-			return;
-		}
-		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
-			String key = entry.getKey();
-			JsonElement value = entry.getValue();
-			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
-				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
-				continue;
-			}
-			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
-		}
-	}
 
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
 		if (target == null || source == null || key == null || key.isBlank()) {

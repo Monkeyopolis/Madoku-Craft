@@ -67,16 +67,22 @@ public final class MobConfigZombieVillager {
 		int experienceDrop,
 		String mobDropsReference
 	) {
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_HEALTH, health);
-		stats.addProperty(MobConfigManager.FIELD_ARMOR, armor);
-		stats.addProperty(MobConfigManager.FIELD_DAMAGE, damage);
-		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
-		stats.addProperty(MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
-		stats.addProperty(MobConfigManager.FIELD_SCALE, scale);
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, experienceDrop);
-		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, mobDropsReference);
-		return stats;
+		return MobConfigManager.buildMobStatsDefaults(
+			health,
+			armor,
+			damage,
+			movementSpeed,
+			null,
+			null,
+			knockbackResistance,
+			scale,
+			experienceDrop,
+			null,
+			null,
+			null,
+			null,
+			mobDropsReference
+		);
 	}
 
 	private static String resolveDefaultMobDropsReference() {
@@ -126,20 +132,27 @@ public final class MobConfigZombieVillager {
 		double spawnWeight
 	) {
 		JsonObject root = new JsonObject();
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, experience);
 		if (baby) {
-			if (health != null) {
-				stats.addProperty(MobConfigManager.FIELD_HEALTH, health);
-			}
-			if (damage != null) {
-				stats.addProperty(MobConfigManager.FIELD_DAMAGE, damage);
-			}
-			if (movementSpeed != null) {
-				stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
-			}
+			root.add(
+				MobConfigManager.FIELD_MOB_STATS,
+				MobConfigManager.buildMobStatsDefaults(
+					health,
+					null,
+					damage,
+					movementSpeed,
+					null,
+					null,
+					null,
+					null,
+					experience,
+					null,
+					null,
+					null,
+					null,
+					null
+				)
+			);
 		}
-		root.add(MobConfigManager.FIELD_MOB_STATS, stats);
 
 		JsonObject spawnRules = new JsonObject();
 		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);

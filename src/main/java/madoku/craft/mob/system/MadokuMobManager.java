@@ -20,9 +20,11 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -62,9 +64,12 @@ import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MadokuMobManager {
@@ -90,7 +95,7 @@ public final class MadokuMobManager {
 	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
 	private static final String BEE_VARIANT_TAG_PREFIX = "madoku-craft.bee.variant:";
 	private static final String BEE_VARIANT_DEFAULT_KEY = "default";
-	private static final String FIELD_FLYING_SPEED = "flying_speed";
+	private static final String FIELD_FLYING_SPEED = MobConfigManager.FIELD_FLYING_SPEED;
 
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
@@ -207,6 +212,73 @@ public final class MadokuMobManager {
 		MadokuMobDrowned.applySpawnOverrides(drowned, world, difficulty, spawnReason);
 	}
 
+	public static boolean applyConfiguredMobJockey(
+		Mob sourceMob,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		JsonObject variantRoot,
+		EntitySpawnReason spawnReason,
+		boolean sourceIsPassenger,
+		boolean sourceIsBaby
+	) {
+		if (sourceMob == null || world == null || difficulty == null || variantRoot == null || !sourceMob.isAlive() || sourceMob.getVehicle() != null) {
+			return false;
+		}
+
+		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
+		if (jockeyRoot.entrySet().isEmpty() || !readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
+			return false;
+		}
+
+		JsonObject passengerRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_PASSENGER);
+		JsonObject mountRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_MOUNT);
+		JsonObject legacyRoot = readObject(jockeyRoot, MobConfigManager.FIELD_MOB);
+		if (passengerRoot.entrySet().isEmpty() && mountRoot.entrySet().isEmpty() && !legacyRoot.entrySet().isEmpty()) {
+			if (sourceIsPassenger) {
+				mountRoot = legacyRoot;
+			} else {
+				passengerRoot = legacyRoot;
+			}
+		}
+
+		ServerLevel level = world.getLevel();
+		EntitySpawnReason jockeyReason = EntitySpawnReason.JOCKEY;
+		if (sourceIsPassenger) {
+			applyConfiguredMainHand(sourceMob, passengerRoot);
+
+			EntityType<?> mountType = resolveConfiguredMobEntityType(mountRoot, sourceIsBaby);
+			if (mountType == null) {
+				return false;
+			}
+
+			Entity mount = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason, mountType, false, mountRoot);
+			if (mount == null) {
+				return false;
+			}
+			if (!sourceMob.startRiding(mount) && mount.isAlive()) {
+				mount.discard();
+				return false;
+			}
+			return true;
+		}
+
+		EntityType<?> passengerType = resolveConfiguredMobEntityType(passengerRoot, sourceIsBaby);
+		if (passengerType == null) {
+			return false;
+		}
+
+		Entity passenger = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason, passengerType, true, passengerRoot);
+		if (passenger == null) {
+			return false;
+		}
+		if (!passenger.startRiding(sourceMob) && passenger.isAlive()) {
+			passenger.discard();
+			return false;
+		}
+		return true;
+	}
+
 	static void queueZombieReplacement(Zombie zombie, EntityType<?> replacementType, EntitySpawnReason spawnReason) {
 		if (zombie == null || replacementType == null || replacementType == EntityType.ZOMBIE || spawnReason == null) {
 			return;
@@ -241,6 +313,34 @@ public final class MadokuMobManager {
 		EntitySpawnReason spawnReason
 	) {
 		MadokuMobSpider.applySpawnOverrides(spider, world, difficulty, spawnReason);
+	}
+
+	public static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot) {
+		return resolveConfiguredMobEntityType(mobRoot, false);
+	}
+
+	public static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot, boolean preferBabyVariant) {
+		if (mobRoot == null || mobRoot.entrySet().isEmpty()) {
+			return null;
+		}
+		JsonElement mobElement = mobRoot.get(MobConfigManager.FIELD_MOB);
+		if (mobElement == null || mobElement.isJsonNull()) {
+			return null;
+		}
+
+		String mobId = "";
+		if (mobElement.isJsonPrimitive() && mobElement.getAsJsonPrimitive().isString()) {
+			mobId = mobElement.getAsString();
+		} else if (mobElement.isJsonObject()) {
+			JsonObject byAge = mobElement.getAsJsonObject();
+			String primaryKey = preferBabyVariant ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP;
+			String fallbackKey = preferBabyVariant ? MobConfigManager.FIELD_ADULT_GROUP : MobConfigManager.FIELD_BABY_GROUP;
+			mobId = readString(byAge, primaryKey, "");
+			if (mobId.isBlank()) {
+				mobId = readString(byAge, fallbackKey, "");
+			}
+		}
+		return resolveEntityTypeById(mobId);
 	}
 
 	public static void applySkeletonSpawnOverrides(
@@ -1139,6 +1239,7 @@ public final class MadokuMobManager {
 			}
 			applyExperienceDrop(entity, Math.max(0, resolvedExperienceDrop));
 		}
+		modified |= applyConfiguredMobWeapon(entity, root);
 		rescaleCurrentHealth(entity, oldMaxHealth);
 		return modified;
 	}
@@ -1173,6 +1274,7 @@ public final class MadokuMobManager {
 			applyExperienceDrop(entity, Math.max(0, baseExperienceDrop));
 			modified = true;
 		}
+		modified |= applyConfiguredMobWeapon(entity, root);
 		rescaleCurrentHealth(entity, oldMaxHealth);
 		return modified;
 	}
@@ -1321,6 +1423,7 @@ public final class MadokuMobManager {
 			applyExperienceDrop(entity, Math.max(0, resolvedExperienceDrop));
 			modified = true;
 		}
+		modified |= applyConfiguredMobWeapon(entity, root);
 		rescaleCurrentHealth(entity, oldMaxHealth);
 		return modified;
 	}
@@ -2145,14 +2248,23 @@ public final class MadokuMobManager {
 		DifficultyInstance difficulty,
 		Zombie zombie
 	) {
-		if (difficulty == null || zombie == null) {
+		return resolveAgeVariantChanceForRuntime(adultWeight, babyWeight, difficulty, zombie);
+	}
+
+	static double resolveAgeVariantChanceForRuntime(
+		double adultWeight,
+		double babyWeight,
+		DifficultyInstance difficulty,
+		LivingEntity entity
+	) {
+		if (difficulty == null || entity == null) {
 			return 0.0D;
 		}
 		return resolveBabyChance(
 			adultWeight,
 			babyWeight,
 			difficulty.getDifficulty(),
-			isHardcoreWorld(zombie.level())
+			isHardcoreWorld(entity.level())
 		);
 	}
 
@@ -2417,6 +2529,126 @@ public final class MadokuMobManager {
 		return readObject(root, MobConfigManager.FIELD_SPAWN_RULES);
 	}
 
+	static JsonObject resolveSharedVariantGroupRoot(JsonObject defaultGroupRoot, JsonObject variantGroupRoot) {
+		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
+			return defaultGroupRoot == null ? new JsonObject() : defaultGroupRoot;
+		}
+		boolean sharedComponents = readBoolean(variantGroupRoot, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
+		if (!sharedComponents) {
+			return variantGroupRoot;
+		}
+		JsonObject overlay = variantGroupRoot.deepCopy();
+		overlay.remove(MobConfigManager.FIELD_SHARED_COMPONENTS);
+		return mergeJsonWithOverride(defaultGroupRoot, overlay);
+	}
+
+	static JsonObject resolveAgeVariantRoot(JsonObject variantGroupRoot, boolean baby) {
+		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		JsonObject sharedRoot = variantGroupRoot.deepCopy();
+		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
+		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
+		JsonObject ageOverride = readObject(
+			variantGroupRoot,
+			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
+		);
+		if (ageOverride.entrySet().isEmpty()) {
+			return sharedRoot;
+		}
+		return mergeJsonWithOverride(sharedRoot, ageOverride);
+	}
+
+	static Map<String, JsonObject> collectVariantRoots(JsonObject root, Predicate<String> reservedKeyPredicate) {
+		Map<String, JsonObject> variants = new LinkedHashMap<>();
+		if (root == null) {
+			return variants;
+		}
+		for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
+				continue;
+			}
+			String key = normalizeKey(entry.getKey());
+			if (reservedKeyPredicate != null && reservedKeyPredicate.test(key)) {
+				continue;
+			}
+			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
+		}
+		return variants;
+	}
+
+	static JsonObject resolveVariantRootByKey(JsonObject root, String variantKey, String defaultGroupKey, Predicate<String> reservedKeyPredicate) {
+		if (root == null || variantKey == null || variantKey.isBlank()) {
+			return new JsonObject();
+		}
+		if (defaultGroupKey != null && normalizeKey(variantKey).equals(normalizeKey(defaultGroupKey))) {
+			return readObject(root, defaultGroupKey);
+		}
+		JsonObject variant = collectVariantRoots(root, reservedKeyPredicate).get(normalizeKey(variantKey));
+		return variant == null ? new JsonObject() : variant;
+	}
+
+	static String selectWeightedVariantKey(
+		JsonObject root,
+		RandomSource random,
+		String defaultGroupKey,
+		String defaultVariantKey,
+		Predicate<String> reservedKeyPredicate,
+		ToDoubleFunction<JsonObject> weightResolver
+	) {
+		if (root == null || random == null || defaultVariantKey == null || defaultVariantKey.isBlank()) {
+			return defaultVariantKey == null ? "" : defaultVariantKey;
+		}
+		JsonObject defaultGroup = readObject(root, defaultGroupKey);
+		double defaultWeight = Math.max(0.0D, weightResolver == null ? 0.0D : weightResolver.applyAsDouble(defaultGroup));
+		double total = defaultWeight;
+		java.util.List<WeightedVariant> weightedVariants = new ArrayList<>();
+		for (Map.Entry<String, JsonObject> entry : collectVariantRoots(root, reservedKeyPredicate).entrySet()) {
+			double weight = Math.max(0.0D, weightResolver == null ? 0.0D : weightResolver.applyAsDouble(entry.getValue()));
+			if (weight <= 0.0D) {
+				continue;
+			}
+			total += weight;
+			weightedVariants.add(new WeightedVariant(entry.getKey(), weight));
+		}
+		if (total <= 0.0D) {
+			return defaultVariantKey;
+		}
+		double roll = random.nextDouble() * total;
+		if (roll < defaultWeight) {
+			return defaultVariantKey;
+		}
+		double cursor = defaultWeight;
+		for (WeightedVariant variant : weightedVariants) {
+			cursor += variant.weight();
+			if (roll < cursor) {
+				return variant.key();
+			}
+		}
+		return defaultVariantKey;
+	}
+
+	static double resolveVariantSpawnWeight(JsonObject variantRoot, double fallback) {
+		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
+			return fallback;
+		}
+		Double direct = readOptionalDouble(variantRoot, MobConfigManager.FIELD_SPAWN_WEIGHT);
+		if (direct != null) {
+			return direct;
+		}
+		JsonObject spawnRules = readSpawnRulesRoot(variantRoot);
+		Double nested = readOptionalDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT);
+		if (nested != null) {
+			return nested;
+		}
+		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
+		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
+		double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
+		double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
+		double summed = adultWeight + babyWeight;
+		return summed > 0.0D ? summed : fallback;
+	}
+
 	private static JsonObject resolveBeeRoot(LivingEntity entity, JsonObject beeFileRoot, RandomSource random, boolean spawnContext) {
 		if (entity == null || beeFileRoot == null) {
 			return new JsonObject();
@@ -2510,77 +2742,22 @@ public final class MadokuMobManager {
 				ageableMob.setBaby(isBaby);
 			}
 		}
-		JsonObject sharedRoot = baseVariantRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		if (isBaby && !baby.entrySet().isEmpty()) {
-			return mergeJsonWithOverride(sharedRoot, baby);
-		}
-		if (!adult.entrySet().isEmpty()) {
-			return mergeJsonWithOverride(sharedRoot, adult);
-		}
-		return mergeJsonWithOverride(sharedRoot, baby);
+		return resolveAgeVariantRoot(baseVariantRoot, isBaby);
 	}
 
 	private static String selectBeeVariantKey(JsonObject beeRoot, RandomSource random) {
-		if (beeRoot == null || random == null) {
-			return BEE_VARIANT_DEFAULT_KEY;
-		}
-		JsonObject defaultGroup = readObject(beeRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		double defaultWeight = Math.max(0.0D, readDouble(defaultGroup, MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0D));
-		double total = defaultWeight;
-		java.util.List<BeeVariantWeight> weightedVariants = new ArrayList<>();
-		for (Map.Entry<String, JsonObject> entry : collectBeeVariantRoots(beeRoot).entrySet()) {
-			String key = entry.getKey();
-			JsonObject variantRoot = entry.getValue();
-			double weight = Math.max(0.0D, resolveBeeVariantSpawnWeight(variantRoot, 0.0D));
-			if (weight <= 0.0D) {
-				continue;
-			}
-			total += weight;
-			weightedVariants.add(new BeeVariantWeight(key, weight));
-		}
-		if (total <= 0.0D) {
-			return BEE_VARIANT_DEFAULT_KEY;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < defaultWeight) {
-			return BEE_VARIANT_DEFAULT_KEY;
-		}
-		double cursor = defaultWeight;
-		for (BeeVariantWeight weighted : weightedVariants) {
-			cursor += weighted.weight();
-			if (roll < cursor) {
-				return weighted.key();
-			}
-		}
-		return BEE_VARIANT_DEFAULT_KEY;
-	}
-
-	private static Map<String, JsonObject> collectBeeVariantRoots(JsonObject beeRoot) {
-		Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
-		if (beeRoot == null) {
-			return variants;
-		}
-		for (Map.Entry<String, JsonElement> entry : beeRoot.entrySet()) {
-			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
-				continue;
-			}
-			String key = normalizeKey(entry.getKey());
-			if (isReservedBeeGroupKey(key)) {
-				continue;
-			}
-			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
-		}
-		return variants;
+		return selectWeightedVariantKey(
+			beeRoot,
+			random,
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			BEE_VARIANT_DEFAULT_KEY,
+			MadokuMobManager::isReservedBeeGroupKey,
+			variantRoot -> resolveBeeVariantSpawnWeight(variantRoot, 0.0D)
+		);
 	}
 
 	private static JsonObject resolveBeeVariantRootByKey(JsonObject beeRoot, String variantKey) {
-		if (beeRoot == null || variantKey == null || variantKey.isBlank()) {
-			return new JsonObject();
-		}
-		JsonObject variant = collectBeeVariantRoots(beeRoot).get(normalizeKey(variantKey));
-		return variant == null ? new JsonObject() : variant;
+		return resolveVariantRootByKey(beeRoot, variantKey, MobConfigManager.FIELD_DEFAULT_GROUP, MadokuMobManager::isReservedBeeGroupKey);
 	}
 
 	private static boolean isReservedBeeGroupKey(String normalizedKey) {
@@ -2594,20 +2771,7 @@ public final class MadokuMobManager {
 	}
 
 	private static double resolveBeeVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
-			return fallback;
-		}
-		Double direct = readOptionalDouble(variantRoot, MobConfigManager.FIELD_SPAWN_WEIGHT);
-		if (direct != null) {
-			return direct;
-		}
-		if (!readMobStatsRoot(variantRoot).entrySet().isEmpty()) {
-			return readSpawnRuleDouble(variantRoot, MobConfigManager.FIELD_SPAWN_WEIGHT, fallback);
-		}
-		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
-		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
-		return Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D))
-			+ Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
+		return resolveVariantSpawnWeight(variantRoot, fallback);
 	}
 
 	private static String readStoredBeeVariantKey(LivingEntity entity) {
@@ -2839,6 +3003,116 @@ public final class MadokuMobManager {
 		return Mth.clamp(value, min, max);
 	}
 
+	private static Entity spawnConfiguredJockeyPartner(
+		Mob sourceMob,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		ServerLevel level,
+		EntitySpawnReason spawnReason,
+		EntityType<?> partnerType,
+		boolean partnerIsPassenger,
+		JsonObject partnerRoot
+	) {
+		if (sourceMob == null || world == null || difficulty == null || level == null || partnerType == null) {
+			return null;
+		}
+
+		Entity partner = partnerType.create(level, spawnReason);
+		if (partner == null) {
+			return null;
+		}
+
+		partner.setPos(sourceMob.getX(), sourceMob.getY(), sourceMob.getZ());
+		partner.setYRot(sourceMob.getYRot());
+		partner.setXRot(sourceMob.getXRot());
+		if (partner instanceof Mob mobPartner) {
+			mobPartner.finalizeSpawn(world, difficulty, spawnReason, null);
+			if (partnerIsPassenger) {
+				applyConfiguredMainHand(mobPartner, partnerRoot);
+			}
+		}
+		level.tryAddFreshEntityWithPassengers(partner);
+		return partner;
+	}
+
+	private static void applyConfiguredMainHand(Mob mob, JsonObject mobRoot) {
+		if (mob == null || mobRoot == null || mobRoot.entrySet().isEmpty()) {
+			return;
+		}
+		String itemId = readString(mobRoot, MobConfigManager.FIELD_MAIN_HAND, "");
+		if (itemId.isBlank()) {
+			return;
+		}
+		ItemStack stack = resolveItemStackById(itemId);
+		if (!stack.isEmpty()) {
+			mob.setItemSlot(EquipmentSlot.MAINHAND, stack);
+		}
+	}
+
+	private static boolean applyConfiguredMobWeapon(LivingEntity entity, JsonObject root) {
+		if (!(entity instanceof Mob mob) || root == null || root.entrySet().isEmpty()) {
+			return false;
+		}
+		JsonObject statsRoot = readMobStatsRoot(root);
+		JsonObject weaponRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_WEAPON);
+		if (weaponRoot.entrySet().isEmpty()) {
+			return false;
+		}
+		String itemId = readString(weaponRoot, MobConfigManager.FIELD_ITEM, "");
+		if (itemId.isBlank()) {
+			return false;
+		}
+		ItemStack stack = resolveItemStackById(itemId);
+		if (stack.isEmpty()) {
+			return false;
+		}
+		mob.setItemSlot(EquipmentSlot.MAINHAND, stack);
+		if (!readBoolean(root, MobConfigManager.FIELD_WEAPON_DAMAGE, true)) {
+			stripHeldAttackDamageModifiers(mob, EquipmentSlot.MAINHAND);
+			stripHeldAttackDamageModifiers(mob, EquipmentSlot.OFFHAND);
+		}
+		return true;
+	}
+
+	private static void stripHeldAttackDamageModifiers(Mob mob, EquipmentSlot slot) {
+		if (mob == null || slot == null) {
+			return;
+		}
+		ItemStack stack = mob.getItemBySlot(slot);
+		if (stack == null || stack.isEmpty()) {
+			return;
+		}
+		ItemStack normalized = stack.copy();
+		normalized.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
+		mob.setItemSlot(slot, normalized);
+	}
+
+	private static EntityType<?> resolveEntityTypeById(String entityTypeId) {
+		if (entityTypeId == null || entityTypeId.isBlank()) {
+			return null;
+		}
+		Identifier identifier = Identifier.tryParse(entityTypeId.trim());
+		if (identifier == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(identifier)) {
+			return null;
+		}
+		return BuiltInRegistries.ENTITY_TYPE.getValue(identifier);
+	}
+
+	private static ItemStack resolveItemStackById(String itemId) {
+		if (itemId == null || itemId.isBlank()) {
+			return ItemStack.EMPTY;
+		}
+		Identifier identifier = Identifier.tryParse(itemId.trim());
+		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
+			return ItemStack.EMPTY;
+		}
+		net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.getValue(identifier);
+		if (item == null || item == Items.AIR) {
+			return ItemStack.EMPTY;
+		}
+		return new ItemStack(item);
+	}
+
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
 		if (normalized.isEmpty()) {
@@ -2853,7 +3127,7 @@ public final class MadokuMobManager {
 	private record HomingArrowState(UUID targetUuid, double speed, int remainingTicks) {}
 	private record ShotVector(Vec3 vector, boolean guaranteedHit) {}
 	private record SpawnWeightPair(double regularWeight, double specialWeight) {}
-	private record BeeVariantWeight(String key, double weight) {}
+	private record WeightedVariant(String key, double weight) {}
 	private enum SpawnArmorMaterial {
 		NETHERITE,
 		DIAMOND,

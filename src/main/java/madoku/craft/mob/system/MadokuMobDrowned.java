@@ -1,7 +1,6 @@
 package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.luck.MadokuLuck;
 import madoku.craft.loot.system.EquipmentConfigManager;
@@ -101,12 +100,12 @@ public final class MadokuMobDrowned {
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		boolean babyEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_BABY, true);
 
-		JsonObject adult = resolveAgeVariantRoot(defaultGroup, false);
-		JsonObject baby = resolveAgeVariantRoot(defaultGroup, true);
+		JsonObject adult = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, false);
+		JsonObject baby = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, true);
 		if (overrideSpawnRules) {
 			boolean shouldBeBaby = false;
 			if (babyEnabled) {
-				double babyChance = MadokuMobManager.resolveZombieBabyChanceForRuntime(
+				double babyChance = MadokuMobManager.resolveAgeVariantChanceForRuntime(
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D),
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D),
 					difficulty,
@@ -153,7 +152,7 @@ public final class MadokuMobDrowned {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveDrownedRootForRuntime(drowned.getType());
 		JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
 		variant = mergeDrownedFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -176,7 +175,7 @@ public final class MadokuMobDrowned {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveDrownedRootForRuntime(drowned.getType());
 		JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
 		variant = mergeDrownedFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -202,7 +201,7 @@ public final class MadokuMobDrowned {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveDrownedRootForRuntime(drowned.getType());
 		JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
 		variant = mergeDrownedFileSettings(fileRoot, variant);
 		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variant);
 		boolean targetingUnderwater = readBoolean(behaviorRoot, "targeting_underwater", true);
@@ -221,7 +220,7 @@ public final class MadokuMobDrowned {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveDrownedRootForRuntime(drowned.getType());
 		JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
 		variant = mergeDrownedFileSettings(fileRoot, variant);
 		JsonObject statsRoot = readObject(variant, MobConfigManager.FIELD_MOB_STATS);
 		return readDouble(statsRoot, MobConfigManager.FIELD_SWIMMING_SPEED, fallback);
@@ -265,7 +264,7 @@ public final class MadokuMobDrowned {
 		JsonObject fileKeyRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(MobConfigManager.FILE_DROWNED);
 		JsonObject fileRoot = MadokuMobManager.resolveDrownedRootForRuntime(drowned.getType());
 		JsonObject defaultGroup = resolveDrownedVariantGroupRoot(drowned, fileKeyRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, drowned.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, drowned.isBaby());
 		return mergeDrownedFileSettings(fileRoot, variant);
 	}
 
@@ -294,7 +293,7 @@ public final class MadokuMobDrowned {
 			}
 			JsonObject known = resolveDrownedVariantRootByKey(fileRoot, storedVariant);
 			if (!known.entrySet().isEmpty()) {
-				return resolveEffectiveDrownedVariantGroup(defaultGroup, known);
+				return MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, known);
 			}
 		}
 
@@ -312,88 +311,22 @@ public final class MadokuMobDrowned {
 			return defaultGroup;
 		}
 		JsonObject selected = resolveDrownedVariantRootByKey(fileRoot, selectedVariant);
-		return selected.entrySet().isEmpty() ? defaultGroup : resolveEffectiveDrownedVariantGroup(defaultGroup, selected);
-	}
-
-	private static JsonObject resolveEffectiveDrownedVariantGroup(JsonObject defaultGroup, JsonObject variantGroup) {
-		if (variantGroup == null || variantGroup.entrySet().isEmpty()) {
-			return defaultGroup == null ? new JsonObject() : defaultGroup;
-		}
-		boolean sharedComponents = readBoolean(variantGroup, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
-		if (!sharedComponents) {
-			return variantGroup;
-		}
-		JsonObject overlay = variantGroup.deepCopy();
-		overlay.remove(MobConfigManager.FIELD_SHARED_COMPONENTS);
-		return mergeJsonWithOverride(defaultGroup, overlay);
+		return selected.entrySet().isEmpty() ? defaultGroup : MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, selected);
 	}
 
 	private static String selectDrownedVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
-		double defaultWeight = Math.max(0.0D, resolveDrownedVariantSpawnWeight(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), 90.0D));
-		List<DrownedVariantWeight> weightedVariants = new java.util.ArrayList<>();
-		double total = defaultWeight;
-		for (Map.Entry<String, JsonObject> entry : collectDrownedVariantRoots(fileRoot).entrySet()) {
-			double weight = Math.max(0.0D, resolveDrownedVariantSpawnWeight(entry.getValue(), 0.0D));
-			if (weight <= 0.0D) {
-				continue;
-			}
-			total += weight;
-			weightedVariants.add(new DrownedVariantWeight(entry.getKey(), weight));
-		}
-		if (total <= 0.0D || world == null) {
-			return DROWNED_VARIANT_DEFAULT_KEY;
-		}
-		double roll = world.getRandom().nextDouble() * total;
-		if (roll < defaultWeight) {
-			return DROWNED_VARIANT_DEFAULT_KEY;
-		}
-		double cursor = defaultWeight;
-		for (DrownedVariantWeight variant : weightedVariants) {
-			cursor += variant.weight();
-			if (roll < cursor) {
-				return variant.key();
-			}
-		}
-		return DROWNED_VARIANT_DEFAULT_KEY;
+		return MadokuMobManager.selectWeightedVariantKey(
+			fileRoot,
+			world == null ? null : world.getRandom(),
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			DROWNED_VARIANT_DEFAULT_KEY,
+			MadokuMobDrowned::isReservedDrownedGroupKey,
+			variantRoot -> resolveDrownedVariantSpawnWeight(variantRoot, 0.0D)
+		);
 	}
 
 	private static double resolveDrownedVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
-			return fallback;
-		}
-		double direct = readSpawnWeight(variantRoot, Double.NaN);
-		if (Double.isFinite(direct)) {
-			return direct;
-		}
-		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
-		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
-		double adultWeight = Math.max(0.0D, readSpawnWeight(adult, 0.0D));
-		double babyWeight = Math.max(0.0D, readSpawnWeight(baby, 0.0D));
-		double summed = adultWeight + babyWeight;
-		return summed > 0.0D ? summed : fallback;
-	}
-
-	private static double readSpawnWeight(JsonObject root, double fallback) {
-		JsonObject spawnRules = readObject(root, MobConfigManager.FIELD_SPAWN_RULES);
-		return readDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT, fallback);
-	}
-
-	private static Map<String, JsonObject> collectDrownedVariantRoots(JsonObject fileRoot) {
-		Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
-		if (fileRoot == null) {
-			return variants;
-		}
-		for (Map.Entry<String, com.google.gson.JsonElement> entry : fileRoot.entrySet()) {
-			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
-				continue;
-			}
-			String key = normalizeKey(entry.getKey());
-			if (isReservedDrownedGroupKey(key)) {
-				continue;
-			}
-			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
-		}
-		return variants;
+		return MadokuMobManager.resolveVariantSpawnWeight(variantRoot, fallback);
 	}
 
 	private static boolean isReservedDrownedGroupKey(String normalizedKey) {
@@ -409,11 +342,12 @@ public final class MadokuMobDrowned {
 	}
 
 	private static JsonObject resolveDrownedVariantRootByKey(JsonObject fileRoot, String variantKey) {
-		if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
-			return new JsonObject();
-		}
-		JsonObject variant = collectDrownedVariantRoots(fileRoot).get(normalizeKey(variantKey));
-		return variant == null ? new JsonObject() : variant;
+		return MadokuMobManager.resolveVariantRootByKey(
+			fileRoot,
+			variantKey,
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			MadokuMobDrowned::isReservedDrownedGroupKey
+		);
 	}
 
 	private static String readStoredDrownedVariantKey(Drowned drowned) {
@@ -883,47 +817,6 @@ public final class MadokuMobDrowned {
 		drowned.setItemSlot(slot, normalized);
 	}
 
-	private static JsonObject resolveAgeVariantRoot(JsonObject defaultGroupRoot, boolean baby) {
-		if (defaultGroupRoot == null || defaultGroupRoot.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject sharedRoot = defaultGroupRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject ageOverride = readObject(
-			defaultGroupRoot,
-			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
-		);
-		if (ageOverride.entrySet().isEmpty()) {
-			return sharedRoot;
-		}
-		return mergeJsonWithOverride(sharedRoot, ageOverride);
-	}
-
-	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
-		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
-		if (override == null) {
-			return merged;
-		}
-		deepMergeOverride(merged, override);
-		return merged;
-	}
-
-	private static void deepMergeOverride(JsonObject target, JsonObject override) {
-		if (target == null || override == null) {
-			return;
-		}
-		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
-			String key = entry.getKey();
-			JsonElement value = entry.getValue();
-			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
-				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
-				continue;
-			}
-			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
-		}
-	}
-
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
 		if (target == null || source == null || key == null || key.isBlank()) {
 			return;
@@ -1091,8 +984,6 @@ public final class MadokuMobDrowned {
 		}
 		return ArmorSetSelection.FULL_SET;
 	}
-
-	private record DrownedVariantWeight(String key, double weight) {}
 
 	private record PendingRangedTridentCharge(UUID targetUuid, int remainingTicks) {
 		private PendingRangedTridentCharge withRemainingTicks(int remainingTicks) {

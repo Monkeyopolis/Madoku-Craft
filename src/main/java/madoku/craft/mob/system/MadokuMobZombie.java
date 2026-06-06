@@ -2,12 +2,9 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonNull;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
@@ -16,13 +13,11 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.level.ServerLevelAccessor;
 
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -62,8 +57,8 @@ public final class MadokuMobZombie {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, world, true);
-		JsonObject adult = resolveAgeVariantRoot(variantGroup, false);
-		JsonObject baby = resolveAgeVariantRoot(variantGroup, true);
+		JsonObject adult = MadokuMobManager.resolveAgeVariantRoot(variantGroup, false);
+		JsonObject baby = MadokuMobManager.resolveAgeVariantRoot(variantGroup, true);
 		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		boolean babyEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_BABY, true);
@@ -71,7 +66,7 @@ public final class MadokuMobZombie {
 		if (overrideSpawnRules) {
 			boolean shouldBeBaby = false;
 			if (babyEnabled) {
-				double babyChance = MadokuMobManager.resolveZombieBabyChanceForRuntime(
+				double babyChance = MadokuMobManager.resolveAgeVariantChanceForRuntime(
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D),
 					MadokuMobManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D),
 					difficulty,
@@ -89,7 +84,7 @@ public final class MadokuMobZombie {
 			return;
 		}
 		if (overrideSpawnRules) {
-			applyConfiguredZombieJockeyMount(zombie, world, difficulty, variant);
+			MadokuMobManager.applyConfiguredMobJockey(zombie, world, difficulty, variant, spawnReason, true, zombie.isBaby());
 			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(zombie, variant, world.getRandom());
 			emitZombieEquipmentDebug(zombie, "spawn_mob_system_enabled", fileKey, result);
 		}
@@ -122,7 +117,7 @@ public final class MadokuMobZombie {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
 		variant = mergeZombieFileSettings(fileRoot, variant);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		boolean modified = overrideStats && MadokuMobManager.applyUniversalBaseStatsForRuntime(zombie, variant);
@@ -143,7 +138,7 @@ public final class MadokuMobZombie {
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
 		variant = mergeZombieFileSettings(fileRoot, variant);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		boolean modified = overrideStats && MadokuMobManager.applyUniversalDifficultyStatsForRuntime(zombie, variant);
@@ -191,7 +186,7 @@ public final class MadokuMobZombie {
 		}
 		JsonObject fileRoot = MadokuMobManager.resolveZombieRootForRuntime(zombie.getType());
 		JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-		JsonObject variant = resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
 		return mergeZombieFileSettings(fileRoot, variant);
 	}
 
@@ -234,43 +229,6 @@ public final class MadokuMobZombie {
 		return applyEquipmentSetLoadout(zombie, equipmentReference, chancePercent, random);
 	}
 
-	private static void applyConfiguredZombieJockeyMount(
-		Zombie zombie,
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		JsonObject variantRoot
-	) {
-		if (zombie == null || world == null || difficulty == null || variantRoot == null || zombie.getVehicle() != null) {
-			return;
-		}
-		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
-		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
-		if (jockeyRoot.entrySet().isEmpty() || !readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
-			return;
-		}
-
-		EntityType<?> mountType = resolveConfiguredMobEntityType(jockeyRoot, zombie.isBaby());
-		if (mountType == null) {
-			return;
-		}
-
-		ServerLevel level = world.getLevel();
-		Entity mount = mountType.create(level, EntitySpawnReason.JOCKEY);
-		if (mount == null) {
-			return;
-		}
-		mount.setPos(zombie.getX(), zombie.getY(), zombie.getZ());
-		mount.setYRot(zombie.getYRot());
-		mount.setXRot(zombie.getXRot());
-		if (mount instanceof Mob mobMount) {
-			mobMount.finalizeSpawn(world, difficulty, EntitySpawnReason.JOCKEY, null);
-		}
-		level.tryAddFreshEntityWithPassengers(mount);
-		if (!zombie.startRiding(mount) && mount.isAlive()) {
-			mount.discard();
-		}
-	}
-
 	private static boolean applyConfiguredZombieAlternativeMobReplacement(
 		Zombie zombie,
 		JsonObject variantRoot,
@@ -284,7 +242,7 @@ public final class MadokuMobZombie {
 		if (alternativeMobRoot.entrySet().isEmpty() || !readBoolean(alternativeMobRoot, MobConfigManager.FIELD_ENABLED, false)) {
 			return false;
 		}
-		EntityType<?> replacementType = resolveConfiguredMobEntityType(alternativeMobRoot, zombie.isBaby());
+		EntityType<?> replacementType = MadokuMobManager.resolveConfiguredMobEntityType(alternativeMobRoot, zombie.isBaby());
 		if (replacementType == null || replacementType == EntityType.ZOMBIE) {
 			return false;
 		}
@@ -304,41 +262,6 @@ public final class MadokuMobZombie {
 		if (vehicle.isAlive()) {
 			vehicle.discard();
 		}
-	}
-
-	private static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot, boolean babyZombie) {
-		if (mobRoot == null || mobRoot.entrySet().isEmpty()) {
-			return null;
-		}
-		JsonElement mobElement = mobRoot.get(MobConfigManager.FIELD_MOB);
-		if (mobElement == null || mobElement.isJsonNull()) {
-			return null;
-		}
-
-		String mobId = "";
-		if (mobElement.isJsonPrimitive() && mobElement.getAsJsonPrimitive().isString()) {
-			mobId = mobElement.getAsString();
-		} else if (mobElement.isJsonObject()) {
-			JsonObject byAge = mobElement.getAsJsonObject();
-			String primaryKey = babyZombie ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP;
-			String fallbackKey = babyZombie ? MobConfigManager.FIELD_ADULT_GROUP : MobConfigManager.FIELD_BABY_GROUP;
-			mobId = readString(byAge, primaryKey, "");
-			if (mobId.isBlank()) {
-				mobId = readString(byAge, fallbackKey, "");
-			}
-		}
-		return resolveEntityTypeById(mobId);
-	}
-
-	private static EntityType<?> resolveEntityTypeById(String entityTypeId) {
-		if (entityTypeId == null || entityTypeId.isBlank()) {
-			return null;
-		}
-		Identifier id = Identifier.tryParse(entityTypeId.trim());
-		if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
-			return null;
-		}
-		return BuiltInRegistries.ENTITY_TYPE.getValue(id);
 	}
 
 	private static EquipmentLoadoutResult applyEquipmentSetLoadout(Zombie zombie, String equipmentReference, double chancePercent, RandomSource random) {
@@ -520,7 +443,7 @@ public final class MadokuMobZombie {
 			}
 			JsonObject known = resolveZombieVariantRootByKey(fileRoot, storedVariant);
 			if (!known.entrySet().isEmpty()) {
-				return resolveEffectiveZombieVariantGroup(defaultGroup, known);
+				return MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, known);
 			}
 		}
 
@@ -538,37 +461,12 @@ public final class MadokuMobZombie {
 			return defaultGroup;
 		}
 		JsonObject selected = resolveZombieVariantRootByKey(fileRoot, selectedVariant);
-		return selected.entrySet().isEmpty() ? defaultGroup : resolveEffectiveZombieVariantGroup(defaultGroup, selected);
+		return selected.entrySet().isEmpty() ? defaultGroup : MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, selected);
 	}
 
-	private static JsonObject resolveEffectiveZombieVariantGroup(JsonObject defaultGroup, JsonObject variantGroup) {
-		if (variantGroup == null || variantGroup.entrySet().isEmpty()) {
-			return defaultGroup == null ? new JsonObject() : defaultGroup;
-		}
-		boolean sharedComponents = readBoolean(variantGroup, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
-		if (!sharedComponents) {
-			return variantGroup;
-		}
-		JsonObject overlay = variantGroup.deepCopy();
-		overlay.remove(MobConfigManager.FIELD_SHARED_COMPONENTS);
-		return mergeJsonWithOverride(defaultGroup, overlay);
-	}
-
+	@SuppressWarnings("unused")
 	private static JsonObject resolveAgeVariantRoot(JsonObject variantGroupRoot, boolean baby) {
-		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject sharedRoot = variantGroupRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject ageOverride = readObject(
-			variantGroupRoot,
-			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
-		);
-		if (ageOverride.entrySet().isEmpty()) {
-			return sharedRoot;
-		}
-		return mergeJsonWithOverride(sharedRoot, ageOverride);
+		return MadokuMobManager.resolveAgeVariantRoot(variantGroupRoot, baby);
 	}
 
 	private static JsonObject mergeZombieFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
@@ -594,71 +492,18 @@ public final class MadokuMobZombie {
 	}
 
 	private static String selectZombieVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
-		double defaultWeight = Math.max(0.0D, resolveZombieVariantSpawnWeight(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), 100.0D));
-		List<ZombieVariantWeight> weightedVariants = new ArrayList<>();
-		double total = defaultWeight;
-		for (Map.Entry<String, JsonObject> entry : collectZombieVariantRoots(fileRoot).entrySet()) {
-			double weight = Math.max(0.0D, resolveZombieVariantSpawnWeight(entry.getValue(), 0.0D));
-			if (weight <= 0.0D) {
-				continue;
-			}
-			total += weight;
-			weightedVariants.add(new ZombieVariantWeight(entry.getKey(), weight));
-		}
-		if (total <= 0.0D || world == null) {
-			return ZOMBIE_VARIANT_DEFAULT_KEY;
-		}
-		double roll = world.getRandom().nextDouble() * total;
-		if (roll < defaultWeight) {
-			return ZOMBIE_VARIANT_DEFAULT_KEY;
-		}
-		double cursor = defaultWeight;
-		for (ZombieVariantWeight variant : weightedVariants) {
-			cursor += variant.weight();
-			if (roll < cursor) {
-				return variant.key();
-			}
-		}
-		return ZOMBIE_VARIANT_DEFAULT_KEY;
+		return MadokuMobManager.selectWeightedVariantKey(
+			fileRoot,
+			world == null ? null : world.getRandom(),
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			ZOMBIE_VARIANT_DEFAULT_KEY,
+			MadokuMobZombie::isReservedZombieGroupKey,
+			variantRoot -> resolveZombieVariantSpawnWeight(variantRoot, 0.0D)
+		);
 	}
 
 	private static double resolveZombieVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
-			return fallback;
-		}
-		double direct = readSpawnWeight(variantRoot, Double.NaN);
-		if (Double.isFinite(direct)) {
-			return direct;
-		}
-		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
-		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
-		double adultWeight = Math.max(0.0D, readSpawnWeight(adult, 0.0D));
-		double babyWeight = Math.max(0.0D, readSpawnWeight(baby, 0.0D));
-		double summed = adultWeight + babyWeight;
-		return summed > 0.0D ? summed : fallback;
-	}
-
-	private static double readSpawnWeight(JsonObject root, double fallback) {
-		JsonObject spawnRules = readObject(root, MobConfigManager.FIELD_SPAWN_RULES);
-		return readDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT, fallback);
-	}
-
-	private static Map<String, JsonObject> collectZombieVariantRoots(JsonObject fileRoot) {
-		Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
-		if (fileRoot == null) {
-			return variants;
-		}
-		for (Map.Entry<String, JsonElement> entry : fileRoot.entrySet()) {
-			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
-				continue;
-			}
-			String key = normalizeKey(entry.getKey());
-			if (isReservedZombieGroupKey(key)) {
-				continue;
-			}
-			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
-		}
-		return variants;
+		return MadokuMobManager.resolveVariantSpawnWeight(variantRoot, fallback);
 	}
 
 	private static boolean isReservedZombieGroupKey(String normalizedKey) {
@@ -674,11 +519,12 @@ public final class MadokuMobZombie {
 	}
 
 	private static JsonObject resolveZombieVariantRootByKey(JsonObject fileRoot, String variantKey) {
-		if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
-			return new JsonObject();
-		}
-		JsonObject variant = collectZombieVariantRoots(fileRoot).get(normalizeKey(variantKey));
-		return variant == null ? new JsonObject() : variant;
+		return MadokuMobManager.resolveVariantRootByKey(
+			fileRoot,
+			variantKey,
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			MadokuMobZombie::isReservedZombieGroupKey
+		);
 	}
 
 	private static String readStoredZombieVariantKey(Zombie zombie) {
@@ -839,30 +685,6 @@ public final class MadokuMobZombie {
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
-	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
-		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
-		if (override == null) {
-			return merged;
-		}
-		deepMergeOverride(merged, override);
-		return merged;
-	}
-
-	private static void deepMergeOverride(JsonObject target, JsonObject override) {
-		if (target == null || override == null) {
-			return;
-		}
-		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
-			String key = entry.getKey();
-			JsonElement value = entry.getValue();
-			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
-				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
-				continue;
-			}
-			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
-		}
-	}
-
 	private static String normalizeKey(String value) {
 		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
 	}
@@ -881,7 +703,6 @@ public final class MadokuMobZombie {
 		return "";
 	}
 
-	private record ZombieVariantWeight(String key, double weight) {}
 	private record EquipmentLoadoutResult(
 		boolean applied,
 		String reason,

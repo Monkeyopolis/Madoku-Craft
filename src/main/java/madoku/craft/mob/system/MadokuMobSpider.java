@@ -1,10 +1,7 @@
 package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -13,7 +10,6 @@ import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.level.ServerLevelAccessor;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 public final class MadokuMobSpider {
@@ -60,7 +56,7 @@ public final class MadokuMobSpider {
 			return;
 		}
 
-		JsonObject effectiveVariantRoot = resolveEffectiveSpiderVariantGroup(defaultGroup, variantRoot);
+		JsonObject effectiveVariantRoot = MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, variantRoot);
 		applyConfiguredSpiderVariantOutcome(spider, world, difficulty, spawnReason, effectiveVariantRoot);
 	}
 
@@ -78,7 +74,7 @@ public final class MadokuMobSpider {
 		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
 		JsonObject alternativeMobRoot = readObject(spawnRules, MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB);
 		if (!alternativeMobRoot.entrySet().isEmpty() && readBoolean(alternativeMobRoot, MobConfigManager.FIELD_ENABLED, false)) {
-			EntityType<?> replacementType = resolveConfiguredMobEntityType(alternativeMobRoot);
+			EntityType<?> replacementType = MadokuMobManager.resolveConfiguredMobEntityType(alternativeMobRoot);
 			if (replacementType != null && replacementType != EntityType.SPIDER) {
 				if (replacementType == EntityType.CAVE_SPIDER) {
 					MadokuMobManager.queueCaveSpiderReplacement(spider, spawnReason);
@@ -89,46 +85,20 @@ public final class MadokuMobSpider {
 
 		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
 		if (!jockeyRoot.entrySet().isEmpty() && readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
-			EntityType<?> riderType = resolveConfiguredMobEntityType(jockeyRoot);
-			if (riderType != null) {
-				MadokuMobManager.queueSpiderJockeyReplacement(spider, spawnReason);
-				return true;
-			}
+			return MadokuMobManager.applyConfiguredMobJockey(spider, world, difficulty, variantRoot, spawnReason, false, false);
 		}
 		return false;
 	}
 
 	private static String selectSpiderVariantKey(JsonObject spiderRoot, ServerLevelAccessor world) {
-		if (spiderRoot == null || world == null) {
-			return SPIDER_VARIANT_DEFAULT_KEY;
-		}
-		JsonObject defaultGroup = readObject(spiderRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		double defaultWeight = Math.max(0.0D, readSpawnWeight(defaultGroup, 80.0D));
-		List<SpiderVariantWeight> weightedVariants = new ArrayList<>();
-		double total = defaultWeight;
-		for (Map.Entry<String, JsonObject> entry : collectSpiderVariantRoots(spiderRoot).entrySet()) {
-			double weight = Math.max(0.0D, readSpawnWeight(entry.getValue(), 0.0D));
-			if (weight <= 0.0D) {
-				continue;
-			}
-			total += weight;
-			weightedVariants.add(new SpiderVariantWeight(entry.getKey(), weight));
-		}
-		if (total <= 0.0D) {
-			return SPIDER_VARIANT_DEFAULT_KEY;
-		}
-		double roll = world.getRandom().nextDouble() * total;
-		if (roll < defaultWeight) {
-			return SPIDER_VARIANT_DEFAULT_KEY;
-		}
-		double cursor = defaultWeight;
-		for (SpiderVariantWeight variant : weightedVariants) {
-			cursor += variant.weight();
-			if (roll < cursor) {
-				return variant.key();
-			}
-		}
-		return SPIDER_VARIANT_DEFAULT_KEY;
+		return MadokuMobManager.selectWeightedVariantKey(
+			spiderRoot,
+			world == null ? null : world.getRandom(),
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			SPIDER_VARIANT_DEFAULT_KEY,
+			MadokuMobSpider::isReservedSpiderGroupKey,
+			variantRoot -> readSpawnWeight(variantRoot, 0.0D)
+		);
 	}
 
 	private static double readSpawnWeight(JsonObject root, double fallback) {
@@ -139,21 +109,7 @@ public final class MadokuMobSpider {
 	}
 
 	private static Map<String, JsonObject> collectSpiderVariantRoots(JsonObject spiderRoot) {
-		Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
-		if (spiderRoot == null) {
-			return variants;
-		}
-		for (Map.Entry<String, JsonElement> entry : spiderRoot.entrySet()) {
-			if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
-				continue;
-			}
-			String key = normalizeKey(entry.getKey());
-			if (isReservedSpiderGroupKey(key)) {
-				continue;
-			}
-			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
-		}
-		return variants;
+		return MadokuMobManager.collectVariantRoots(spiderRoot, MadokuMobSpider::isReservedSpiderGroupKey);
 	}
 
 	private static boolean isSpiderVariantSystemEnabled(JsonObject spiderRoot) {
@@ -195,51 +151,12 @@ public final class MadokuMobSpider {
 	}
 
 	private static JsonObject resolveSpiderVariantRootByKey(JsonObject spiderRoot, String variantKey) {
-		if (spiderRoot == null || variantKey == null || variantKey.isBlank()) {
-			return new JsonObject();
-		}
-		if (normalizeKey(variantKey).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
-			return readObject(spiderRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		}
-		JsonObject variant = collectSpiderVariantRoots(spiderRoot).get(normalizeKey(variantKey));
-		return variant == null ? new JsonObject() : variant;
-	}
-
-	private static JsonObject resolveEffectiveSpiderVariantGroup(JsonObject defaultGroup, JsonObject variantGroup) {
-		if (variantGroup == null || variantGroup.entrySet().isEmpty()) {
-			return defaultGroup == null ? new JsonObject() : defaultGroup;
-		}
-		boolean sharedComponents = readBoolean(variantGroup, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
-		if (!sharedComponents) {
-			return variantGroup;
-		}
-		JsonObject overlay = variantGroup.deepCopy();
-		overlay.remove(MobConfigManager.FIELD_SHARED_COMPONENTS);
-		return mergeJsonWithOverride(defaultGroup, overlay);
-	}
-
-	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
-		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
-		if (override == null) {
-			return merged;
-		}
-		deepMergeOverride(merged, override);
-		return merged;
-	}
-
-	private static void deepMergeOverride(JsonObject target, JsonObject override) {
-		if (target == null || override == null) {
-			return;
-		}
-		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
-			String key = entry.getKey();
-			JsonElement value = entry.getValue();
-			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
-				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
-				continue;
-			}
-			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
-		}
+		return MadokuMobManager.resolveVariantRootByKey(
+			spiderRoot,
+			variantKey,
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			MadokuMobSpider::isReservedSpiderGroupKey
+		);
 	}
 
 	private static void clearExistingSkeletonPassengers(Spider spider) {
@@ -266,39 +183,6 @@ public final class MadokuMobSpider {
 		return fileRoot;
 	}
 
-	private static EntityType<?> resolveConfiguredMobEntityType(JsonObject mobRoot) {
-		if (mobRoot == null || mobRoot.entrySet().isEmpty()) {
-			return null;
-		}
-		JsonElement mobElement = mobRoot.get(MobConfigManager.FIELD_MOB);
-		if (mobElement == null || mobElement.isJsonNull()) {
-			return null;
-		}
-
-		String mobId = "";
-		if (mobElement.isJsonPrimitive() && mobElement.getAsJsonPrimitive().isString()) {
-			mobId = mobElement.getAsString();
-		} else if (mobElement.isJsonObject()) {
-			JsonObject byAge = mobElement.getAsJsonObject();
-			mobId = readString(byAge, MobConfigManager.FIELD_ADULT_GROUP, "");
-			if (mobId.isBlank()) {
-				mobId = readString(byAge, MobConfigManager.FIELD_BABY_GROUP, "");
-			}
-		}
-		return resolveEntityTypeById(mobId);
-	}
-
-	private static EntityType<?> resolveEntityTypeById(String entityTypeId) {
-		if (entityTypeId == null || entityTypeId.isBlank()) {
-			return null;
-		}
-		Identifier id = Identifier.tryParse(entityTypeId.trim());
-		if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
-			return null;
-		}
-		return BuiltInRegistries.ENTITY_TYPE.getValue(id);
-	}
-
 	private static JsonObject readObject(JsonObject parent, String key) {
 		if (parent == null || key == null || key.isBlank()) {
 			return new JsonObject();
@@ -315,17 +199,8 @@ public final class MadokuMobSpider {
 		return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean() ? element.getAsBoolean() : fallback;
 	}
 
-	private static String readString(JsonObject root, String key, String fallback) {
-		if (root == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = root.get(key);
-		return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString() ? element.getAsString() : fallback;
-	}
-
 	private static String normalizeKey(String value) {
 		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
 	}
 
-	private record SpiderVariantWeight(String key, double weight) {}
 }

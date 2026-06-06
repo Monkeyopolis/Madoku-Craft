@@ -96,10 +96,22 @@ public final class MobConfigZombie {
 
 		JsonObject jockey = new JsonObject();
 		jockey.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		JsonObject jockeyMob = new JsonObject();
-		jockeyMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:zombie_horse");
-		jockeyMob.addProperty(MobConfigManager.FIELD_BABY_GROUP, "minecraft:chicken");
-		jockey.add(MobConfigManager.FIELD_MOB, jockeyMob);
+
+		JsonObject passenger = new JsonObject();
+		JsonObject passengerMob = new JsonObject();
+		passengerMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:zombie");
+		passengerMob.addProperty(MobConfigManager.FIELD_BABY_GROUP, "minecraft:zombie");
+		passenger.add(MobConfigManager.FIELD_MOB, passengerMob);
+		passenger.addProperty(MobConfigManager.FIELD_MAIN_HAND, "minecraft:stone_spear");
+		jockey.add(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger);
+
+		JsonObject mount = new JsonObject();
+		JsonObject mountMob = new JsonObject();
+		mountMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:zombie_horse");
+		mountMob.addProperty(MobConfigManager.FIELD_BABY_GROUP, "minecraft:chicken");
+		mount.add(MobConfigManager.FIELD_MOB, mountMob);
+		jockey.add(MobConfigManager.FIELD_JOCKEY_MOUNT, mount);
+
 		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
 
 		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
@@ -132,16 +144,22 @@ public final class MobConfigZombie {
 		int experienceDrop,
 		String mobDropsReference
 	) {
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_HEALTH, health);
-		stats.addProperty(MobConfigManager.FIELD_ARMOR, armor);
-		stats.addProperty(MobConfigManager.FIELD_DAMAGE, damage);
-		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
-		stats.addProperty(MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
-		stats.addProperty(MobConfigManager.FIELD_SCALE, scale);
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, experienceDrop);
-		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, mobDropsReference);
-		return stats;
+		return MobConfigManager.buildMobStatsDefaults(
+			health,
+			armor,
+			damage,
+			movementSpeed,
+			null,
+			null,
+			knockbackResistance,
+			scale,
+			experienceDrop,
+			null,
+			null,
+			null,
+			null,
+			mobDropsReference
+		);
 	}
 
 	private static String resolveDefaultMobDropsReference(String mobKey) {
@@ -194,26 +212,27 @@ public final class MobConfigZombie {
 		double spawnWeight
 	) {
 		JsonObject root = new JsonObject();
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, experience);
 		if (baby) {
-			if (health != null) {
-				stats.addProperty(MobConfigManager.FIELD_HEALTH, health);
-			}
-			if (damage != null) {
-				stats.addProperty(MobConfigManager.FIELD_DAMAGE, damage);
-			}
-			if (movementSpeed != null) {
-				stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, movementSpeed);
-			}
-			if (armor != null) {
-				stats.addProperty(MobConfigManager.FIELD_ARMOR, armor);
-			}
-			if (knockbackResistance != null) {
-				stats.addProperty(MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
-			}
+			root.add(
+				MobConfigManager.FIELD_MOB_STATS,
+				MobConfigManager.buildMobStatsDefaults(
+					health,
+					armor,
+					damage,
+					movementSpeed,
+					null,
+					null,
+					knockbackResistance,
+					null,
+					experience,
+					null,
+					null,
+					null,
+					null,
+					null
+				)
+			);
 		}
-		root.add(MobConfigManager.FIELD_MOB_STATS, stats);
 
 		JsonObject spawnRules = new JsonObject();
 		spawnRules.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, spawnWeight);

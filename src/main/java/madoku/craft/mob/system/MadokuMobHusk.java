@@ -1,7 +1,6 @@
 package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
@@ -69,13 +68,13 @@ public final class MadokuMobHusk {
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 
 		JsonObject variantGroup = resolveHuskVariantGroupRoot(fileConfigRoot, fileRoot, world, true);
-		JsonObject adult = resolveAgeVariantRoot(variantGroup, false);
-		JsonObject baby = resolveAgeVariantRoot(variantGroup, true);
+		JsonObject adult = MadokuMobManager.resolveAgeVariantRoot(variantGroup, false);
+		JsonObject baby = MadokuMobManager.resolveAgeVariantRoot(variantGroup, true);
 		boolean babyEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_BABY, true);
 		if (overrideSpawnRules) {
 			boolean shouldBeBaby = false;
 			if (babyEnabled) {
-				double babyChance = resolveHuskBabyChanceForRuntime(
+				double babyChance = MadokuMobManager.resolveAgeVariantChanceForRuntime(
 					readSpawnWeight(adult, 95.0D),
 					readSpawnWeight(baby, 5.0D),
 					difficulty,
@@ -121,7 +120,7 @@ public final class MadokuMobHusk {
 
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
-		JsonObject variant = resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
 		variant = mergeHuskFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -142,7 +141,7 @@ public final class MadokuMobHusk {
 
 		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
-		JsonObject variant = resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
 		variant = mergeHuskFileSettings(fileRoot, variant);
 
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -190,7 +189,7 @@ public final class MadokuMobHusk {
 			return new JsonObject();
 		}
 		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
-		JsonObject variant = resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
 		return mergeHuskFileSettings(fileRoot, variant);
 	}
 
@@ -348,20 +347,7 @@ public final class MadokuMobHusk {
 			return defaultGroup;
 		}
 		JsonObject selected = resolveHuskVariantRootByKey(fileRoot, selectedVariant);
-		return selected.entrySet().isEmpty() ? defaultGroup : resolveEffectiveHuskVariantGroup(defaultGroup, selected);
-	}
-
-	private static JsonObject resolveEffectiveHuskVariantGroup(JsonObject defaultGroup, JsonObject variantGroup) {
-		if (variantGroup == null || variantGroup.entrySet().isEmpty()) {
-			return defaultGroup == null ? new JsonObject() : defaultGroup.deepCopy();
-		}
-		boolean sharedComponents = readBoolean(variantGroup, MobConfigManager.FIELD_SHARED_COMPONENTS, false);
-		if (!sharedComponents) {
-			return variantGroup;
-		}
-		JsonObject merged = defaultGroup == null ? new JsonObject() : defaultGroup.deepCopy();
-		deepMergeOverride(merged, variantGroup);
-		return merged;
+		return selected.entrySet().isEmpty() ? defaultGroup : MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, selected);
 	}
 
 	private static String selectHuskVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
@@ -448,6 +434,7 @@ public final class MadokuMobHusk {
 		return variant == null ? new JsonObject() : variant;
 	}
 
+	@SuppressWarnings("unused")
 	private static double resolveHuskBabyChanceForRuntime(
 		double adultWeight,
 		double babyWeight,
@@ -547,7 +534,7 @@ public final class MadokuMobHusk {
 
 		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, husk.isBaby());
+		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, husk.isBaby());
 		variant = mergeHuskFileSettings(fileRoot, variant);
 		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variant);
 		boolean appliesHungerOnHit = readBoolean(behaviorRoot, MobConfigManager.FIELD_APPLIES_HUNGER_ON_HIT, true);
@@ -670,48 +657,6 @@ public final class MadokuMobHusk {
 		}
 		event.log();
 	}
-
-	private static JsonObject resolveAgeVariantRoot(JsonObject defaultGroupRoot, boolean baby) {
-		if (defaultGroupRoot == null || defaultGroupRoot.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject sharedRoot = defaultGroupRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject ageOverride = readObject(
-			defaultGroupRoot,
-			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
-		);
-		if (ageOverride.entrySet().isEmpty()) {
-			return sharedRoot;
-		}
-		return mergeJsonWithOverride(sharedRoot, ageOverride);
-	}
-
-	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
-		JsonObject merged = base == null ? new JsonObject() : base.deepCopy();
-		if (override == null) {
-			return merged;
-		}
-		deepMergeOverride(merged, override);
-		return merged;
-	}
-
-	private static void deepMergeOverride(JsonObject target, JsonObject override) {
-		if (target == null || override == null) {
-			return;
-		}
-		for (Map.Entry<String, JsonElement> entry : override.entrySet()) {
-			String key = entry.getKey();
-			JsonElement value = entry.getValue();
-			if (value != null && value.isJsonObject() && target.has(key) && target.get(key).isJsonObject()) {
-				deepMergeOverride(target.getAsJsonObject(key), value.getAsJsonObject());
-				continue;
-			}
-			target.add(key, value == null ? JsonNull.INSTANCE : value.deepCopy());
-		}
-	}
-
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
 		if (target == null || source == null || key == null || key.isBlank()) {
 			return;

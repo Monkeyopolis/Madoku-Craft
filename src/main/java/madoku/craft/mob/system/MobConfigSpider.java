@@ -71,25 +71,42 @@ public final class MobConfigSpider {
 		JsonObject spawnRules = buildSpiderVariantSpawnRulesDefaults(10.0d);
 		JsonObject jockey = new JsonObject();
 		jockey.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		JsonObject jockeyMob = new JsonObject();
-		jockeyMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:skeleton");
-		jockey.add(MobConfigManager.FIELD_MOB, jockeyMob);
+
+		JsonObject passenger = new JsonObject();
+		JsonObject passengerMob = new JsonObject();
+		passengerMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:skeleton");
+		passenger.add(MobConfigManager.FIELD_MOB, passengerMob);
+		passenger.addProperty(MobConfigManager.FIELD_MAIN_HAND, "minecraft:bow");
+		jockey.add(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger);
+
+		JsonObject mount = new JsonObject();
+		JsonObject mountMob = new JsonObject();
+		mountMob.addProperty(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:spider");
+		mount.add(MobConfigManager.FIELD_MOB, mountMob);
+		jockey.add(MobConfigManager.FIELD_JOCKEY_MOUNT, mount);
+
 		spawnRules.add(MobConfigManager.FIELD_MOB_JOCKEY, jockey);
 		variant.add(MobConfigManager.FIELD_SPAWN_RULES, spawnRules);
 		return variant;
 	}
 
 	private static JsonObject buildSpiderStatsDefaults() {
-		JsonObject stats = new JsonObject();
-		stats.addProperty(MobConfigManager.FIELD_HEALTH, 16.0d);
-		stats.add(MobConfigManager.FIELD_ARMOR, null);
-		stats.addProperty(MobConfigManager.FIELD_DAMAGE, 4.0d);
-		stats.addProperty(MobConfigManager.FIELD_MOVEMENT_SPEED, 0.3d);
-		stats.add(MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, null);
-		stats.addProperty(MobConfigManager.FIELD_SCALE, 0.5d);
-		stats.addProperty(MobConfigManager.FIELD_EXPERIENCE_DROP, 7);
-		stats.addProperty(MobConfigManager.FIELD_MOB_DROPS, DEFAULT_MOB_DROPS);
-		return stats;
+		return MobConfigManager.buildMobStatsDefaults(
+			16.0d,
+			null,
+			4.0d,
+			0.3d,
+			null,
+			null,
+			null,
+			0.5d,
+			7,
+			null,
+			null,
+			null,
+			null,
+			DEFAULT_MOB_DROPS
+		);
 	}
 
 	private static JsonObject buildSpiderVariantSpawnRulesDefaults(double spawnWeight) {
