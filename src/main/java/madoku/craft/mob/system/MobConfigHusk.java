@@ -33,19 +33,21 @@ public final class MobConfigHusk {
 		husk.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
 
 		JsonObject defaultGroup = new JsonObject();
-		defaultGroup.add(
-			MobConfigManager.FIELD_MOB_STATS,
-			buildHuskMobStatsDefaults(
-				28.0d,
-				2.0d,
-				7.0d,
-				0.18d,
-				0.4d,
-				1.0d,
-				7,
-				resolveDefaultMobDropsReference()
-			)
+		JsonObject huskStats = buildHuskMobStatsDefaults(
+			28.0d,
+			2.0d,
+			7.0d,
+			0.18d,
+			0.4d,
+			1.0d,
+			7,
+			resolveDefaultMobDropsReference()
 		);
+		huskStats.add(
+			MobConfigManager.FIELD_MOB_EFFECT,
+			MobConfigManager.buildMobEffectDefaults("minecraft:slowness", 15)
+		);
+		defaultGroup.add(MobConfigManager.FIELD_MOB_STATS, huskStats);
 		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildHuskSpawnRulesDefaults());
 		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildHuskBehaviorDefaults(true));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildHuskGoalsDefaults());
@@ -116,7 +118,11 @@ public final class MobConfigHusk {
 	}
 
 	private static JsonObject buildHuskGoalsDefaults() {
-		return new JsonObject();
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "target-player", true, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "melee-attack", true, 4, 100.0d, 20);
+		});
 	}
 
 	private static JsonObject buildHuskAgeOverride(

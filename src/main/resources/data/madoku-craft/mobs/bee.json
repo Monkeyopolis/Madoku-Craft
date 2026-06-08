@@ -32,7 +32,11 @@
           "movement_speed": 0.3,
           "flying_speed": 0.6,
           "scale": 0.5,
-          "mob-drops": "minecraft-entities-bee.json"
+          "mob-drops": "minecraft-entities-bee.json",
+          "mob-effect": {
+            "effect": "minecraft:poison",
+            "duration": 60
+          }
         },
         "mob-behavior": {
           "pollination": {

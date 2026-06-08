@@ -27,6 +27,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.Difficulty;
@@ -976,6 +977,25 @@ public final class MadokuMobManager {
 		JsonObject resolvedBeeRoot = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
 		JsonObject statsRoot = readMobStatsRoot(resolvedBeeRoot);
 		return readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
+	}
+
+	public static JsonObject resolveBeeRootForRuntime(LivingEntity entity) {
+		if (entity == null || entity.getType() != EntityType.BEE || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
+			return new JsonObject();
+		}
+		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
+		return resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
+	}
+
+	public static MobEffectInstance resolveBeeAttackEffect(LivingEntity entity, MobEffectInstance fallbackEffect) {
+		if (entity == null || entity.getType() != EntityType.BEE || fallbackEffect == null) {
+			return fallbackEffect;
+		}
+		JsonObject resolvedBeeRoot = resolveBeeRootForRuntime(entity);
+		if (resolvedBeeRoot.entrySet().isEmpty()) {
+			return fallbackEffect;
+		}
+		return resolveConfiguredMobEffectInstance(readMobStatsRoot(resolvedBeeRoot), fallbackEffect);
 	}
 
 	public static boolean isZombieCustomMobDropsEnabled(LivingEntity entity) {
@@ -2420,6 +2440,22 @@ public final class MadokuMobManager {
 		return huskRoot(type);
 	}
 
+	public static MobEffectInstance resolveHuskAttackEffect(Husk husk, MobEffectInstance fallbackEffect) {
+		if (husk == null || fallbackEffect == null || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_HUSK)) {
+			return fallbackEffect;
+		}
+		JsonObject huskFileRoot = resolveHuskRootForRuntime(husk.getType());
+		JsonObject defaultGroup = readObject(huskFileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		if (defaultGroup.entrySet().isEmpty()) {
+			return fallbackEffect;
+		}
+		JsonObject variant = resolveAgeVariantRoot(defaultGroup, husk.isBaby());
+		if (variant.entrySet().isEmpty()) {
+			return fallbackEffect;
+		}
+		return resolveConfiguredMobEffectInstance(readMobStatsRoot(variant), fallbackEffect);
+	}
+
 	private static JsonObject zombieAdultRoot(JsonObject root) {
 		JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
 		if (defaultGroup.entrySet().isEmpty()) {
@@ -2472,6 +2508,34 @@ public final class MadokuMobManager {
 
 	private static JsonObject readMobStatsRoot(JsonObject root) {
 		return readObject(root, MobConfigManager.FIELD_MOB_STATS);
+	}
+
+	private static MobEffectInstance resolveConfiguredMobEffectInstance(JsonObject statsRoot, MobEffectInstance fallbackEffect) {
+		if (statsRoot == null || statsRoot.entrySet().isEmpty() || fallbackEffect == null) {
+			return fallbackEffect;
+		}
+		JsonObject mobEffectRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_EFFECT);
+		if (mobEffectRoot.entrySet().isEmpty()) {
+			return fallbackEffect;
+		}
+		String effectId = normalizeKey(readString(mobEffectRoot, MobConfigManager.FIELD_EFFECT, ""));
+		if (effectId.isBlank()) {
+			return fallbackEffect;
+		}
+		Identifier effectIdentifier = Identifier.tryParse(effectId);
+		if (effectIdentifier == null || !BuiltInRegistries.MOB_EFFECT.containsKey(effectIdentifier)) {
+			return fallbackEffect;
+		}
+		MobEffect mobEffect = BuiltInRegistries.MOB_EFFECT.getValue(effectIdentifier);
+		if (mobEffect == null) {
+			return fallbackEffect;
+		}
+		Integer durationSeconds = readOptionalIntNonNegative(mobEffectRoot, MobConfigManager.FIELD_DURATION);
+		if (durationSeconds == null || durationSeconds <= 0) {
+			return fallbackEffect;
+		}
+		long durationTicks = Math.min(Integer.MAX_VALUE, durationSeconds.longValue() * 20L);
+		return new MobEffectInstance(BuiltInRegistries.MOB_EFFECT.wrapAsHolder(mobEffect), (int) durationTicks);
 	}
 
 	private static JsonObject readMobBehaviorRoot(JsonObject root) {

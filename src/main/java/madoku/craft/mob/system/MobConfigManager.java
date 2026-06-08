@@ -45,8 +45,11 @@ public final class MobConfigManager {
 	public static final String FIELD_SPAWN_RULES = "mob-spawn-rules";
 	public static final String FIELD_MOB_STATS = "mob-stats";
 	public static final String FIELD_MOB_WEAPON = "mob-weapon";
+	public static final String FIELD_MOB_EFFECT = "mob-effect";
 	public static final String FIELD_MOB_DROPS = "mob-drops";
 	public static final String FIELD_ITEM = "item";
+	public static final String FIELD_EFFECT = "effect";
+	public static final String FIELD_DURATION = "duration";
 	public static final String FIELD_WEAPON_DAMAGE = "weapon-damage";
 	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
@@ -113,6 +116,7 @@ public final class MobConfigManager {
 		FIELD_CHARGE_INTERVAL,
 		FIELD_MOB_DROPS,
 		FIELD_MOB_WEAPON,
+		FIELD_MOB_EFFECT,
 		FIELD_GRIEF_POWER_MULTIPLIER,
 		FIELD_EXPLOSION_POWER,
 		FIELD_EXPLOSION_DESTRUCTION_CHANCE,
@@ -302,6 +306,16 @@ public final class MobConfigManager {
 		weapon.addProperty(FIELD_ITEM, itemId);
 		root.add(FIELD_MOB_WEAPON, weapon);
 		return root;
+	}
+
+	static JsonObject buildMobEffectDefaults(String effectId, int durationSeconds) {
+		if (effectId == null || effectId.isBlank() || durationSeconds <= 0) {
+			return new JsonObject();
+		}
+		JsonObject effect = new JsonObject();
+		effect.addProperty(FIELD_EFFECT, effectId);
+		effect.addProperty(FIELD_DURATION, durationSeconds);
+		return effect;
 	}
 
 	private static boolean hasConfiguredDoubleValue(Double value) {

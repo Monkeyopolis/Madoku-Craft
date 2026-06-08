@@ -13,6 +13,7 @@
     "BatTargetAccessor",
     "BeeGrowCropGoalDisableMixin",
     "BeeScaleAttributeMixin",
+    "BeeStingEffectMixin",
     "BiomeSeasonalFreezeMixin",
     "BiomeSeasonalPrecipitationMixin",
     "BlockFarmingDropsMixin",

@@ -116,7 +116,11 @@ public final class MobConfigZombieVillager {
 	}
 
 	private static JsonObject buildZombieVillagerGoalsDefaults() {
-		return MobConfigManager.buildMobGoalsDefaults();
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "target-player", true, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "melee-attack", true, 4, 100.0d, 20);
+		});
 	}
 
 	private static JsonObject buildZombieVillagerAgeOverride(

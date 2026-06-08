@@ -8,6 +8,7 @@ import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -60,6 +61,17 @@ public final class MadokuMobBee {
 
 	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
 		return MadokuMobManager.applyBeeDifficultyOverrides(entity);
+	}
+
+	public static boolean applyStingingAttackEffect(Bee bee, LivingEntity target, MobEffectInstance effect, Entity attacker) {
+		if (bee == null || target == null || effect == null || attacker == null) {
+			return false;
+		}
+		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_BEE)) {
+			return target.addEffect(effect, attacker);
+		}
+		MobEffectInstance configuredEffect = MadokuMobManager.resolveBeeAttackEffect(bee, effect);
+		return target.addEffect(configuredEffect, attacker);
 	}
 
 	public static boolean isPollinateCropsEnabled(Bee bee) {

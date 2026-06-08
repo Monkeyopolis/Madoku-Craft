@@ -506,19 +506,11 @@ public final class MadokuMobHusk {
 		if (husk == null || target == null || effect == null || attacker == null) {
 			return false;
 		}
-		String fileKey = fileKeyForType(husk.getType());
-		if (fileKey.isBlank()) {
+		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_HUSK)) {
 			return target.addEffect(effect, attacker);
 		}
-		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
-			return target.addEffect(effect, attacker);
-		}
-
-		JsonObject fileRoot = MadokuMobManager.resolveHuskRootForRuntime(husk.getType());
-		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, husk.isBaby());
-		variant = mergeHuskFileSettings(fileRoot, variant);
-		return target.addEffect(effect, attacker);
+		MobEffectInstance configuredEffect = MadokuMobManager.resolveHuskAttackEffect(husk, effect);
+		return target.addEffect(configuredEffect, attacker);
 	}
 
 	private static void stripHeldAttackDamageModifiers(Husk husk, EquipmentSlot slot) {

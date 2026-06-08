@@ -140,7 +140,7 @@ public final class MadokuPlacedBlocks {
 	private static final class PlacedBlockData extends SavedData {
 		private static final Codec<PlacedBlockData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
 			Codec.LONG.fieldOf(FIELD_TRACKED_SINCE_GAMEPLAY_TICK).forGetter(data -> data.trackedSinceGameplayTick),
-			Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(Codec.LONG, Codec.INT.listOf()))
+			Codec.unboundedMap(Codec.STRING, Codec.unboundedMap(Codec.STRING, Codec.INT.listOf()))
 				.fieldOf(FIELD_LEVELS)
 				.forGetter(PlacedBlockData::encodedLevels)
 		).apply(instance, PlacedBlockData::new));
@@ -151,7 +151,7 @@ public final class MadokuPlacedBlocks {
 		private PlacedBlockData() {
 		}
 
-		private PlacedBlockData(long trackedSinceGameplayTick, Map<String, Map<Long, List<Integer>>> encodedLevels) {
+		private PlacedBlockData(long trackedSinceGameplayTick, Map<String, Map<String, List<Integer>>> encodedLevels) {
 			this.trackedSinceGameplayTick = trackedSinceGameplayTick;
 			importEncodedLevels(encodedLevels);
 			normalizeLoadedState();
@@ -291,30 +291,30 @@ public final class MadokuPlacedBlocks {
 			}
 		}
 
-		private void importEncodedLevels(Map<String, Map<Long, List<Integer>>> encodedLevels) {
+		private void importEncodedLevels(Map<String, Map<String, List<Integer>>> encodedLevels) {
 			placedBlocksByLevel.clear();
 			if (encodedLevels == null || encodedLevels.isEmpty()) {
 				return;
 			}
 
-			for (Map.Entry<String, Map<Long, List<Integer>>> levelEntry : encodedLevels.entrySet()) {
+			for (Map.Entry<String, Map<String, List<Integer>>> levelEntry : encodedLevels.entrySet()) {
 				if (levelEntry == null) {
 					continue;
 				}
 
 				String levelId = levelEntry.getKey();
-				Map<Long, List<Integer>> encodedChunks = levelEntry.getValue();
+				Map<String, List<Integer>> encodedChunks = levelEntry.getValue();
 				if (levelId == null || levelId.isBlank() || encodedChunks == null || encodedChunks.isEmpty()) {
 					continue;
 				}
 
 				Map<Long, Set<Integer>> chunks = new HashMap<>();
-				for (Map.Entry<Long, List<Integer>> chunkEntry : encodedChunks.entrySet()) {
+				for (Map.Entry<String, List<Integer>> chunkEntry : encodedChunks.entrySet()) {
 					if (chunkEntry == null) {
 						continue;
 					}
 
-					Long packedChunk = chunkEntry.getKey();
+					Long packedChunk = parsePackedChunk(chunkEntry.getKey());
 					List<Integer> encodedPositions = chunkEntry.getValue();
 					if (packedChunk == null || encodedPositions == null || encodedPositions.isEmpty()) {
 						continue;
@@ -338,8 +338,8 @@ public final class MadokuPlacedBlocks {
 			}
 		}
 
-		private Map<String, Map<Long, List<Integer>>> encodedLevels() {
-			Map<String, Map<Long, List<Integer>>> encoded = new LinkedHashMap<>();
+		private Map<String, Map<String, List<Integer>>> encodedLevels() {
+			Map<String, Map<String, List<Integer>>> encoded = new LinkedHashMap<>();
 			List<String> levelIds = new ArrayList<>(placedBlocksByLevel.keySet());
 			levelIds.sort(String::compareTo);
 
@@ -353,7 +353,7 @@ public final class MadokuPlacedBlocks {
 					continue;
 				}
 
-				Map<Long, List<Integer>> encodedChunks = new LinkedHashMap<>();
+				Map<String, List<Integer>> encodedChunks = new LinkedHashMap<>();
 				List<Long> packedChunks = new ArrayList<>(chunks.keySet());
 				packedChunks.sort(Comparator.naturalOrder());
 
@@ -369,7 +369,7 @@ public final class MadokuPlacedBlocks {
 
 					List<Integer> encodedPositions = new ArrayList<>(positions);
 					encodedPositions.sort(Comparator.naturalOrder());
-					encodedChunks.put(packedChunk, encodedPositions);
+					encodedChunks.put(Long.toString(packedChunk), encodedPositions);
 				}
 
 				if (!encodedChunks.isEmpty()) {
@@ -411,6 +411,17 @@ public final class MadokuPlacedBlocks {
 				}
 			}
 			return count;
+		}
+
+		private static Long parsePackedChunk(String encodedPackedChunk) {
+			if (encodedPackedChunk == null || encodedPackedChunk.isBlank()) {
+				return null;
+			}
+			try {
+				return Long.parseLong(encodedPackedChunk);
+			} catch (NumberFormatException exception) {
+				return null;
+			}
 		}
 	}
 }
