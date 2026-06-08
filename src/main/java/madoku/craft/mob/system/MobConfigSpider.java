@@ -51,20 +51,6 @@ public final class MobConfigSpider {
 		return group;
 	}
 
-	private static JsonObject buildCaveSpiderVariantDefaults() {
-		JsonObject variant = new JsonObject();
-		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
-
-		JsonObject alternativeMob = new JsonObject();
-		alternativeMob.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		alternativeMob.addProperty(MobConfigManager.FIELD_MOB, "minecraft:cave_spider");
-		variant.add(
-			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).spawnAlternativeMob(alternativeMob).build()
-		);
-		return variant;
-	}
-
 	private static JsonObject buildSpiderJockeyVariantDefaults() {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
@@ -88,6 +74,20 @@ public final class MobConfigSpider {
 		variant.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
 			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).mobJockey(jockey).build()
+		);
+		return variant;
+	}
+
+	private static JsonObject buildCaveSpiderVariantDefaults() {
+		JsonObject variant = new JsonObject();
+		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
+
+		JsonObject alternativeMob = new JsonObject();
+		alternativeMob.addProperty(MobConfigManager.FIELD_ENABLED, true);
+		alternativeMob.addProperty(MobConfigManager.FIELD_MOB, "minecraft:cave_spider");
+		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).spawnAlternativeMob(alternativeMob).build()
 		);
 		return variant;
 	}

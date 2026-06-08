@@ -13,6 +13,7 @@ public final class MobConfigManager {
 	public static final String FIELD_HEALTH = "health";
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
+	public static final String FIELD_TRUE_DAMAGE = "true-damage";
 	public static final String FIELD_MOVEMENT_SPEED = "movement-speed";
 	public static final String FIELD_SWIMMING_SPEED = "swimming-speed";
 	public static final String FIELD_FLYING_SPEED = "flying-speed";
@@ -37,6 +38,7 @@ public final class MobConfigManager {
 
 	public static final String FIELD_CAN_PICK_UP_LOOT = "can-pick-up-loot";
 	public static final String FIELD_TRIDENT_ATTACK = "trident-attack";
+	public static final String FIELD_BOW_ATTACK = "bow-attack";
 	public static final String FIELD_SPAWN_WEIGHT = "spawn-weight";
 	public static final String FIELD_RANGED_DAMAGE = "ranged-damage";
 	public static final String FIELD_ATTACK_INTERVAL = "attack-interval";
@@ -104,6 +106,7 @@ public final class MobConfigManager {
 		FIELD_HEALTH,
 		FIELD_ARMOR,
 		FIELD_DAMAGE,
+		FIELD_TRUE_DAMAGE,
 		FIELD_MOVEMENT_SPEED,
 		FIELD_SWIMMING_SPEED,
 		FIELD_FLYING_SPEED,
@@ -135,6 +138,7 @@ public final class MobConfigManager {
 		FIELD_RETALIATE_WHEN_HURT,
 		FIELD_CALLS_REINFORCEMENTS_WHEN_HURT,
 		FIELD_TRIDENT_ATTACK,
+		FIELD_BOW_ATTACK,
 		FIELD_POLLINATE_CROPS
 	);
 
@@ -298,14 +302,12 @@ public final class MobConfigManager {
 	}
 
 	static JsonObject buildMobWeaponDefaults(String itemId) {
-		JsonObject root = new JsonObject();
-		if (itemId == null || itemId.isBlank()) {
-			return root;
-		}
 		JsonObject weapon = new JsonObject();
+		if (itemId == null || itemId.isBlank()) {
+			return weapon;
+		}
 		weapon.addProperty(FIELD_ITEM, itemId);
-		root.add(FIELD_MOB_WEAPON, weapon);
-		return root;
+		return weapon;
 	}
 
 	static JsonObject buildMobEffectDefaults(String effectId, int durationSeconds) {
@@ -335,8 +337,9 @@ public final class MobConfigManager {
 	) {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
+		root.addProperty(FIELD_MOB_VARIANT, false);
 		JsonObject mob = new JsonObject();
-		mob.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
+		JsonObject defaultGroup = new JsonObject();
 		JsonObject mobStats = buildMobStatsDefaults(
 			health,
 			armor,
@@ -353,8 +356,10 @@ public final class MobConfigManager {
 			10.0d,
 			null
 		);
-		mob.add(FIELD_MOB_STATS, mobStats);
-		ensureMobSchema(mob, false);
+		defaultGroup.add(FIELD_MOB_STATS, mobStats);
+		defaultGroup.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
+		ensureMobSchema(defaultGroup, false);
+		mob.add(FIELD_DEFAULT_GROUP, defaultGroup);
 		root.add(mobKey, mob);
 		return root;
 	}

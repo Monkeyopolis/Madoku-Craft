@@ -10,8 +10,30 @@ public final class ConfigEntitiesCaveSpider {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, false, 1, 2);
-		root.add(LootTableConfigManager.FIELD_GROUPS, new JsonArray());
+		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, true, 1, 2);
+		JsonArray groups = new JsonArray();
+
+		groups.add(
+			LootTableConfigStructures.group(
+				"common",
+				60,
+				LootTableConfigStructures.entries(
+					LootTableConfigStructures.item("minecraft:string", 1, 1, 3)
+				)
+			)
+		);
+
+		groups.add(
+			LootTableConfigStructures.group(
+				"epic",
+				40,
+				LootTableConfigStructures.entries(
+					LootTableConfigStructures.item("minecraft:spider_eye", 1, 1, 3)
+				)
+			)
+		);
+
+		root.add(LootTableConfigManager.FIELD_GROUPS, groups);
 		return root;
 	}
 }

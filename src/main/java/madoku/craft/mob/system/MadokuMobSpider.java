@@ -12,52 +12,80 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
+
 public final class MadokuMobSpider {
 	private static final String SPIDER_VARIANT_DEFAULT_KEY = MobConfigManager.FIELD_DEFAULT_GROUP;
+	private static final String SPIDER_VARIANT_TAG_PREFIX = "madoku-craft.spider.variant:";
 
 	private MadokuMobSpider() {
 	}
 
-	public static void applySpawnOverrides(
+	public static boolean applySpawnOverrides(
 		Spider spider,
 		ServerLevelAccessor world,
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
 		if (spider == null || world == null || difficulty == null || !MadokuMobManager.isEnabled()) {
-			return;
+			return false;
 		}
 		if (spider.getType() != EntityType.SPIDER || spawnReason == EntitySpawnReason.JOCKEY) {
-			return;
+			return false;
 		}
 
 		String fileKey = MobConfigManager.FILE_SPIDER;
 		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
-			return;
+			return false;
 		}
 
 		JsonObject fileRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
 		JsonObject spiderRoot = readMobRoot(fileRoot, fileKey);
+		boolean overrideSpawnRules = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		if (!overrideSpawnRules) {
+			clearSpiderVariantTag(spider);
+			return false;
+		}
 		boolean variantEnabled = isSpiderVariantSystemEnabled(spiderRoot);
 		if (spiderRoot.entrySet().isEmpty() || !variantEnabled) {
-			return;
-		}
-
-		clearExistingSkeletonPassengers(spider);
-
-		String selectedVariant = selectSpiderVariantKey(spiderRoot, world);
-		if (selectedVariant.isBlank() || normalizeKey(selectedVariant).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
-			return;
+			clearSpiderVariantTag(spider);
+			return false;
 		}
 
 		JsonObject defaultGroup = readObject(spiderRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		if (defaultGroup.entrySet().isEmpty()) {
+			clearSpiderVariantTag(spider);
+			return false;
+		}
+
+		String storedVariant = readStoredSpiderVariantKey(spider);
+		if (!storedVariant.isBlank()) {
+			if (normalizeKey(storedVariant).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
+				return false;
+			}
+			JsonObject storedVariantRoot = resolveSpiderVariantRootByKey(spiderRoot, storedVariant);
+			if (storedVariantRoot.entrySet().isEmpty()) {
+				return false;
+			}
+			JsonObject effectiveStoredVariantRoot = MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, storedVariantRoot);
+			return applyConfiguredSpiderVariantOutcome(spider, world, difficulty, spawnReason, effectiveStoredVariantRoot);
+		}
+
+		String selectedVariant = selectSpiderVariantKey(spiderRoot, world);
+		if (selectedVariant.isBlank()) {
+			selectedVariant = SPIDER_VARIANT_DEFAULT_KEY;
+		}
+		writeSpiderVariantTag(spider, selectedVariant);
+		if (normalizeKey(selectedVariant).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
+			return false;
+		}
+		clearExistingSkeletonPassengers(spider);
 		JsonObject variantRoot = resolveSpiderVariantRootByKey(spiderRoot, selectedVariant);
 		if (variantRoot.entrySet().isEmpty()) {
-			return;
+			return false;
 		}
 
 		JsonObject effectiveVariantRoot = MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, variantRoot);
-		applyConfiguredSpiderVariantOutcome(spider, world, difficulty, spawnReason, effectiveVariantRoot);
+		return applyConfiguredSpiderVariantOutcome(spider, world, difficulty, spawnReason, effectiveVariantRoot);
 	}
 
 	private static boolean applyConfiguredSpiderVariantOutcome(
@@ -123,6 +151,58 @@ public final class MadokuMobSpider {
 			return true;
 		}
 		return !collectSpiderVariantRoots(spiderRoot).isEmpty();
+	}
+
+	public static boolean shouldOverrideSpawnRules(Spider spider) {
+		if (spider == null || spider.getType() != EntityType.SPIDER || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = MobConfigManager.FILE_SPIDER;
+		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		return readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+	}
+
+	private static String readStoredSpiderVariantKey(Spider spider) {
+		if (spider == null) {
+			return "";
+		}
+		for (String tag : spider.entityTags()) {
+			if (tag == null || !tag.startsWith(SPIDER_VARIANT_TAG_PREFIX)) {
+				continue;
+			}
+			String normalized = normalizeKey(tag.substring(SPIDER_VARIANT_TAG_PREFIX.length()));
+			if (!normalized.isBlank()) {
+				return normalized;
+			}
+		}
+		return "";
+	}
+
+	private static void writeSpiderVariantTag(Spider spider, String variantKey) {
+		if (spider == null || variantKey == null || variantKey.isBlank()) {
+			return;
+		}
+		clearSpiderVariantTag(spider);
+		spider.addTag(SPIDER_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
+	}
+
+	private static void clearSpiderVariantTag(Spider spider) {
+		if (spider == null) {
+			return;
+		}
+		String existing = null;
+		for (String tag : spider.entityTags()) {
+			if (tag != null && tag.startsWith(SPIDER_VARIANT_TAG_PREFIX)) {
+				existing = tag;
+				break;
+			}
+		}
+		if (existing != null) {
+			spider.removeTag(existing);
+		}
 	}
 
 	private static boolean isReservedSpiderGroupKey(String normalizedKey) {

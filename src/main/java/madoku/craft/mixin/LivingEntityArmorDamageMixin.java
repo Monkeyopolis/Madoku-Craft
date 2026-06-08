@@ -21,19 +21,20 @@ public abstract class LivingEntityArmorDamageMixin {
 	private void madokuCraft$applyMadokuArmor(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;
 		boolean skeletonIgnoresArmor = MadokuMobManager.shouldSkeletonMeleeIgnoreArmor(source);
+		boolean mobIgnoresArmor = MadokuMobManager.shouldBypassArmorForMobDamage(source);
 		boolean fallDamage = source != null && source.is(DamageTypeTags.IS_FALL);
 		boolean bypassesArmor = source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !fallDamage;
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
-		if (!MadokuArmor.isEnabled() && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor) {
+		if (!MadokuArmor.isEnabled() && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
 			return;
 		}
 
-		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && source != null && !bypassesArmor) {
+		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && source != null && !bypassesArmor) {
 			this.hurtArmor(source, amount);
 		}
 
 		float damageAfterArmor;
-		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !bypassesArmor) {
+		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && !bypassesArmor) {
 			damageAfterArmor = MadokuArmor.applyCustomArmorDamage(entity, source, amount);
 		} else {
 			damageAfterArmor = amount;

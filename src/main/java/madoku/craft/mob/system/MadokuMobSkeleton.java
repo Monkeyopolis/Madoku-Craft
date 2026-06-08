@@ -1,11 +1,44 @@
 package madoku.craft.mob.system;
 
+import com.google.gson.JsonObject;
+import madoku.craft.debug.MadokuDebug;
+import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
+import madoku.craft.luck.MadokuLuck;
+import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
-import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.phys.Vec3;
+
+import java.util.Map;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MadokuMobSkeleton {
+	private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
+	private static final int DEFAULT_CHARGE_UP_TICKS = 10;
+	private static final String SKELETON_VARIANT_TAG_PREFIX = "madoku-craft.skeleton.variant:";
+	private static final String SKELETON_VARIANT_DEFAULT_KEY = "default";
+
+	private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
+	private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
+
 	private MadokuMobSkeleton() {
 	}
 
@@ -15,7 +48,704 @@ public final class MadokuMobSkeleton {
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
-		MadokuMobManager.applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
+		if (skeleton == null || world == null || difficulty == null || !MadokuMobManager.isEnabled()) {
+			return;
+		}
+		String fileKey = skeletonFileKey(skeleton);
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return;
+		}
+
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = readSkeletonMobRoot(fileConfigRoot, fileKey);
+		JsonObject variantGroup = resolveSkeletonVariantGroupRoot(skeleton, fileConfigRoot, fileRoot, world, true);
+		if (variantGroup.entrySet().isEmpty()) {
+			return;
+		}
+		JsonObject resolvedRoot = mergeSkeletonFileSettings(fileConfigRoot, variantGroup);
+		String selectedVariant = readStoredSkeletonVariantKey(skeleton);
+		String configuredWeapon = readConfiguredMobWeaponItemId(resolvedRoot);
+		String mainHandBefore = MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem());
+		emitSkeletonSpawnDebug(
+			"resolved",
+			skeleton,
+			world,
+			difficulty,
+			spawnReason,
+			selectedVariant,
+			configuredWeapon,
+			mainHandBefore,
+			"variant_selected"
+		);
+
+		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
+		if (overrideSpawnRules) {
+			applyConfiguredSkeletonVariantOutcome(skeleton, world, difficulty, spawnReason, resolvedRoot);
+		}
+		if (overrideStats) {
+			MadokuMobManager.applyUniversalStatsForRuntime(skeleton, resolvedRoot);
+		}
+		boolean bowAttackEnabled = isBowAttackEnabled(skeleton);
+		emitSkeletonSpawnDebug(
+			"post_apply",
+			skeleton,
+			world,
+			difficulty,
+			spawnReason,
+			selectedVariant,
+			configuredWeapon,
+			MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem()),
+			bowAttackEnabled ? "bow_attack_enabled" : "bow_attack_disabled"
+		);
+		if (bowAttackEnabled) {
+			emitSkeletonSpawnDebug(
+				"ensure_bow",
+				skeleton,
+				world,
+				difficulty,
+				spawnReason,
+				selectedVariant,
+				configuredWeapon,
+				MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem()),
+				"forcing_bow_equipped"
+			);
+			MadokuMobManager.ensureBowEquipped(skeleton);
+		}
+	}
+
+	public static boolean applyLoadedEntityOverrides(LivingEntity entity) {
+		if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = skeletonFileKey(skeleton);
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+
+		JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
+		if (resolvedRoot.entrySet().isEmpty()) {
+			return false;
+		}
+		return MadokuMobManager.applyUniversalBaseStatsForRuntime(skeleton, resolvedRoot);
+	}
+
+	public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = skeletonFileKey(skeleton);
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+
+		JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
+		if (resolvedRoot.entrySet().isEmpty()) {
+			return false;
+		}
+		return MadokuMobManager.applyUniversalDifficultyStatsForRuntime(skeleton, resolvedRoot);
+	}
+
+	public static boolean shouldOverrideSpawnRules(AbstractSkeleton skeleton) {
+		if (skeleton == null || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = skeletonFileKey(skeleton);
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return false;
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		return readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+	}
+
+	public static JsonObject resolveRuntimeRoot(AbstractSkeleton skeleton) {
+		if (skeleton == null || !MadokuMobManager.isEnabled()) {
+			return new JsonObject();
+		}
+		String fileKey = skeletonFileKey(skeleton);
+		if (fileKey.isBlank() || !MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
+			return new JsonObject();
+		}
+		JsonObject fileConfigRoot = MadokuMobManager.resolveMobFileConfigRootForRuntime(fileKey);
+		JsonObject fileRoot = readSkeletonMobRoot(fileConfigRoot, fileKey);
+		JsonObject variantGroup = resolveSkeletonVariantGroupRoot(skeleton, fileConfigRoot, fileRoot, null, false);
+		if (variantGroup.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		return mergeSkeletonFileSettings(fileConfigRoot, variantGroup);
+	}
+
+	public static void resetRuntimeState() {
+		PENDING_RANGED_BOW_CHARGES.clear();
+		RANGED_BOW_COOLDOWNS.clear();
+	}
+
+	public static void onEntityCleanup(Entity entity) {
+		if (entity instanceof AbstractSkeleton skeleton) {
+			clearRangedSkeletonRuntimeState(skeleton);
+		}
+	}
+
+	public static void tickRangedSkeletonRuntime(AbstractSkeleton skeleton) {
+		if (skeleton == null || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return;
+		}
+		if (!isBowAttackEnabled(skeleton)) {
+			clearRangedSkeletonRuntimeState(skeleton);
+			return;
+		}
+
+		UUID skeletonId = skeleton.getUUID();
+		Integer cooldown = RANGED_BOW_COOLDOWNS.get(skeletonId);
+		if (cooldown != null) {
+			if (cooldown <= 1) {
+				RANGED_BOW_COOLDOWNS.remove(skeletonId);
+			} else {
+				RANGED_BOW_COOLDOWNS.put(skeletonId, cooldown - 1);
+			}
+		}
+
+		PendingRangedBowCharge pending = PENDING_RANGED_BOW_CHARGES.get(skeletonId);
+		if (pending == null) {
+			return;
+		}
+		if (pending.remainingTicks() > 1) {
+			PENDING_RANGED_BOW_CHARGES.put(skeletonId, pending.withRemainingTicks(pending.remainingTicks() - 1));
+			return;
+		}
+
+		PENDING_RANGED_BOW_CHARGES.remove(skeletonId);
+		if (RANGED_BOW_COOLDOWNS.containsKey(skeletonId)) {
+			return;
+		}
+		if (!(skeleton.level() instanceof ServerLevel level)) {
+			return;
+		}
+		Entity targetEntity = level.getEntity(pending.targetUuid());
+		if (!(targetEntity instanceof LivingEntity target) || !target.isAlive()) {
+			return;
+		}
+		if (fireRangedBowArrow(skeleton, target)) {
+			RANGED_BOW_COOLDOWNS.put(skeletonId, resolveBowAttackIntervalTicks(skeleton));
+		}
+	}
+
+	public static boolean applyRangedSkeletonBowAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
+		if (skeleton == null || target == null || !target.isAlive() || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		if (!isBowAttackEnabled(skeleton)) {
+			return false;
+		}
+
+		UUID skeletonId = skeleton.getUUID();
+		int cooldown = RANGED_BOW_COOLDOWNS.getOrDefault(skeletonId, 0);
+		if (cooldown > 0) {
+			return true;
+		}
+		PendingRangedBowCharge pending = PENDING_RANGED_BOW_CHARGES.get(skeletonId);
+		if (pending != null) {
+			return true;
+		}
+
+		int chargeUpTicks = resolveBowChargeUpTicks(skeleton);
+		if (chargeUpTicks <= 0) {
+			if (fireRangedBowArrow(skeleton, target)) {
+				RANGED_BOW_COOLDOWNS.put(skeletonId, resolveBowAttackIntervalTicks(skeleton));
+			}
+			return true;
+		}
+
+		PENDING_RANGED_BOW_CHARGES.put(skeletonId, new PendingRangedBowCharge(target.getUUID(), chargeUpTicks));
+		return true;
+	}
+
+	public static int resolveBowAttackIntervalTicks(AbstractSkeleton skeleton) {
+		if (!isBowAttackEnabled(skeleton)) {
+			return -1;
+		}
+		return resolveBowAttackIntervalTicks(skeleton, DEFAULT_ATTACK_INTERVAL_TICKS);
+	}
+
+	public static int resolveBowChargeUpTicks(Monster attacker) {
+		if (!(attacker instanceof AbstractSkeleton skeleton) || !isBowAttackEnabled(skeleton)) {
+			return -1;
+		}
+		return resolveBowChargeUpTicks(attacker, DEFAULT_CHARGE_UP_TICKS);
+	}
+
+	public static boolean isBowAttackEnabled(AbstractSkeleton skeleton) {
+		if (skeleton == null || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		JsonObject root = resolveBowRuntimeRoot(skeleton);
+		return !root.entrySet().isEmpty() && MadokuMobManager.readMobBehaviorBooleanForRuntime(root, MobConfigManager.FIELD_BOW_ATTACK, false);
+	}
+
+	public static void ensureBowEquipped(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return;
+		}
+		ItemStack main = skeleton.getItemBySlot(EquipmentSlot.MAINHAND);
+		if (main.isEmpty() || !main.is(Items.BOW)) {
+			skeleton.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+		}
+	}
+
+	public static boolean applyBowAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
+		return applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+	}
+
+	private static InteractionHand resolveBowHand(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return null;
+		}
+		if (skeleton.getMainHandItem().is(Items.BOW)) {
+			return InteractionHand.MAIN_HAND;
+		}
+		if (skeleton.getOffhandItem().is(Items.BOW)) {
+			return InteractionHand.OFF_HAND;
+		}
+		return null;
+	}
+
+	private static boolean fireRangedBowArrow(AbstractSkeleton skeleton, LivingEntity target) {
+		if (skeleton == null || target == null || !target.isAlive() || !(skeleton.level() instanceof ServerLevel level)) {
+			return false;
+		}
+		JsonObject root = resolveBowRuntimeRoot(skeleton);
+		if (root.entrySet().isEmpty()) {
+			return false;
+		}
+
+		ensureBowEquipped(skeleton);
+		InteractionHand bowHand = resolveBowHand(skeleton);
+		if (bowHand == null) {
+			return false;
+		}
+		ItemStack bowStack = skeleton.getItemInHand(bowHand);
+		ItemStack projectileStack = skeleton.getProjectile(bowStack);
+		if (projectileStack.isEmpty()) {
+			projectileStack = new ItemStack(Items.ARROW);
+		}
+		AbstractArrow arrow = ((AbstractSkeletonArrowInvoker) skeleton).madokuCraft$invokeGetArrow(projectileStack, 1.0F, bowStack);
+		if (arrow == null) {
+			return false;
+		}
+
+		double accuracy = resolveScaledAttackAccuracy(
+			readDouble(readMobStatsRoot(root), MobConfigManager.FIELD_ATTACK_ACCURACY, 0.7D),
+			skeleton.level().getDifficulty(),
+			isHardcoreWorld(skeleton.level())
+		);
+		double rangedDamage = resolveSkeletonRangedDamage(skeleton, root);
+		accuracy = MadokuRegionalDifficultyManager.resolveMobAttackAccuracyScaling(skeleton, accuracy);
+		ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
+		arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
+		arrow.setCritArrow(false);
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			arrow.setRemainingFireTicks(0);
+		}
+		MadokuMobManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
+		MadokuMobManager.trackManagedMobArrowForRuntime(arrow, level.getServer());
+		if (shot.guaranteedHit) {
+			MadokuMobManager.startProjectileHoming(arrow, target, level.getServer());
+		}
+		skeleton.playSound(SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (skeleton.getRandom().nextFloat() * 0.4F + 0.8F));
+		level.addFreshEntity(arrow);
+		return true;
+	}
+
+	private static int resolveBowAttackIntervalTicks(AbstractSkeleton skeleton, int fallback) {
+		if (skeleton == null || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return fallback;
+		}
+		JsonObject root = resolveBowRuntimeRoot(skeleton);
+		if (root.entrySet().isEmpty() || !MadokuMobManager.readMobBehaviorBooleanForRuntime(root, MobConfigManager.FIELD_BOW_ATTACK, false)) {
+			return fallback;
+		}
+		double interval = readDouble(readMobStatsRoot(root), MobConfigManager.FIELD_ATTACK_INTERVAL, fallback);
+		return Math.max(1, (int) Math.round(interval));
+	}
+
+	private static int resolveBowChargeUpTicks(Monster attacker, int fallback) {
+		if (!(attacker instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MadokuMobManager.isEnabled()) {
+			return fallback;
+		}
+		JsonObject root = resolveBowRuntimeRoot(skeleton);
+		if (root.entrySet().isEmpty() || !MadokuMobManager.readMobBehaviorBooleanForRuntime(root, MobConfigManager.FIELD_BOW_ATTACK, false)) {
+			return fallback;
+		}
+		double charge = readDouble(readMobStatsRoot(root), MobConfigManager.FIELD_CHARGE_INTERVAL, fallback);
+		return Math.max(0, (int) Math.round(charge));
+	}
+
+	private static void clearRangedSkeletonRuntimeState(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return;
+		}
+		UUID skeletonId = skeleton.getUUID();
+		PENDING_RANGED_BOW_CHARGES.remove(skeletonId);
+		RANGED_BOW_COOLDOWNS.remove(skeletonId);
+	}
+
+	private static String skeletonFileKey(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return "";
+		}
+		return skeleton.getType() == EntityType.SKELETON ? MobConfigManager.FILE_SKELETON
+			: skeleton.getType() == EntityType.STRAY ? MobConfigManager.FILE_STRAY
+			: skeleton.getType() == EntityType.BOGGED ? MobConfigManager.FILE_BOGGED
+			: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
+			: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
+			: "";
+	}
+
+	private static JsonObject resolveBowRuntimeRoot(AbstractSkeleton skeleton) {
+		return resolveRuntimeRoot(skeleton);
+	}
+
+	private static JsonObject readSkeletonMobRoot(JsonObject fileConfigRoot, String fileKey) {
+		if (fileConfigRoot == null || fileKey == null || fileKey.isBlank()) {
+			return new JsonObject();
+		}
+		return readObject(fileConfigRoot, fileKey);
+	}
+
+	private static JsonObject resolveSkeletonVariantGroupRoot(
+		AbstractSkeleton skeleton,
+		JsonObject fileConfigRoot,
+		JsonObject fileRoot,
+		ServerLevelAccessor world,
+		boolean spawnContext
+	) {
+		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		if (defaultGroup.entrySet().isEmpty()) {
+			clearSkeletonVariantTag(skeleton);
+			return new JsonObject();
+		}
+
+		boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+		if (!variantEnabled) {
+			clearSkeletonVariantTag(skeleton);
+			return defaultGroup;
+		}
+
+		String storedVariant = readStoredSkeletonVariantKey(skeleton);
+		if (!storedVariant.isBlank()) {
+			if (SKELETON_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
+				return defaultGroup;
+			}
+			JsonObject known = resolveSkeletonVariantRootByKey(fileRoot, storedVariant);
+			if (!known.entrySet().isEmpty()) {
+				return MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, known);
+			}
+		}
+
+		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		if (!spawnContext || !overrideSpawnRules || world == null) {
+			return defaultGroup;
+		}
+
+		String selectedVariant = selectSkeletonVariantKey(fileRoot, world);
+		if (selectedVariant.isBlank()) {
+			selectedVariant = SKELETON_VARIANT_DEFAULT_KEY;
+		}
+		writeSkeletonVariantTag(skeleton, selectedVariant);
+		if (SKELETON_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
+			return defaultGroup;
+		}
+		JsonObject selected = resolveSkeletonVariantRootByKey(fileRoot, selectedVariant);
+		return selected.entrySet().isEmpty() ? defaultGroup : MadokuMobManager.resolveSharedVariantGroupRoot(defaultGroup, selected);
+	}
+
+	private static JsonObject resolveSkeletonVariantRootByKey(JsonObject fileRoot, String variantKey) {
+		return MadokuMobManager.resolveVariantRootByKey(
+			fileRoot,
+			variantKey,
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			MadokuMobSkeleton::isReservedSkeletonGroupKey
+		);
+	}
+
+	private static String selectSkeletonVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
+		return MadokuMobManager.selectWeightedVariantKey(
+			fileRoot,
+			world == null ? null : world.getRandom(),
+			MobConfigManager.FIELD_DEFAULT_GROUP,
+			SKELETON_VARIANT_DEFAULT_KEY,
+			MadokuMobSkeleton::isReservedSkeletonGroupKey,
+			variantRoot -> MadokuMobManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
+		);
+	}
+
+	private static boolean isReservedSkeletonGroupKey(String normalizedKey) {
+		if (normalizedKey == null || normalizedKey.isBlank()) {
+			return true;
+		}
+		return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_ENABLED))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_STATS))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_BEHAVIOR))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_VARIANT))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DIFFICULTY_SCALING))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DIFFICULTY_SCALE))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
+			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_SHARED_COMPONENTS));
+	}
+
+	private static boolean applyConfiguredSkeletonVariantOutcome(
+		AbstractSkeleton skeleton,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason,
+		JsonObject resolvedRoot
+	) {
+		if (skeleton == null || world == null || difficulty == null || spawnReason == null || resolvedRoot == null || resolvedRoot.entrySet().isEmpty()) {
+			return false;
+		}
+		JsonObject spawnRules = readObject(resolvedRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject jockeyRoot = readObject(spawnRules, MobConfigManager.FIELD_MOB_JOCKEY);
+		if (jockeyRoot.entrySet().isEmpty() || !readBoolean(jockeyRoot, MobConfigManager.FIELD_ENABLED, false)) {
+			return false;
+		}
+		return MadokuMobManager.applyConfiguredMobJockey(skeleton, world, difficulty, resolvedRoot, spawnReason, true, false);
+	}
+
+	private static JsonObject mergeSkeletonFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
+		JsonObject merged = variantRoot == null ? new JsonObject() : variantRoot.deepCopy();
+		if (fileRoot == null || fileRoot.entrySet().isEmpty()) {
+			return merged;
+		}
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALING);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALE);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING);
+		copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
+		return merged;
+	}
+
+	private static void emitSkeletonSpawnDebug(
+		String phase,
+		AbstractSkeleton skeleton,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason,
+		String variantKey,
+		String configuredWeapon,
+		String mainHand,
+		String detail
+	) {
+		String metricId = "mob.skeleton_spawn_trace";
+		if (skeleton == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+			return;
+		}
+		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+			.side(MadokuDebug.Side.SERVER)
+			.subject("skeleton:" + skeleton.getUUID())
+			.world(world == null || world.getLevel() == null ? "" : world.getLevel().dimension().toString())
+			.field("phase", phase)
+			.field("variant", variantKey == null || variantKey.isBlank() ? "default" : variantKey)
+			.field("spawn_reason", spawnReason == null ? "unknown" : spawnReason.toString())
+			.field("difficulty", difficulty == null ? "unknown" : difficulty.getDifficulty().toString())
+			.field("configured_weapon", configuredWeapon == null || configuredWeapon.isBlank() ? "none" : configuredWeapon)
+			.field("main_hand", mainHand == null || mainHand.isBlank() ? "unknown" : mainHand)
+			.field("detail", detail == null ? "" : detail)
+			.log();
+	}
+
+	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
+		if (target == null || source == null || key == null || key.isBlank()) {
+			return;
+		}
+		if (!target.has(key) && source.has(key)) {
+			target.add(key, source.get(key).deepCopy());
+		}
+	}
+
+	private static String readStoredSkeletonVariantKey(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return "";
+		}
+		for (String tag : skeleton.entityTags()) {
+			if (tag == null || !tag.startsWith(SKELETON_VARIANT_TAG_PREFIX)) {
+				continue;
+			}
+			String normalized = normalizeKey(tag.substring(SKELETON_VARIANT_TAG_PREFIX.length()));
+			if (!normalized.isBlank()) {
+				return normalized;
+			}
+		}
+		return "";
+	}
+
+	private static String readConfiguredMobWeaponItemId(JsonObject resolvedRoot) {
+		JsonObject statsRoot = readMobStatsRoot(resolvedRoot);
+		JsonObject weaponRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_WEAPON);
+		return readString(weaponRoot, MobConfigManager.FIELD_ITEM, "");
+	}
+
+	private static void writeSkeletonVariantTag(AbstractSkeleton skeleton, String variantKey) {
+		if (skeleton == null || variantKey == null || variantKey.isBlank()) {
+			return;
+		}
+		clearSkeletonVariantTag(skeleton);
+		skeleton.addTag(SKELETON_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
+	}
+
+	private static void clearSkeletonVariantTag(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return;
+		}
+		String existing = null;
+		for (String tag : skeleton.entityTags()) {
+			if (tag != null && tag.startsWith(SKELETON_VARIANT_TAG_PREFIX)) {
+				existing = tag;
+				break;
+			}
+		}
+		if (existing != null) {
+			skeleton.removeTag(existing);
+		}
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		if (!root.has(key) || !root.get(key).isJsonPrimitive() || !root.get(key).getAsJsonPrimitive().isBoolean()) {
+			return fallback;
+		}
+		return root.get(key).getAsBoolean();
+	}
+
+	private static String readString(JsonObject root, String key, String fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		if (!root.has(key) || !root.get(key).isJsonPrimitive() || !root.get(key).getAsJsonPrimitive().isString()) {
+			return fallback;
+		}
+		try {
+			String value = root.get(key).getAsString();
+			return value == null ? fallback : value;
+		} catch (RuntimeException ignored) {
+			return fallback;
+		}
+	}
+
+	private static String normalizeKey(String value) {
+		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+	}
+
+	private static JsonObject readMobStatsRoot(JsonObject root) {
+		return readObject(root, MobConfigManager.FIELD_MOB_STATS);
+	}
+
+	private static JsonObject readObject(JsonObject parent, String key) {
+		if (parent == null || key == null || key.isBlank()) {
+			return new JsonObject();
+		}
+		return parent.has(key) && parent.get(key).isJsonObject() ? parent.getAsJsonObject(key) : new JsonObject();
+	}
+
+	private static double readDouble(JsonObject root, String key, double fallback) {
+		if (root == null) {
+			return fallback;
+		}
+		if (!root.has(key) || !root.get(key).isJsonPrimitive() || !root.get(key).getAsJsonPrimitive().isNumber()) {
+			return fallback;
+		}
+		return root.get(key).getAsDouble();
+	}
+
+	private static boolean isHardcoreWorld(Level level) {
+		return level != null && level.getServer() != null && level.getServer().isHardcore();
+	}
+
+	private static double resolveSkeletonRangedDamage(AbstractSkeleton skeleton, JsonObject root) {
+		if (skeleton == null) {
+			return 0.0D;
+		}
+		double rangedDamage = resolveScaledRangedDamage(
+			readDouble(readMobStatsRoot(root), MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D),
+			skeleton.level().getDifficulty(),
+			isHardcoreWorld(skeleton.level())
+		);
+		return MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+	}
+
+	private static double resolveScaledRangedDamage(double base, Difficulty difficulty, boolean hardcore) {
+		return resolveDifficultyAdjustedValue(difficulty, hardcore, Math.max(0.0D, base), 1.0D, 0.0D);
+	}
+
+	private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
+		return Mth.clamp(resolveDifficultyAdjustedValue(difficulty, hardcore, Mth.clamp(base, 0.0D, 1.0D), 0.05D, 0.0D), 0.0D, 1.0D);
+	}
+
+	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
+		return Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
+	}
+
+	private static int resolveDifficultyTier(Difficulty difficulty, boolean hardcore) {
+		Difficulty resolved = difficulty == null ? Difficulty.NORMAL : difficulty;
+		return switch (resolved) {
+			case PEACEFUL -> -2;
+			case EASY -> -1;
+			case NORMAL -> 0;
+			case HARD -> hardcore ? 2 : 1;
+		};
+	}
+
+	private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
+		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
+		double dx = target.getX() - skeleton.getX();
+		double dz = target.getZ() - skeleton.getZ();
+		double horizontal = Math.sqrt(dx * dx + dz * dz);
+		double dy = target.getY(1.0D / 3.0D) - arrow.getY() + (horizontal * 0.2D);
+		Vec3 desired = new Vec3(dx, dy, dz);
+		if (desired.lengthSqr() <= 1.0E-6D) {
+			return new ShotVector(desired, true);
+		}
+		double clampedAccuracy = Mth.clamp(accuracy, 0.0D, 1.0D);
+		if (skeleton.getRandom().nextDouble() <= clampedAccuracy) {
+			return new ShotVector(desired, true);
+		}
+		return new ShotVector(resolveMissVector(desired.x, desired.y, desired.z, clampedAccuracy, skeleton), false);
+	}
+
+	private static Vec3 resolveMissVector(double velocityX, double velocityY, double velocityZ, double attackAccuracy, LivingEntity shooter) {
+		Vec3 desired = new Vec3(velocityX, velocityY, velocityZ);
+		if (desired.lengthSqr() <= 1.0E-6D) {
+			return desired;
+		}
+		Vec3 normalized = desired.normalize();
+		Vec3 lateral = normalized.cross(new Vec3(0.0D, 1.0D, 0.0D));
+		if (lateral.lengthSqr() <= 1.0E-6D) {
+			lateral = normalized.cross(new Vec3(1.0D, 0.0D, 0.0D));
+		}
+		if (lateral.lengthSqr() > 1.0E-6D) {
+			lateral = lateral.normalize();
+		}
+		double missFactor = 1.0D - Mth.clamp(attackAccuracy, 0.0D, 1.0D);
+		double sideSign = shooter.getRandom().nextBoolean() ? -1.0D : 1.0D;
+		double lateralStrength = Mth.lerp(missFactor, 1.4D, 2.4D);
+		double verticalStrength = Mth.lerp(missFactor, 0.25D, 0.9D) * (shooter.getRandom().nextBoolean() ? -1.0D : 1.0D);
+		Vec3 backwardBias = normalized.scale(-0.35D);
+		Vec3 miss = lateral.scale(sideSign * lateralStrength).add(0.0D, verticalStrength, 0.0D).add(backwardBias);
+		return miss.lengthSqr() <= 1.0E-6D ? lateral : miss.normalize();
+	}
+
+	private record PendingRangedBowCharge(UUID targetUuid, int remainingTicks) {
+		private PendingRangedBowCharge withRemainingTicks(int remainingTicks) {
+			return new PendingRangedBowCharge(targetUuid, remainingTicks);
+		}
+	}
+
+	private record ShotVector(Vec3 vector, boolean guaranteedHit) {
 	}
 }
-
