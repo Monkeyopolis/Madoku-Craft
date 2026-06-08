@@ -663,6 +663,11 @@ public final class MadokuMobSkeleton {
 		return root.get(key).getAsDouble();
 	}
 
+	private static Double readOptionalNonNegative(JsonObject root, String key) {
+		double value = readDouble(root, key, Double.NaN);
+		return Double.isFinite(value) && value >= 0.0D ? value : null;
+	}
+
 	private static boolean isHardcoreWorld(Level level) {
 		return level != null && level.getServer() != null && level.getServer().isHardcore();
 	}
@@ -671,11 +676,22 @@ public final class MadokuMobSkeleton {
 		if (skeleton == null) {
 			return 0.0D;
 		}
+		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_DIFFICULTY_SCALE);
 		double rangedDamage = resolveScaledRangedDamage(
 			readDouble(readMobStatsRoot(root), MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D),
 			skeleton.level().getDifficulty(),
 			isHardcoreWorld(skeleton.level())
 		);
+		Double rangedDamageScale = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE);
+		if (rangedDamageScale != null) {
+			rangedDamage = resolveDifficultyAdjustedPercentValue(
+				skeleton.level().getDifficulty(),
+				isHardcoreWorld(skeleton.level()),
+				rangedDamage,
+				rangedDamageScale,
+				0.0D
+			);
+		}
 		return MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
 	}
 
@@ -688,7 +704,24 @@ public final class MadokuMobSkeleton {
 	}
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
-		return Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
+	}
+
+	private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
+		double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
+	}
+
+	private static double roundDifficultyScaleValue(double value) {
+		if (!Double.isFinite(value)) {
+			return value;
+		}
+		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		return Math.round(value / step) * step;
+	}
+
+	private static boolean isWholeNumber(double value) {
+		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
 	private static int resolveDifficultyTier(Difficulty difficulty, boolean hardcore) {

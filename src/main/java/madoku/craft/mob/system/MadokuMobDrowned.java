@@ -694,7 +694,18 @@ public final class MadokuMobDrowned {
 		if (drowned == null) {
 			return baseDamage;
 		}
+		JsonObject difficultyScale = readObject(resolveActiveDrownedRoot(drowned), MobConfigManager.FIELD_DIFFICULTY_SCALE);
 		double damage = resolveScaledRangedDamage(baseDamage, drowned.level().getDifficulty(), isHardcoreWorld(drowned.level()));
+		Double rangedDamageScale = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE);
+		if (rangedDamageScale != null) {
+			damage = resolveDifficultyAdjustedPercentValue(
+				drowned.level().getDifficulty(),
+				isHardcoreWorld(drowned.level()),
+				damage,
+				rangedDamageScale,
+				0.0D
+			);
+		}
 		damage = MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(drowned, damage);
 		return Math.max(0.0D, damage);
 	}
@@ -773,7 +784,24 @@ public final class MadokuMobDrowned {
 	}
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
-		return Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
+	}
+
+	private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
+		double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
+	}
+
+	private static double roundDifficultyScaleValue(double value) {
+		if (!Double.isFinite(value)) {
+			return value;
+		}
+		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		return Math.round(value / step) * step;
+	}
+
+	private static boolean isWholeNumber(double value) {
+		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
 	private static int resolveDifficultyTier(Difficulty difficulty, boolean hardcore) {
@@ -837,6 +865,11 @@ public final class MadokuMobDrowned {
 		} catch (RuntimeException ignored) {
 			return fallback;
 		}
+	}
+
+	private static Double readOptionalNonNegative(JsonObject root, String key) {
+		double value = readDouble(root, key, Double.NaN);
+		return Double.isFinite(value) && value >= 0.0D ? value : null;
 	}
 
 	private static String readString(JsonObject root, String key, String fallback) {

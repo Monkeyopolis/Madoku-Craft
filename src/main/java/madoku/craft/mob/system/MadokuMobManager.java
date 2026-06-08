@@ -1125,20 +1125,36 @@ public final class MadokuMobManager {
 					MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE
 				)
 			);
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.MOVEMENT_SPEED,
-				resolveScaledStat(
-					readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED),
+		modified |= setBaseValueIfPresent(
+			entity,
+			Attributes.MOVEMENT_SPEED,
+			resolveScaledStat(
+				readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED),
 					entity.level().getDifficulty(),
 					hardcore,
 					MOVEMENT_SPEED_DIFFICULTY_STEP,
 					0.0D,
 					difficultyScalingEnabled,
 					difficultyScale,
-					MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED
-				)
+				MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED
+			)
 		);
+		if (entity instanceof Drowned) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.WATER_MOVEMENT_EFFICIENCY,
+				resolveScaledStat(
+					readOptionalPositive(statsRoot, MobConfigManager.FIELD_SWIMMING_SPEED),
+					entity.level().getDifficulty(),
+					hardcore,
+					MOVEMENT_SPEED_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED
+				)
+			);
+		}
 		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.FLYING_SPEED,
@@ -1313,6 +1329,22 @@ public final class MadokuMobManager {
 					difficultyScalingEnabled,
 					difficultyScale,
 					MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED
+				)
+			);
+		}
+		if (entity instanceof Drowned) {
+			modified |= setBaseValueIfPresent(
+				entity,
+				Attributes.WATER_MOVEMENT_EFFICIENCY,
+				resolveScaledStat(
+					readOptionalPositive(statsRoot, MobConfigManager.FIELD_SWIMMING_SPEED),
+					entity.level().getDifficulty(),
+					hardcore,
+					MOVEMENT_SPEED_DIFFICULTY_STEP,
+					0.0D,
+					difficultyScalingEnabled,
+					difficultyScale,
+					MobConfigManager.FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED
 				)
 			);
 		}
@@ -2225,12 +2257,12 @@ public final class MadokuMobManager {
 	}
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
-		return Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
 	}
 
 	private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
 		double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-		return Math.max(minimum, baseValue * Math.max(0.0D, multiplier));
+		return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
 	}
 
 	private static double resolveScaledRangedDamage(double base, Difficulty difficulty, boolean hardcore) {
@@ -2241,12 +2273,35 @@ public final class MadokuMobManager {
 		if (skeleton == null) {
 			return 0.0D;
 		}
+		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_DIFFICULTY_SCALE);
 		double rangedDamage = resolveScaledRangedDamage(
 			readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D),
 			skeleton.level().getDifficulty(),
 			isHardcoreWorld(skeleton.level())
 		);
+		Double rangedDamageScale = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE);
+		if (rangedDamageScale != null) {
+			rangedDamage = resolveDifficultyAdjustedPercentValue(
+				skeleton.level().getDifficulty(),
+				isHardcoreWorld(skeleton.level()),
+				rangedDamage,
+				rangedDamageScale,
+				0.0D
+			);
+		}
 		return MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+	}
+
+	private static double roundDifficultyScaleValue(double value) {
+		if (!Double.isFinite(value)) {
+			return value;
+		}
+		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		return Math.round(value / step) * step;
+	}
+
+	private static boolean isWholeNumber(double value) {
+		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
 	private static SpawnWeightPair resolveDifficultyShiftedSpawnWeights(
@@ -3051,6 +3106,12 @@ public final class MadokuMobManager {
 
 	private static Double readOptionalNonNegative(JsonObject root, String key) {
 		Double value = readOptionalDouble(root, key);
+		if (value == null && MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED.equals(key)) {
+			value = readOptionalDouble(root, "movement_speed");
+		}
+		if (value == null && MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP.equals(key)) {
+			value = readOptionalDouble(root, "experience_drop");
+		}
 		return value != null && value >= 0.0D ? value : null;
 	}
 

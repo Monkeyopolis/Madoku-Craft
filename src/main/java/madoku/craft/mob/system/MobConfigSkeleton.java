@@ -23,10 +23,12 @@ public final class MobConfigSkeleton {
 		skeleton.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALING, true);
 
 		JsonObject difficultyScale = new JsonObject();
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE, 0.10d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED, 0.10d);
+		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
 		skeleton.add(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
 
 		JsonObject regionalDifficultyScale = new JsonObject();

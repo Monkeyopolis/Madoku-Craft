@@ -20,14 +20,14 @@ public final class RegionalDifficultyConfigManager {
 
 	public static final String FIELD_DIFFICULTY_SCALING = "difficulty_scaling";
 	public static final String FIELD_HEALTH = "health";
-	public static final String FIELD_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_MOVEMENT_SPEED = "movement-speed";
 	public static final String FIELD_SWIMMING_SPEED = "swimming_speed";
 	public static final String FIELD_FLYING_SPEED = "flying_speed";
 	public static final String FIELD_SCALE = "scale";
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
 	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback_resistance";
-	public static final String FIELD_EXPERIENCE_DROP = "experience_drop";
+	public static final String FIELD_EXPERIENCE_DROP = "experience-drop";
 	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
 	public static final String FIELD_ATTACK_ACCURACY = "attack_accuracy";
 	public static final String FIELD_EXPLOSION_POWER = "explosion_power";
@@ -68,7 +68,6 @@ public final class RegionalDifficultyConfigManager {
 			JsonObject scaling = new JsonObject();
 			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
 			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
-			scaling.add(FIELD_SWIMMING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_SWIMMING_SPEED_INCREMENT));
 			scaling.add(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT));
 			scaling.add(FIELD_SCALE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_SCALE_INCREMENT));
 			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
@@ -344,7 +343,7 @@ public final class RegionalDifficultyConfigManager {
 			normalizedType = SCALING_TYPE_ADD;
 		}
 		rule.addProperty(FIELD_SCALING_TYPE, normalizedType);
-		rule.addProperty(FIELD_SCALING_VALUE, value);
+		rule.addProperty(FIELD_SCALING_VALUE, roundDifficultyScaleValue(value));
 		return rule;
 	}
 
@@ -353,6 +352,18 @@ public final class RegionalDifficultyConfigManager {
 			return;
 		}
 		root.add(field, buildScalingValueRule(type, value));
+	}
+
+	private static double roundDifficultyScaleValue(double value) {
+		if (!Double.isFinite(value)) {
+			return value;
+		}
+		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		return Math.round(value / step) * step;
+	}
+
+	private static boolean isWholeNumber(double value) {
+		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
 	private static String resolveMobIdFromFileKey(String fileKey) {

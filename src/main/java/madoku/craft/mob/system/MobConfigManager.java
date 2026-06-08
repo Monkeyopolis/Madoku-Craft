@@ -83,9 +83,11 @@ public final class MobConfigManager {
 	public static final String FIELD_REGIONAL_DIFFICULTY_SCALING = "regional-difficulty-scaling";
 	public static final String FIELD_DIFFICULTY_SCALE_HEALTH = "health";
 	public static final String FIELD_DIFFICULTY_SCALE_DAMAGE = "damage";
-	public static final String FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED = "movement_speed";
+	public static final String FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE = "ranged-damage";
+	public static final String FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED = "movement-speed";
+	public static final String FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED = "swimming-speed";
 	public static final String FIELD_DIFFICULTY_SCALE_FLYING_SPEED = "flying_speed";
-	public static final String FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP = "experience_drop";
+	public static final String FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP = "experience-drop";
 	public static final String FIELD_DIFFICULTY_SCALE_SCALE = "scale";
 	public static final String FIELD_PARTIAL_SET = "partial-set";
 	public static final String FIELD_HALF_SET = "half-set";
@@ -322,6 +324,25 @@ public final class MobConfigManager {
 
 	private static boolean hasConfiguredDoubleValue(Double value) {
 		return value != null && Double.isFinite(value);
+	}
+
+	static void addDifficultyScaleEntry(JsonObject root, String field, Double value) {
+		if (root == null || field == null || field.isBlank() || value == null || !Double.isFinite(value)) {
+			return;
+		}
+		root.addProperty(field, roundDifficultyScaleValue(value));
+	}
+
+	static double roundDifficultyScaleValue(double value) {
+		if (!Double.isFinite(value)) {
+			return value;
+		}
+		double step = isWholeNumber(value) ? 0.05d : 0.005d;
+		return Math.round(value / step) * step;
+	}
+
+	private static boolean isWholeNumber(double value) {
+		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
 	static JsonObject buildSkeletonDefaults(
