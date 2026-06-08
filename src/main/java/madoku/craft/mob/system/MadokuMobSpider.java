@@ -145,9 +145,9 @@ public final class MadokuMobSpider {
 			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_BEHAVIOR))
 			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_GOALS))
 			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_SHARED_COMPONENTS))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_SPIDER_SPAWN_WEIGHT))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CAVE_SPIDER_SPAWN_WEIGHT))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT));
+			|| normalizedKey.equals(normalizeKey("spider-spawn-weight"))
+			|| normalizedKey.equals(normalizeKey("cave-spider-spawn-weight"))
+			|| normalizedKey.equals(normalizeKey("spider-jockey-spawn-weight"));
 	}
 
 	private static JsonObject resolveSpiderVariantRootByKey(JsonObject spiderRoot, String variantKey) {

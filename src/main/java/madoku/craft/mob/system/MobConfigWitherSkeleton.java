@@ -10,21 +10,17 @@ public final class MobConfigWitherSkeleton {
 		JsonObject root = new JsonObject();
 		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
 		JsonObject witherSkeleton = new JsonObject();
-		MobConfigManager.addArmorSpawnDefaults(witherSkeleton);
 		witherSkeleton.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules()
-				.witherSwordSpawnWeight(90.0d)
-				.witherBowSpawnWeight(10.0d)
-				.build()
+			MobConfigManager.buildMobSpawnRulesDefaults()
 		);
 		JsonObject mobStats = MobConfigManager.buildMobStatsDefaults(20.0d, 0.0d, 7.0d, 0.25d, 0.0d, 1.0d, 11);
 		mobStats.addProperty(MobConfigManager.FIELD_RANGED_DAMAGE, 6.0d);
 		mobStats.addProperty(MobConfigManager.FIELD_ATTACK_INTERVAL, 20.0d);
 		mobStats.addProperty(MobConfigManager.FIELD_ATTACK_ACCURACY, 0.7d);
-		mobStats.addProperty(MobConfigManager.FIELD_CHARGE_UP_TICKS, 10.0d);
+		mobStats.addProperty(MobConfigManager.FIELD_CHARGE_INTERVAL, 10.0d);
 		witherSkeleton.add(MobConfigManager.FIELD_MOB_STATS, mobStats);
-		MobConfigManager.ensureMobSchema(witherSkeleton, false, false);
+		MobConfigManager.ensureMobSchema(witherSkeleton, false);
 		root.add(MobConfigManager.FILE_WITHER_SKELETON, witherSkeleton);
 		return root;
 	}

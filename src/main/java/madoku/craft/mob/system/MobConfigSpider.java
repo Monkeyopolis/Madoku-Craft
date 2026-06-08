@@ -116,31 +116,12 @@ public final class MobConfigSpider {
 	}
 
 	private static JsonObject buildSpiderBehaviorDefaults() {
-		JsonObject behavior = new JsonObject();
-		behavior.addProperty("retaliate_when_hurt", true);
-		behavior.addProperty("target_players", true);
-		behavior.addProperty("ignore_creative_players", true);
-		behavior.addProperty("ignore_spectator_players", true);
-		behavior.addProperty("despawn_when_far_away", true);
-		behavior.addProperty("despawn_distance", 128.0d);
-		behavior.addProperty("idle_sound_interval_ticks", 160);
-		behavior.addProperty("ambient_sound_enabled", true);
-		behavior.addProperty("can_climb_walls", true);
-		return behavior;
+		return MobConfigManager.buildMobBehaviorDefaults(behavior ->
+			behavior.addProperty(MobConfigManager.FIELD_RETALIATE_WHEN_HURT, true)
+		);
 	}
 
 	private static JsonObject buildSpiderGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "float", true, 0, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "leap_at_target", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "melee_attack", true, 4, 100.0d, 20);
-		MobConfigManager.addMobGoal(goals, "wander", true, 5, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "look_at_player", true, 6, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "look_around", true, 7, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "hurt_by_target", true, 1, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_player", true, 2, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_iron_golem", true, 3, 100.0d, 0);
-		return goals;
+		return MobConfigManager.buildMobGoalsDefaults();
 	}
 }

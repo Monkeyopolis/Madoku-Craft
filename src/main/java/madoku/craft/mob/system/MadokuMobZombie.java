@@ -572,23 +572,13 @@ public final class MadokuMobZombie {
 			return;
 		}
 		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variantRoot);
-		JsonObject goalsRoot = MadokuMobManager.readMobGoalsRootForRuntime(variantRoot);
-		boolean goalsEnabled = readBoolean(goalsRoot, MobConfigManager.FIELD_ENABLED, true);
-
 		boolean overrideBehavior = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
-		boolean overrideGoals = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_GOALS, true);
 
 		if (overrideBehavior) {
 			zombie.setCanPickUpLoot(MadokuMobManager.readMobBehaviorBooleanForRuntime(variantRoot, MobConfigManager.FIELD_CAN_PICK_UP_LOOT, false));
 		}
-		if (overrideBehavior || overrideGoals) {
-			boolean canBreakDoors = overrideGoals && goalsEnabled && hasGoalEnabled(goalsRoot, "break_door")
-				? readGoalEnabled(goalsRoot, "break_door", false)
-				: readBoolean(behaviorRoot, MobConfigManager.FIELD_CAN_BREAK_DOORS, false);
-			zombie.setCanBreakDoors(canBreakDoors);
-		}
 		if (overrideBehavior) {
-			boolean callsReinforcements = readBoolean(behaviorRoot, "calls_reinforcements_when_hurt", !zombie.isBaby());
+			boolean callsReinforcements = readBoolean(behaviorRoot, MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, !zombie.isBaby());
 			if (!callsReinforcements) {
 				MadokuMobManager.disableZombieReinforcementsForRuntime(zombie);
 			}
@@ -618,25 +608,6 @@ public final class MadokuMobZombie {
 		ItemStack normalized = stack.copy();
 		normalized.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
 		zombie.setItemSlot(slot, normalized);
-	}
-
-	private static boolean hasGoalEnabled(JsonObject goalsRoot, String goalKey) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return false;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		return goal != null && goal.isJsonObject() && goal.getAsJsonObject().has(MobConfigManager.FIELD_ENABLED);
-	}
-
-	private static boolean readGoalEnabled(JsonObject goalsRoot, String goalKey, boolean fallback) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return fallback;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		if (goal == null || !goal.isJsonObject()) {
-			return fallback;
-		}
-		return readBoolean(goal.getAsJsonObject(), MobConfigManager.FIELD_ENABLED, fallback);
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {

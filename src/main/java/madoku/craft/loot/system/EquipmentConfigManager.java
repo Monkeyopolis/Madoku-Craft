@@ -121,7 +121,7 @@ public final class EquipmentConfigManager {
 		}
 		JsonObject profileRoot = resolveMainRoot(root);
 		boolean enabled = resolveFileEnabled(root);
-		JsonObject armorSet = readObject(profileRoot, MobConfigManager.FIELD_ARMOR_SET);
+		JsonObject armorSet = readObject(profileRoot, LootTableEquipmentsConfig.FIELD_ARMOR_SET);
 		ArmorSetWeights setWeights = new ArmorSetWeights(
 			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_PARTIAL_SET, 60.0D)),
 			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_HALF_SET, 30.0D)),

@@ -20,7 +20,6 @@ public final class MobConfigCreeper {
 		creeper.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
 			MobConfigManager.mobSpawnRules()
-				.explosionDestructionDifficultyStep(0.2d)
 				.spawnWeight(95.0d)
 				.build()
 		);
@@ -35,13 +34,12 @@ public final class MobConfigCreeper {
 		charged.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
 			MobConfigManager.mobSpawnRules()
-				.explosionDestructionDifficultyStep(0.2d)
 				.spawnWeight(5.0d)
 				.build()
 		);
 
-		MobConfigManager.ensureMobSchema(creeper, false, false);
-		MobConfigManager.ensureMobSchema(charged, false, false);
+		MobConfigManager.ensureMobSchema(creeper, false);
+		MobConfigManager.ensureMobSchema(charged, false);
 		root.add(MobConfigManager.FIELD_CREEPER, creeper);
 		root.add(MobConfigManager.FIELD_CHARGED_CREEPER, charged);
 		return root;

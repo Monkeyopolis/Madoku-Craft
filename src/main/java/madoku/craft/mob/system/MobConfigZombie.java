@@ -74,7 +74,7 @@ public final class MobConfigZombie {
 			)
 		);
 		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildZombieSpawnRulesDefaults(mobKey));
-		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieBehaviorDefaults(false, false));
+		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieBehaviorDefaults(false));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildZombieGoalsDefaults());
 		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieAgeOverride(false, null, null, null, null, null, experience, 90.0d));
 		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieAgeOverride(true, babyHealth, babyDamage, babySpeed, 0.0d, 0.0d, 3, 10.0d));
@@ -181,19 +181,19 @@ public final class MobConfigZombie {
 		return equipmentSet;
 	}
 
-	private static JsonObject buildZombieBehaviorDefaults(boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
-		JsonObject behavior = new JsonObject();
-		behavior.addProperty(MobConfigManager.FIELD_CAN_BREAK_DOORS, canBreakDoorsDefault);
-		behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
-		behavior.addProperty("calls_reinforcements_when_hurt", false);
-		return behavior;
+	private static JsonObject buildZombieBehaviorDefaults(boolean canPickUpLootDefault) {
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> {
+			behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
+			behavior.addProperty(MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
+		});
 	}
 
 	private static JsonObject buildZombieGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
-		return goals;
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "target-player", true, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "melee-attack", true, 4, 100.0d, 20);
+		});
 	}
 
 	private static JsonObject buildZombieAgeOverride(
@@ -235,9 +235,12 @@ public final class MobConfigZombie {
 		);
 
 		if (baby) {
-			JsonObject behavior = new JsonObject();
-			behavior.addProperty("calls_reinforcements_when_hurt", false);
-			root.add(MobConfigManager.FIELD_MOB_BEHAVIOR, behavior);
+			root.add(
+				MobConfigManager.FIELD_MOB_BEHAVIOR,
+				MobConfigManager.buildMobBehaviorDefaults(behavior ->
+					behavior.addProperty(MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false)
+				)
+			);
 		}
 		return root;
 	}

@@ -2,8 +2,10 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public final class MobConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
@@ -11,12 +13,12 @@ public final class MobConfigManager {
 	public static final String FIELD_HEALTH = "health";
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
-	public static final String FIELD_MOVEMENT_SPEED = "movement_speed";
-	public static final String FIELD_SWIMMING_SPEED = "swimming_speed";
-	public static final String FIELD_FLYING_SPEED = "flying_speed";
-	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback_resistance";
+	public static final String FIELD_MOVEMENT_SPEED = "movement-speed";
+	public static final String FIELD_SWIMMING_SPEED = "swimming-speed";
+	public static final String FIELD_FLYING_SPEED = "flying-speed";
+	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback-resistance";
 	public static final String FIELD_SCALE = "scale";
-	public static final String FIELD_EXPERIENCE_DROP = "experience_drop";
+	public static final String FIELD_EXPERIENCE_DROP = "experience-drop";
 
 	public static final String FILE_CREEPER = "creeper";
 	public static final String FILE_SKELETON = "skeleton";
@@ -33,42 +35,14 @@ public final class MobConfigManager {
 	public static final String FILE_HAG = "hag";
 	public static final String FILE_BEE = "bee";
 
-	public static final String FIELD_CAN_BREAK_DOORS = "can_break_doors";
-	public static final String FIELD_CAN_PICK_UP_LOOT = "can_pick_up_loot";
+	public static final String FIELD_CAN_PICK_UP_LOOT = "can-pick-up-loot";
 	public static final String FIELD_TRIDENT_ATTACK = "trident-attack";
-	public static final String FIELD_TRIDENT_GROUND_CLEAR_TICKS = "trident_ground_clear_ticks";
-	public static final String FIELD_SPAWN_WEIGHT = "spawn_weight";
-	public static final String FIELD_ARMOR_SPAWN_WEIGHT = "armor_spawn_weight";
-	public static final String FIELD_NO_ARMOR_SPAWN_WEIGHT = "no_armor_spawn_weight";
-	public static final String FIELD_ARMOR_NETHERITE_WEIGHT = "armor_netherite_weight";
-	public static final String FIELD_ARMOR_DIAMOND_WEIGHT = "armor_diamond_weight";
-	public static final String FIELD_ARMOR_GOLD_WEIGHT = "armor_gold_weight";
-	public static final String FIELD_ARMOR_IRON_WEIGHT = "armor_iron_weight";
-	public static final String FIELD_ARMOR_COPPER_WEIGHT = "armor_copper_weight";
-	public static final String FIELD_ARMOR_LEATHER_WEIGHT = "armor_leather_weight";
-	public static final String FIELD_ARMOR_HELMET_ONLY_WEIGHT = "armor_helmet_only_weight";
-	public static final String FIELD_ARMOR_HELMET_BOOTS_WEIGHT = "armor_helmet_boots_weight";
-	public static final String FIELD_ARMOR_FULL_SET_WEIGHT = "armor_full_set_weight";
-
-	public static final String FIELD_SPIDER_SPAWN_WEIGHT = "spider_spawn_weight";
-	public static final String FIELD_CAVE_SPIDER_SPAWN_WEIGHT = "cave_spider_spawn_weight";
-	public static final String FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT = "spider_jockey_spawn_weight";
-
-	public static final String FIELD_WITH_BOW_SPAWN_WEIGHT = "with_bow_spawn_weight";
-	public static final String FIELD_WITHOUT_BOW_SPAWN_WEIGHT = "without_bow_spawn_weight";
-	public static final String FIELD_WITHER_SWORD_SPAWN_WEIGHT = "wither_sword_spawn_weight";
-	public static final String FIELD_WITHER_BOW_SPAWN_WEIGHT = "wither_bow_spawn_weight";
-	public static final String FIELD_REGULAR_SPAWN_WEIGHT = "regular_spawn_weight";
-	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
+	public static final String FIELD_SPAWN_WEIGHT = "spawn-weight";
+	public static final String FIELD_RANGED_DAMAGE = "ranged-damage";
 	public static final String FIELD_ATTACK_INTERVAL = "attack-interval";
 	public static final String FIELD_ATTACK_ACCURACY = "attack-accuracy";
-	public static final String FIELD_CHARGE_UP_TICKS = "charge-upticks";
-	public static final String FIELD_ATTACK_INTERVAL_LEGACY = "attack_interval";
-	public static final String FIELD_ATTACK_ACCURACY_LEGACY = "attack_accuracy";
-	public static final String FIELD_CHARGE_UP_TICKS_LEGACY = "charge_up_ticks";
+	public static final String FIELD_CHARGE_INTERVAL = "charge-interval";
 	public static final String FIELD_SPAWN_RULES = "mob-spawn-rules";
-	public static final String FIELD_ARMOR_SET = "armor-set";
-	public static final String FIELD_ARMOR_RARITY = "armor-rarity";
 	public static final String FIELD_MOB_STATS = "mob-stats";
 	public static final String FIELD_MOB_WEAPON = "mob-weapon";
 	public static final String FIELD_MOB_DROPS = "mob-drops";
@@ -76,7 +50,9 @@ public final class MobConfigManager {
 	public static final String FIELD_WEAPON_DAMAGE = "weapon-damage";
 	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
-	public static final String FIELD_APPLIES_HUNGER_ON_HIT = "applies_hunger_on_hit";
+	public static final String FIELD_RETALIATE_WHEN_HURT = "retaliate-when-hurt";
+	public static final String FIELD_CALLS_REINFORCEMENTS_WHEN_HURT = "calls-reinforcements-when-hurt";
+	public static final String FIELD_POLLINATE_CROPS = "pollinate-crops";
 	public static final String FIELD_CUSTOM_MOB_DROPS = "custom-mob-drops";
 	public static final String FIELD_EQUIPMENT_SET = "equipment-set";
 	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
@@ -114,13 +90,60 @@ public final class MobConfigManager {
 	public static final String FIELD_LEGGINGS = "leggings";
 	public static final String FIELD_BOOTS = "boots";
 
-	public static final String FIELD_GRIEF_POWER_MULTIPLIER = "grief_power_multiplier";
-	public static final String FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP = "explosion_destruction_difficulty_step";
+	public static final String FIELD_GRIEF_POWER_MULTIPLIER = "grief-power-multiplier";
 	public static final String FIELD_CREEPER = "creeper";
 	public static final String FIELD_CHARGED_CREEPER = "charged_creeper";
-	public static final String FIELD_EXPLOSION_POWER = "explosion_power";
-	public static final String FIELD_EXPLOSION_DESTRUCTION_CHANCE = "explosion_destruction_chance";
-	public static final String FIELD_FUSE_LENGTH = "fuse_length";
+	public static final String FIELD_EXPLOSION_POWER = "explosion-power";
+	public static final String FIELD_EXPLOSION_DESTRUCTION_CHANCE = "explosion-destruction-chance";
+	public static final String FIELD_FUSE_LENGTH = "fuse-length";
+
+	public static final List<String> MOB_STATS_OPTIONAL_ENTRIES = List.of(
+		FIELD_HEALTH,
+		FIELD_ARMOR,
+		FIELD_DAMAGE,
+		FIELD_MOVEMENT_SPEED,
+		FIELD_SWIMMING_SPEED,
+		FIELD_FLYING_SPEED,
+		FIELD_KNOCKBACK_RESISTANCE,
+		FIELD_SCALE,
+		FIELD_EXPERIENCE_DROP,
+		FIELD_RANGED_DAMAGE,
+		FIELD_ATTACK_INTERVAL,
+		FIELD_ATTACK_ACCURACY,
+		FIELD_CHARGE_INTERVAL,
+		FIELD_MOB_DROPS,
+		FIELD_MOB_WEAPON,
+		FIELD_GRIEF_POWER_MULTIPLIER,
+		FIELD_EXPLOSION_POWER,
+		FIELD_EXPLOSION_DESTRUCTION_CHANCE,
+		FIELD_FUSE_LENGTH
+	);
+
+	public static final List<String> MOB_SPAWN_RULES_OPTIONAL_ENTRIES = List.of(
+		FIELD_SPAWN_WEIGHT,
+		FIELD_EQUIPMENT_SET,
+		FIELD_MOB_JOCKEY,
+		FIELD_SPAWN_ALTERNATIVE_MOB
+	);
+
+	public static final List<String> MOB_BEHAVIOR_OPTIONAL_ENTRIES = List.of(
+		FIELD_CAN_PICK_UP_LOOT,
+		FIELD_RETALIATE_WHEN_HURT,
+		FIELD_CALLS_REINFORCEMENTS_WHEN_HURT,
+		FIELD_TRIDENT_ATTACK,
+		FIELD_POLLINATE_CROPS
+	);
+
+	public static final List<String> MOB_GOALS_OPTIONAL_ENTRIES = List.of(
+		"breed",
+		"follow-parent",
+		"become-angry-target",
+		"hurt-by-target",
+		"trident-attack",
+		"melee-attack",
+		"ranged-attack",
+		"target-player"
+	);
 
 	private static final Map<String, JsonObject> DEFAULT_FILE_DEFAULTS = buildDefaults();
 
@@ -174,11 +197,9 @@ public final class MobConfigManager {
 	private static JsonObject buildUniversalOnlyDefaults() {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
-		JsonObject stats = buildMobStatsDefaults(null, null, null, null, null, null, null);
-		mergeMissing(stats, buildMobWeaponDefaults(""));
-		root.add(FIELD_MOB_STATS, stats);
+		root.add(FIELD_MOB_STATS, new JsonObject());
 		root.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
-		root.add(FIELD_MOB_BEHAVIOR, buildMobBehaviorDefaults(false, false));
+		root.add(FIELD_MOB_BEHAVIOR, buildMobBehaviorDefaults());
 		root.add(FIELD_MOB_GOALS, buildMobGoalsDefaults());
 		return root;
 	}
@@ -264,7 +285,7 @@ public final class MobConfigManager {
 			root.addProperty(FIELD_ATTACK_INTERVAL, attackInterval);
 		}
 		if (hasConfiguredDoubleValue(chargeUpTicks)) {
-			root.addProperty(FIELD_CHARGE_UP_TICKS, chargeUpTicks);
+			root.addProperty(FIELD_CHARGE_INTERVAL, chargeUpTicks);
 		}
 		if (mobDropsReference != null && !mobDropsReference.isBlank()) {
 			root.addProperty(FIELD_MOB_DROPS, mobDropsReference);
@@ -274,12 +295,11 @@ public final class MobConfigManager {
 
 	static JsonObject buildMobWeaponDefaults(String itemId) {
 		JsonObject root = new JsonObject();
-		JsonObject weapon = new JsonObject();
-		if (itemId != null && !itemId.isBlank()) {
-			weapon.addProperty(FIELD_ITEM, itemId);
-		} else {
-			weapon.addProperty(FIELD_ITEM, "");
+		if (itemId == null || itemId.isBlank()) {
+			return root;
 		}
+		JsonObject weapon = new JsonObject();
+		weapon.addProperty(FIELD_ITEM, itemId);
 		root.add(FIELD_MOB_WEAPON, weapon);
 		return root;
 	}
@@ -302,16 +322,7 @@ public final class MobConfigManager {
 		JsonObject root = new JsonObject();
 		root.addProperty(FIELD_ENABLED, true);
 		JsonObject mob = new JsonObject();
-		mob.add(
-			FIELD_SPAWN_RULES,
-			mobSpawnRules()
-				.withBowSpawnWeight(95.0d)
-				.withoutBowSpawnWeight(5.0d)
-				.spiderJockeySpawnWeight(5.0d)
-				.regularSpawnWeight(95.0d)
-				.build()
-		);
-		addArmorSpawnDefaults(mob);
+		mob.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
 		JsonObject mobStats = buildMobStatsDefaults(
 			health,
 			armor,
@@ -329,48 +340,23 @@ public final class MobConfigManager {
 			null
 		);
 		mob.add(FIELD_MOB_STATS, mobStats);
-		ensureMobSchema(mob, false, false);
+		ensureMobSchema(mob, false);
 		root.add(mobKey, mob);
 		return root;
 	}
 
-	static void ensureMobSchema(JsonObject mobRoot, boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
+	static void ensureMobSchema(JsonObject mobRoot, boolean canPickUpLootDefault) {
 		if (mobRoot == null) {
 			return;
 		}
-		JsonObject stats = getOrCreateObject(mobRoot, FIELD_MOB_STATS);
-		mergeMissing(stats, buildMobStatsDefaults(null, null, null, null, null, null, null));
-		mergeMissing(stats, buildMobWeaponDefaults(""));
-
-		JsonObject spawnRules = getOrCreateObject(mobRoot, FIELD_SPAWN_RULES);
-		mergeMissing(spawnRules, buildMobSpawnRulesDefaults());
-
-		JsonObject behavior = getOrCreateObject(mobRoot, FIELD_MOB_BEHAVIOR);
-		mergeMissing(behavior, buildMobBehaviorDefaults(canBreakDoorsDefault, canPickUpLootDefault));
-
-		JsonObject goals = getOrCreateObject(mobRoot, FIELD_MOB_GOALS);
-		mergeMissing(goals, buildMobGoalsDefaults());
+		getOrCreateObject(mobRoot, FIELD_MOB_STATS);
+		getOrCreateObject(mobRoot, FIELD_SPAWN_RULES);
+		getOrCreateObject(mobRoot, FIELD_MOB_BEHAVIOR);
+		getOrCreateObject(mobRoot, FIELD_MOB_GOALS);
 	}
 
 	static JsonObject buildMobSpawnRulesDefaults() {
-		return mobSpawnRules()
-			.spawnWeight(100.0d)
-			.withBowSpawnWeight(95.0d)
-			.withoutBowSpawnWeight(5.0d)
-			.witherSwordSpawnWeight(90.0d)
-			.witherBowSpawnWeight(10.0d)
-			.regularSpawnWeight(95.0d)
-			.spiderSpawnWeight(90.0d)
-			.caveSpiderSpawnWeight(5.0d)
-			.spiderJockeySpawnWeight(5.0d)
-			.explosionDestructionDifficultyStep(0.2d)
-			.armorSpawnWeight(10.0d)
-			.noArmorSpawnWeight(90.0d)
-			.armorRarity(
-				buildArmorRarityDefaults(1.0d, 5.0d, 10.0d, 17.0d, 28.0d, 39.0d)
-			)
-			.armorSet(buildArmorSetDefaults(60.0d, 30.0d, 10.0d))
-			.build();
+		return mobSpawnRules().build();
 	}
 
 	static MobSpawnRulesBuilder mobSpawnRules() {
@@ -382,71 +368,6 @@ public final class MobConfigManager {
 
 		MobSpawnRulesBuilder spawnWeight(Double value) {
 			addOptionalDouble(root, FIELD_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder armorSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_ARMOR_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder noArmorSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_NO_ARMOR_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder armorRarity(JsonObject value) {
-			addOptionalObject(root, FIELD_ARMOR_RARITY, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder armorSet(JsonObject value) {
-			addOptionalObject(root, FIELD_ARMOR_SET, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder spiderSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_SPIDER_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder caveSpiderSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_CAVE_SPIDER_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder spiderJockeySpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder withBowSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_WITH_BOW_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder withoutBowSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_WITHOUT_BOW_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder witherSwordSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_WITHER_SWORD_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder witherBowSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_WITHER_BOW_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder regularSpawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_REGULAR_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder explosionDestructionDifficultyStep(Double value) {
-			addOptionalDouble(root, FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, value);
 			return this;
 		}
 
@@ -470,32 +391,6 @@ public final class MobConfigManager {
 		}
 	}
 
-	private static JsonObject buildArmorRarityDefaults(
-		Double netheriteWeight,
-		Double diamondWeight,
-		Double goldWeight,
-		Double ironWeight,
-		Double copperWeight,
-		Double leatherWeight
-	) {
-		JsonObject armorRarity = new JsonObject();
-		addOptionalDouble(armorRarity, FIELD_ARMOR_NETHERITE_WEIGHT, netheriteWeight);
-		addOptionalDouble(armorRarity, FIELD_ARMOR_DIAMOND_WEIGHT, diamondWeight);
-		addOptionalDouble(armorRarity, FIELD_ARMOR_GOLD_WEIGHT, goldWeight);
-		addOptionalDouble(armorRarity, FIELD_ARMOR_IRON_WEIGHT, ironWeight);
-		addOptionalDouble(armorRarity, FIELD_ARMOR_COPPER_WEIGHT, copperWeight);
-		addOptionalDouble(armorRarity, FIELD_ARMOR_LEATHER_WEIGHT, leatherWeight);
-		return armorRarity;
-	}
-
-	private static JsonObject buildArmorSetDefaults(Double helmetOnlyWeight, Double helmetBootsWeight, Double fullSetWeight) {
-		JsonObject armorSet = new JsonObject();
-		addOptionalDouble(armorSet, FIELD_ARMOR_HELMET_ONLY_WEIGHT, helmetOnlyWeight);
-		addOptionalDouble(armorSet, FIELD_ARMOR_HELMET_BOOTS_WEIGHT, helmetBootsWeight);
-		addOptionalDouble(armorSet, FIELD_ARMOR_FULL_SET_WEIGHT, fullSetWeight);
-		return armorSet;
-	}
-
 	private static void addOptionalDouble(JsonObject target, String key, Double value) {
 		if (target == null || key == null || key.isBlank() || value == null) {
 			return;
@@ -510,32 +405,51 @@ public final class MobConfigManager {
 		target.add(key, value.deepCopy());
 	}
 
-	static JsonObject buildMobBehaviorDefaults(boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
+	static JsonObject buildMobBehaviorDefaults(Consumer<JsonObject> configurator) {
 		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CAN_BREAK_DOORS, canBreakDoorsDefault);
-		root.addProperty(FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
-		root.addProperty("retaliate_when_hurt", true);
-		root.addProperty("target_players", true);
-		root.addProperty("ignore_creative_players", true);
-		root.addProperty("ignore_spectator_players", true);
-		root.addProperty("despawn_when_far_away", true);
-		root.addProperty("despawn_distance", 128.0d);
-		root.addProperty("idle_sound_interval_ticks", 160);
-		root.addProperty("ambient_sound_enabled", true);
+		if (configurator != null) {
+			configurator.accept(root);
+		}
 		return root;
 	}
 
+	static JsonObject buildMobBehaviorDefaults() {
+		return buildMobBehaviorDefaults(root -> {});
+	}
+
 	static JsonObject buildMobGoalsDefaults() {
+		return buildMobGoalsDefaults(root -> {});
+	}
+
+	static JsonObject buildMobGoalsDefaults(Consumer<JsonObject> configurator) {
 		JsonObject root = new JsonObject();
-		root.addProperty("enabled", true);
-		addGenericGoal(root, "wander", true, 6, 100.0d, 0);
-		addGenericGoal(root, "look_around", true, 7, 100.0d, 0);
-		addGenericGoal(root, "target_player", true, 2, 100.0d, 0);
-		addGenericGoal(root, "melee_attack", true, 3, 100.0d, 20);
-		addGenericGoal(root, "ranged_attack", true, 3, 100.0d, 20);
-		addGenericGoal(root, "flee_sun", false, 4, 100.0d, 0);
-		addGenericGoal(root, "float", true, 0, 100.0d, 0);
+		if (configurator != null) {
+			configurator.accept(root);
+		}
 		return root;
+	}
+
+	public static List<String> getOptionalEntriesForContainer(String containerKey) {
+		if (FIELD_MOB_STATS.equals(containerKey)) {
+			return MOB_STATS_OPTIONAL_ENTRIES;
+		}
+		if (FIELD_SPAWN_RULES.equals(containerKey)) {
+			return MOB_SPAWN_RULES_OPTIONAL_ENTRIES;
+		}
+		if (FIELD_MOB_BEHAVIOR.equals(containerKey)) {
+			return MOB_BEHAVIOR_OPTIONAL_ENTRIES;
+		}
+		if (FIELD_MOB_GOALS.equals(containerKey)) {
+			return MOB_GOALS_OPTIONAL_ENTRIES;
+		}
+		return List.of();
+	}
+
+	public static boolean isOptionalEntryForContainer(String containerKey, String entryKey) {
+		if (entryKey == null || entryKey.isBlank()) {
+			return false;
+		}
+		return getOptionalEntriesForContainer(containerKey).contains(entryKey);
 	}
 
 	static void addMobGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
@@ -546,12 +460,8 @@ public final class MobConfigManager {
 		goal.addProperty(FIELD_ENABLED, enabled);
 		goal.addProperty("priority", priority);
 		goal.addProperty("weight", weight);
-		goal.addProperty("cooldown_ticks", cooldownTicks);
+		goal.addProperty("cooldown-ticks", cooldownTicks);
 		goalsRoot.add(goalKey, goal);
-	}
-
-	private static void addGenericGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
-		addMobGoal(goalsRoot, goalKey, enabled, priority, weight, cooldownTicks);
 	}
 
 	static void mergeMissing(JsonObject target, JsonObject defaults) {
@@ -571,35 +481,6 @@ public final class MobConfigManager {
 		}
 	}
 
-	static void applyIronArmorDefaults(JsonObject root) {
-		if (root == null) {
-			return;
-		}
-		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		JsonObject armorRarity = getOrCreateObject(spawnRules, FIELD_ARMOR_RARITY);
-		armorRarity.addProperty(FIELD_ARMOR_NETHERITE_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_DIAMOND_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_GOLD_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_IRON_WEIGHT, 100.0d);
-		armorRarity.addProperty(FIELD_ARMOR_COPPER_WEIGHT, 0.0d);
-		armorRarity.addProperty(FIELD_ARMOR_LEATHER_WEIGHT, 0.0d);
-	}
-
-	static void addArmorSpawnDefaults(JsonObject root) {
-		if (root == null) {
-			return;
-		}
-		JsonObject spawnRules = getOrCreateObject(root, FIELD_SPAWN_RULES);
-		mergeMissing(
-			spawnRules,
-			mobSpawnRules()
-				.armorSpawnWeight(10.0d)
-				.noArmorSpawnWeight(90.0d)
-				.armorRarity(buildArmorRarityDefaults(1.0d, 5.0d, 10.0d, 17.0d, 28.0d, 39.0d))
-				.armorSet(buildArmorSetDefaults(60.0d, 30.0d, 10.0d))
-				.build()
-		);
-	}
 
 	static JsonObject getOrCreateObject(JsonObject parent, String key) {
 		if (parent == null || key == null || key.isBlank()) {
@@ -613,6 +494,3 @@ public final class MobConfigManager {
 		return created;
 	}
 }
-
-
-

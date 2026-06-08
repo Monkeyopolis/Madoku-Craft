@@ -233,14 +233,6 @@ public final class MadokuMobManager {
 
 		JsonObject passengerRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_PASSENGER);
 		JsonObject mountRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_MOUNT);
-		JsonObject legacyRoot = readObject(jockeyRoot, MobConfigManager.FIELD_MOB);
-		if (passengerRoot.entrySet().isEmpty() && mountRoot.entrySet().isEmpty() && !legacyRoot.entrySet().isEmpty()) {
-			if (sourceIsPassenger) {
-				mountRoot = legacyRoot;
-			} else {
-				passengerRoot = legacyRoot;
-			}
-		}
 
 		ServerLevel level = world.getLevel();
 		EntitySpawnReason jockeyReason = EntitySpawnReason.JOCKEY;
@@ -371,8 +363,8 @@ public final class MadokuMobManager {
 			return;
 		}
 
-		double withBow = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_WITH_BOW_SPAWN_WEIGHT, 95.0D));
-		double withoutBow = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_WITHOUT_BOW_SPAWN_WEIGHT, 5.0D));
+		double withBow = 95.0D;
+		double withoutBow = 5.0D;
 		if (withBow + withoutBow > 0.0D) {
 			boolean spawnWithBow = (world.getRandom().nextDouble() * (withBow + withoutBow)) < withBow;
 			if (spawnWithBow) {
@@ -389,8 +381,8 @@ public final class MadokuMobManager {
 		}
 
 		SpawnWeightPair jockeyWeights = resolveDifficultyShiftedSpawnWeights(
-			readSpawnRuleDouble(root, MobConfigManager.FIELD_REGULAR_SPAWN_WEIGHT, 95.0D),
-			readSpawnRuleDouble(root, MobConfigManager.FIELD_SPIDER_JOCKEY_SPAWN_WEIGHT, 5.0D),
+			95.0D,
+			5.0D,
 			difficulty.getDifficulty(),
 			isHardcoreWorld(skeleton.level()),
 			SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP
@@ -504,7 +496,7 @@ public final class MadokuMobManager {
 		if (skeletonFileKey.isBlank() || !isMobFileEnabled(skeletonFileKey)) {
 			return -1;
 		}
-		double charge = readMobStatDouble(root, MobConfigManager.FIELD_CHARGE_UP_TICKS, 10.0D);
+		double charge = readMobStatDouble(root, MobConfigManager.FIELD_CHARGE_INTERVAL, 10.0D);
 		return Math.max(1, (int) Math.round(charge));
 	}
 
@@ -660,13 +652,12 @@ public final class MadokuMobManager {
 			level.explode(source, x, y, z, vanillaPower, vanillaInteraction);
 			return;
 		}
-		JsonObject variantSpawnRules = readSpawnRulesRoot(variant);
 		double chance = Mth.clamp(
 			resolveDifficultyAdjustedValue(
 				level.getDifficulty(),
 				isHardcoreWorld(level),
 				baseChance,
-				readDouble(variantSpawnRules, MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_DIFFICULTY_STEP, 0.2D),
+				0.2D,
 				0.0D
 			),
 			0.0D,
@@ -734,20 +725,6 @@ public final class MadokuMobManager {
 			return false;
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			return false;
-		}
-		JsonObject root = skeletonRoot(skeleton.getType());
-		String skeletonFileKey = skeleton.getType() == EntityType.SKELETON ? MobConfigManager.FILE_SKELETON
-			: skeleton.getType() == EntityType.STRAY ? MobConfigManager.FILE_STRAY
-			: skeleton.getType() == EntityType.BOGGED ? MobConfigManager.FILE_BOGGED
-			: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
-			: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
-			: "";
-		if (skeletonFileKey.isBlank() || !isMobFileEnabled(skeletonFileKey)) {
-			return false;
-		}
-		double withoutBow = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_WITHOUT_BOW_SPAWN_WEIGHT, 5.0D));
-		if (withoutBow <= 0.0D) {
 			return false;
 		}
 		return resolveBowHand(skeleton) == null;
@@ -1489,15 +1466,8 @@ public final class MadokuMobManager {
 			return;
 		}
 		clearArmorSlots(mob);
-		JsonObject spawnRules = readSpawnRulesRoot(root);
-		double armorWeight = Math.max(0.0D, readDouble(spawnRules, MobConfigManager.FIELD_ARMOR_SPAWN_WEIGHT, 10.0D));
-		double noArmorWeight = Math.max(0.0D, readDouble(spawnRules, MobConfigManager.FIELD_NO_ARMOR_SPAWN_WEIGHT, 90.0D));
-		double total = armorWeight + noArmorWeight;
-		if (total <= 0.0D) {
-			return;
-		}
-		if ((random.nextDouble() * total) >= noArmorWeight) {
-			equipSpawnArmorLoadout(mob, root, random);
+		if (random.nextDouble() < 0.10D) {
+			equipSpawnArmorLoadout(mob, random);
 		}
 	}
 
@@ -1522,15 +1492,15 @@ public final class MadokuMobManager {
 		clearMobEquipment(skeleton);
 		applyUniversalStats(skeleton, root);
 		applySpawnArmorLoadout(skeleton, root, world.getRandom());
-		ItemStack weapon = rollWitherSkeletonSpawnWeapon(root, world.getRandom());
+		ItemStack weapon = rollWitherSkeletonSpawnWeapon(world.getRandom());
 		if (!weapon.isEmpty()) {
 			skeleton.setItemSlot(EquipmentSlot.MAINHAND, weapon);
 		}
 	}
 
-	private static ItemStack rollWitherSkeletonSpawnWeapon(JsonObject root, RandomSource random) {
-		double sword = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_WITHER_SWORD_SPAWN_WEIGHT, 90.0D));
-		double bow = Math.max(0.0D, readSpawnRuleDouble(root, MobConfigManager.FIELD_WITHER_BOW_SPAWN_WEIGHT, 10.0D));
+	private static ItemStack rollWitherSkeletonSpawnWeapon(RandomSource random) {
+		double sword = 90.0D;
+		double bow = 10.0D;
 		double total = sword + bow;
 		if (total <= 0.0D) {
 			return ItemStack.EMPTY;
@@ -1567,9 +1537,9 @@ public final class MadokuMobManager {
 		return true;
 	}
 
-	private static void equipSpawnArmorLoadout(Mob mob, JsonObject root, RandomSource random) {
-		SpawnArmorMaterial material = rollSpawnArmorMaterial(root, random);
-		SpawnArmorCoverage coverage = rollSpawnArmorCoverage(root, random);
+	private static void equipSpawnArmorLoadout(Mob mob, RandomSource random) {
+		SpawnArmorMaterial material = rollSpawnArmorMaterial(random);
+		SpawnArmorCoverage coverage = rollSpawnArmorCoverage(random);
 		if (material == null || coverage == null) {
 			return;
 		}
@@ -1648,14 +1618,13 @@ public final class MadokuMobManager {
 		};
 	}
 
-	private static SpawnArmorMaterial rollSpawnArmorMaterial(JsonObject root, RandomSource random) {
-		JsonObject armorRarity = readSpawnArmorRarityRoot(root);
-		double netherite = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_NETHERITE_WEIGHT, 1.0D));
-		double diamond = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_DIAMOND_WEIGHT, 5.0D));
-		double gold = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_GOLD_WEIGHT, 10.0D));
-		double iron = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_IRON_WEIGHT, 17.0D));
-		double copper = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_COPPER_WEIGHT, 28.0D));
-		double leather = Math.max(0.0D, readDouble(armorRarity, MobConfigManager.FIELD_ARMOR_LEATHER_WEIGHT, 39.0D));
+	private static SpawnArmorMaterial rollSpawnArmorMaterial(RandomSource random) {
+		double netherite = 1.0D;
+		double diamond = 5.0D;
+		double gold = 10.0D;
+		double iron = 17.0D;
+		double copper = 28.0D;
+		double leather = 39.0D;
 		double total = netherite + diamond + gold + iron + copper + leather;
 		if (total <= 0.0D) {
 			return null;
@@ -1683,11 +1652,10 @@ public final class MadokuMobManager {
 		return SpawnArmorMaterial.LEATHER;
 	}
 
-	private static SpawnArmorCoverage rollSpawnArmorCoverage(JsonObject root, RandomSource random) {
-		JsonObject armorSet = readSpawnArmorSetRoot(root);
-		double helmetOnly = Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_ARMOR_HELMET_ONLY_WEIGHT, 60.0D));
-		double helmetBoots = Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_ARMOR_HELMET_BOOTS_WEIGHT, 30.0D));
-		double fullSet = Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_ARMOR_FULL_SET_WEIGHT, 10.0D));
+	private static SpawnArmorCoverage rollSpawnArmorCoverage(RandomSource random) {
+		double helmetOnly = 60.0D;
+		double helmetBoots = 30.0D;
+		double fullSet = 10.0D;
 		double total = helmetOnly + helmetBoots + fullSet;
 		if (total <= 0.0D) {
 			return null;
@@ -2499,9 +2467,6 @@ public final class MadokuMobManager {
 			return new JsonObject();
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
@@ -2861,14 +2826,6 @@ public final class MadokuMobManager {
 		}
 	}
 
-	private static JsonObject readSpawnArmorSetRoot(JsonObject root) {
-		return readObject(readSpawnRulesRoot(root), MobConfigManager.FIELD_ARMOR_SET);
-	}
-
-	private static JsonObject readSpawnArmorRarityRoot(JsonObject root) {
-		return readObject(readSpawnRulesRoot(root), MobConfigManager.FIELD_ARMOR_RARITY);
-	}
-
 	private static double readMobStatDouble(JsonObject root, String key, double fallback) {
 		return readDouble(readMobStatsRoot(root), key, fallback);
 	}
@@ -2894,9 +2851,6 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
 			return fallback;
 		}
@@ -2908,9 +2862,6 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
 			return fallback;
 		}
@@ -2927,9 +2878,6 @@ public final class MadokuMobManager {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
 			return fallback;
 		}
@@ -2939,19 +2887,6 @@ public final class MadokuMobManager {
 		} catch (RuntimeException ignored) {
 			return fallback;
 		}
-	}
-
-	private static String legacyKeyAlias(String key) {
-		if (key == null || key.isBlank()) {
-			return key;
-		}
-		if (key.indexOf('-') >= 0) {
-			return key.replace('-', '_');
-		}
-		if (key.indexOf('_') >= 0) {
-			return key.replace('_', '-');
-		}
-		return key;
 	}
 
 	private static Double readOptionalDouble(JsonObject root, String key) {

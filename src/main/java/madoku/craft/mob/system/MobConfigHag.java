@@ -14,7 +14,7 @@ public final class MobConfigHag {
 			MobConfigManager.FIELD_MOB_STATS,
 			MobConfigManager.buildMobStatsDefaults(40.0d, 1.0d, null, 0.25d, 0.2d, null, 11)
 		);
-		MobConfigManager.ensureMobSchema(hag, false, false);
+		MobConfigManager.ensureMobSchema(hag, false);
 		root.add(MobConfigManager.FILE_HAG, hag);
 		return root;
 	}

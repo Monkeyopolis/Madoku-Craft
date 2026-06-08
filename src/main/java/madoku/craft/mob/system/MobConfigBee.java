@@ -63,115 +63,94 @@ public final class MobConfigBee {
 	}
 
 	private static JsonObject buildSharedBeeBehaviorDefaults() {
-		JsonObject behavior = new JsonObject();
-		JsonObject pollination = MobConfigManager.getOrCreateObject(behavior, "pollination");
-		pollination.addProperty(MobConfigManager.FIELD_ENABLED, false);
-		pollination.addProperty("flower_search_radius", 8);
-		pollination.addProperty("min_pollination_ticks", 400);
-		pollination.addProperty("max_pollination_ticks", 800);
-		pollination.addProperty("max_crops_growable", 10);
-		pollination.addProperty("arrival_threshold", 0.1d);
-		pollination.addProperty("position_change_chance", 25);
-		pollination.addProperty("speed_modifier", 0.5d);
-		pollination.addProperty("hover_height_within_flower", 0.6d);
-		pollination.addProperty("hover_pos_offset", 0.33333334d);
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> {
+			JsonObject pollination = MobConfigManager.getOrCreateObject(behavior, "pollination");
+			pollination.addProperty(MobConfigManager.FIELD_ENABLED, false);
+			pollination.addProperty("flower-search-radius", 8);
+			pollination.addProperty("min-pollination-ticks", 400);
+			pollination.addProperty("max-pollination-ticks", 800);
+			pollination.addProperty("max-crops-growable", 10);
+			pollination.addProperty("arrival-threshold", 0.1d);
+			pollination.addProperty("position-change-chance", 25);
+			pollination.addProperty("speed-modifier", 0.5d);
+			pollination.addProperty("hover-height-within-flower", 0.6d);
+			pollination.addProperty("hover-pos-offset", 0.33333334d);
 
-		JsonObject pollinateCrops = MobConfigManager.getOrCreateObject(behavior, "pollinate-crops");
-		pollinateCrops.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		pollinateCrops.addProperty("nectar_total_charges", 10);
-		pollinateCrops.addProperty("search_duration_ticks", 1200);
-		pollinateCrops.addProperty("search_radius_horizontal", 12);
-		pollinateCrops.addProperty("search_radius_vertical", 4);
-		pollinateCrops.addProperty("crop_reach_distance_sqr", 1.0d);
-		pollinateCrops.addProperty("crop_reservation_ttl_ticks", 50);
-		pollinateCrops.addProperty("move_speed_modifier", 1.0d);
-		pollinateCrops.addProperty("arrival_threshold", 0.1d);
-		pollinateCrops.addProperty("position_change_chance", 25);
-		pollinateCrops.addProperty("hover_height_within_crop", 0.6d);
-		pollinateCrops.addProperty("hover_pos_offset", 0.33333334d);
-		pollinateCrops.addProperty("charge_interval_ticks", 20);
-		pollinateCrops.addProperty("charges_spend_divisor", 2);
-		pollinateCrops.addProperty("growth_percent_per_charge", 2.0d);
+			JsonObject pollinateCrops = MobConfigManager.getOrCreateObject(behavior, MobConfigManager.FIELD_POLLINATE_CROPS);
+			pollinateCrops.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			pollinateCrops.addProperty("nectar-total-charges", 10);
+			pollinateCrops.addProperty("search-duration-ticks", 1200);
+			pollinateCrops.addProperty("search-radius-horizontal", 12);
+			pollinateCrops.addProperty("search-radius-vertical", 4);
+			pollinateCrops.addProperty("crop-reach-distance-sqr", 1.0d);
+			pollinateCrops.addProperty("crop-reservation-ttl-ticks", 50);
+			pollinateCrops.addProperty("move-speed-modifier", 1.0d);
+			pollinateCrops.addProperty("arrival-threshold", 0.1d);
+			pollinateCrops.addProperty("position-change-chance", 25);
+			pollinateCrops.addProperty("hover-height-within-crop", 0.6d);
+			pollinateCrops.addProperty("hover-pos-offset", 0.33333334d);
+			pollinateCrops.addProperty("charge-interval-ticks", 20);
+			pollinateCrops.addProperty("charges-spend-divisor", 2);
+			pollinateCrops.addProperty("growth-percent-per-charge", 2.0d);
 
-		JsonObject hive = MobConfigManager.getOrCreateObject(behavior, "hive");
-		hive.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		hive.addProperty("hive_search_distance", 20);
-		hive.addProperty("pathfind_to_hive_when_closer_than", 16);
-		hive.addProperty("hive_close_enough_distance", 2);
-		hive.addProperty("too_far_distance", 48);
-		hive.addProperty("ticks_without_nectar_before_going_home", 3600);
-		hive.addProperty("locate_hive_cooldown_ticks", 200);
-		hive.addProperty("locate_flower_cooldown_ticks", 200);
-		hive.addProperty("locate_flower_cooldown_min_ticks", 20);
-		hive.addProperty("locate_flower_cooldown_max_ticks", 60);
-		hive.addProperty("ticks_before_going_to_known_flower", 600);
-		hive.addProperty("return_if_environment_demands_hive", true);
-		hive.addProperty("max_travelling_ticks", 2400);
-		hive.addProperty("max_blacklisted_hive_targets", 3);
-		hive.addProperty("ticks_before_hive_drop", 60);
+			JsonObject hive = MobConfigManager.getOrCreateObject(behavior, "hive");
+			hive.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			hive.addProperty("hive-search-distance", 20);
+			hive.addProperty("pathfind-to-hive-when-closer-than", 16);
+			hive.addProperty("hive-close-enough-distance", 2);
+			hive.addProperty("too-far-distance", 48);
+			hive.addProperty("ticks-without-nectar-before-going-home", 3600);
+			hive.addProperty("locate-hive-cooldown-ticks", 200);
+			hive.addProperty("locate-flower-cooldown-ticks", 200);
+			hive.addProperty("locate-flower-cooldown-min-ticks", 20);
+			hive.addProperty("locate-flower-cooldown-max-ticks", 60);
+			hive.addProperty("ticks-before-going-to-known-flower", 600);
+			hive.addProperty("return-if-environment-demands-hive", true);
+			hive.addProperty("max-travelling-ticks", 2400);
+			hive.addProperty("max-blacklisted-hive-targets", 3);
+			hive.addProperty("ticks-before-hive-drop", 60);
 
-		JsonObject aggressionRoot = MobConfigManager.getOrCreateObject(behavior, "aggression");
-		aggressionRoot.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		aggressionRoot.addProperty("retaliate_when_hurt", true);
-		aggressionRoot.addProperty("persistent_anger_time_min_seconds", 20);
-		aggressionRoot.addProperty("persistent_anger_time_max_seconds", 39);
-		aggressionRoot.addProperty("min_attack_distance", 4);
-		aggressionRoot.addProperty("target_players_when_angry", true);
+			JsonObject aggressionRoot = MobConfigManager.getOrCreateObject(behavior, "aggression");
+			aggressionRoot.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			aggressionRoot.addProperty(MobConfigManager.FIELD_RETALIATE_WHEN_HURT, true);
+			aggressionRoot.addProperty("persistent-anger-time-min-seconds", 20);
+			aggressionRoot.addProperty("persistent-anger-time-max-seconds", 39);
+			aggressionRoot.addProperty("min-attack-distance", 4);
+			aggressionRoot.addProperty("target-players-when-angry", true);
 
-		JsonObject stinging = MobConfigManager.getOrCreateObject(behavior, "stinging");
-		stinging.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		stinging.addProperty("sting_on_target", true);
-		stinging.addProperty("self_destruct_after_sting", true);
-		stinging.addProperty("sting_death_countdown_ticks", 1200);
-		stinging.addProperty("poison_seconds_normal", 10);
-		stinging.addProperty("poison_seconds_hard", 18);
-		stinging.addProperty("poison_amplifier", 0);
+			JsonObject stinging = MobConfigManager.getOrCreateObject(behavior, "stinging");
+			stinging.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			stinging.addProperty("sting-on-target", true);
+			stinging.addProperty("self-destruct-after-sting", true);
+			stinging.addProperty("sting-death-countdown-ticks", 1200);
+			stinging.addProperty("poison-seconds-normal", 10);
+			stinging.addProperty("poison-seconds-hard", 18);
+			stinging.addProperty("poison-amplifier", 0);
 
-		JsonObject breeding = MobConfigManager.getOrCreateObject(behavior, "breeding");
-		breeding.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		breeding.addProperty("favorite_food", "minecraft:flower");
-		breeding.addProperty("baby_spawn_count_min", 1);
-		breeding.addProperty("baby_spawn_count_max", 1);
-		breeding.addProperty("breed_cooldown_ticks", 6000);
+			JsonObject breeding = MobConfigManager.getOrCreateObject(behavior, "breeding");
+			breeding.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			breeding.addProperty("favorite-food", "minecraft:flower");
+			breeding.addProperty("baby-spawn-count-min", 1);
+			breeding.addProperty("baby-spawn-count-max", 1);
+			breeding.addProperty("breed-cooldown-ticks", 6000);
 
-		JsonObject wandering = MobConfigManager.getOrCreateObject(behavior, "wandering");
-		wandering.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		wandering.addProperty("default_wander_distance_reduction", 16);
-		wandering.addProperty("restricted_wander_distance_reduction", 24);
-		wandering.addProperty("wander_trigger_chance", 10);
-		wandering.addProperty("wander_horizontal_range", 8);
-		wandering.addProperty("wander_vertical_range", 7);
-		return behavior;
+			JsonObject wandering = MobConfigManager.getOrCreateObject(behavior, "wandering");
+			wandering.addProperty(MobConfigManager.FIELD_ENABLED, true);
+			wandering.addProperty("default-wander-distance-reduction", 16);
+			wandering.addProperty("restricted-wander-distance-reduction", 24);
+			wandering.addProperty("wander-trigger-chance", 10);
+			wandering.addProperty("wander-horizontal-range", 8);
+			wandering.addProperty("wander-vertical-range", 7);
+		});
 	}
 
 	private static JsonObject buildSharedBeeGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "bee_attack", true, 0, 100.0d, 0);
-		goals.getAsJsonObject("bee_attack").addProperty("speed_modifier", 1.4d);
-		goals.getAsJsonObject("bee_attack").addProperty("long_memory", true);
-		MobConfigManager.addMobGoal(goals, "enter_hive", true, 1, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "breed", true, 2, 100.0d, 0);
-		goals.getAsJsonObject("breed").addProperty("speed_modifier", 1.0d);
-		MobConfigManager.addMobGoal(goals, "tempt_flower", true, 3, 100.0d, 0);
-		goals.getAsJsonObject("tempt_flower").addProperty("speed_modifier", 1.25d);
-		MobConfigManager.addMobGoal(goals, "validate_hive", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "validate_flower", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "pollinate", true, 4, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "follow_parent", true, 5, 100.0d, 0);
-		goals.getAsJsonObject("follow_parent").addProperty("speed_modifier", 1.25d);
-		MobConfigManager.addMobGoal(goals, "locate_hive", true, 5, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "go_to_hive", true, 5, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "go_to_known_flower", true, 6, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "grow_crop", true, 7, 100.0d, 0);
-		goals.getAsJsonObject("grow_crop").addProperty("growth_chance", 30);
-		MobConfigManager.addMobGoal(goals, "wander", true, 8, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "float", true, 9, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "hurt_by_target", true, 1, 100.0d, 0);
-		goals.getAsJsonObject("hurt_by_target").addProperty("alert_others", true);
-		MobConfigManager.addMobGoal(goals, "become_angry_target", true, 2, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "reset_universal_anger_target", true, 3, 100.0d, 0);
-		return goals;
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "breed", true, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "follow-parent", true, 5, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "become-angry-target", true, 2, 100.0d, 0);
+		});
 	}
 
 	private static JsonObject buildBeeAgeOverrides(boolean baby) {
@@ -205,19 +184,14 @@ public final class MobConfigBee {
 			JsonObject behavior = new JsonObject();
 			JsonObject aggression = MobConfigManager.getOrCreateObject(behavior, "aggression");
 			aggression.addProperty(MobConfigManager.FIELD_ENABLED, false);
-			aggression.addProperty("retaliate_when_hurt", false);
-			aggression.addProperty("target_players_when_angry", false);
+			aggression.addProperty(MobConfigManager.FIELD_RETALIATE_WHEN_HURT, false);
+			aggression.addProperty("target-players-when-angry", false);
 			JsonObject stinging = MobConfigManager.getOrCreateObject(behavior, "stinging");
 			stinging.addProperty(MobConfigManager.FIELD_ENABLED, false);
-			stinging.addProperty("sting_on_target", false);
+			stinging.addProperty("sting-on-target", false);
 			group.add(MobConfigManager.FIELD_MOB_BEHAVIOR, behavior);
 
-			JsonObject goals = new JsonObject();
-			MobConfigManager.addMobGoal(goals, "bee_attack", false, 0, 100.0d, 0);
-			MobConfigManager.addMobGoal(goals, "hurt_by_target", false, 1, 100.0d, 0);
-			MobConfigManager.addMobGoal(goals, "become_angry_target", false, 2, 100.0d, 0);
-			MobConfigManager.addMobGoal(goals, "reset_universal_anger_target", false, 3, 100.0d, 0);
-			group.add(MobConfigManager.FIELD_MOB_GOALS, goals);
+			group.add(MobConfigManager.FIELD_MOB_GOALS, new JsonObject());
 		}
 		return group;
 	}

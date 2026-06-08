@@ -37,20 +37,20 @@ public final class MobConfigZombieVillager {
 			MobConfigManager.FIELD_MOB_STATS,
 			buildZombieVillagerMobStatsDefaults(
 				20.0d,
-				0.0d,
+				null,
 				5.0d,
 				0.24d,
-				0.0d,
+				null,
 				1.0d,
 				7,
 				resolveDefaultMobDropsReference()
 			)
 		);
 		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildZombieVillagerSpawnRulesDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieVillagerBehaviorDefaults(false, false));
+		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildZombieVillagerBehaviorDefaults(false));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildZombieVillagerGoalsDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieVillagerAgeOverride(false, null, null, null, 7, 95.0d));
-		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieVillagerAgeOverride(true, 10.0d, 2.5d, 0.24d, 3, 5.0d));
+		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildZombieVillagerAgeOverride(false, null, null, null, 7, 90.0d));
+		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildZombieVillagerAgeOverride(true, 10.0d, 2.5d, 0.24d, 3, 10.0d));
 		zombieVillager.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
 
 		root.add(MobConfigManager.FILE_ZOMBIE_VILLAGER, zombieVillager);
@@ -59,10 +59,10 @@ public final class MobConfigZombieVillager {
 
 	private static JsonObject buildZombieVillagerMobStatsDefaults(
 		double health,
-		double armor,
+		Double armor,
 		double damage,
 		double movementSpeed,
-		double knockbackResistance,
+		Double knockbackResistance,
 		double scale,
 		int experienceDrop,
 		String mobDropsReference
@@ -108,19 +108,15 @@ public final class MobConfigZombieVillager {
 		return equipmentSet;
 	}
 
-	private static JsonObject buildZombieVillagerBehaviorDefaults(boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
-		JsonObject behavior = new JsonObject();
-		behavior.addProperty(MobConfigManager.FIELD_CAN_BREAK_DOORS, canBreakDoorsDefault);
-		behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
-		behavior.addProperty("calls_reinforcements_when_hurt", false);
-		return behavior;
+	private static JsonObject buildZombieVillagerBehaviorDefaults(boolean canPickUpLootDefault) {
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> {
+			behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
+			behavior.addProperty(MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
+		});
 	}
 
 	private static JsonObject buildZombieVillagerGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
-		return goals;
+		return MobConfigManager.buildMobGoalsDefaults();
 	}
 
 	private static JsonObject buildZombieVillagerAgeOverride(
@@ -159,11 +155,6 @@ public final class MobConfigZombieVillager {
 			MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()
 		);
 
-		if (baby) {
-			JsonObject behavior = new JsonObject();
-			behavior.addProperty("calls_reinforcements_when_hurt", false);
-			root.add(MobConfigManager.FIELD_MOB_BEHAVIOR, behavior);
-		}
 		return root;
 	}
 }

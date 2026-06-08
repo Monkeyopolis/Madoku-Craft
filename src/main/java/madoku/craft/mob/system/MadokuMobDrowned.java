@@ -203,9 +203,7 @@ public final class MadokuMobDrowned {
 		JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
 		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
 		variant = mergeDrownedFileSettings(fileRoot, variant);
-		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variant);
-		boolean targetingUnderwater = readBoolean(behaviorRoot, "targeting_underwater", true);
-		return targetingUnderwater || !target.isInWater();
+		return true;
 	}
 
 	public static double resolveSwimmingSpeedForRuntime(Drowned drowned, double fallback) {
@@ -502,27 +500,18 @@ public final class MadokuMobDrowned {
 			return;
 		}
 		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variantRoot);
-		JsonObject goalsRoot = MadokuMobManager.readMobGoalsRootForRuntime(variantRoot);
-		boolean goalsEnabled = readBoolean(goalsRoot, MobConfigManager.FIELD_ENABLED, true);
 
 		boolean overrideBehavior = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
-		boolean overrideGoals = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_GOALS, true);
 
 		if (overrideBehavior) {
 			drowned.setCanPickUpLoot(MadokuMobManager.readMobBehaviorBooleanForRuntime(variantRoot, MobConfigManager.FIELD_CAN_PICK_UP_LOOT, true));
 		}
-		if (overrideBehavior || overrideGoals) {
-			boolean canBreakDoors = overrideGoals && goalsEnabled && hasGoalEnabled(goalsRoot, "break_door")
-				? readGoalEnabled(goalsRoot, "break_door", false)
-				: readBoolean(behaviorRoot, MobConfigManager.FIELD_CAN_BREAK_DOORS, false);
-			drowned.setCanBreakDoors(canBreakDoors);
-		}
 		if (overrideBehavior) {
-			boolean callsReinforcements = readBoolean(behaviorRoot, "calls_reinforcements_when_hurt", false);
+			boolean callsReinforcements = readBoolean(behaviorRoot, MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
 			if (!callsReinforcements) {
 				MadokuMobManager.disableZombieReinforcementsForRuntime(drowned);
 			}
-			drowned.setSearchingForLand(readBoolean(behaviorRoot, "searching_for_land", true));
+			drowned.setSearchingForLand(true);
 		}
 	}
 
@@ -726,7 +715,7 @@ public final class MadokuMobDrowned {
 		}
 		JsonObject activeRoot = resolveActiveDrownedRoot(drowned);
 		JsonObject statsRoot = readObject(activeRoot, MobConfigManager.FIELD_MOB_STATS);
-		double charge = readDouble(statsRoot, MobConfigManager.FIELD_CHARGE_UP_TICKS, fallback);
+		double charge = readDouble(statsRoot, MobConfigManager.FIELD_CHARGE_INTERVAL, fallback);
 		return Math.max(0, (int) Math.round(charge));
 	}
 
@@ -734,10 +723,7 @@ public final class MadokuMobDrowned {
 		if (drowned == null || drowned.level().isClientSide() || !MadokuMobManager.isEnabled()) {
 			return 300;
 		}
-		JsonObject activeRoot = resolveActiveDrownedRoot(drowned);
-		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(activeRoot);
-		double clearTicks = readDouble(behaviorRoot, MobConfigManager.FIELD_TRIDENT_GROUND_CLEAR_TICKS, 300.0D);
-		return Math.max(1, (int) Math.round(clearTicks));
+		return 300;
 	}
 
 	private static void clearRangedDrownedRuntimeState(Drowned drowned) {
@@ -826,33 +812,11 @@ public final class MadokuMobDrowned {
 		}
 	}
 
-	private static boolean hasGoalEnabled(JsonObject goalsRoot, String goalKey) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return false;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		return goal != null && goal.isJsonObject() && goal.getAsJsonObject().has(MobConfigManager.FIELD_ENABLED);
-	}
-
-	private static boolean readGoalEnabled(JsonObject goalsRoot, String goalKey, boolean fallback) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return fallback;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		if (goal == null || !goal.isJsonObject()) {
-			return fallback;
-		}
-		return readBoolean(goal.getAsJsonObject(), MobConfigManager.FIELD_ENABLED, fallback);
-	}
-
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
 		if (root == null || key == null || key.isBlank()) {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
 			return fallback;
 		}
@@ -864,9 +828,6 @@ public final class MadokuMobDrowned {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
 			return fallback;
 		}
@@ -883,9 +844,6 @@ public final class MadokuMobDrowned {
 			return fallback;
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
 			return fallback;
 		}
@@ -897,23 +855,7 @@ public final class MadokuMobDrowned {
 			return new JsonObject();
 		}
 		JsonElement element = root.get(key);
-		if (element == null) {
-			element = root.get(legacyKeyAlias(key));
-		}
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
-	}
-
-	private static String legacyKeyAlias(String key) {
-		if (key == null || key.isBlank()) {
-			return key;
-		}
-		if (key.indexOf('-') >= 0) {
-			return key.replace('-', '_');
-		}
-		if (key.indexOf('_') >= 0) {
-			return key.replace('_', '-');
-		}
-		return key;
 	}
 
 	private static String fileKeyForType(net.minecraft.world.entity.EntityType<?> type) {

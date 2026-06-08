@@ -47,7 +47,7 @@ public final class MobConfigHusk {
 			)
 		);
 		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildHuskSpawnRulesDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildHuskBehaviorDefaults(true, true));
+		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildHuskBehaviorDefaults(true));
 		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildHuskGoalsDefaults());
 		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildHuskAgeOverride(false, 0.4, 7, 90.0d, null, null, null));
 		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildHuskAgeOverride(true, 0.2d, 3, 10.0d, 14.0d, 1.0d, 3.5d));
@@ -108,20 +108,15 @@ public final class MobConfigHusk {
 		return equipmentSet;
 	}
 
-	private static JsonObject buildHuskBehaviorDefaults(boolean canBreakDoorsDefault, boolean canPickUpLootDefault) {
-		JsonObject behavior = new JsonObject();
-		behavior.addProperty(MobConfigManager.FIELD_CAN_BREAK_DOORS, canBreakDoorsDefault);
-		behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
-		behavior.addProperty(MobConfigManager.FIELD_APPLIES_HUNGER_ON_HIT, true);
-		behavior.addProperty("calls_reinforcements_when_hurt", false);
-		return behavior;
+	private static JsonObject buildHuskBehaviorDefaults(boolean canPickUpLootDefault) {
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> {
+			behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, canPickUpLootDefault);
+			behavior.addProperty(MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
+		});
 	}
 
 	private static JsonObject buildHuskGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "break_door", true, 1, 100.0d, 0);
-		return goals;
+		return new JsonObject();
 	}
 
 	private static JsonObject buildHuskAgeOverride(

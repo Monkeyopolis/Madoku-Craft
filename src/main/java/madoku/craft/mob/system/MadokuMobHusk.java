@@ -300,23 +300,14 @@ public final class MadokuMobHusk {
 			return;
 		}
 		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variantRoot);
-		JsonObject goalsRoot = MadokuMobManager.readMobGoalsRootForRuntime(variantRoot);
-		boolean goalsEnabled = readBoolean(goalsRoot, MobConfigManager.FIELD_ENABLED, true);
 
 		boolean overrideBehavior = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
-		boolean overrideGoals = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_GOALS, true);
 
 		if (overrideBehavior) {
 			husk.setCanPickUpLoot(MadokuMobManager.readMobBehaviorBooleanForRuntime(variantRoot, MobConfigManager.FIELD_CAN_PICK_UP_LOOT, true));
 		}
-		if (overrideBehavior || overrideGoals) {
-			boolean canBreakDoors = overrideGoals && goalsEnabled && hasGoalEnabled(goalsRoot, "break_door")
-				? readGoalEnabled(goalsRoot, "break_door", true)
-				: readBoolean(behaviorRoot, MobConfigManager.FIELD_CAN_BREAK_DOORS, true);
-			husk.setCanBreakDoors(canBreakDoors);
-		}
 		if (overrideBehavior) {
-			boolean callsReinforcements = readBoolean(behaviorRoot, "calls_reinforcements_when_hurt", true);
+			boolean callsReinforcements = readBoolean(behaviorRoot, MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, true);
 			if (!callsReinforcements) {
 				disableHuskReinforcementsForRuntime(husk);
 			}
@@ -527,9 +518,7 @@ public final class MadokuMobHusk {
 		JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
 		JsonObject variant = MadokuMobManager.resolveAgeVariantRoot(defaultGroup, husk.isBaby());
 		variant = mergeHuskFileSettings(fileRoot, variant);
-		JsonObject behaviorRoot = MadokuMobManager.readMobBehaviorRootForRuntime(variant);
-		boolean appliesHungerOnHit = readBoolean(behaviorRoot, MobConfigManager.FIELD_APPLIES_HUNGER_ON_HIT, true);
-		return appliesHungerOnHit && target.addEffect(effect, attacker);
+		return target.addEffect(effect, attacker);
 	}
 
 	private static void stripHeldAttackDamageModifiers(Husk husk, EquipmentSlot slot) {
@@ -655,25 +644,6 @@ public final class MadokuMobHusk {
 		if (!target.has(key) && source.has(key)) {
 			target.add(key, source.get(key).deepCopy());
 		}
-	}
-
-	private static boolean hasGoalEnabled(JsonObject goalsRoot, String goalKey) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return false;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		return goal != null && goal.isJsonObject() && goal.getAsJsonObject().has(MobConfigManager.FIELD_ENABLED);
-	}
-
-	private static boolean readGoalEnabled(JsonObject goalsRoot, String goalKey, boolean fallback) {
-		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
-			return fallback;
-		}
-		JsonElement goal = goalsRoot.get(goalKey);
-		if (goal == null || !goal.isJsonObject()) {
-			return fallback;
-		}
-		return readBoolean(goal.getAsJsonObject(), MobConfigManager.FIELD_ENABLED, fallback);
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {

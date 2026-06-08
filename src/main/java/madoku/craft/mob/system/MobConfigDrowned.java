@@ -108,15 +108,11 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedBehaviorDefaults() {
-		JsonObject behavior = new JsonObject();
-		behavior.addProperty(MobConfigManager.FIELD_CAN_BREAK_DOORS, true);
-		behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, true);
-		behavior.addProperty("calls_reinforcements_when_hurt", false);
-		behavior.addProperty("searching_for_land", true);
-		behavior.addProperty("targeting_underwater", true);
-		behavior.addProperty(MobConfigManager.FIELD_TRIDENT_ATTACK, true);
-		behavior.addProperty(MobConfigManager.FIELD_TRIDENT_GROUND_CLEAR_TICKS, 300);
-		return behavior;
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> {
+			behavior.addProperty(MobConfigManager.FIELD_CAN_PICK_UP_LOOT, true);
+			behavior.addProperty(MobConfigManager.FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
+			behavior.addProperty(MobConfigManager.FIELD_TRIDENT_ATTACK, true);
+		});
 	}
 
 	private static JsonObject buildRangedDrownedVariantDefaults() {
@@ -131,26 +127,12 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedGoalsDefaults() {
-		JsonObject goals = new JsonObject();
-		goals.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		MobConfigManager.addMobGoal(goals, "float", true, 0, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "go_to_water", true, 1, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "swim_up", true, 2, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "trident_attack", true, 3, 100.0d, 20);
-		MobConfigManager.addMobGoal(goals, "melee_attack", true, 4, 100.0d, 20);
-		MobConfigManager.addMobGoal(goals, "wander", true, 5, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "look_at_player", true, 6, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "random_look_around", true, 7, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "break_turtle_egg", true, 1, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "hurt_by_target", true, 1, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_player", true, 2, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_villager", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_wandering_trader", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_snow_golem", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_baby_turtle", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_iron_golem", true, 3, 100.0d, 0);
-		MobConfigManager.addMobGoal(goals, "target_axolotl", true, 3, 100.0d, 0);
-		return goals;
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "trident-attack", true, 3, 100.0d, 20);
+			MobConfigManager.addMobGoal(goals, "melee-attack", true, 4, 100.0d, 20);
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "target-player", true, 2, 100.0d, 0);
+		});
 	}
 
 	private static JsonObject buildDrownedAgeOverride(boolean baby) {
