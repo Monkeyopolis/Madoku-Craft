@@ -609,12 +609,13 @@ public final class MadokuMobManager {
 			return;
 		}
 		JsonObject root = root(MobConfigManager.FILE_CREEPER);
-		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
+		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER) || !shouldUseCreeperMobExplodeBehavior(creeper, root)) {
 			level.explode(source, x, y, z, vanillaPower, vanillaInteraction);
 			return;
 		}
 		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
-		Double baseChance = clampOptional(readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_CHANCE), 0.0D, 1.0D);
+		JsonObject mobExplode = resolveCreeperMobExplodeRoot(variant);
+		Double baseChance = clampOptional(readOptionalDouble(mobExplode, MobConfigManager.FIELD_DESTRUCTION_CHANCE), 0.0D, 1.0D);
 		if (baseChance == null) {
 			level.explode(source, x, y, z, vanillaPower, vanillaInteraction);
 			return;
@@ -631,10 +632,7 @@ public final class MadokuMobManager {
 			1.0D
 		);
 		chance = MadokuLuck.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
-		Double configuredPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
-		float power = configuredPower == null ? vanillaPower : configuredPower.floatValue();
-		power = (float) resolveDifficultyAdjustedValue(level.getDifficulty(), isHardcoreWorld(level), Math.max(0.0D, power), CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
-		power = (float) Math.max(0.0D, power + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
+		float power = (float) resolveCreeperExplosionPower(creeper, root, variant, vanillaPower);
 		Level.ExplosionInteraction interaction = level.getRandom().nextDouble() < chance
 			? Level.ExplosionInteraction.MOB
 			: Level.ExplosionInteraction.NONE;
@@ -646,12 +644,14 @@ public final class MadokuMobManager {
 			return Math.max(0.0F, fallbackRadius);
 		}
 		JsonObject root = root(MobConfigManager.FILE_CREEPER);
-		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
+		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER) || !shouldUseCreeperMobExplodeBehavior(creeper, root)) {
 			return Math.max(0.0F, fallbackRadius);
 		}
 		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
+		JsonObject mobExplode = resolveCreeperMobExplodeRoot(variant);
+		Double griefPower = readOptionalDouble(mobExplode, MobConfigManager.FIELD_GREIF_POWER);
 		return (float) (Math.max(0.0F, fallbackRadius)
-			* Mth.clamp(readMobStatDouble(variant, MobConfigManager.FIELD_GRIEF_POWER_MULTIPLIER, 0.5D), 0.0D, 1.0D));
+			* Mth.clamp(griefPower == null ? 0.5D : griefPower, 0.0D, 1.0D));
 	}
 
 	public static float resolveFixedPlayerExplosionDamage(Creeper creeper, float fallbackExplosionRadius) {
@@ -660,16 +660,11 @@ public final class MadokuMobManager {
 			return (float) (explosionPower / CREEPER_POWER_PER_DAMAGE);
 		}
 		JsonObject root = root(MobConfigManager.FILE_CREEPER);
-		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
+		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER) || !shouldUseCreeperMobExplodeBehavior(creeper, root)) {
 			return (float) (explosionPower / CREEPER_POWER_PER_DAMAGE);
 		}
 		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
-		Double configuredPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
-		if (configuredPower != null) {
-			explosionPower = Math.max(0.0D, configuredPower);
-		}
-		explosionPower = resolveDifficultyAdjustedValue(creeper.level().getDifficulty(), isHardcoreWorld(creeper.level()), explosionPower, CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP, 0.0D);
-		explosionPower = Math.max(0.0D, explosionPower + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
+		explosionPower = resolveCreeperExplosionPower(creeper, root, variant, explosionPower);
 		return (float) (explosionPower / CREEPER_POWER_PER_DAMAGE);
 	}
 
@@ -739,8 +734,7 @@ public final class MadokuMobManager {
 			return MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
 		}
 		if (entity instanceof Creeper creeper) {
-			JsonObject root = root(MobConfigManager.FILE_CREEPER);
-			return isMobFileEnabled(MobConfigManager.FILE_CREEPER) && applyCreeperRuntimeStats(creeper, root);
+			return MadokuMobCreeper.applyLoadedEntityOverrides(creeper);
 		}
 			if (entity.getType() == EntityType.BEE) {
 				return MadokuMobBee.applyLoadedEntityOverrides(entity);
@@ -803,6 +797,10 @@ public final class MadokuMobManager {
 				return;
 			}
 			MadokuMobSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
+			return;
+		}
+		if (entity instanceof Creeper creeper) {
+			MadokuMobCreeper.applyLoadedEntityDifficultyOverrides(creeper);
 			return;
 		}
 		if (entity instanceof Zombie zombie) {
@@ -1422,7 +1420,26 @@ public final class MadokuMobManager {
 		return modified;
 	}
 
-	private static boolean applyCreeperRuntimeStats(Creeper creeper, JsonObject root) {
+	static boolean applyCreeperLoadedEntityDifficultyOverrides(Creeper creeper) {
+		if (creeper == null || creeper.level().isClientSide() || !snapshot.enabled) {
+			return false;
+		}
+		JsonObject root = root(MobConfigManager.FILE_CREEPER);
+		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
+			return false;
+		}
+		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
+		Double explosionPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
+		if (explosionPower == null) {
+			return false;
+		}
+		double resolvedPower = resolveCreeperExplosionPower(creeper, root, variant, explosionPower);
+		CreeperAccessor accessor = (CreeperAccessor) creeper;
+		accessor.madokuCraft$setExplosionRadius(Math.max(0, (int) Math.round(resolvedPower)));
+		return true;
+	}
+
+	static boolean applyCreeperRuntimeStats(Creeper creeper, JsonObject root) {
 		boolean modified = false;
 		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
 		if (variant.entrySet().isEmpty()) {
@@ -1443,13 +1460,7 @@ public final class MadokuMobManager {
 		}
 		Double explosionPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
 		if (explosionPower != null) {
-			double resolvedPower = resolveDifficultyAdjustedValue(
-				creeper.level().getDifficulty(),
-				isHardcoreWorld(creeper.level()),
-				explosionPower,
-				CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
-				0.0D
-			) + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper);
+			double resolvedPower = resolveCreeperExplosionPower(creeper, root, variant, explosionPower);
 			int radius = Math.max(0, (int) Math.round(resolvedPower));
 			accessor.madokuCraft$setExplosionRadius(radius);
 		}
@@ -1473,6 +1484,77 @@ public final class MadokuMobManager {
 			return defaultGroup;
 		}
 		return resolveSharedVariantGroupRoot(defaultGroup, chargedVariant);
+	}
+
+	public static boolean shouldUseCreeperMobExplodeBehavior(Creeper creeper) {
+		if (creeper == null || !snapshot.enabled) {
+			return false;
+		}
+		JsonObject root = root(MobConfigManager.FILE_CREEPER);
+		return isMobFileEnabled(MobConfigManager.FILE_CREEPER) && shouldUseCreeperMobExplodeBehavior(creeper, root);
+	}
+
+	private static boolean shouldUseCreeperMobExplodeBehavior(Creeper creeper, JsonObject fileRoot) {
+		JsonObject mobExplode = resolveCreeperMobExplodeRoot(creeper, fileRoot);
+		return !mobExplode.entrySet().isEmpty() && readBoolean(mobExplode, MobConfigManager.FIELD_ENABLED, true);
+	}
+
+	private static JsonObject resolveCreeperMobExplodeRoot(Creeper creeper, JsonObject fileRoot) {
+		if (creeper == null || fileRoot == null || fileRoot.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, fileRoot);
+		return resolveCreeperMobExplodeRoot(variant);
+	}
+
+	private static JsonObject resolveCreeperMobExplodeRoot(JsonObject variantRoot) {
+		if (variantRoot == null || variantRoot.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		return readObject(readMobBehaviorRoot(variantRoot), MobConfigManager.FIELD_MOB_EXPLODE);
+	}
+
+	private static double resolveCreeperExplosionPower(Creeper creeper, JsonObject fileRoot, JsonObject variantRoot, double fallbackPower) {
+		double explosionPower = Math.max(0.0D, fallbackPower);
+		if (creeper == null || fileRoot == null || variantRoot == null || variantRoot.entrySet().isEmpty()) {
+			return explosionPower;
+		}
+		JsonObject statsRoot = readMobStatsRoot(variantRoot);
+		Double configuredPower = readOptionalDouble(statsRoot, MobConfigManager.FIELD_EXPLOSION_POWER);
+		if (configuredPower != null) {
+			explosionPower = Math.max(0.0D, configuredPower);
+		}
+		JsonObject difficultyScale = readObject(fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALE);
+		boolean difficultyScalingEnabled = readBoolean(fileRoot, MobConfigManager.FIELD_DIFFICULTY_SCALING, false);
+		if (difficultyScalingEnabled) {
+			Double perStep = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPLOSION_POWER);
+			if (perStep != null) {
+				explosionPower = resolveDifficultyAdjustedPercentValue(
+					creeper.level().getDifficulty(),
+					isHardcoreWorld(creeper.level()),
+					explosionPower,
+					perStep,
+					0.0D
+				);
+			} else {
+				explosionPower = resolveDifficultyAdjustedValue(
+					creeper.level().getDifficulty(),
+					isHardcoreWorld(creeper.level()),
+					explosionPower,
+					CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
+					0.0D
+				);
+			}
+		} else {
+			explosionPower = resolveDifficultyAdjustedValue(
+				creeper.level().getDifficulty(),
+				isHardcoreWorld(creeper.level()),
+				explosionPower,
+				CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
+				0.0D
+			);
+		}
+		return Math.max(0.0D, explosionPower + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
 	}
 
 	private static JsonObject resolveHagDefaultGroup(JsonObject fileRoot) {
@@ -2257,12 +2339,14 @@ public final class MadokuMobManager {
 	}
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
-		return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
+		double resolved = Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
+		return roundDifficultyScaleValue(baseValue, resolved);
 	}
 
 	private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
 		double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-		return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
+		double resolved = Math.max(minimum, baseValue * Math.max(0.0D, multiplier));
+		return roundDifficultyScaleValue(baseValue, resolved);
 	}
 
 	private static double resolveScaledRangedDamage(double base, Difficulty difficulty, boolean hardcore) {
@@ -2292,11 +2376,11 @@ public final class MadokuMobManager {
 		return MadokuRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
 	}
 
-	private static double roundDifficultyScaleValue(double value) {
+	private static double roundDifficultyScaleValue(double originalValue, double value) {
 		if (!Double.isFinite(value)) {
 			return value;
 		}
-		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		double step = isWholeNumber(originalValue) ? 0.05D : 0.005D;
 		return Math.round(value / step) * step;
 	}
 

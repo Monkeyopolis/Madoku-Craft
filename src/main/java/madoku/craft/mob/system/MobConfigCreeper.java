@@ -16,6 +16,18 @@ public final class MobConfigCreeper {
 		root.addProperty(MobConfigManager.FIELD_MOB_VARIANT, true);
 
 		JsonObject creeper = new JsonObject();
+		creeper.addProperty(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true);
+		creeper.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALING, true);
+		JsonObject difficultyScale = new JsonObject();
+		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
+		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.1d);
+		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
+		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPLOSION_POWER, 0.1d);
+		creeper.add(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
+		JsonObject regionalDifficultyScale = new JsonObject();
+		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_ENABLED, true);
+		creeper.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
+
 		JsonObject defaultGroup = buildCreeperDefaultGroup();
 		JsonObject chargedVariant = buildChargedCreeperVariant();
 		creeper.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
@@ -27,20 +39,23 @@ public final class MobConfigCreeper {
 
 	private static JsonObject buildCreeperDefaultGroup() {
 		JsonObject group = new JsonObject();
-		group.add(MobConfigManager.FIELD_MOB_STATS, buildCreeperStatsDefaults(3.0d, 0.25d, 0.10d, 0.4d, 30.0d, 7));
-		group.add(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(95.0d).build());
+		group.add(MobConfigManager.FIELD_MOB_STATS, buildCreeperStatsDefaults(3.0d, 0.27d, 0.10d, 30.0d, 7));
+		group.add(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(90.0d).build());
+		group.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildCreeperBehaviorDefaults(0.4d, 0.4d));
+		group.add(MobConfigManager.FIELD_MOB_GOALS, buildCreeperGoalsDefaults());
 		MobConfigManager.ensureMobSchema(group, false);
 		return group;
 	}
 
 	private static JsonObject buildChargedCreeperVariant() {
 		JsonObject variant = new JsonObject();
-		variant.addProperty(MobConfigManager.FIELD_SHARED_COMPONENTS, true);
 		variant.add(
 			MobConfigManager.FIELD_MOB_STATS,
-			buildCreeperStatsDefaults(5.0d, 0.30d, 0.20d, 0.6d, 24.0d, 11)
+			buildCreeperStatsDefaults(5.0d, 0.30d, 0.20d, 25.0d, 11)
 		);
-		variant.add(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(5.0d).build());
+		variant.add(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(10.0d).build());
+		variant.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildCreeperBehaviorDefaults(0.6d, 0.6d));
+		variant.add(MobConfigManager.FIELD_MOB_GOALS, buildCreeperGoalsDefaults());
 		MobConfigManager.ensureMobSchema(variant, false);
 		return variant;
 	}
@@ -49,7 +64,6 @@ public final class MobConfigCreeper {
 		double explosionPower,
 		double movementSpeed,
 		double knockbackResistance,
-		double explosionDestructionChance,
 		double fuseLength,
 		int experience
 	) {
@@ -69,10 +83,23 @@ public final class MobConfigCreeper {
 			null,
 			null
 		);
-		creeperStats.addProperty(MobConfigManager.FIELD_GRIEF_POWER_MULTIPLIER, 0.5d);
 		creeperStats.addProperty(MobConfigManager.FIELD_EXPLOSION_POWER, explosionPower);
-		creeperStats.addProperty(MobConfigManager.FIELD_EXPLOSION_DESTRUCTION_CHANCE, explosionDestructionChance);
 		creeperStats.addProperty(MobConfigManager.FIELD_FUSE_LENGTH, fuseLength);
 		return creeperStats;
+	}
+
+	private static JsonObject buildCreeperBehaviorDefaults(double destructionChance, double griefPower) {
+		return MobConfigManager.buildMobBehaviorDefaults(behavior -> behavior.add(
+			MobConfigManager.FIELD_MOB_EXPLODE,
+			MobConfigManager.buildMobExplodeDefaults(destructionChance, griefPower)
+		));
+	}
+
+	private static JsonObject buildCreeperGoalsDefaults() {
+		return MobConfigManager.buildMobGoalsDefaults(goals -> {
+			MobConfigManager.addMobGoal(goals, "ranged-attack", true, 4, 100.0d, 20);
+			MobConfigManager.addMobGoal(goals, "target-player", true, 2, 100.0d, 0);
+			MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
+		});
 	}
 }

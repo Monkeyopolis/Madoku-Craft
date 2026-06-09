@@ -14,7 +14,7 @@ public final class RegionalScalingConfigSkeleton {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		return RegionalScalingConfigManager.buildMobScalingDefaults(
+		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
 			"minecraft:skeleton",
 			health,
 			movementSpeed,
@@ -26,8 +26,13 @@ public final class RegionalScalingConfigSkeleton {
 			knockbackResistance,
 			experienceDrop,
 			5.0d,
-			2.0d,
+			0.02d,
 			null
 		);
+		root.add(
+			RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
+			RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
+		);
+		return root;
 	}
 }

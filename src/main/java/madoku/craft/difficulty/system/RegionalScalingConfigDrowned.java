@@ -14,7 +14,7 @@ public final class RegionalScalingConfigDrowned {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		return RegionalScalingConfigManager.buildMobScalingDefaults(
+		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
 			"minecraft:drowned",
 			health,
 			movementSpeed,
@@ -26,8 +26,13 @@ public final class RegionalScalingConfigDrowned {
 			knockbackResistance,
 			experienceDrop,
 			5.0d,
-			null,
+			0.02d,
 			null
 		);
+		root.add(
+			RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
+			RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
+		);
+		return root;
 	}
 }

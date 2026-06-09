@@ -26,11 +26,11 @@ public final class RegionalDifficultyConfigManager {
 	public static final String FIELD_SCALE = "scale";
 	public static final String FIELD_ARMOR = "armor";
 	public static final String FIELD_DAMAGE = "damage";
-	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback_resistance";
+	public static final String FIELD_KNOCKBACK_RESISTANCE = "knockback-resistance";
 	public static final String FIELD_EXPERIENCE_DROP = "experience-drop";
-	public static final String FIELD_RANGED_DAMAGE = "ranged_damage";
-	public static final String FIELD_ATTACK_ACCURACY = "attack_accuracy";
-	public static final String FIELD_EXPLOSION_POWER = "explosion_power";
+	public static final String FIELD_RANGED_DAMAGE = "ranged-damage";
+	public static final String FIELD_ATTACK_ACCURACY = "attack-accuracy";
+	public static final String FIELD_EXPLOSION_POWER = "explosion-power";
 	public static final String FIELD_SCALING_TYPE = "type";
 	public static final String FIELD_SCALING_VALUE = "value";
 	public static final String SCALING_TYPE_ADD = "add";
@@ -69,14 +69,10 @@ public final class RegionalDifficultyConfigManager {
 			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
 			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
 			scaling.add(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT));
-			scaling.add(FIELD_SCALE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_SCALE_INCREMENT));
 			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
 			scaling.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT));
 			scaling.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT));
 			scaling.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT));
-			scaling.add(FIELD_RANGED_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, 0.0d));
-			scaling.add(FIELD_ATTACK_ACCURACY, buildScalingValueRule(SCALING_TYPE_MULTIPLY, 0.0d));
-			scaling.add(FIELD_EXPLOSION_POWER, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPLOSION_POWER_INCREMENT));
 			root.add(FIELD_DIFFICULTY_SCALING, scaling);
 			return root;
 		}

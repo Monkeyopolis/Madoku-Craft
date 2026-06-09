@@ -289,7 +289,7 @@ public final class MadokuRegionalDifficultyManager {
 		}
 		StatIncrements increments = snapshot.resolveIncrements(mob).increments();
 		double powerAddition = Math.max(0.0D, increments.explosionPower()) * CREEPER_EXPLOSION_POWER_SCALE_STEP * totalAdjustment;
-		return roundDifficultyScaleValue(powerAddition);
+		return roundDifficultyScaleValue(increments.explosionPower(), powerAddition);
 	}
 
 	public static double resolveMobRangedDamageScaling(Mob mob, double baseDamage) {
@@ -309,7 +309,8 @@ public final class MadokuRegionalDifficultyManager {
 			* Math.max(0.0D, increments.rangedDamage())
 			* RANGED_DAMAGE_SCALE_STEP_PERCENT
 			* totalAdjustment;
-		return roundDifficultyScaleValue(Math.max(0.0D, sanitizedBase + addition));
+		double resolved = Math.max(0.0D, sanitizedBase + addition);
+		return roundDifficultyScaleValue(sanitizedBase, resolved);
 	}
 
 	public static double resolveMobAttackAccuracyScaling(Mob mob, double baseAccuracy) {
@@ -326,7 +327,8 @@ public final class MadokuRegionalDifficultyManager {
 		}
 		StatIncrements increments = snapshot.resolveIncrements(mob).increments();
 		double addition = Math.max(0.0D, increments.attackAccuracy()) * ATTACK_ACCURACY_SCALE_STEP * totalAdjustment;
-		return Mth.clamp(roundDifficultyScaleValue(sanitizedBase + addition), 0.0D, 1.0D);
+		double resolved = sanitizedBase + addition;
+		return Mth.clamp(roundDifficultyScaleValue(sanitizedBase, resolved), 0.0D, 1.0D);
 	}
 
 	private static void loadConfig() {
@@ -1022,7 +1024,7 @@ public final class MadokuRegionalDifficultyManager {
 			case MULTIPLY -> safeBase * (safeConfigured / 100.0D) * totalAdjustment;
 			case ADD -> safeConfigured * totalAdjustment;
 		};
-		return roundDifficultyScaleValue(addition);
+		return roundDifficultyScaleValue(safeBase, addition);
 	}
 
 	private static int applyExperienceDropScaling(Mob mob, int baseExperienceDrop, int experienceDropAddition) {
@@ -1043,11 +1045,11 @@ public final class MadokuRegionalDifficultyManager {
 		return Math.max(0, accessor.madokuCraft$getXpReward());
 	}
 
-	private static double roundDifficultyScaleValue(double value) {
+	private static double roundDifficultyScaleValue(double originalValue, double value) {
 		if (!Double.isFinite(value)) {
 			return value;
 		}
-		double step = isWholeNumber(value) ? 0.05D : 0.005D;
+		double step = isWholeNumber(originalValue) ? 0.05D : 0.005D;
 		return Math.round(value / step) * step;
 	}
 

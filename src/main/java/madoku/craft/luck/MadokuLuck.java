@@ -87,7 +87,7 @@ public final class MadokuLuck {
 	}
 
 	public static double reduceCreeperGriefChanceForTarget(LivingEntity target, double chance) {
-		return reduceChanceByTargetPlayerLuck(
+		return reduceChanceByTargetLuck(
 			target,
 			chance,
 			settings.creeperGriefReductionMultiplier,
@@ -98,7 +98,7 @@ public final class MadokuLuck {
 	}
 
 	public static double reduceHostileRangedAccuracyForTarget(LivingEntity target, double accuracy) {
-		return reduceChanceByTargetPlayerLuck(
+		return reduceChanceByTargetLuck(
 			target,
 			accuracy,
 			settings.rangedAccuracyReductionMultiplier,
@@ -753,7 +753,7 @@ public final class MadokuLuck {
 		return Math.max(0.0d, settings.mobDropMultiplier);
 	}
 
-	private static double reduceChanceByTargetPlayerLuck(
+	private static double reduceChanceByTargetLuck(
 		LivingEntity target,
 		double baseValue,
 		double reductionMultiplier,
@@ -782,14 +782,14 @@ public final class MadokuLuck {
 			return clampedBaseValue;
 		}
 		double clampedBaseValue = clampDouble(baseValue, 0.0d, 1.0d);
-		if (!(target instanceof ServerPlayer player)) {
+		if (target == null) {
 			emitLuckDebug(
 				skippedMetricId,
 				world,
-				target == null ? null : target.blockPosition(),
+				null,
 				subject,
 				Map.of(
-					"reason", "non_player_target",
+					"reason", "missing_target",
 					valueField, Double.toString(clampedBaseValue),
 					"reduction_multiplier", Double.toString(Math.max(0.0d, reductionMultiplier))
 				)
@@ -800,11 +800,11 @@ public final class MadokuLuck {
 			emitLuckDebug(
 				skippedMetricId,
 				world,
-				player.blockPosition(),
+				target.blockPosition(),
 				subject,
 				Map.of(
 					"reason", "non_positive_multiplier",
-					"player", player.getScoreboardName(),
+					"target", target.getScoreboardName(),
 					valueField, Double.toString(clampedBaseValue),
 					"reduction_multiplier", Double.toString(reductionMultiplier)
 				)
@@ -812,7 +812,7 @@ public final class MadokuLuck {
 			return clampedBaseValue;
 		}
 
-		double luckChance = resolveLuckProcChance(player);
+		double luckChance = resolveTargetLuckReductionChance(target);
 		double sanitizedReductionMultiplier = Math.max(0.0d, reductionMultiplier);
 		double reduction = luckChance * sanitizedReductionMultiplier;
 		double finalValue = clampDouble(clampedBaseValue - reduction, 0.0d, 1.0d);
@@ -820,11 +820,11 @@ public final class MadokuLuck {
 			emitLuckDebug(
 				skippedMetricId,
 				world,
-				player.blockPosition(),
+				target.blockPosition(),
 				subject,
 				Map.of(
 					"reason", "non_positive_luck",
-					"player", player.getScoreboardName(),
+					"target", target.getScoreboardName(),
 					"value", Double.toString(clampedBaseValue),
 					valueField, Double.toString(clampedBaseValue),
 					"luck", Double.toString(luckChance),
@@ -837,10 +837,10 @@ public final class MadokuLuck {
 		emitLuckDebug(
 			appliedMetricId,
 			world,
-			player.blockPosition(),
+			target.blockPosition(),
 			subject,
 			Map.of(
-				"player", player.getScoreboardName(),
+				"target", target.getScoreboardName(),
 				"value", Double.toString(clampedBaseValue),
 				valueField, Double.toString(clampedBaseValue),
 				"final_value", Double.toString(finalValue),
@@ -850,6 +850,15 @@ public final class MadokuLuck {
 			)
 		);
 		return finalValue;
+	}
+
+	private static double resolveTargetLuckReductionChance(LivingEntity target) {
+		AttributeInstance luckAttribute = target == null ? null : target.getAttribute(Attributes.LUCK);
+		double luckValue = luckAttribute == null ? 0.0d : luckAttribute.getValue();
+		if (!Double.isFinite(luckValue)) {
+			return 0.0d;
+		}
+		return clampDouble(luckValue / 100.0d, 0.0d, 1.0d);
 	}
 
 	private static double resolveLuckProcChance(ServerPlayer player) {

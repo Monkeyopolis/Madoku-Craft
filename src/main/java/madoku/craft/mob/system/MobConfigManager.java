@@ -89,6 +89,7 @@ public final class MobConfigManager {
 	public static final String FIELD_DIFFICULTY_SCALE_FLYING_SPEED = "flying_speed";
 	public static final String FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP = "experience-drop";
 	public static final String FIELD_DIFFICULTY_SCALE_SCALE = "scale";
+	public static final String FIELD_DIFFICULTY_SCALE_EXPLOSION_POWER = "explosion-power";
 	public static final String FIELD_PARTIAL_SET = "partial-set";
 	public static final String FIELD_HALF_SET = "half-set";
 	public static final String FIELD_FULL_SET = "full-set";
@@ -97,11 +98,12 @@ public final class MobConfigManager {
 	public static final String FIELD_LEGGINGS = "leggings";
 	public static final String FIELD_BOOTS = "boots";
 
-	public static final String FIELD_GRIEF_POWER_MULTIPLIER = "grief-power-multiplier";
 	public static final String FIELD_CREEPER = "creeper";
-	public static final String FIELD_CHARGED_CREEPER = "charged_creeper";
+	public static final String FIELD_CHARGED_CREEPER = "charged-creeper";
+	public static final String FIELD_MOB_EXPLODE = "mob-explode";
+	public static final String FIELD_DESTRUCTION_CHANCE = "destruction-chance";
+	public static final String FIELD_GREIF_POWER = "greif-power";
 	public static final String FIELD_EXPLOSION_POWER = "explosion-power";
-	public static final String FIELD_EXPLOSION_DESTRUCTION_CHANCE = "explosion-destruction-chance";
 	public static final String FIELD_FUSE_LENGTH = "fuse-length";
 
 	public static final List<String> MOB_STATS_OPTIONAL_ENTRIES = List.of(
@@ -122,9 +124,7 @@ public final class MobConfigManager {
 		FIELD_MOB_DROPS,
 		FIELD_MOB_WEAPON,
 		FIELD_MOB_EFFECT,
-		FIELD_GRIEF_POWER_MULTIPLIER,
 		FIELD_EXPLOSION_POWER,
-		FIELD_EXPLOSION_DESTRUCTION_CHANCE,
 		FIELD_FUSE_LENGTH
 	);
 
@@ -141,7 +141,8 @@ public final class MobConfigManager {
 		FIELD_CALLS_REINFORCEMENTS_WHEN_HURT,
 		FIELD_TRIDENT_ATTACK,
 		FIELD_BOW_ATTACK,
-		FIELD_POLLINATE_CROPS
+		FIELD_POLLINATE_CROPS,
+		FIELD_MOB_EXPLODE
 	);
 
 	public static final List<String> MOB_GOALS_OPTIONAL_ENTRIES = List.of(
@@ -455,6 +456,18 @@ public final class MobConfigManager {
 
 	static JsonObject buildMobBehaviorDefaults() {
 		return buildMobBehaviorDefaults(root -> {});
+	}
+
+	static JsonObject buildMobExplodeDefaults(Double destructionChance, Double griefPower) {
+		JsonObject mobExplode = new JsonObject();
+		mobExplode.addProperty(FIELD_ENABLED, true);
+		if (hasConfiguredDoubleValue(destructionChance)) {
+			mobExplode.addProperty(FIELD_DESTRUCTION_CHANCE, destructionChance);
+		}
+		if (hasConfiguredDoubleValue(griefPower)) {
+			mobExplode.addProperty(FIELD_GREIF_POWER, griefPower);
+		}
+		return mobExplode;
 	}
 
 	static JsonObject buildMobGoalsDefaults() {

@@ -18,7 +18,6 @@ public final class RegionalScalingConfigManager {
 		double experienceDrop
 	) {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("bee", RegionalScalingConfigBee.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.putAll(RegionalDifficultyConfigManager.buildDefaultMobScalingFileDefaults(
 			health,
 			movementSpeed,
@@ -27,6 +26,8 @@ public final class RegionalScalingConfigManager {
 			knockbackResistance,
 			experienceDrop
 		));
+		defaults.put("bee", RegionalScalingConfigBee.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("creeper", RegionalScalingConfigCreeper.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("skeleton", RegionalScalingConfigSkeleton.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("spider", RegionalScalingConfigSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("cave-spider", RegionalScalingConfigCaveSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
@@ -41,6 +42,16 @@ public final class RegionalScalingConfigManager {
 		String normalized = fileKey == null ? "" : fileKey.trim().toLowerCase();
 		if ("bee".equals(normalized) || "minecraft:bee".equals(normalized)) {
 			return RegionalScalingConfigBee.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("creeper".equals(normalized) || "minecraft:creeper".equals(normalized)) {
+			return RegionalScalingConfigCreeper.buildDefaults(
 				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
