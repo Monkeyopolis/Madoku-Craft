@@ -100,6 +100,12 @@ public final class EquipmentConfigManager {
 	}
 
 	private static String defaultFileKeyForType(EntityType<?> type) {
+		if (type == EntityType.SKELETON) {
+			return "minecraft-equipment-skeleton";
+		}
+		if (type == EntityType.STRAY) {
+			return "minecraft-equipment-stray";
+		}
 		if (type == EntityType.HUSK) {
 			return "minecraft-equipment-husk";
 		}

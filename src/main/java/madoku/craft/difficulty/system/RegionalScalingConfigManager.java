@@ -29,6 +29,7 @@ public final class RegionalScalingConfigManager {
 		defaults.put("bee", RegionalScalingConfigBee.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("creeper", RegionalScalingConfigCreeper.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("skeleton", RegionalScalingConfigSkeleton.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("stray", RegionalScalingConfigStray.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("spider", RegionalScalingConfigSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("cave-spider", RegionalScalingConfigCaveSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("zombie", RegionalScalingConfigZombie.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
@@ -62,6 +63,16 @@ public final class RegionalScalingConfigManager {
 		}
 		if ("skeleton".equals(normalized) || "minecraft:skeleton".equals(normalized)) {
 			return RegionalScalingConfigSkeleton.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("stray".equals(normalized) || "minecraft:stray".equals(normalized)) {
+			return RegionalScalingConfigStray.buildDefaults(
 				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,

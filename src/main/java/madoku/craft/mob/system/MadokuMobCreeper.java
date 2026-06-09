@@ -1,5 +1,6 @@
 package madoku.craft.mob.system;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.DifficultyInstance;
@@ -16,6 +17,17 @@ public final class MadokuMobCreeper {
 
 	public static void applySpawnOverrides(Creeper creeper, ServerLevelAccessor world, DifficultyInstance difficulty) {
 		MadokuMobManager.applyCreeperSpawnOverrides(creeper, world, difficulty);
+	}
+
+	public static boolean shouldOverrideSpawnRules(Creeper creeper) {
+		if (creeper == null || !MadokuMobManager.isEnabled()) {
+			return false;
+		}
+		if (!MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_CREEPER)) {
+			return false;
+		}
+		JsonObject root = MadokuMobManager.resolveMobFileConfigRootForRuntime(MobConfigManager.FILE_CREEPER);
+		return readBoolean(root, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 	}
 
 	public static boolean applyLoadedEntityOverrides(LivingEntity entity) {
@@ -63,5 +75,16 @@ public final class MadokuMobCreeper {
 
 	public static boolean shouldUseMobExplodeBehavior(LivingEntity entity) {
 		return entity instanceof Creeper creeper && shouldUseMobExplodeBehavior(creeper);
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
+		}
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return fallback;
+		}
+		return element.getAsBoolean();
 	}
 }

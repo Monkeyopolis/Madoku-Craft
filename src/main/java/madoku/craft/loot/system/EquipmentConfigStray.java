@@ -3,29 +3,33 @@ package madoku.craft.loot.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-public final class EquipmentConfigZombie {
-	private EquipmentConfigZombie() {
+public final class EquipmentConfigStray {
+	private EquipmentConfigStray() {
 	}
 
-	public static JsonObject buildZombieDefaults() {
-		return buildDefaults("minecraft:zombie");
-	}
-
-	public static JsonObject buildDefaults(String mobId) {
+	public static JsonObject buildDefaults() {
 		JsonObject root = new JsonObject();
-		root.addProperty(LootTableEquipmentsConfig.FIELD_ENABLED, true);
-		root.addProperty(LootTableEquipmentsConfig.FIELD_MOB_ID, mobId == null ? "" : mobId);
+		JsonObject general = new JsonObject();
+		general.addProperty("version", "1.1.7");
+		general.addProperty("type", "dynamic");
+		general.addProperty(LootTableEquipmentsConfig.FIELD_ENABLED, true);
+		root.add("general", general);
+
+		JsonObject main = new JsonObject();
+		main.addProperty(LootTableEquipmentsConfig.FIELD_MOB_ID, "minecraft:stray");
 
 		JsonObject armorSet = new JsonObject();
 		armorSet.addProperty(LootTableEquipmentsConfig.FIELD_PARTIAL_SET, 60.0D);
 		armorSet.addProperty(LootTableEquipmentsConfig.FIELD_HALF_SET, 30.0D);
 		armorSet.addProperty(LootTableEquipmentsConfig.FIELD_FULL_SET, 10.0D);
-		root.add(LootTableEquipmentsConfig.FIELD_ARMOR_SET, armorSet);
+		main.add(LootTableEquipmentsConfig.FIELD_ARMOR_SET, armorSet);
 
-		root.add(LootTableEquipmentsConfig.FIELD_HELMET, buildDefaultSlotEntries("helmet"));
-		root.add(LootTableEquipmentsConfig.FIELD_CHESTPLATE, buildDefaultSlotEntries("chestplate"));
-		root.add(LootTableEquipmentsConfig.FIELD_LEGGINGS, buildDefaultSlotEntries("leggings"));
-		root.add(LootTableEquipmentsConfig.FIELD_BOOTS, buildDefaultSlotEntries("boots"));
+		main.add(LootTableEquipmentsConfig.FIELD_HELMET, buildDefaultSlotEntries("helmet"));
+		main.add(LootTableEquipmentsConfig.FIELD_CHESTPLATE, buildDefaultSlotEntries("chestplate"));
+		main.add(LootTableEquipmentsConfig.FIELD_LEGGINGS, buildDefaultSlotEntries("leggings"));
+		main.add(LootTableEquipmentsConfig.FIELD_BOOTS, buildDefaultSlotEntries("boots"));
+
+		root.add("main", main);
 		return root;
 	}
 

@@ -168,8 +168,6 @@ public final class RegionalDifficultyConfigManager {
 		defaults.put("husk", buildMobScalingDefaults("minecraft:husk", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		defaults.put("drowned", buildMobScalingDefaults("minecraft:drowned", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		defaults.put("zombie-villager", buildMobScalingDefaults("minecraft:zombie_villager", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
-		defaults.put("pillager", buildMobScalingDefaults("minecraft:pillager", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
-		defaults.put("piglin", buildMobScalingDefaults("minecraft:piglin", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
 		defaults.put("hag", buildMobScalingDefaults("madoku-craft:hag", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		return defaults;
 	}
@@ -195,12 +193,10 @@ public final class RegionalDifficultyConfigManager {
 				}
 					if ("minecraft:skeleton".equals(mobId)
 						|| "minecraft:stray".equals(mobId)
-						|| "minecraft:bogged".equals(mobId)
-						|| "minecraft:parched".equals(mobId)
-						|| "minecraft:wither_skeleton".equals(mobId)
-						|| "minecraft:pillager".equals(mobId)
-						|| "minecraft:piglin".equals(mobId)
-						|| "madoku-craft:hag".equals(mobId)) {
+					|| "minecraft:bogged".equals(mobId)
+					|| "minecraft:parched".equals(mobId)
+					|| "minecraft:wither_skeleton".equals(mobId)
+					|| "madoku-craft:hag".equals(mobId)) {
 						return buildMobScalingDefaults(
 							mobId,
 							DEFAULT_HEALTH_INCREMENT,

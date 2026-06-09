@@ -140,6 +140,7 @@ public final class MadokuMobManager {
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
+		MadokuMobStray.resetRuntimeState();
 		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		SchedulerManagerSystem.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, 1L);
@@ -162,6 +163,7 @@ public final class MadokuMobManager {
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
+		MadokuMobStray.resetRuntimeState();
 	}
 
 	public static boolean isEnabled() {
@@ -205,8 +207,20 @@ public final class MadokuMobManager {
 			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "husk_no_override");
 			return false;
 		}
+		if (mob instanceof Creeper creeper) {
+			if (MadokuMobCreeper.shouldOverrideSpawnRules(creeper)) {
+				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "creeper");
+				MadokuMobCreeper.applySpawnOverrides(creeper, world, difficulty);
+				return true;
+			}
+			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "creeper_no_override");
+			return false;
+		}
 		if (mob instanceof AbstractSkeleton skeleton) {
-			if (MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton)) {
+			boolean shouldOverride = skeleton.getType() == EntityType.STRAY
+				? MadokuMobStray.shouldOverrideSpawnRules(skeleton)
+				: MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton);
+			if (shouldOverride) {
 				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "skeleton");
 				applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
 				return true;
@@ -245,11 +259,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		emitSpawnOverrideDebug("tail_enter", mob, world, difficulty, spawnReason, "after_vanilla");
-		if (mob instanceof Creeper creeper) {
-			MadokuMobCreeper.applySpawnOverrides(creeper, world, difficulty);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "creeper");
-			return;
-		}
 		if (mob.getType() == EntityType.BEE) {
 			MadokuMobBee.applySpawnOverrides(mob, world);
 			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "bee");
@@ -458,18 +467,29 @@ public final class MadokuMobManager {
 			&& skeleton.getType() != EntityType.PARCHED) {
 			return;
 		}
-		MadokuMobSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+		if (skeleton.getType() == EntityType.STRAY) {
+			MadokuMobStray.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+		} else {
+			MadokuMobSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+		}
 	}
 
 	public static boolean applyCustomSkeletonRangedAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
-		return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		return skeleton != null && skeleton.getType() == EntityType.STRAY
+			? MadokuMobStray.applyRangedSkeletonBowAttack(skeleton, target, pullProgress)
+			: MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 	}
 
 	public static int resolveSkeletonRangedAttackIntervalTicks(AbstractSkeleton skeleton) {
-		return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
+		return skeleton != null && skeleton.getType() == EntityType.STRAY
+			? MadokuMobStray.resolveBowAttackIntervalTicks(skeleton)
+			: MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 	}
 
 	public static int resolveSkeletonChargeUpTicks(Monster attacker) {
+		if (attacker instanceof AbstractSkeleton skeleton && skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.resolveBowChargeUpTicks(skeleton);
+		}
 		return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 	}
 
@@ -731,7 +751,9 @@ public final class MadokuMobManager {
 				modified |= normalizeWitherSkeletonWeapon(skeleton);
 				return modified;
 			}
-			return MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
+			return skeleton.getType() == EntityType.STRAY
+				? MadokuMobStray.applyLoadedEntityOverrides(skeleton)
+				: MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
 		}
 		if (entity instanceof Creeper creeper) {
 			return MadokuMobCreeper.applyLoadedEntityOverrides(creeper);
@@ -796,7 +818,11 @@ public final class MadokuMobManager {
 				}
 				return;
 			}
-			MadokuMobSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
+			if (skeleton.getType() == EntityType.STRAY) {
+				MadokuMobStray.applyLoadedEntityDifficultyOverrides(skeleton);
+			} else {
+				MadokuMobSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
+			}
 			return;
 		}
 		if (entity instanceof Creeper creeper) {
@@ -2112,7 +2138,10 @@ public final class MadokuMobManager {
 		if (spawnedEntity instanceof Mob mobSpawned) {
 			mobSpawned.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(source.position())), reason, null);
 		}
-		if (spawnedEntity instanceof AbstractSkeleton skeleton && MadokuMobSkeleton.isBowAttackEnabled(skeleton)) {
+		if (spawnedEntity instanceof AbstractSkeleton skeleton
+			&& (skeleton.getType() == EntityType.STRAY
+				? MadokuMobStray.isBowAttackEnabled(skeleton)
+				: MadokuMobSkeleton.isBowAttackEnabled(skeleton))) {
 			ensureBowEquipped(skeleton);
 		}
 		level.tryAddFreshEntityWithPassengers(spawnedEntity);
@@ -2270,7 +2299,9 @@ public final class MadokuMobManager {
 			return resolveCreeperRuntimeVariantRoot(creeper, root(MobConfigManager.FILE_CREEPER));
 		}
 		if (attacker instanceof AbstractSkeleton skeleton) {
-			return MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
+			return skeleton.getType() == EntityType.STRAY
+				? MadokuMobStray.resolveRuntimeRoot(skeleton)
+				: MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
 		}
 		if (attacker instanceof Spider spider) {
 			String fileKey = spider.getType() == EntityType.CAVE_SPIDER

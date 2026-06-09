@@ -4,9 +4,11 @@ import com.google.gson.JsonObject;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.luck.MadokuLuck;
+import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
@@ -25,6 +27,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
@@ -82,6 +86,7 @@ public final class MadokuMobSkeleton {
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
 		if (overrideSpawnRules) {
 			applyConfiguredSkeletonVariantOutcome(skeleton, world, difficulty, spawnReason, resolvedRoot);
+			applySpawnEquipmentSetLoadout(skeleton, resolvedRoot, world.getRandom());
 		}
 		if (overrideStats) {
 			MadokuMobManager.applyUniversalStatsForRuntime(skeleton, resolvedRoot);
@@ -516,6 +521,107 @@ public final class MadokuMobSkeleton {
 		return MadokuMobManager.applyConfiguredMobJockey(skeleton, world, difficulty, resolvedRoot, spawnReason, true, false);
 	}
 
+	private static boolean applySpawnEquipmentSetLoadout(AbstractSkeleton skeleton, JsonObject variantRoot, RandomSource random) {
+		if (skeleton == null || variantRoot == null || random == null || !EquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+			return false;
+		}
+		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject equipmentSet = readObject(spawnRules, MobConfigManager.FIELD_EQUIPMENT_SET);
+		if (equipmentSet.entrySet().isEmpty() || !readBoolean(equipmentSet, MobConfigManager.FIELD_ENABLED, true)) {
+			return false;
+		}
+		double chancePercent = Math.max(0.0D, Math.min(100.0D, readDouble(equipmentSet, MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0D)));
+		if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
+			return false;
+		}
+		String equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
+		EquipmentConfigManager.EquipmentProfile profile = EquipmentConfigManager.resolveProfile(equipmentReference, skeleton.getType());
+		if (profile == null || !profile.enabled()) {
+			return false;
+		}
+		EquipmentConfigManager.ArmorSetWeights weights = profile.armorSetWeights();
+		ArmorSetSelection selection = rollArmorSetSelection(weights, random);
+		if (selection == null) {
+			return false;
+		}
+		Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
+		for (EquipmentSlot slot : selection.requiredSlots()) {
+			ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
+			if (!rolled.isEmpty()) {
+				rolledBySlot.put(slot, rolled);
+			}
+		}
+		if (rolledBySlot.isEmpty()) {
+			return false;
+		}
+		MadokuMobManager.clearArmorSlotsForRuntime(skeleton);
+		for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
+			skeleton.setItemSlot(entry.getKey(), entry.getValue());
+		}
+		return true;
+	}
+
+	private static ItemStack rollArmorItemForSlot(
+		EquipmentConfigManager.EquipmentProfile profile,
+		EquipmentSlot slot,
+		RandomSource random
+	) {
+		if (profile == null || slot == null || random == null) {
+			return ItemStack.EMPTY;
+		}
+		List<EquipmentConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
+		if (entries == null || entries.isEmpty()) {
+			return ItemStack.EMPTY;
+		}
+		double totalWeight = 0.0D;
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry != null) {
+				totalWeight += Math.max(0.0D, entry.weight());
+			}
+		}
+		if (totalWeight <= 0.0D) {
+			return ItemStack.EMPTY;
+		}
+		double roll = random.nextDouble() * totalWeight;
+		double cursor = 0.0D;
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
+				continue;
+			}
+			cursor += entry.weight();
+			if (roll < cursor) {
+				return new ItemStack(entry.item());
+			}
+		}
+		EquipmentConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
+		return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
+	}
+
+	private static ArmorSetSelection rollArmorSetSelection(
+		EquipmentConfigManager.ArmorSetWeights weights,
+		RandomSource random
+	) {
+		if (weights == null || random == null) {
+			return null;
+		}
+		double partial = Math.max(0.0D, weights.partialSetWeight());
+		double half = Math.max(0.0D, weights.halfSetWeight());
+		double full = Math.max(0.0D, weights.fullSetWeight());
+		double total = partial + half + full;
+		if (total <= 0.0D) {
+			return null;
+		}
+		double roll = random.nextDouble() * total;
+		if (roll < partial) {
+			return ArmorSetSelection.PARTIAL_SET;
+		}
+		roll -= partial;
+		if (roll < half) {
+			return ArmorSetSelection.HALF_SET;
+		}
+		return ArmorSetSelection.FULL_SET;
+	}
+
 	private static JsonObject mergeSkeletonFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
 		JsonObject merged = variantRoot == null ? new JsonObject() : variantRoot.deepCopy();
 		if (fileRoot == null || fileRoot.entrySet().isEmpty()) {
@@ -780,5 +886,21 @@ public final class MadokuMobSkeleton {
 	}
 
 	private record ShotVector(Vec3 vector, boolean guaranteedHit) {
+	}
+
+	private enum ArmorSetSelection {
+		PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
+		HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
+		FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
+
+		private final List<EquipmentSlot> requiredSlots;
+
+		ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
+			this.requiredSlots = requiredSlots;
+		}
+
+		private List<EquipmentSlot> requiredSlots() {
+			return requiredSlots;
+		}
 	}
 }

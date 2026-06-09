@@ -43,7 +43,10 @@ public final class MobConfigSkeleton {
 		);
 		defaultGroup.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(80.0d).build()
+			MobConfigManager.mobSpawnRules()
+				.spawnWeight(80.0d)
+				.equipmentSet(buildSkeletonEquipmentSetDefaults())
+				.build()
 		);
 		defaultGroup.add(
 			MobConfigManager.FIELD_MOB_BEHAVIOR,
@@ -119,6 +122,13 @@ public final class MobConfigSkeleton {
 		stats.addProperty(MobConfigManager.FIELD_TRUE_DAMAGE, 1.0d);
 		variant.add(MobConfigManager.FIELD_MOB_STATS, stats);
 		variant.add(
+			MobConfigManager.FIELD_SPAWN_RULES,
+			MobConfigManager.mobSpawnRules()
+				.spawnWeight(10.0d)
+				.equipmentSet(buildSkeletonEquipmentSetDefaults())
+				.build()
+		);
+		variant.add(
 			MobConfigManager.FIELD_MOB_GOALS,
 			MobConfigManager.buildMobGoalsDefaults(goals -> {
 				MobConfigManager.addMobGoal(goals, "hurt-by-target", true, 1, 100.0d, 0);
@@ -127,6 +137,14 @@ public final class MobConfigSkeleton {
 			})
 		);
 		return variant;
+	}
+
+	private static JsonObject buildSkeletonEquipmentSetDefaults() {
+		JsonObject equipmentSet = new JsonObject();
+		equipmentSet.addProperty(MobConfigManager.FIELD_ENABLED, true);
+		equipmentSet.addProperty(MobConfigManager.FIELD_MOB_EQUIPMENT, "minecraft-equipment-skeleton.json");
+		equipmentSet.addProperty(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d);
+		return equipmentSet;
 	}
 
 	private static JsonObject buildSkeletonJockeyVariantDefaults() {
