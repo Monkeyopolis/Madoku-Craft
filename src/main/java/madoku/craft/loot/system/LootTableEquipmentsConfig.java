@@ -32,6 +32,8 @@ public final class LootTableEquipmentsConfig {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		defaults.put("minecraft-equipment-skeleton", EquipmentConfigSkeleton.buildDefaults());
 		defaults.put("minecraft-equipment-stray", EquipmentConfigStray.buildDefaults());
+		defaults.put("minecraft-equipment-bogged", EquipmentConfigBogged.buildDefaults());
+		defaults.put("minecraft-equipment-parched", EquipmentConfigParched.buildDefaults());
 		defaults.put("minecraft-equipment-zombie", EquipmentConfigZombie.buildZombieDefaults());
 		defaults.put("minecraft-equipment-husk", EquipmentConfigHusk.buildDefaults());
 		defaults.put("minecraft-equipment-drowned", EquipmentConfigDrowned.buildDefaults());

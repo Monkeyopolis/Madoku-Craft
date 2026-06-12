@@ -36,7 +36,7 @@ public abstract class AbstractArrowDamageMixin {
 		}
 		MadokuMobManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
-			MadokuMobManager.applyWitherSkeletonArrowHitEffect(livingEntity, arrow.getOwner());
+			MadokuMobManager.applySkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}
 		return hit;
 	}

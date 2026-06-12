@@ -106,6 +106,12 @@ public final class EquipmentConfigManager {
 		if (type == EntityType.STRAY) {
 			return "minecraft-equipment-stray";
 		}
+		if (type == EntityType.BOGGED) {
+			return "minecraft-equipment-bogged";
+		}
+		if (type == EntityType.PARCHED) {
+			return "minecraft-equipment-parched";
+		}
 		if (type == EntityType.HUSK) {
 			return "minecraft-equipment-husk";
 		}

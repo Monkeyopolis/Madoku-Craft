@@ -59,9 +59,6 @@ public final class MadokuRegionalDifficultyManager {
 	private static final String TIME_SCHEDULER_OWNER_ID = "madoku-regional-difficulty-time";
 	private static final long TIME_SCHEDULER_MIN_INTERVAL_TICKS = 5L;
 	private static final long TIME_SCHEDULER_MAX_INTERVAL_TICKS = 100L;
-	private static final double RANGED_DAMAGE_SCALE_STEP_PERCENT = 0.05D;
-	private static final double ATTACK_ACCURACY_SCALE_STEP = 0.02D;
-	private static final double CREEPER_EXPLOSION_POWER_SCALE_STEP = 0.2D;
 
 	private static final long TICKS_PER_DAY = 24000L;
 
@@ -276,7 +273,7 @@ public final class MadokuRegionalDifficultyManager {
 		applyScalingAdjustments(mob, resolvedIncrements, totalAdjustment, fullStatScaling);
 	}
 
-	public static double resolveCreeperExplosionPowerScaling(Mob mob) {
+	public static double resolveCreeperExplosionPowerScaling(Mob mob, double baseExplosionPower) {
 		if (mob == null || mob.getType() != EntityType.CREEPER || !snapshot.enabled()) {
 			return 0.0D;
 		}
@@ -287,9 +284,12 @@ public final class MadokuRegionalDifficultyManager {
 		if (totalAdjustment <= 0) {
 			return 0.0D;
 		}
-		StatIncrements increments = snapshot.resolveIncrements(mob).increments();
-		double powerAddition = Math.max(0.0D, increments.explosionPower()) * CREEPER_EXPLOSION_POWER_SCALE_STEP * totalAdjustment;
-		return roundDifficultyScaleValue(increments.explosionPower(), powerAddition);
+		ResolvedIncrements resolvedIncrements = snapshot.resolveIncrements(mob);
+		StatIncrements increments = resolvedIncrements.increments();
+		StatModes modes = resolvedIncrements.modes();
+		double sanitizedBase = Math.max(0.0D, baseExplosionPower);
+		double powerAddition = resolveScaledAddition(sanitizedBase, increments.explosionPower(), modes.explosionPowerMode(), totalAdjustment);
+		return roundDifficultyScaleValue(sanitizedBase, powerAddition);
 	}
 
 	public static double resolveMobRangedDamageScaling(Mob mob, double baseDamage) {
@@ -304,11 +304,10 @@ public final class MadokuRegionalDifficultyManager {
 		if (totalAdjustment <= 0) {
 			return sanitizedBase;
 		}
-		StatIncrements increments = snapshot.resolveIncrements(mob).increments();
-		double addition = sanitizedBase
-			* Math.max(0.0D, increments.rangedDamage())
-			* RANGED_DAMAGE_SCALE_STEP_PERCENT
-			* totalAdjustment;
+		ResolvedIncrements resolvedIncrements = snapshot.resolveIncrements(mob);
+		StatIncrements increments = resolvedIncrements.increments();
+		StatModes modes = resolvedIncrements.modes();
+		double addition = resolveScaledAddition(sanitizedBase, increments.rangedDamage(), modes.rangedDamageMode(), totalAdjustment);
 		double resolved = Math.max(0.0D, sanitizedBase + addition);
 		return roundDifficultyScaleValue(sanitizedBase, resolved);
 	}
@@ -325,8 +324,10 @@ public final class MadokuRegionalDifficultyManager {
 		if (totalAdjustment <= 0) {
 			return sanitizedBase;
 		}
-		StatIncrements increments = snapshot.resolveIncrements(mob).increments();
-		double addition = Math.max(0.0D, increments.attackAccuracy()) * ATTACK_ACCURACY_SCALE_STEP * totalAdjustment;
+		ResolvedIncrements resolvedIncrements = snapshot.resolveIncrements(mob);
+		StatIncrements increments = resolvedIncrements.increments();
+		StatModes modes = resolvedIncrements.modes();
+		double addition = resolveScaledAddition(sanitizedBase, increments.attackAccuracy(), modes.attackAccuracyMode(), totalAdjustment);
 		double resolved = sanitizedBase + addition;
 		return Mth.clamp(roundDifficultyScaleValue(sanitizedBase, resolved), 0.0D, 1.0D);
 	}
@@ -609,7 +610,10 @@ public final class MadokuRegionalDifficultyManager {
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_ARMOR, fallbackModes.armorMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_DAMAGE, fallbackModes.damageMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, fallbackModes.knockbackResistanceMode()),
-			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, fallbackModes.experienceDropMode())
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, fallbackModes.experienceDropMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE, fallbackModes.rangedDamageMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY, fallbackModes.attackAccuracyMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_EXPLOSION_POWER, fallbackModes.explosionPowerMode())
 		);
 	}
 
@@ -1371,7 +1375,10 @@ public final class MadokuRegionalDifficultyManager {
 		ScalingMode armorMode,
 		ScalingMode damageMode,
 		ScalingMode knockbackResistanceMode,
-		ScalingMode experienceDropMode
+		ScalingMode experienceDropMode,
+		ScalingMode rangedDamageMode,
+		ScalingMode attackAccuracyMode,
+		ScalingMode explosionPowerMode
 	) {
 		private static StatModes defaults() {
 			return new StatModes(
@@ -1382,6 +1389,9 @@ public final class MadokuRegionalDifficultyManager {
 				ScalingMode.ADD,
 				ScalingMode.MULTIPLY,
 				ScalingMode.ADD,
+				ScalingMode.MULTIPLY,
+				ScalingMode.MULTIPLY,
+				ScalingMode.MULTIPLY,
 				ScalingMode.MULTIPLY
 			);
 		}

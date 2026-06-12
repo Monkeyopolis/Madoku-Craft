@@ -38,6 +38,7 @@ public final class LootTableConfigEntities {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		put(defaults, "minecraft:entities/bee", ConfigEntitiesBee.buildDefaults());
 		put(defaults, "minecraft:entities/bogged", ConfigEntitiesBogged.buildDefaults());
+		put(defaults, "minecraft:entities/parched", ConfigEntitiesParched.buildDefaults());
 		put(defaults, "minecraft:entities/cave_spider", ConfigEntitiesCaveSpider.buildDefaults());
 		put(defaults, "minecraft:entities/creeper", ConfigEntitiesCreeper.buildDefaults());
 		put(defaults, "minecraft:entities/drowned", ConfigEntitiesDrowned.buildDefaults());

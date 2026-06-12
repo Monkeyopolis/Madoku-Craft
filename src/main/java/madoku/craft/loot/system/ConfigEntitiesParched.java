@@ -3,10 +3,10 @@ package madoku.craft.loot.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-public final class ConfigEntitiesBogged {
-	private static final String TABLE_ID = "minecraft:entities/bogged";
+public final class ConfigEntitiesParched {
+	private static final String TABLE_ID = "minecraft:entities/parched";
 
-	private ConfigEntitiesBogged() {
+	private ConfigEntitiesParched() {
 	}
 
 	public static JsonObject buildDefaults() {
@@ -37,4 +37,3 @@ public final class ConfigEntitiesBogged {
 		return root;
 	}
 }
-

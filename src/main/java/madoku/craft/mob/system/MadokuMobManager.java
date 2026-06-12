@@ -141,6 +141,8 @@ public final class MadokuMobManager {
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
 		MadokuMobStray.resetRuntimeState();
+		MadokuMobBogged.resetRuntimeState();
+		MadokuMobParched.resetRuntimeState();
 		runtimeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		SchedulerManagerSystem.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, 1L);
@@ -164,6 +166,8 @@ public final class MadokuMobManager {
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
 		MadokuMobStray.resetRuntimeState();
+		MadokuMobBogged.resetRuntimeState();
+		MadokuMobParched.resetRuntimeState();
 	}
 
 	public static boolean isEnabled() {
@@ -217,9 +221,7 @@ public final class MadokuMobManager {
 			return false;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
-			boolean shouldOverride = skeleton.getType() == EntityType.STRAY
-				? MadokuMobStray.shouldOverrideSpawnRules(skeleton)
-				: MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton);
+			boolean shouldOverride = shouldOverrideSkeletonSpawnRules(skeleton);
 			if (shouldOverride) {
 				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "skeleton");
 				applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
@@ -461,40 +463,91 @@ public final class MadokuMobManager {
 			applyWitherSkeletonSpawnOverrides(skeleton, world);
 			return;
 		}
-		if (skeleton.getType() != EntityType.SKELETON
-			&& skeleton.getType() != EntityType.STRAY
-			&& skeleton.getType() != EntityType.BOGGED
-			&& skeleton.getType() != EntityType.PARCHED) {
+		if (!isSupportedSkeletonRuntimeType(skeleton)) {
 			return;
 		}
 		if (skeleton.getType() == EntityType.STRAY) {
 			MadokuMobStray.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+		} else if (skeleton.getType() == EntityType.BOGGED) {
+			MadokuMobBogged.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+		} else if (skeleton.getType() == EntityType.PARCHED) {
+			MadokuMobParched.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 		} else {
 			MadokuMobSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 		}
 	}
 
 	public static boolean applyCustomSkeletonRangedAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
-		return skeleton != null && skeleton.getType() == EntityType.STRAY
-			? MadokuMobStray.applyRangedSkeletonBowAttack(skeleton, target, pullProgress)
-			: MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		if (skeleton == null) {
+			return false;
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			return MadokuMobBogged.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			return MadokuMobParched.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		}
+		return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 	}
 
 	public static int resolveSkeletonRangedAttackIntervalTicks(AbstractSkeleton skeleton) {
-		return skeleton != null && skeleton.getType() == EntityType.STRAY
-			? MadokuMobStray.resolveBowAttackIntervalTicks(skeleton)
-			: MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
+		if (skeleton == null) {
+			return -1;
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.resolveBowAttackIntervalTicks(skeleton);
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			return MadokuMobBogged.resolveBowAttackIntervalTicks(skeleton);
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			return MadokuMobParched.resolveBowAttackIntervalTicks(skeleton);
+		}
+		return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 	}
 
 	public static int resolveSkeletonChargeUpTicks(Monster attacker) {
-		if (attacker instanceof AbstractSkeleton skeleton && skeleton.getType() == EntityType.STRAY) {
-			return MadokuMobStray.resolveBowChargeUpTicks(skeleton);
+		if (attacker instanceof AbstractSkeleton skeleton) {
+			if (skeleton.getType() == EntityType.STRAY) {
+				return MadokuMobStray.resolveBowChargeUpTicks(skeleton);
+			}
+			if (skeleton.getType() == EntityType.BOGGED) {
+				return MadokuMobBogged.resolveBowChargeUpTicks(skeleton);
+			}
+			if (skeleton.getType() == EntityType.PARCHED) {
+				return MadokuMobParched.resolveBowChargeUpTicks(skeleton);
+			}
+			return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 		}
 		return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 	}
 
 	public static void applyWitherSkeletonArrowHitEffect(LivingEntity target, Entity attacker) {
 		applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
+	}
+
+	public static void applySkeletonArrowHitEffect(LivingEntity target, Entity attacker) {
+		if (target == null || attacker == null || target.level().isClientSide() || !snapshot.enabled) {
+			return;
+		}
+		if (!(attacker instanceof AbstractSkeleton skeleton)) {
+			return;
+		}
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
+			return;
+		}
+		JsonObject runtimeRoot = resolveSkeletonVariantRuntimeRoot(skeleton);
+		if (runtimeRoot.entrySet().isEmpty()) {
+			return;
+		}
+		MobEffectInstance configuredEffect = resolveConfiguredMobEffectInstance(readMobStatsRoot(runtimeRoot), null);
+		if (configuredEffect != null) {
+			target.addEffect(configuredEffect, skeleton);
+		}
 	}
 
 	public static void handleMobDamaged(LivingEntity victim, DamageSource source) {
@@ -532,8 +585,8 @@ public final class MadokuMobManager {
 		if (fixed != null) {
 			return Math.max(0.0F, fixed);
 		}
-		if (arrow.getOwner() instanceof AbstractSkeleton skeleton && snapshot.enabled && MadokuMobSkeleton.isBowAttackEnabled(skeleton)) {
-			JsonObject root = MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
+		if (arrow.getOwner() instanceof AbstractSkeleton skeleton && snapshot.enabled && isBowAttackEnabledForRuntimeSkeleton(skeleton)) {
+			JsonObject root = resolveSkeletonVariantRuntimeRoot(skeleton);
 			if (!root.entrySet().isEmpty()) {
 				return (float) Math.max(0.0D, resolveSkeletonRangedDamage(skeleton, root));
 			}
@@ -689,6 +742,21 @@ public final class MadokuMobManager {
 	}
 
 	public static void ensureBowEquipped(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return;
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			MadokuMobStray.ensureBowEquipped(skeleton);
+			return;
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			MadokuMobBogged.ensureBowEquipped(skeleton);
+			return;
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			MadokuMobParched.ensureBowEquipped(skeleton);
+			return;
+		}
 		MadokuMobSkeleton.ensureBowEquipped(skeleton);
 	}
 
@@ -751,9 +819,16 @@ public final class MadokuMobManager {
 				modified |= normalizeWitherSkeletonWeapon(skeleton);
 				return modified;
 			}
-			return skeleton.getType() == EntityType.STRAY
-				? MadokuMobStray.applyLoadedEntityOverrides(skeleton)
-				: MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
+			if (skeleton.getType() == EntityType.STRAY) {
+				return MadokuMobStray.applyLoadedEntityOverrides(skeleton);
+			}
+			if (skeleton.getType() == EntityType.BOGGED) {
+				return MadokuMobBogged.applyLoadedEntityOverrides(skeleton);
+			}
+			if (skeleton.getType() == EntityType.PARCHED) {
+				return MadokuMobParched.applyLoadedEntityOverrides(skeleton);
+			}
+			return MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
 		}
 		if (entity instanceof Creeper creeper) {
 			return MadokuMobCreeper.applyLoadedEntityOverrides(creeper);
@@ -820,6 +895,10 @@ public final class MadokuMobManager {
 			}
 			if (skeleton.getType() == EntityType.STRAY) {
 				MadokuMobStray.applyLoadedEntityDifficultyOverrides(skeleton);
+			} else if (skeleton.getType() == EntityType.BOGGED) {
+				MadokuMobBogged.applyLoadedEntityDifficultyOverrides(skeleton);
+			} else if (skeleton.getType() == EntityType.PARCHED) {
+				MadokuMobParched.applyLoadedEntityDifficultyOverrides(skeleton);
 			} else {
 				MadokuMobSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
 			}
@@ -1580,7 +1659,7 @@ public final class MadokuMobManager {
 				0.0D
 			);
 		}
-		return Math.max(0.0D, explosionPower + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper));
+		return Math.max(0.0D, explosionPower + MadokuRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper, explosionPower));
 	}
 
 	private static JsonObject resolveHagDefaultGroup(JsonObject fileRoot) {
@@ -1882,6 +1961,9 @@ public final class MadokuMobManager {
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
 		PENDING_ZOMBIE_REPLACEMENTS.remove(id);
 		MadokuMobSkeleton.onEntityCleanup(entity);
+		MadokuMobStray.onEntityCleanup(entity);
+		MadokuMobBogged.onEntityCleanup(entity);
+		MadokuMobParched.onEntityCleanup(entity);
 		MadokuMobBee.onEntityCleanup(entity);
 	}
 
@@ -2139,9 +2221,7 @@ public final class MadokuMobManager {
 			mobSpawned.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(source.position())), reason, null);
 		}
 		if (spawnedEntity instanceof AbstractSkeleton skeleton
-			&& (skeleton.getType() == EntityType.STRAY
-				? MadokuMobStray.isBowAttackEnabled(skeleton)
-				: MadokuMobSkeleton.isBowAttackEnabled(skeleton))) {
+			&& isBowAttackEnabledForRuntimeSkeleton(skeleton)) {
 			ensureBowEquipped(skeleton);
 		}
 		level.tryAddFreshEntityWithPassengers(spawnedEntity);
@@ -2299,9 +2379,7 @@ public final class MadokuMobManager {
 			return resolveCreeperRuntimeVariantRoot(creeper, root(MobConfigManager.FILE_CREEPER));
 		}
 		if (attacker instanceof AbstractSkeleton skeleton) {
-			return skeleton.getType() == EntityType.STRAY
-				? MadokuMobStray.resolveRuntimeRoot(skeleton)
-				: MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
+			return resolveSkeletonVariantRuntimeRoot(skeleton);
 		}
 		if (attacker instanceof Spider spider) {
 			String fileKey = spider.getType() == EntityType.CAVE_SPIDER
@@ -2618,8 +2696,71 @@ public final class MadokuMobManager {
 		return root(fileKey);
 	}
 
+	static JsonObject resolveMobFileSectionForRuntime(String fileKey) {
+		return fileMobRoot(fileKey);
+	}
+
 	private static JsonObject fileMobRoot(String fileKey) {
 		return readObject(root(fileKey), fileKey);
+	}
+
+	private static boolean shouldOverrideSkeletonSpawnRules(AbstractSkeleton skeleton) {
+		if (skeleton == null || !snapshot.enabled) {
+			return false;
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.shouldOverrideSpawnRules(skeleton);
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			return MadokuMobBogged.shouldOverrideSpawnRules(skeleton);
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			return MadokuMobParched.shouldOverrideSpawnRules(skeleton);
+		}
+		return MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton);
+	}
+
+	private static boolean isSupportedSkeletonRuntimeType(AbstractSkeleton skeleton) {
+		if (skeleton == null) {
+			return false;
+		}
+		return skeleton.getType() == EntityType.SKELETON
+			|| skeleton.getType() == EntityType.STRAY
+			|| skeleton.getType() == EntityType.BOGGED
+			|| skeleton.getType() == EntityType.PARCHED
+			|| skeleton.getType() == EntityType.WITHER_SKELETON;
+	}
+
+	private static boolean isBowAttackEnabledForRuntimeSkeleton(AbstractSkeleton skeleton) {
+		if (skeleton == null || !snapshot.enabled) {
+			return false;
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.isBowAttackEnabled(skeleton);
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			return MadokuMobBogged.isBowAttackEnabled(skeleton);
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			return MadokuMobParched.isBowAttackEnabled(skeleton);
+		}
+		return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
+	}
+
+	private static JsonObject resolveSkeletonVariantRuntimeRoot(AbstractSkeleton skeleton) {
+		if (skeleton == null || !snapshot.enabled) {
+			return new JsonObject();
+		}
+		if (skeleton.getType() == EntityType.STRAY) {
+			return MadokuMobStray.resolveRuntimeRoot(skeleton);
+		}
+		if (skeleton.getType() == EntityType.BOGGED) {
+			return MadokuMobBogged.resolveRuntimeRoot(skeleton);
+		}
+		if (skeleton.getType() == EntityType.PARCHED) {
+			return MadokuMobParched.resolveRuntimeRoot(skeleton);
+		}
+		return MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
 	}
 
 	private static JsonObject skeletonRoot(EntityType<?> type) {

@@ -34,16 +34,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class MadokuMobStray {
+public final class MadokuMobParched {
 	private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
 	private static final int DEFAULT_CHARGE_UP_TICKS = 10;
-	private static final String STRAY_VARIANT_TAG_PREFIX = "madoku-craft.stray.variant:";
-	private static final String STRAY_VARIANT_DEFAULT_KEY = "default";
+	private static final String PARCHED_VARIANT_TAG_PREFIX = "madoku-craft.parched.variant:";
+	private static final String PARCHED_VARIANT_DEFAULT_KEY = "default";
 
 	private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
 
-	private MadokuMobStray() {
+	private MadokuMobParched() {
 	}
 
 	public static void applySpawnOverrides(
@@ -306,7 +306,7 @@ public final class MadokuMobStray {
 
 		String storedVariant = readStoredVariantKey(skeleton);
 		if (!storedVariant.isBlank()) {
-			if (STRAY_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
+			if (PARCHED_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
 				return defaultGroup;
 			}
 			JsonObject known = resolveVariantRootByKey(fileRoot, storedVariant);
@@ -322,10 +322,10 @@ public final class MadokuMobStray {
 
 		String selectedVariant = selectVariantKey(fileRoot, world);
 		if (selectedVariant.isBlank()) {
-			selectedVariant = STRAY_VARIANT_DEFAULT_KEY;
+			selectedVariant = PARCHED_VARIANT_DEFAULT_KEY;
 		}
 		writeVariantTag(skeleton, selectedVariant);
-		if (STRAY_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
+		if (PARCHED_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 			return defaultGroup;
 		}
 		JsonObject selected = resolveVariantRootByKey(fileRoot, selectedVariant);
@@ -337,8 +337,8 @@ public final class MadokuMobStray {
 			fileRoot,
 			world == null ? null : world.getRandom(),
 			MobConfigManager.FIELD_DEFAULT_GROUP,
-			STRAY_VARIANT_DEFAULT_KEY,
-			MadokuMobStray::isReservedStrayGroupKey,
+			PARCHED_VARIANT_DEFAULT_KEY,
+			MadokuMobParched::isReservedParchedGroupKey,
 			variantRoot -> MadokuMobManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 		);
 	}
@@ -348,11 +348,11 @@ public final class MadokuMobStray {
 			fileRoot,
 			variantKey,
 			MobConfigManager.FIELD_DEFAULT_GROUP,
-			MadokuMobStray::isReservedStrayGroupKey
+			MadokuMobParched::isReservedParchedGroupKey
 		);
 	}
 
-	private static boolean isReservedStrayGroupKey(String normalizedKey) {
+	private static boolean isReservedParchedGroupKey(String normalizedKey) {
 		if (normalizedKey == null || normalizedKey.isBlank()) {
 			return true;
 		}
@@ -376,10 +376,10 @@ public final class MadokuMobStray {
 			return "";
 		}
 		for (String tag : skeleton.entityTags()) {
-			if (tag == null || !tag.startsWith(STRAY_VARIANT_TAG_PREFIX)) {
+			if (tag == null || !tag.startsWith(PARCHED_VARIANT_TAG_PREFIX)) {
 				continue;
 			}
-			String normalized = normalizeKey(tag.substring(STRAY_VARIANT_TAG_PREFIX.length()));
+			String normalized = normalizeKey(tag.substring(PARCHED_VARIANT_TAG_PREFIX.length()));
 			if (!normalized.isBlank()) {
 				return normalized;
 			}
@@ -392,7 +392,7 @@ public final class MadokuMobStray {
 			return;
 		}
 		clearVariantTag(skeleton);
-		skeleton.addTag(STRAY_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
+		skeleton.addTag(PARCHED_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
 	}
 
 	private static void clearVariantTag(AbstractSkeleton skeleton) {
@@ -401,7 +401,7 @@ public final class MadokuMobStray {
 		}
 		String existing = null;
 		for (String tag : skeleton.entityTags()) {
-			if (tag != null && tag.startsWith(STRAY_VARIANT_TAG_PREFIX)) {
+			if (tag != null && tag.startsWith(PARCHED_VARIANT_TAG_PREFIX)) {
 				existing = tag;
 				break;
 			}
@@ -594,10 +594,10 @@ public final class MadokuMobStray {
 	}
 
 	private static String fileKeyForType(AbstractSkeleton skeleton) {
-		if (skeleton == null || skeleton.getType() != net.minecraft.world.entity.EntityType.STRAY) {
+		if (skeleton == null || skeleton.getType() != net.minecraft.world.entity.EntityType.PARCHED) {
 			return "";
 		}
-		return MobConfigManager.FILE_STRAY;
+		return MobConfigManager.FILE_PARCHED;
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
