@@ -3,6 +3,7 @@ package madoku.craft.mixin;
 import madoku.craft.mob.system.MadokuMobBogged;
 import madoku.craft.mob.system.MadokuMobParched;
 import madoku.craft.mob.system.MadokuMobSkeleton;
+import madoku.craft.mob.system.MadokuMobWitherSkeleton;
 import madoku.craft.mob.system.MadokuMobStray;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
@@ -28,6 +29,10 @@ public abstract class SkeletonRuntimeTickMixin {
 		}
 		if (skeleton.getType() == net.minecraft.world.entity.EntityType.PARCHED) {
 			MadokuMobParched.tickRangedSkeletonRuntime(skeleton);
+			return;
+		}
+		if (skeleton.getType() == net.minecraft.world.entity.EntityType.WITHER_SKELETON) {
+			MadokuMobWitherSkeleton.tickRangedSkeletonRuntime(skeleton);
 			return;
 		}
 		MadokuMobSkeleton.tickRangedSkeletonRuntime(skeleton);

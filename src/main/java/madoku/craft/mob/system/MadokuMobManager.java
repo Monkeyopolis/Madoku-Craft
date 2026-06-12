@@ -27,7 +27,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
@@ -89,7 +88,6 @@ public final class MadokuMobManager {
 	private static final double MIN_HOMING_SPEED = 0.75D;
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
-	private static final int WITHER_EFFECT_DURATION_TICKS = 5 * 20;
 	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
 	private static final String BEE_VARIANT_TAG_PREFIX = "madoku-craft.bee.variant:";
 	private static final String BEE_VARIANT_DEFAULT_KEY = "default";
@@ -140,6 +138,7 @@ public final class MadokuMobManager {
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
+		MadokuMobWitherSkeleton.resetRuntimeState();
 		MadokuMobStray.resetRuntimeState();
 		MadokuMobBogged.resetRuntimeState();
 		MadokuMobParched.resetRuntimeState();
@@ -165,6 +164,7 @@ public final class MadokuMobManager {
 		TRACKED_ENTITIES.clear();
 		MadokuMobBee.resetRuntimeState();
 		MadokuMobSkeleton.resetRuntimeState();
+		MadokuMobWitherSkeleton.resetRuntimeState();
 		MadokuMobStray.resetRuntimeState();
 		MadokuMobBogged.resetRuntimeState();
 		MadokuMobParched.resetRuntimeState();
@@ -460,7 +460,7 @@ public final class MadokuMobManager {
 			return;
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			applyWitherSkeletonSpawnOverrides(skeleton, world);
+			MadokuMobWitherSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 			return;
 		}
 		if (!isSupportedSkeletonRuntimeType(skeleton)) {
@@ -490,6 +490,9 @@ public final class MadokuMobManager {
 		if (skeleton.getType() == EntityType.PARCHED) {
 			return MadokuMobParched.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			return MadokuMobWitherSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+		}
 		return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 	}
 
@@ -506,6 +509,9 @@ public final class MadokuMobManager {
 		if (skeleton.getType() == EntityType.PARCHED) {
 			return MadokuMobParched.resolveBowAttackIntervalTicks(skeleton);
 		}
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			return MadokuMobWitherSkeleton.resolveBowAttackIntervalTicks(skeleton);
+		}
 		return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 	}
 
@@ -520,13 +526,20 @@ public final class MadokuMobManager {
 			if (skeleton.getType() == EntityType.PARCHED) {
 				return MadokuMobParched.resolveBowChargeUpTicks(skeleton);
 			}
+			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+				return MadokuMobWitherSkeleton.resolveBowChargeUpTicks(skeleton);
+			}
 			return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 		}
 		return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 	}
 
 	public static void applyWitherSkeletonArrowHitEffect(LivingEntity target, Entity attacker) {
-		applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
+		MadokuMobWitherSkeleton.applyWitherSkeletonHitEffect(target, attacker);
+	}
+
+	public static boolean applyWitherSkeletonMeleeHitEffect(LivingEntity target, Entity attacker) {
+		return MadokuMobWitherSkeleton.applyWitherSkeletonHitEffect(target, attacker);
 	}
 
 	public static void applySkeletonArrowHitEffect(LivingEntity target, Entity attacker) {
@@ -537,7 +550,7 @@ public final class MadokuMobManager {
 			return;
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			applyWitherSkeletonHitEffect(target, attacker, WITHER_EFFECT_DURATION_TICKS);
+			MadokuMobWitherSkeleton.applyWitherSkeletonHitEffect(target, attacker);
 			return;
 		}
 		JsonObject runtimeRoot = resolveSkeletonVariantRuntimeRoot(skeleton);
@@ -562,19 +575,6 @@ public final class MadokuMobManager {
 			return;
 		}
 
-	}
-
-	private static void applyWitherSkeletonHitEffect(LivingEntity target, Entity attacker, int durationTicks) {
-		if (target == null || attacker == null || target.level().isClientSide() || !snapshot.enabled) {
-			return;
-		}
-		if (!(attacker instanceof AbstractSkeleton skeleton) || skeleton.getType() != EntityType.WITHER_SKELETON) {
-			return;
-		}
-		if (!isMobFileEnabled(MobConfigManager.FILE_WITHER_SKELETON)) {
-			return;
-		}
-		target.addEffect(new MobEffectInstance(MobEffects.WITHER, durationTicks), skeleton);
 	}
 
 	public static float resolveProjectileDamageOverride(AbstractArrow arrow, float fallbackDamage) {
@@ -813,11 +813,7 @@ public final class MadokuMobManager {
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
 			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-				JsonObject root = skeletonRoot(skeleton.getType());
-				String skeletonFileKey = MobConfigManager.FILE_WITHER_SKELETON;
-				boolean modified = isMobFileEnabled(skeletonFileKey) && applyUniversalBaseStatsForRuntime(skeleton, root);
-				modified |= normalizeWitherSkeletonWeapon(skeleton);
-				return modified;
+				return MadokuMobWitherSkeleton.applyLoadedEntityOverrides(skeleton);
 			}
 			if (skeleton.getType() == EntityType.STRAY) {
 				return MadokuMobStray.applyLoadedEntityOverrides(skeleton);
@@ -887,10 +883,7 @@ public final class MadokuMobManager {
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
 			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-				JsonObject root = skeletonRoot(skeleton.getType());
-				if (isMobFileEnabled(MobConfigManager.FILE_WITHER_SKELETON)) {
-					applyUniversalDifficultyStatsForRuntime(skeleton, root);
-				}
+				MadokuMobWitherSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
 				return;
 			}
 			if (skeleton.getType() == EntityType.STRAY) {
@@ -1679,26 +1672,8 @@ public final class MadokuMobManager {
 		disableZombieReinforcements(zombie);
 	}
 
-	private static void clearMobEquipment(Mob mob) {
-		for (EquipmentSlot slot : EquipmentSlot.values()) {
-			if (!mob.getItemBySlot(slot).isEmpty()) {
-				mob.setItemSlot(slot, ItemStack.EMPTY);
-			}
-		}
-	}
-
 	static void clearArmorSlotsForRuntime(Mob mob) {
 		clearArmorSlots(mob);
-	}
-
-	private static void applySpawnArmorLoadout(Mob mob, JsonObject root, RandomSource random) {
-		if (mob == null || root == null || random == null) {
-			return;
-		}
-		clearArmorSlots(mob);
-		if (random.nextDouble() < 0.10D) {
-			equipSpawnArmorLoadout(mob, random);
-		}
 	}
 
 	private static void clearArmorSlots(Mob mob) {
@@ -1709,196 +1684,6 @@ public final class MadokuMobManager {
 		mob.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
 		mob.setItemSlot(EquipmentSlot.LEGS, ItemStack.EMPTY);
 		mob.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
-	}
-
-	private static void applyWitherSkeletonSpawnOverrides(AbstractSkeleton skeleton, ServerLevelAccessor world) {
-		if (skeleton == null || world == null) {
-			return;
-		}
-		JsonObject root = skeletonRoot(EntityType.WITHER_SKELETON);
-		if (!isMobFileEnabled(MobConfigManager.FILE_WITHER_SKELETON)) {
-			return;
-		}
-		clearMobEquipment(skeleton);
-		applyUniversalStats(skeleton, root);
-		applySpawnArmorLoadout(skeleton, root, world.getRandom());
-		ItemStack weapon = rollWitherSkeletonSpawnWeapon(world.getRandom());
-		if (!weapon.isEmpty()) {
-			skeleton.setItemSlot(EquipmentSlot.MAINHAND, weapon);
-		}
-	}
-
-	private static ItemStack rollWitherSkeletonSpawnWeapon(RandomSource random) {
-		double sword = 90.0D;
-		double bow = 10.0D;
-		double total = sword + bow;
-		if (total <= 0.0D) {
-			return ItemStack.EMPTY;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < sword) {
-			return witherSkeletonSwordStack();
-		}
-		return new ItemStack(Items.BOW);
-	}
-
-	private static ItemStack witherSkeletonSwordStack() {
-		ItemStack sword = new ItemStack(Items.NETHERITE_SWORD);
-		stripWeaponAttributeModifiers(sword);
-		return sword;
-	}
-
-	private static boolean normalizeWitherSkeletonWeapon(AbstractSkeleton skeleton) {
-		if (skeleton == null) {
-			return false;
-		}
-		ItemStack mainHand = skeleton.getMainHandItem();
-		if (!mainHand.is(Items.NETHERITE_SWORD)) {
-			return false;
-		}
-		return stripWeaponAttributeModifiers(mainHand);
-	}
-
-	private static boolean stripWeaponAttributeModifiers(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return false;
-		}
-		stack.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
-		return true;
-	}
-
-	private static void equipSpawnArmorLoadout(Mob mob, RandomSource random) {
-		SpawnArmorMaterial material = rollSpawnArmorMaterial(random);
-		SpawnArmorCoverage coverage = rollSpawnArmorCoverage(random);
-		if (material == null || coverage == null) {
-			return;
-		}
-		switch (coverage) {
-			case HELMET_ONLY -> equipArmorPiece(mob, material, EquipmentSlot.HEAD);
-			case HELMET_BOOTS -> {
-				equipArmorPiece(mob, material, EquipmentSlot.HEAD);
-				equipArmorPiece(mob, material, EquipmentSlot.FEET);
-			}
-			case FULL_SET -> {
-				equipArmorPiece(mob, material, EquipmentSlot.HEAD);
-				equipArmorPiece(mob, material, EquipmentSlot.CHEST);
-				equipArmorPiece(mob, material, EquipmentSlot.LEGS);
-				equipArmorPiece(mob, material, EquipmentSlot.FEET);
-			}
-		}
-	}
-
-	private static void equipArmorPiece(Mob mob, SpawnArmorMaterial material, EquipmentSlot slot) {
-		if (mob == null || material == null || slot == null) {
-			return;
-		}
-		ItemStack stack = armorStack(material, slot);
-		if (!stack.isEmpty()) {
-			mob.setItemSlot(slot, stack);
-		}
-	}
-
-	private static ItemStack armorStack(SpawnArmorMaterial material, EquipmentSlot slot) {
-		if (material == null || slot == null) {
-			return ItemStack.EMPTY;
-		}
-		return switch (material) {
-			case NETHERITE -> switch (slot) {
-				case HEAD -> new ItemStack(Items.NETHERITE_HELMET);
-				case CHEST -> new ItemStack(Items.NETHERITE_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.NETHERITE_LEGGINGS);
-				case FEET -> new ItemStack(Items.NETHERITE_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-			case DIAMOND -> switch (slot) {
-				case HEAD -> new ItemStack(Items.DIAMOND_HELMET);
-				case CHEST -> new ItemStack(Items.DIAMOND_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.DIAMOND_LEGGINGS);
-				case FEET -> new ItemStack(Items.DIAMOND_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-			case GOLD -> switch (slot) {
-				case HEAD -> new ItemStack(Items.GOLDEN_HELMET);
-				case CHEST -> new ItemStack(Items.GOLDEN_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.GOLDEN_LEGGINGS);
-				case FEET -> new ItemStack(Items.GOLDEN_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-			case IRON -> switch (slot) {
-				case HEAD -> new ItemStack(Items.IRON_HELMET);
-				case CHEST -> new ItemStack(Items.IRON_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.IRON_LEGGINGS);
-				case FEET -> new ItemStack(Items.IRON_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-			case COPPER -> switch (slot) {
-				case HEAD -> new ItemStack(Items.COPPER_HELMET);
-				case CHEST -> new ItemStack(Items.COPPER_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.COPPER_LEGGINGS);
-				case FEET -> new ItemStack(Items.COPPER_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-			case LEATHER -> switch (slot) {
-				case HEAD -> new ItemStack(Items.LEATHER_HELMET);
-				case CHEST -> new ItemStack(Items.LEATHER_CHESTPLATE);
-				case LEGS -> new ItemStack(Items.LEATHER_LEGGINGS);
-				case FEET -> new ItemStack(Items.LEATHER_BOOTS);
-				default -> ItemStack.EMPTY;
-			};
-		};
-	}
-
-	private static SpawnArmorMaterial rollSpawnArmorMaterial(RandomSource random) {
-		double netherite = 1.0D;
-		double diamond = 5.0D;
-		double gold = 10.0D;
-		double iron = 17.0D;
-		double copper = 28.0D;
-		double leather = 39.0D;
-		double total = netherite + diamond + gold + iron + copper + leather;
-		if (total <= 0.0D) {
-			return null;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < netherite) {
-			return SpawnArmorMaterial.NETHERITE;
-		}
-		roll -= netherite;
-		if (roll < diamond) {
-			return SpawnArmorMaterial.DIAMOND;
-		}
-		roll -= diamond;
-		if (roll < gold) {
-			return SpawnArmorMaterial.GOLD;
-		}
-		roll -= gold;
-		if (roll < iron) {
-			return SpawnArmorMaterial.IRON;
-		}
-		roll -= iron;
-		if (roll < copper) {
-			return SpawnArmorMaterial.COPPER;
-		}
-		return SpawnArmorMaterial.LEATHER;
-	}
-
-	private static SpawnArmorCoverage rollSpawnArmorCoverage(RandomSource random) {
-		double helmetOnly = 60.0D;
-		double helmetBoots = 30.0D;
-		double fullSet = 10.0D;
-		double total = helmetOnly + helmetBoots + fullSet;
-		if (total <= 0.0D) {
-			return null;
-		}
-		double roll = random.nextDouble() * total;
-		if (roll < helmetOnly) {
-			return SpawnArmorCoverage.HELMET_ONLY;
-		}
-		roll -= helmetOnly;
-		if (roll < helmetBoots) {
-			return SpawnArmorCoverage.HELMET_BOOTS;
-		}
-		return SpawnArmorCoverage.FULL_SET;
 	}
 
 	private static void applyExperienceDrop(LivingEntity entity, Integer experienceDrop) {
@@ -1961,6 +1746,7 @@ public final class MadokuMobManager {
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
 		PENDING_ZOMBIE_REPLACEMENTS.remove(id);
 		MadokuMobSkeleton.onEntityCleanup(entity);
+		MadokuMobWitherSkeleton.onEntityCleanup(entity);
 		MadokuMobStray.onEntityCleanup(entity);
 		MadokuMobBogged.onEntityCleanup(entity);
 		MadokuMobParched.onEntityCleanup(entity);
@@ -2717,6 +2503,9 @@ public final class MadokuMobManager {
 		if (skeleton.getType() == EntityType.PARCHED) {
 			return MadokuMobParched.shouldOverrideSpawnRules(skeleton);
 		}
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			return MadokuMobWitherSkeleton.shouldOverrideSpawnRules(skeleton);
+		}
 		return MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton);
 	}
 
@@ -2744,6 +2533,9 @@ public final class MadokuMobManager {
 		if (skeleton.getType() == EntityType.PARCHED) {
 			return MadokuMobParched.isBowAttackEnabled(skeleton);
 		}
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			return MadokuMobWitherSkeleton.isBowAttackEnabled(skeleton);
+		}
 		return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
 	}
 
@@ -2760,26 +2552,10 @@ public final class MadokuMobManager {
 		if (skeleton.getType() == EntityType.PARCHED) {
 			return MadokuMobParched.resolveRuntimeRoot(skeleton);
 		}
-		return MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
-	}
-
-	private static JsonObject skeletonRoot(EntityType<?> type) {
-		JsonObject root;
-		if (type == EntityType.SKELETON) {
-			root = fileMobRoot(MobConfigManager.FILE_SKELETON);
-		} else if (type == EntityType.STRAY) {
-			root = fileMobRoot(MobConfigManager.FILE_STRAY);
-		} else if (type == EntityType.BOGGED) {
-			root = fileMobRoot(MobConfigManager.FILE_BOGGED);
-		} else if (type == EntityType.PARCHED) {
-			root = fileMobRoot(MobConfigManager.FILE_PARCHED);
-		} else if (type == EntityType.WITHER_SKELETON) {
-			root = fileMobRoot(MobConfigManager.FILE_WITHER_SKELETON);
-		} else {
-			return new JsonObject();
+		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			return MadokuMobWitherSkeleton.resolveRuntimeRoot(skeleton);
 		}
-		JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-		return defaultGroup;
+		return MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
 	}
 
 	private static JsonObject zombieRoot(EntityType<?> type) {
@@ -3534,19 +3310,6 @@ public final class MadokuMobManager {
 	private record HomingArrowState(UUID targetUuid, double speed, int remainingTicks) {}
 	private record SpawnWeightPair(double regularWeight, double specialWeight) {}
 	private record WeightedVariant(String key, double weight) {}
-	private enum SpawnArmorMaterial {
-		NETHERITE,
-		DIAMOND,
-		GOLD,
-		IRON,
-		COPPER,
-		LEATHER
-	}
-	private enum SpawnArmorCoverage {
-		HELMET_ONLY,
-		HELMET_BOOTS,
-		FULL_SET
-	}
 
 	private record Snapshot(boolean enabled, Map<String, JsonObject> files) {
 		private static Snapshot disabled() {

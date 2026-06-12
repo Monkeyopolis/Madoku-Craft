@@ -10,8 +10,40 @@ public final class ConfigEntitiesWitherSkeleton {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, false, 1, 2);
-		root.add(LootTableConfigManager.FIELD_GROUPS, new JsonArray());
+		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, true, 0, 2);
+		JsonArray groups = new JsonArray();
+
+		groups.add(
+			LootTableConfigStructures.group(
+				"common",
+				90,
+				LootTableConfigStructures.entries(
+					LootTableConfigStructures.item("minecraft:bone", 1, 1, 3)
+				)
+			)
+		);
+
+		groups.add(
+			LootTableConfigStructures.group(
+				"epic",
+				9,
+				LootTableConfigStructures.entries(
+					LootTableConfigStructures.item("minecraft:coal", 1, 1, 3)
+				)
+			)
+		);
+
+		groups.add(
+			LootTableConfigStructures.group(
+				"mythic",
+				1,
+				LootTableConfigStructures.entries(
+					LootTableConfigStructures.item("minecraft:wither_skeleton_skull", 1, 0, 1)
+				)
+			)
+		);
+
+		root.add(LootTableConfigManager.FIELD_GROUPS, groups);
 		return root;
 	}
 }

@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.skeleton.WitherSkeleton;
@@ -23,6 +23,6 @@ public abstract class WitherSkeletonWitherEffectMixin {
 		MobEffectInstance effect,
 		Entity attacker
 	) {
-		return target.addEffect(new MobEffectInstance(MobEffects.WITHER, 5 * 20), attacker);
+		return MadokuMobManager.applyWitherSkeletonMeleeHitEffect(target, attacker);
 	}
 }
