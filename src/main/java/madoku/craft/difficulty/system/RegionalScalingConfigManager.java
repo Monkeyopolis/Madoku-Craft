@@ -32,6 +32,7 @@ public final class RegionalScalingConfigManager {
 		defaults.put("stray", RegionalScalingConfigStray.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("bogged", RegionalScalingConfigBogged.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("parched", RegionalScalingConfigParched.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
+		defaults.put("wither-skeleton", RegionalScalingConfigWitherSkeleton.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("spider", RegionalScalingConfigSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("cave-spider", RegionalScalingConfigCaveSpider.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("zombie", RegionalScalingConfigZombie.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
@@ -85,6 +86,16 @@ public final class RegionalScalingConfigManager {
 		}
 		if ("bogged".equals(normalized) || "minecraft:bogged".equals(normalized)) {
 			return RegionalScalingConfigBogged.buildDefaults(
+				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+				RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
+			);
+		}
+		if ("wither-skeleton".equals(normalized) || "minecraft:wither_skeleton".equals(normalized)) {
+			return RegionalScalingConfigWitherSkeleton.buildDefaults(
 				RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT,
 				RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT,

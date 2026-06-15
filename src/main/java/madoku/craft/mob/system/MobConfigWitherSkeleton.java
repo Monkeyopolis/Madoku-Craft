@@ -35,7 +35,7 @@ public final class MobConfigWitherSkeleton {
 		witherSkeleton.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
 
 		JsonObject defaultGroup = new JsonObject();
-		defaultGroup.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d);
+		defaultGroup.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0d);
 		defaultGroup.add(
 			MobConfigManager.FIELD_MOB_STATS,
 			buildWitherSkeletonStatsDefaults()
@@ -44,6 +44,7 @@ public final class MobConfigWitherSkeleton {
 			MobConfigManager.FIELD_SPAWN_RULES,
 			MobConfigManager.mobSpawnRules()
 				.spawnWeight(100.0d)
+				.equipmentSet(buildWitherSkeletonEquipmentSetDefaults())
 				.build()
 		);
 		defaultGroup.add(
@@ -94,6 +95,14 @@ public final class MobConfigWitherSkeleton {
 		return mobStats;
 	}
 
+	private static JsonObject buildWitherSkeletonEquipmentSetDefaults() {
+		JsonObject equipmentSet = new JsonObject();
+		equipmentSet.addProperty(MobConfigManager.FIELD_ENABLED, true);
+		equipmentSet.addProperty(MobConfigManager.FIELD_MOB_EQUIPMENT, "minecraft-equipment-wither-skeleton.json");
+		equipmentSet.addProperty(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d);
+		return equipmentSet;
+	}
+
 	private static JsonObject buildMeleeWitherSkeletonVariantDefaults() {
 		JsonObject variant = new JsonObject();
 		variant.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d);
@@ -125,7 +134,10 @@ public final class MobConfigWitherSkeleton {
 		variant.add(MobConfigManager.FIELD_MOB_STATS, stats);
 		variant.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(10.0d).build()
+			MobConfigManager.mobSpawnRules()
+				.spawnWeight(10.0d)
+				.equipmentSet(buildWitherSkeletonEquipmentSetDefaults())
+				.build()
 		);
 		variant.add(
 			MobConfigManager.FIELD_MOB_GOALS,

@@ -112,6 +112,9 @@ public final class EquipmentConfigManager {
 		if (type == EntityType.PARCHED) {
 			return "minecraft-equipment-parched";
 		}
+		if (type == EntityType.WITHER_SKELETON) {
+			return "minecraft-equipment-wither-skeleton";
+		}
 		if (type == EntityType.HUSK) {
 			return "minecraft-equipment-husk";
 		}

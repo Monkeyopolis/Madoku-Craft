@@ -34,6 +34,7 @@ public final class LootTableEquipmentsConfig {
 		defaults.put("minecraft-equipment-stray", EquipmentConfigStray.buildDefaults());
 		defaults.put("minecraft-equipment-bogged", EquipmentConfigBogged.buildDefaults());
 		defaults.put("minecraft-equipment-parched", EquipmentConfigParched.buildDefaults());
+		defaults.put("minecraft-equipment-wither-skeleton", EquipmentConfigWitherSkeleton.buildDefaults());
 		defaults.put("minecraft-equipment-zombie", EquipmentConfigZombie.buildZombieDefaults());
 		defaults.put("minecraft-equipment-husk", EquipmentConfigHusk.buildDefaults());
 		defaults.put("minecraft-equipment-drowned", EquipmentConfigDrowned.buildDefaults());

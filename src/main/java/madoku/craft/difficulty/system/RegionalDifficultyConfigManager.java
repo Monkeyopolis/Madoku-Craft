@@ -161,7 +161,7 @@ public final class RegionalDifficultyConfigManager {
 		defaults.put("stray", buildMobScalingDefaults("minecraft:stray", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
 		defaults.put("bogged", buildMobScalingDefaults("minecraft:bogged", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
 		defaults.put("parched", buildMobScalingDefaults("minecraft:parched", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
-		defaults.put("wither-skeleton", buildMobScalingDefaults("minecraft:wither_skeleton", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, 1.0d, 1.0d, null));
+		defaults.put("wither-skeleton", RegionalScalingConfigWitherSkeleton.buildDefaults(health, movementSpeed, armor, damage, knockbackResistance, experienceDrop));
 		defaults.put("spider", buildMobScalingDefaults("minecraft:spider", health, movementSpeed, null, null, 1.0d, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		defaults.put("cave-spider", buildMobScalingDefaults("minecraft:cave_spider", health, movementSpeed, null, null, 1.0d, armor, damage, knockbackResistance, experienceDrop, null, null, null));
 		defaults.put("zombie", buildMobScalingDefaults("minecraft:zombie", health, movementSpeed, null, null, null, armor, damage, knockbackResistance, experienceDrop, null, null, null));
@@ -192,11 +192,21 @@ public final class RegionalDifficultyConfigManager {
 					);
 				}
 					if ("minecraft:skeleton".equals(mobId)
-						|| "minecraft:stray".equals(mobId)
+					|| "minecraft:stray".equals(mobId)
 					|| "minecraft:bogged".equals(mobId)
 					|| "minecraft:parched".equals(mobId)
 					|| "minecraft:wither_skeleton".equals(mobId)
 					|| "madoku-craft:hag".equals(mobId)) {
+						if ("minecraft:wither_skeleton".equals(mobId)) {
+							return RegionalScalingConfigWitherSkeleton.buildDefaults(
+								DEFAULT_HEALTH_INCREMENT,
+								DEFAULT_MOVEMENT_SPEED_INCREMENT,
+								DEFAULT_ARMOR_INCREMENT,
+								DEFAULT_DAMAGE_INCREMENT,
+								DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT,
+								DEFAULT_EXPERIENCE_DROP_INCREMENT
+							);
+						}
 						return buildMobScalingDefaults(
 							mobId,
 							DEFAULT_HEALTH_INCREMENT,

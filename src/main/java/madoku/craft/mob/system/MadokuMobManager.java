@@ -221,6 +221,33 @@ public final class MadokuMobManager {
 			return false;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
+			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+				if (MadokuMobWitherSkeleton.shouldOverrideSpawnRules(skeleton)) {
+					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "wither_skeleton");
+					MadokuMobWitherSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+					return true;
+				}
+				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "wither_skeleton_no_override");
+				return false;
+			}
+			if (skeleton.getType() == EntityType.BOGGED) {
+				if (MadokuMobBogged.shouldOverrideSpawnRules(skeleton)) {
+					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "bogged");
+					MadokuMobBogged.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+					return true;
+				}
+				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "bogged_no_override");
+				return false;
+			}
+			if (skeleton.getType() == EntityType.PARCHED) {
+				if (MadokuMobParched.shouldOverrideSpawnRules(skeleton)) {
+					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "parched");
+					MadokuMobParched.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
+					return true;
+				}
+				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "parched_no_override");
+				return false;
+			}
 			boolean shouldOverride = shouldOverrideSkeletonSpawnRules(skeleton);
 			if (shouldOverride) {
 				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "skeleton");
@@ -491,7 +518,7 @@ public final class MadokuMobManager {
 			return MadokuMobParched.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			return MadokuMobWitherSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
+			return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
 		return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 	}
@@ -510,7 +537,7 @@ public final class MadokuMobManager {
 			return MadokuMobParched.resolveBowAttackIntervalTicks(skeleton);
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			return MadokuMobWitherSkeleton.resolveBowAttackIntervalTicks(skeleton);
+			return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 		}
 		return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 	}
@@ -527,7 +554,7 @@ public final class MadokuMobManager {
 				return MadokuMobParched.resolveBowChargeUpTicks(skeleton);
 			}
 			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-				return MadokuMobWitherSkeleton.resolveBowChargeUpTicks(skeleton);
+				return MadokuMobSkeleton.resolveBowChargeUpTicks(skeleton);
 			}
 			return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 		}
@@ -547,10 +574,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		if (!(attacker instanceof AbstractSkeleton skeleton)) {
-			return;
-		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			MadokuMobWitherSkeleton.applyWitherSkeletonHitEffect(target, attacker);
 			return;
 		}
 		JsonObject runtimeRoot = resolveSkeletonVariantRuntimeRoot(skeleton);
@@ -2534,7 +2557,7 @@ public final class MadokuMobManager {
 			return MadokuMobParched.isBowAttackEnabled(skeleton);
 		}
 		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
-			return MadokuMobWitherSkeleton.isBowAttackEnabled(skeleton);
+			return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
 		}
 		return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
 	}

@@ -16,7 +16,7 @@ public final class ConfigEntitiesWitherSkeleton {
 		groups.add(
 			LootTableConfigStructures.group(
 				"common",
-				90,
+				69,
 				LootTableConfigStructures.entries(
 					LootTableConfigStructures.item("minecraft:bone", 1, 1, 3)
 				)
@@ -26,7 +26,7 @@ public final class ConfigEntitiesWitherSkeleton {
 		groups.add(
 			LootTableConfigStructures.group(
 				"epic",
-				9,
+				30,
 				LootTableConfigStructures.entries(
 					LootTableConfigStructures.item("minecraft:coal", 1, 1, 3)
 				)
@@ -38,7 +38,7 @@ public final class ConfigEntitiesWitherSkeleton {
 				"mythic",
 				1,
 				LootTableConfigStructures.entries(
-					LootTableConfigStructures.item("minecraft:wither_skeleton_skull", 1, 0, 1)
+					LootTableConfigStructures.item("minecraft:wither_skeleton_skull", 1, 0, 2)
 				)
 			)
 		);
