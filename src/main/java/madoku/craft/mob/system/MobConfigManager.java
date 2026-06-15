@@ -346,46 +346,6 @@ public final class MobConfigManager {
 		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
-	static JsonObject buildSkeletonDefaults(
-		String mobKey,
-		double health,
-		double armor,
-		double damage,
-		double movementSpeed,
-		double knockbackResistance,
-		double scale,
-		int experience,
-		double rangedDamage
-	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_MOB_VARIANT, false);
-		JsonObject mob = new JsonObject();
-		JsonObject defaultGroup = new JsonObject();
-		JsonObject mobStats = buildMobStatsDefaults(
-			health,
-			armor,
-			damage,
-			movementSpeed,
-			null,
-			null,
-			knockbackResistance,
-			scale,
-			experience,
-			rangedDamage,
-			0.7d,
-			20.0d,
-			10.0d,
-			null
-		);
-		defaultGroup.add(FIELD_MOB_STATS, mobStats);
-		defaultGroup.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
-		ensureMobSchema(defaultGroup, false);
-		mob.add(FIELD_DEFAULT_GROUP, defaultGroup);
-		root.add(mobKey, mob);
-		return root;
-	}
-
 	static void ensureMobSchema(JsonObject mobRoot, boolean canPickUpLootDefault) {
 		if (mobRoot == null) {
 			return;

@@ -135,7 +135,7 @@ public final class MobConfigWitherSkeleton {
 		variant.add(
 			MobConfigManager.FIELD_SPAWN_RULES,
 			MobConfigManager.mobSpawnRules()
-				.spawnWeight(10.0d)
+				.spawnWeight(100.0d)
 				.equipmentSet(buildWitherSkeletonEquipmentSetDefaults())
 				.build()
 		);
