@@ -14,6 +14,7 @@ import madoku.craft.debug.MadokuDebug;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mixin.MobTargetSelectorAccessor;
 import madoku.craft.network.PetAbilityHudSync;
 import madoku.craft.network.PetSoundStateSync;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -1774,6 +1775,7 @@ public final class PlayerEntitiesSystem {
 		pet.blocksBuilding = false;
 		pet.clearFire();
 		pet.setCanPickUpLoot(false);
+		clearPetTargetGoals(pet);
 		pet.setTarget(null);
 		pet.setAggressive(false);
 		setManagedPetItemId(pet, rule == null ? null : rule.itemId);
@@ -1815,6 +1817,7 @@ public final class PlayerEntitiesSystem {
 		if (pet.canPickUpLoot()) {
 			pet.setCanPickUpLoot(false);
 		}
+		clearPetTargetGoals(pet);
 		if (pet.getTarget() != null) {
 			pet.setTarget(null);
 		}
@@ -2745,12 +2748,20 @@ public final class PlayerEntitiesSystem {
 		}
 
 		pet.removeAllGoals(goal -> true);
+		clearPetTargetGoals(pet);
 		pet.setTarget(null);
 		pet.setAggressive(false);
 		pet.getNavigation().setCanFloat(true);
 		if (pet instanceof Bat bat) {
 			bat.setResting(false);
 		}
+	}
+
+	private static void clearPetTargetGoals(Mob pet) {
+		if (pet == null) {
+			return;
+		}
+		((MobTargetSelectorAccessor) pet).madokuCraft$getTargetSelector().removeAllGoals(goal -> true);
 	}
 
 	private static void tagManagedPet(Mob pet, UUID ownerId) {

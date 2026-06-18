@@ -13,6 +13,7 @@ import madoku.craft.luck.MadokuLuck;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
+import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -114,7 +115,7 @@ public final class MadokuMobManager {
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MadokuMobManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
-			if (entity instanceof LivingEntity livingEntity) {
+			if (entity instanceof LivingEntity livingEntity && !PlayerEntitiesSystem.isManagedPet(livingEntity)) {
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
 				applyDifficultyScalingAfterMobOverrides(livingEntity, world, reappliedMobOverrides);
 			}
@@ -505,7 +506,7 @@ public final class MadokuMobManager {
 	}
 
 	public static boolean applyCustomSkeletonRangedAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
-		if (skeleton == null) {
+		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
 			return false;
 		}
 		if (skeleton.getType() == EntityType.STRAY) {
@@ -524,7 +525,7 @@ public final class MadokuMobManager {
 	}
 
 	public static int resolveSkeletonRangedAttackIntervalTicks(AbstractSkeleton skeleton) {
-		if (skeleton == null) {
+		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
 			return -1;
 		}
 		if (skeleton.getType() == EntityType.STRAY) {
@@ -812,7 +813,7 @@ public final class MadokuMobManager {
 	}
 
 	private static boolean applyLoadedEntityRules(LivingEntity entity) {
-		if (entity == null || entity.level().isClientSide() || !snapshot.enabled) {
+		if (entity == null || entity.level().isClientSide() || !snapshot.enabled || PlayerEntitiesSystem.isManagedPet(entity)) {
 			return false;
 		}
 		if (entity instanceof ZombieVillager zombieVillager) {
@@ -863,7 +864,7 @@ public final class MadokuMobManager {
 	}
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
-		if (!snapshot.enabled || entity == null || !(entity instanceof Mob mob) || level == null || !MadokuRegionalDifficultyManager.isEnabled()) {
+		if (!snapshot.enabled || entity == null || !(entity instanceof Mob mob) || level == null || !MadokuRegionalDifficultyManager.isEnabled() || PlayerEntitiesSystem.isManagedPet(entity)) {
 			return;
 		}
 		if (!isRegionalDifficultyScalingEnabledForMob(entity)) {

@@ -68,6 +68,7 @@
     "MobEffectTickOverrideMixin",
     "MobExperienceAccessor",
     "MobPetSoundMixin",
+    "MobTargetSelectorAccessor",
     "MobSpawnOverridesMixin",
     "PlayerEatGateMixin",
     "PlayerEntitiesInventoryMixin",
