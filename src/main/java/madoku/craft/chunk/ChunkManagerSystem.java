@@ -71,7 +71,6 @@ public final class ChunkManagerSystem {
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile int discoveryChunkScanCursor = 0;
 	private static volatile boolean discoveryChunksSeeded = false;
-	private static volatile long lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 
 	private ChunkManagerSystem() {
 	}
@@ -266,7 +265,6 @@ public final class ChunkManagerSystem {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
-		lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
 		SchedulerManagerSystem.clearAdaptiveDelayState(DIRTY_DISCOVERY_SCHEDULER_OWNER_ID);
 		clearProcessorRoundRobinAdaptiveState();
@@ -386,7 +384,6 @@ public final class ChunkManagerSystem {
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId(level), chunkX, chunkZ);
 		markChunkDiscoveryDirty(chunkKey);
 		markTrackedChunkDirtyForAllProcessors(chunkKey);
-		requestImmediateChunkRefresh(level.getServer());
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -409,7 +406,6 @@ public final class ChunkManagerSystem {
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
-		lastImmediateRefreshRequestTick = Long.MIN_VALUE;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -557,7 +553,6 @@ public final class ChunkManagerSystem {
 		addSharedDiscoveryLoadedChunk(chunkKey);
 		markChunkDiscoveryDirty(chunkKey);
 		markTrackedChunkDirtyForAllProcessors(chunkKey);
-		requestImmediateChunkRefresh(level.getServer());
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
@@ -717,25 +712,6 @@ public final class ChunkManagerSystem {
 		if (enqueueChunkRefresh(chunkSchedulerId, delayTicks)) {
 			refreshTaskScheduled = true;
 		}
-	}
-
-	private static void requestImmediateChunkRefresh(MinecraftServer server) {
-		if (server == null || !hasActiveChunkProcessors()) {
-			return;
-		}
-		long gameplayTick = MadokuTicks.getGameplayTicks();
-		if (refreshTaskScheduled && gameplayTick == lastImmediateRefreshRequestTick) {
-			return;
-		}
-		if (refreshTaskScheduled) {
-			String schedulerId = ensureChunkSchedulerExists();
-			if (schedulerId != null && !schedulerId.isBlank()) {
-				SchedulerManagerSystem.clearQueuedRequests(schedulerId);
-			}
-			refreshTaskScheduled = false;
-		}
-		lastImmediateRefreshRequestTick = gameplayTick;
-		requestChunkRefresh(server, resolveDirtyDiscoveryInterval(server));
 	}
 
 	private static boolean hasPendingDirtyDiscoveryWork() {

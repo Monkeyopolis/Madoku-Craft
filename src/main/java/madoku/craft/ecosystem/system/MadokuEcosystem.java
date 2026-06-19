@@ -182,6 +182,8 @@ public final class MadokuEcosystem {
 	private static volatile String lastUnifiedDiscoveryLevelId = "";
 	private static volatile int lastUnifiedDiscoveryChunkX = Integer.MIN_VALUE;
 	private static volatile int lastUnifiedDiscoveryChunkZ = Integer.MIN_VALUE;
+	private static final ThreadLocal<Integer> CHUNK_TRACKING_SYNC_BATCH_DEPTH = ThreadLocal.withInitial(() -> 0);
+	private static final ThreadLocal<Set<ChunkRefKey>> CHUNK_TRACKING_SYNC_BATCH_KEYS = ThreadLocal.withInitial(LinkedHashSet::new);
 
 	private static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	private static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
@@ -537,7 +539,12 @@ public final class MadokuEcosystem {
 		lastUnifiedDiscoveryLevelId = worldLevelId;
 		lastUnifiedDiscoveryChunkX = chunkX;
 		lastUnifiedDiscoveryChunkZ = chunkZ;
-		discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot);
+		beginChunkTrackingSyncBatch();
+		try {
+			discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot);
+		} finally {
+			endChunkTrackingSyncBatch();
+		}
 	}
 
 	private static void discoverTrackablesInChunk(
@@ -2431,7 +2438,17 @@ public final class MadokuEcosystem {
 		if (chunkKey == null) {
 			return;
 		}
+		if (isChunkTrackingSyncBatchActive()) {
+			CHUNK_TRACKING_SYNC_BATCH_KEYS.get().add(chunkKey);
+			return;
+		}
+		syncChunkProcessorTrackingNow(chunkKey);
+	}
 
+	private static void syncChunkProcessorTrackingNow(ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
 		boolean growthTracked = treeCandidatesByChunk.containsKey(chunkKey)
 			|| cactusCandidatesByChunk.containsKey(chunkKey)
 			|| (grassCandidatesByChunk.containsKey(chunkKey) && !grassCandidatesByChunk.getOrDefault(chunkKey, List.of()).isEmpty())
@@ -2452,6 +2469,31 @@ public final class MadokuEcosystem {
 		} else {
 			ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_EROSION_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
+	}
+
+	private static void beginChunkTrackingSyncBatch() {
+		CHUNK_TRACKING_SYNC_BATCH_DEPTH.set(CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() + 1);
+	}
+
+	private static void endChunkTrackingSyncBatch() {
+		int depth = CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() - 1;
+		if (depth > 0) {
+			CHUNK_TRACKING_SYNC_BATCH_DEPTH.set(depth);
+			return;
+		}
+
+		CHUNK_TRACKING_SYNC_BATCH_DEPTH.remove();
+		Set<ChunkRefKey> pendingKeys = CHUNK_TRACKING_SYNC_BATCH_KEYS.get();
+		List<ChunkRefKey> keysToSync = new ArrayList<>(pendingKeys);
+		pendingKeys.clear();
+		CHUNK_TRACKING_SYNC_BATCH_KEYS.remove();
+		for (ChunkRefKey pendingKey : keysToSync) {
+			syncChunkProcessorTrackingNow(pendingKey);
+		}
+	}
+
+	private static boolean isChunkTrackingSyncBatchActive() {
+		return CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() > 0;
 	}
 
 	private static boolean chunkHasDirtMode(ChunkRefKey chunkKey, String mode) {
