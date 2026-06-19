@@ -13,7 +13,6 @@ import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Monster;
@@ -348,7 +347,7 @@ public final class MadokuMobSkeleton {
 		ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
 		arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
 		arrow.setCritArrow(false);
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			arrow.setRemainingFireTicks(0);
 		}
 		MadokuMobManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
@@ -398,11 +397,11 @@ public final class MadokuMobSkeleton {
 		if (skeleton == null) {
 			return "";
 		}
-		return skeleton.getType() == EntityType.SKELETON ? MobConfigManager.FILE_SKELETON
-			: skeleton.getType() == EntityType.STRAY ? MobConfigManager.FILE_STRAY
-			: skeleton.getType() == EntityType.BOGGED ? MobConfigManager.FILE_BOGGED
-			: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
-			: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
+		return skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.SKELETON ? MobConfigManager.FILE_SKELETON
+			: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY ? MobConfigManager.FILE_STRAY
+			: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED ? MobConfigManager.FILE_BOGGED
+			: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED ? MobConfigManager.FILE_PARCHED
+			: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
 			: "";
 	}
 

@@ -23,7 +23,6 @@
     "ContainerEntityLootMixin",
     "ContainerStackLimitMixin",
     "CraftingMenuRarityMixin",
-    "CreativeModeTabsSpawnEggsMixin",
     "CreeperAccessor",
     "CreeperExplosionMixin",
     "CreeperPoweredAccessor",

@@ -6,6 +6,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.core.BlockPos;
@@ -24,6 +25,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -80,9 +82,12 @@ public final class MadokuEntities {
 
 	public static void initialize() {
 		FabricDefaultAttributeRegistry.register(HAG, Witch.createAttributes());
+		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output ->
+			output.accept(HAG_SPAWN_EGG)
+		);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-			if (!(entity instanceof Witch witch) || witch.getType() != EntityType.WITCH || !(world instanceof ServerLevel serverLevel)) {
+			if (!(entity instanceof Witch witch) || witch.getType() != madoku.craft.entity.MadokuEntityTypes.WITCH || !(world instanceof ServerLevel serverLevel)) {
 				return;
 			}
 			if (!isSwampHutSpawn(serverLevel, witch)) {

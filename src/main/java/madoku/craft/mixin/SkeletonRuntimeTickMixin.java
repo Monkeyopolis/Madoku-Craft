@@ -18,19 +18,19 @@ public abstract class SkeletonRuntimeTickMixin {
 		if (!((Object) this instanceof AbstractSkeleton skeleton)) {
 			return;
 		}
-		if (skeleton.getType() == net.minecraft.world.entity.EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			MadokuMobStray.tickRangedSkeletonRuntime(skeleton);
 			return;
 		}
-		if (skeleton.getType() == net.minecraft.world.entity.EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			MadokuMobBogged.tickRangedSkeletonRuntime(skeleton);
 			return;
 		}
-		if (skeleton.getType() == net.minecraft.world.entity.EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			MadokuMobParched.tickRangedSkeletonRuntime(skeleton);
 			return;
 		}
-		if (skeleton.getType() == net.minecraft.world.entity.EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			MadokuMobSkeleton.tickRangedSkeletonRuntime(skeleton);
 			return;
 		}

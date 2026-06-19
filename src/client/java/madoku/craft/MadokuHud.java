@@ -226,7 +226,7 @@ public final class MadokuHud {
 
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
-		if (player == null || client.level == null || client.options.hideGui || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
+		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
 			return;
 		}
 		if (!(player instanceof PlayerEntitiesHolder holder)) {
@@ -305,7 +305,7 @@ public final class MadokuHud {
 		float maxHealth = roundToStep(Math.max(1.0F, player.getMaxHealth()), HEALTH_STEP);
 		boolean hardcore = level.getLevelData().isHardcore();
 		Gui gui = client.gui;
-		int ticks = gui.getGuiTicks();
+		int ticks = gui.hud.getGuiTicks();
 		boolean blinking = isBlinking(gui, ticks);
 
 		int heartX = context.guiWidth() / 2 - 91;
@@ -607,7 +607,7 @@ public final class MadokuHud {
 	}
 
 	private static boolean isBlinking(Gui gui, int ticks) {
-		long healthBlinkTime = ((GuiAccessor) gui).madokuCraft$getHealthBlinkTime();
+		long healthBlinkTime = ((GuiAccessor) gui.hud).madokuCraft$getHealthBlinkTime();
 		long currentTicks = ticks;
 		return healthBlinkTime > currentTicks && ((healthBlinkTime - currentTicks) / 3L) % 2L == 1L;
 	}

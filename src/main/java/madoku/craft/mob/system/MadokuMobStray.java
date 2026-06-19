@@ -594,7 +594,7 @@ public final class MadokuMobStray {
 	}
 
 	private static String fileKeyForType(AbstractSkeleton skeleton) {
-		if (skeleton == null || skeleton.getType() != net.minecraft.world.entity.EntityType.STRAY) {
+		if (skeleton == null || skeleton.getType() != madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return "";
 		}
 		return MobConfigManager.FILE_STRAY;

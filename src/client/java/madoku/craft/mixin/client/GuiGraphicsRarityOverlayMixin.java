@@ -82,7 +82,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		int indicatorHeight = textRenderer.lineHeight;
 		int textX = x + 17 - indicatorWidth + INDICATOR_X_OFFSET;
 		int textY = y + 16 - indicatorHeight + INDICATOR_Y_OFFSET;
-		Integer colorValue = rarity.color().getColor();
+		Integer colorValue = net.minecraft.network.chat.TextColor.fromLegacyFormat(rarity.color()).getValue();
 		int textColor = (colorValue != null ? colorValue : 0xFFFFFF) | 0xFF000000;
 
 		this.text(textRenderer, indicator, textX, textY, textColor, true);

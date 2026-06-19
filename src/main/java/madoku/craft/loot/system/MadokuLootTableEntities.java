@@ -126,7 +126,7 @@ public final class MadokuLootTableEntities {
 		String zombieConfiguredReference = "";
 		boolean zombieCustomDropsEnabled = false;
 		String zombieResolutionSource = "none";
-		if (thisEntity != null && thisEntity.getType() == EntityType.BEE && MadokuMobManager.isEnabled()) {
+		if (thisEntity != null && thisEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE && MadokuMobManager.isEnabled()) {
 			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(thisEntity)) {
 				emitLootContextProbe(
 					lootContext,
@@ -294,10 +294,10 @@ public final class MadokuLootTableEntities {
 	}
 
 	private static boolean isZombieMobType(EntityType<?> type) {
-		return type == EntityType.ZOMBIE
-			|| type == EntityType.HUSK
-			|| type == EntityType.DROWNED
-			|| type == EntityType.ZOMBIE_VILLAGER;
+		return type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE
+			|| type == madoku.craft.entity.MadokuEntityTypes.HUSK
+			|| type == madoku.craft.entity.MadokuEntityTypes.DROWNED
+			|| type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER;
 	}
 
 	private static void fillContainer(Container container, List<ItemStack> generated, RandomSource random) {

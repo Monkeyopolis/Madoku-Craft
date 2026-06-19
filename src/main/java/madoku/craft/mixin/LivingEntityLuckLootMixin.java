@@ -45,7 +45,7 @@ public abstract class LivingEntityLuckLootMixin {
 		}
 
 		String configuredReference = "";
-		if (livingEntity.getType() == EntityType.BEE) {
+		if (livingEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(livingEntity)) {
 				return;
 			}
@@ -103,10 +103,10 @@ public abstract class LivingEntityLuckLootMixin {
 	}
 
 	private static boolean isZombieType(EntityType<?> type) {
-		return type == EntityType.ZOMBIE
-			|| type == EntityType.HUSK
-			|| type == EntityType.DROWNED
-			|| type == EntityType.ZOMBIE_VILLAGER;
+		return type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE
+			|| type == madoku.craft.entity.MadokuEntityTypes.HUSK
+			|| type == madoku.craft.entity.MadokuEntityTypes.DROWNED
+			|| type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER;
 	}
 
 	private static ServerPlayer resolveLootPlayer(DamageSource source) {

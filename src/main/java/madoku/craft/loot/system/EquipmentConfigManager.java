@@ -100,31 +100,31 @@ public final class EquipmentConfigManager {
 	}
 
 	private static String defaultFileKeyForType(EntityType<?> type) {
-		if (type == EntityType.SKELETON) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.SKELETON) {
 			return "minecraft-equipment-skeleton";
 		}
-		if (type == EntityType.STRAY) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return "minecraft-equipment-stray";
 		}
-		if (type == EntityType.BOGGED) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return "minecraft-equipment-bogged";
 		}
-		if (type == EntityType.PARCHED) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return "minecraft-equipment-parched";
 		}
-		if (type == EntityType.WITHER_SKELETON) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return "minecraft-equipment-wither-skeleton";
 		}
-		if (type == EntityType.HUSK) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.HUSK) {
 			return "minecraft-equipment-husk";
 		}
-		if (type == EntityType.DROWNED) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.DROWNED) {
 			return "minecraft-equipment-drowned";
 		}
-		if (type == EntityType.ZOMBIE_VILLAGER) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER) {
 			return "minecraft-equipment-zombie-villager";
 		}
-		if (type == EntityType.ZOMBIE) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return "minecraft-equipment-zombie";
 		}
 		return "";

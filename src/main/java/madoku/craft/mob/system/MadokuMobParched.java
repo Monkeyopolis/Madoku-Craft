@@ -594,7 +594,7 @@ public final class MadokuMobParched {
 	}
 
 	private static String fileKeyForType(AbstractSkeleton skeleton) {
-		if (skeleton == null || skeleton.getType() != net.minecraft.world.entity.EntityType.PARCHED) {
+		if (skeleton == null || skeleton.getType() != madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return "";
 		}
 		return MobConfigManager.FILE_PARCHED;

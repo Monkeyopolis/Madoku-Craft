@@ -99,7 +99,7 @@ public final class MadokuMobHusk {
 	}
 
 	public static boolean shouldOverrideSpawnRules(Husk husk) {
-		if (husk == null || husk.getType() != EntityType.HUSK) {
+		if (husk == null || husk.getType() != madoku.craft.entity.MadokuEntityTypes.HUSK) {
 			return false;
 		}
 		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_HUSK)) {
@@ -689,7 +689,7 @@ public final class MadokuMobHusk {
 	}
 
 	private static String fileKeyForType(EntityType<?> type) {
-		return type == EntityType.HUSK ? MobConfigManager.FILE_HUSK : "";
+		return type == madoku.craft.entity.MadokuEntityTypes.HUSK ? MobConfigManager.FILE_HUSK : "";
 	}
 
 	private static String resolveDefaultMobEquipmentReference() {

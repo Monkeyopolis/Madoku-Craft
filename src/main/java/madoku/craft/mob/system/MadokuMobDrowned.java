@@ -12,7 +12,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -130,7 +129,7 @@ public final class MadokuMobDrowned {
 	}
 
 	public static boolean shouldOverrideSpawnRules(Drowned drowned) {
-		if (drowned == null || drowned.getType() != EntityType.DROWNED) {
+		if (drowned == null || drowned.getType() != madoku.craft.entity.MadokuEntityTypes.DROWNED) {
 			return false;
 		}
 		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_DROWNED)) {
@@ -892,11 +891,11 @@ public final class MadokuMobDrowned {
 	}
 
 	private static String fileKeyForType(net.minecraft.world.entity.EntityType<?> type) {
-		return type == EntityType.DROWNED ? MobConfigManager.FILE_DROWNED : "";
+		return type == madoku.craft.entity.MadokuEntityTypes.DROWNED ? MobConfigManager.FILE_DROWNED : "";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(net.minecraft.world.entity.EntityType<?> type) {
-		return type == EntityType.DROWNED ? "minecraft-equipment-drowned.json" : "";
+		return type == madoku.craft.entity.MadokuEntityTypes.DROWNED ? "minecraft-equipment-drowned.json" : "";
 	}
 
 	private static ItemStack rollArmorItemForSlot(

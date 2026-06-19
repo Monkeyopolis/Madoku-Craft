@@ -14,7 +14,7 @@ public abstract class EffectCommandsSaturationDurationMixin {
 		method = "giveEffect",
 		at = @At(
 			value = "INVOKE",
-			target = "Lnet/minecraft/world/effect/MobEffect;isInstantenous()Z"
+			target = "Lnet/minecraft/world/effect/MobEffect;isInstantaneous()Z"
 		)
 	)
 	private static boolean madokuCraft$overrideSaturationInstantDuration(MobEffect effect) {
@@ -22,6 +22,6 @@ public abstract class EffectCommandsSaturationDurationMixin {
 			// Treat saturation as a timed effect for command duration conversion (seconds -> ticks).
 			return false;
 		}
-		return effect.isInstantenous();
+		return effect.isInstantaneous();
 	}
 }

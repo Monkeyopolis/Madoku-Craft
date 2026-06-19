@@ -96,7 +96,7 @@ public final class MadokuMobZombie {
 	}
 
 	public static boolean shouldOverrideSpawnRules(Zombie zombie) {
-		if (zombie == null || zombie.getType() != EntityType.ZOMBIE) {
+		if (zombie == null || zombie.getType() != madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return false;
 		}
 		if (!MadokuMobManager.isEnabled() || !MadokuMobManager.isMobFileEnabledForRuntime(MobConfigManager.FILE_ZOMBIE)) {
@@ -234,7 +234,7 @@ public final class MadokuMobZombie {
 		JsonObject variantRoot,
 		EntitySpawnReason spawnReason
 	) {
-		if (zombie == null || variantRoot == null || zombie.getType() != EntityType.ZOMBIE) {
+		if (zombie == null || variantRoot == null || zombie.getType() != madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return false;
 		}
 		JsonObject spawnRules = readObject(variantRoot, MobConfigManager.FIELD_SPAWN_RULES);
@@ -243,7 +243,7 @@ public final class MadokuMobZombie {
 			return false;
 		}
 		EntityType<?> replacementType = MadokuMobManager.resolveConfiguredMobEntityType(alternativeMobRoot, zombie.isBaby());
-		if (replacementType == null || replacementType == EntityType.ZOMBIE) {
+		if (replacementType == null || replacementType == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return false;
 		}
 		MadokuMobManager.queueZombieReplacement(zombie, replacementType, spawnReason);
@@ -255,7 +255,7 @@ public final class MadokuMobZombie {
 			return;
 		}
 		Entity vehicle = zombie.getVehicle();
-		if (vehicle == null || vehicle.getType() != EntityType.CHICKEN) {
+		if (vehicle == null || vehicle.getType() != madoku.craft.entity.MadokuEntityTypes.CHICKEN) {
 			return;
 		}
 		zombie.stopRiding();
@@ -661,14 +661,14 @@ public final class MadokuMobZombie {
 	}
 
 	private static String fileKeyForType(EntityType<?> type) {
-		if (type == EntityType.ZOMBIE) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return MobConfigManager.FILE_ZOMBIE;
 		}
 		return "";
 	}
 
 	private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
-		if (type == EntityType.ZOMBIE) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return "minecraft-equipment-zombie.json";
 		}
 		return "";

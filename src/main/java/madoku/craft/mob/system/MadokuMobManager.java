@@ -222,7 +222,7 @@ public final class MadokuMobManager {
 			return false;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				if (MadokuMobWitherSkeleton.shouldOverrideSpawnRules(skeleton)) {
 					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "wither_skeleton");
 					MadokuMobWitherSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
@@ -231,7 +231,7 @@ public final class MadokuMobManager {
 				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "wither_skeleton_no_override");
 				return false;
 			}
-			if (skeleton.getType() == EntityType.BOGGED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 				if (MadokuMobBogged.shouldOverrideSpawnRules(skeleton)) {
 					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "bogged");
 					MadokuMobBogged.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
@@ -240,7 +240,7 @@ public final class MadokuMobManager {
 				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "bogged_no_override");
 				return false;
 			}
-			if (skeleton.getType() == EntityType.PARCHED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 				if (MadokuMobParched.shouldOverrideSpawnRules(skeleton)) {
 					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "parched");
 					MadokuMobParched.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
@@ -289,7 +289,7 @@ public final class MadokuMobManager {
 			return;
 		}
 		emitSpawnOverrideDebug("tail_enter", mob, world, difficulty, spawnReason, "after_vanilla");
-		if (mob.getType() == EntityType.BEE) {
+		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			MadokuMobBee.applySpawnOverrides(mob, world);
 			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "bee");
 			return;
@@ -415,7 +415,7 @@ public final class MadokuMobManager {
 	}
 
 	static void queueZombieReplacement(Zombie zombie, EntityType<?> replacementType, EntitySpawnReason spawnReason) {
-		if (zombie == null || replacementType == null || replacementType == EntityType.ZOMBIE || spawnReason == null) {
+		if (zombie == null || replacementType == null || replacementType == madoku.craft.entity.MadokuEntityTypes.ZOMBIE || spawnReason == null) {
 			return;
 		}
 		PENDING_ZOMBIE_REPLACEMENTS.put(zombie.getUUID(), new PendingZombieReplacement(replacementType, spawnReason));
@@ -424,7 +424,7 @@ public final class MadokuMobManager {
 	}
 
 	static void queueCaveSpiderReplacement(Spider spider, EntitySpawnReason spawnReason) {
-		if (spider == null || spawnReason == null || spider.getType() != EntityType.SPIDER) {
+		if (spider == null || spawnReason == null || spider.getType() != madoku.craft.entity.MadokuEntityTypes.SPIDER) {
 			return;
 		}
 		PENDING_CAVE_SPIDER_REPLACEMENTS.put(spider.getUUID(), spawnReason);
@@ -433,7 +433,7 @@ public final class MadokuMobManager {
 	}
 
 	static void queueSpiderJockeyReplacement(Spider spider, EntitySpawnReason spawnReason) {
-		if (spider == null || spawnReason == null || spider.getType() != EntityType.SPIDER) {
+		if (spider == null || spawnReason == null || spider.getType() != madoku.craft.entity.MadokuEntityTypes.SPIDER) {
 			return;
 		}
 		PENDING_SPIDER_JOCKEY_REPLACEMENTS.put(spider.getUUID(), spawnReason);
@@ -487,18 +487,18 @@ public final class MadokuMobManager {
 		if (skeleton == null || world == null || difficulty == null || !snapshot.enabled) {
 			return;
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			MadokuMobWitherSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 			return;
 		}
 		if (!isSupportedSkeletonRuntimeType(skeleton)) {
 			return;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			MadokuMobStray.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
-		} else if (skeleton.getType() == EntityType.BOGGED) {
+		} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			MadokuMobBogged.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
-		} else if (skeleton.getType() == EntityType.PARCHED) {
+		} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			MadokuMobParched.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 		} else {
 			MadokuMobSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
@@ -509,16 +509,16 @@ public final class MadokuMobManager {
 		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
 			return false;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return MadokuMobStray.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return MadokuMobBogged.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return MadokuMobParched.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
 		}
 		return MadokuMobSkeleton.applyRangedSkeletonBowAttack(skeleton, target, pullProgress);
@@ -528,16 +528,16 @@ public final class MadokuMobManager {
 		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
 			return -1;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return MadokuMobStray.resolveBowAttackIntervalTicks(skeleton);
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return MadokuMobBogged.resolveBowAttackIntervalTicks(skeleton);
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return MadokuMobParched.resolveBowAttackIntervalTicks(skeleton);
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
 		}
 		return MadokuMobSkeleton.resolveBowAttackIntervalTicks(skeleton);
@@ -545,16 +545,16 @@ public final class MadokuMobManager {
 
 	public static int resolveSkeletonChargeUpTicks(Monster attacker) {
 		if (attacker instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == EntityType.STRAY) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 				return MadokuMobStray.resolveBowChargeUpTicks(skeleton);
 			}
-			if (skeleton.getType() == EntityType.BOGGED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 				return MadokuMobBogged.resolveBowChargeUpTicks(skeleton);
 			}
-			if (skeleton.getType() == EntityType.PARCHED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 				return MadokuMobParched.resolveBowChargeUpTicks(skeleton);
 			}
-			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				return MadokuMobSkeleton.resolveBowChargeUpTicks(skeleton);
 			}
 			return MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
@@ -769,15 +769,15 @@ public final class MadokuMobManager {
 		if (skeleton == null) {
 			return;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			MadokuMobStray.ensureBowEquipped(skeleton);
 			return;
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			MadokuMobBogged.ensureBowEquipped(skeleton);
 			return;
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			MadokuMobParched.ensureBowEquipped(skeleton);
 			return;
 		}
@@ -792,7 +792,7 @@ public final class MadokuMobManager {
 		if (!(attacker instanceof AbstractSkeleton skeleton) || source.getDirectEntity() != attacker) {
 			return false;
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return false;
 		}
 		return resolveBowHand(skeleton) == null;
@@ -829,23 +829,23 @@ public final class MadokuMobManager {
 			return MadokuMobZombie.applyLoadedEntityOverrides(zombie);
 		}
 		if (entity instanceof Spider spider) {
-			if (spider.getType() == EntityType.CAVE_SPIDER) {
+			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
 				return MadokuMobCaveSpider.applyLoadedEntityOverrides(spider);
 			}
 			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
 			return isMobFileEnabled(MobConfigManager.FILE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				return MadokuMobWitherSkeleton.applyLoadedEntityOverrides(skeleton);
 			}
-			if (skeleton.getType() == EntityType.STRAY) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 				return MadokuMobStray.applyLoadedEntityOverrides(skeleton);
 			}
-			if (skeleton.getType() == EntityType.BOGGED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 				return MadokuMobBogged.applyLoadedEntityOverrides(skeleton);
 			}
-			if (skeleton.getType() == EntityType.PARCHED) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 				return MadokuMobParched.applyLoadedEntityOverrides(skeleton);
 			}
 			return MadokuMobSkeleton.applyLoadedEntityOverrides(skeleton);
@@ -853,7 +853,7 @@ public final class MadokuMobManager {
 		if (entity instanceof Creeper creeper) {
 			return MadokuMobCreeper.applyLoadedEntityOverrides(creeper);
 		}
-			if (entity.getType() == EntityType.BEE) {
+			if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 				return MadokuMobBee.applyLoadedEntityOverrides(entity);
 			}
 		if (entity.getType() == MadokuEntities.HAG) {
@@ -895,7 +895,7 @@ public final class MadokuMobManager {
 			return;
 		}
 		if (entity instanceof Spider spider) {
-			if (spider.getType() == EntityType.CAVE_SPIDER) {
+			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
 				MadokuMobCaveSpider.applyLoadedEntityDifficultyOverrides(spider);
 				return;
 			}
@@ -906,15 +906,15 @@ public final class MadokuMobManager {
 			return;
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				MadokuMobWitherSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
 				return;
 			}
-			if (skeleton.getType() == EntityType.STRAY) {
+			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 				MadokuMobStray.applyLoadedEntityDifficultyOverrides(skeleton);
-			} else if (skeleton.getType() == EntityType.BOGGED) {
+			} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 				MadokuMobBogged.applyLoadedEntityDifficultyOverrides(skeleton);
-			} else if (skeleton.getType() == EntityType.PARCHED) {
+			} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 				MadokuMobParched.applyLoadedEntityDifficultyOverrides(skeleton);
 			} else {
 				MadokuMobSkeleton.applyLoadedEntityDifficultyOverrides(skeleton);
@@ -929,7 +929,7 @@ public final class MadokuMobManager {
 			MadokuMobZombie.applyLoadedEntityDifficultyOverrides(zombie);
 			return;
 		}
-		if (entity.getType() == EntityType.BEE) {
+		if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			MadokuMobBee.applyLoadedEntityDifficultyOverrides(entity);
 			return;
 		}
@@ -1040,7 +1040,7 @@ public final class MadokuMobManager {
 
 	public static boolean isBeeCustomMobDropsEnabled(LivingEntity entity) {
 		if (entity == null
-			|| entity.getType() != EntityType.BEE
+			|| entity.getType() != madoku.craft.entity.MadokuEntityTypes.BEE
 			|| !snapshot.enabled
 			|| !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
 			return false;
@@ -1055,7 +1055,7 @@ public final class MadokuMobManager {
 	}
 
 	public static String resolveBeeMobDropsConfigReference(LivingEntity entity) {
-		if (entity == null || entity.getType() != EntityType.BEE) {
+		if (entity == null || entity.getType() != madoku.craft.entity.MadokuEntityTypes.BEE) {
 			return "";
 		}
 		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
@@ -1065,7 +1065,7 @@ public final class MadokuMobManager {
 	}
 
 	public static JsonObject resolveBeeRootForRuntime(LivingEntity entity) {
-		if (entity == null || entity.getType() != EntityType.BEE || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
+		if (entity == null || entity.getType() != madoku.craft.entity.MadokuEntityTypes.BEE || !snapshot.enabled || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
 			return new JsonObject();
 		}
 		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
@@ -1073,7 +1073,7 @@ public final class MadokuMobManager {
 	}
 
 	public static MobEffectInstance resolveBeeAttackEffect(LivingEntity entity, MobEffectInstance fallbackEffect) {
-		if (entity == null || entity.getType() != EntityType.BEE || fallbackEffect == null) {
+		if (entity == null || entity.getType() != madoku.craft.entity.MadokuEntityTypes.BEE || fallbackEffect == null) {
 			return fallbackEffect;
 		}
 		JsonObject resolvedBeeRoot = resolveBeeRootForRuntime(entity);
@@ -1124,7 +1124,7 @@ public final class MadokuMobManager {
 		if (entity == null) {
 			return new JsonObject();
 		}
-		if (entity.getType() == EntityType.BEE) {
+		if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
 			return resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
 		}
@@ -1142,14 +1142,14 @@ public final class MadokuMobManager {
 			return "";
 		}
 		if (entity instanceof Spider spider) {
-			return spider.getType() == EntityType.CAVE_SPIDER ? MobConfigManager.FILE_CAVE_SPIDER : MobConfigManager.FILE_SPIDER;
+			return spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER ? MobConfigManager.FILE_CAVE_SPIDER : MobConfigManager.FILE_SPIDER;
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
-			return skeleton.getType() == EntityType.SKELETON ? MobConfigManager.FILE_SKELETON
-				: skeleton.getType() == EntityType.STRAY ? MobConfigManager.FILE_STRAY
-				: skeleton.getType() == EntityType.BOGGED ? MobConfigManager.FILE_BOGGED
-				: skeleton.getType() == EntityType.PARCHED ? MobConfigManager.FILE_PARCHED
-				: skeleton.getType() == EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
+			return skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.SKELETON ? MobConfigManager.FILE_SKELETON
+				: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY ? MobConfigManager.FILE_STRAY
+				: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED ? MobConfigManager.FILE_BOGGED
+				: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED ? MobConfigManager.FILE_PARCHED
+				: skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON
 				: "";
 		}
 		if (entity instanceof ZombieVillager) {
@@ -1159,14 +1159,14 @@ public final class MadokuMobManager {
 			return MobConfigManager.FILE_DROWNED;
 		}
 		if (entity instanceof Zombie zombie) {
-			return zombie.getType() == EntityType.ZOMBIE ? MobConfigManager.FILE_ZOMBIE
-				: zombie.getType() == EntityType.HUSK ? MobConfigManager.FILE_HUSK
+			return zombie.getType() == madoku.craft.entity.MadokuEntityTypes.ZOMBIE ? MobConfigManager.FILE_ZOMBIE
+				: zombie.getType() == madoku.craft.entity.MadokuEntityTypes.HUSK ? MobConfigManager.FILE_HUSK
 				: "";
 		}
 		if (entity instanceof Creeper) {
 			return MobConfigManager.FILE_CREEPER;
 		}
-		if (entity.getType() == EntityType.BEE) {
+		if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			return MobConfigManager.FILE_BEE;
 		}
 		if (entity.getType() == MadokuEntities.HAG) {
@@ -1903,17 +1903,17 @@ public final class MadokuMobManager {
 			emitRuntimeSpawnDebug(
 				"process_begin",
 				entry.getKey(),
-				EntityType.SPIDER,
-				EntityType.CAVE_SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER,
 				entry.getValue(),
 				"deferred_cave_spider"
 			);
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
-				EntityType.SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.SPIDER,
 				entry.getValue(),
-				EntityType.CAVE_SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER,
 				false,
 				"process_cave_spider_missing",
 				"process_cave_spider_create_failed",
@@ -1932,17 +1932,17 @@ public final class MadokuMobManager {
 			emitRuntimeSpawnDebug(
 				"process_begin",
 				entry.getKey(),
-				EntityType.SPIDER,
-				EntityType.SKELETON,
+				madoku.craft.entity.MadokuEntityTypes.SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.SKELETON,
 				entry.getValue(),
 				"deferred_spider_jockey"
 			);
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
-				EntityType.SPIDER,
+				madoku.craft.entity.MadokuEntityTypes.SPIDER,
 				entry.getValue(),
-				EntityType.SKELETON,
+				madoku.craft.entity.MadokuEntityTypes.SKELETON,
 				true,
 				"process_spider_jockey_missing",
 				"process_spider_jockey_create_failed",
@@ -1966,7 +1966,7 @@ public final class MadokuMobManager {
 			emitRuntimeSpawnDebug(
 				"process_begin",
 				entry.getKey(),
-				EntityType.ZOMBIE,
+				madoku.craft.entity.MadokuEntityTypes.ZOMBIE,
 				replacement.replacementType(),
 				replacement.reason(),
 				"deferred_zombie_replacement"
@@ -1974,7 +1974,7 @@ public final class MadokuMobManager {
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
-				EntityType.ZOMBIE,
+				madoku.craft.entity.MadokuEntityTypes.ZOMBIE,
 				replacement.reason(),
 				replacement.replacementType(),
 				false,
@@ -2146,7 +2146,7 @@ public final class MadokuMobManager {
 		if (attacker == null) {
 			return new JsonObject();
 		}
-		if (attacker.getType() == EntityType.BEE) {
+		if (attacker.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			return resolveBeeRootForRuntime(attacker);
 		}
 		if (attacker instanceof ZombieVillager zombieVillager) {
@@ -2192,13 +2192,13 @@ public final class MadokuMobManager {
 			return resolveSkeletonVariantRuntimeRoot(skeleton);
 		}
 		if (attacker instanceof Spider spider) {
-			String fileKey = spider.getType() == EntityType.CAVE_SPIDER
+			String fileKey = spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER
 				? MobConfigManager.FILE_CAVE_SPIDER
 				: MobConfigManager.FILE_SPIDER;
 			if (!isMobFileEnabled(fileKey)) {
 				return new JsonObject();
 			}
-			JsonObject fileRoot = spider.getType() == EntityType.CAVE_SPIDER
+			JsonObject fileRoot = spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER
 				? fileMobRoot(MobConfigManager.FILE_CAVE_SPIDER)
 				: fileMobRoot(MobConfigManager.FILE_SPIDER);
 			return readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
@@ -2518,16 +2518,16 @@ public final class MadokuMobManager {
 		if (skeleton == null || !snapshot.enabled) {
 			return false;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return MadokuMobStray.shouldOverrideSpawnRules(skeleton);
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return MadokuMobBogged.shouldOverrideSpawnRules(skeleton);
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return MadokuMobParched.shouldOverrideSpawnRules(skeleton);
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return MadokuMobWitherSkeleton.shouldOverrideSpawnRules(skeleton);
 		}
 		return MadokuMobSkeleton.shouldOverrideSpawnRules(skeleton);
@@ -2537,27 +2537,27 @@ public final class MadokuMobManager {
 		if (skeleton == null) {
 			return false;
 		}
-		return skeleton.getType() == EntityType.SKELETON
-			|| skeleton.getType() == EntityType.STRAY
-			|| skeleton.getType() == EntityType.BOGGED
-			|| skeleton.getType() == EntityType.PARCHED
-			|| skeleton.getType() == EntityType.WITHER_SKELETON;
+		return skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.SKELETON
+			|| skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY
+			|| skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED
+			|| skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED
+			|| skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON;
 	}
 
 	private static boolean isBowAttackEnabledForRuntimeSkeleton(AbstractSkeleton skeleton) {
 		if (skeleton == null || !snapshot.enabled) {
 			return false;
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return MadokuMobStray.isBowAttackEnabled(skeleton);
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return MadokuMobBogged.isBowAttackEnabled(skeleton);
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return MadokuMobParched.isBowAttackEnabled(skeleton);
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
 		}
 		return MadokuMobSkeleton.isBowAttackEnabled(skeleton);
@@ -2567,23 +2567,23 @@ public final class MadokuMobManager {
 		if (skeleton == null || !snapshot.enabled) {
 			return new JsonObject();
 		}
-		if (skeleton.getType() == EntityType.STRAY) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
 			return MadokuMobStray.resolveRuntimeRoot(skeleton);
 		}
-		if (skeleton.getType() == EntityType.BOGGED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return MadokuMobBogged.resolveRuntimeRoot(skeleton);
 		}
-		if (skeleton.getType() == EntityType.PARCHED) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 			return MadokuMobParched.resolveRuntimeRoot(skeleton);
 		}
-		if (skeleton.getType() == EntityType.WITHER_SKELETON) {
+		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return MadokuMobWitherSkeleton.resolveRuntimeRoot(skeleton);
 		}
 		return MadokuMobSkeleton.resolveRuntimeRoot(skeleton);
 	}
 
 	private static JsonObject zombieRoot(EntityType<?> type) {
-		if (type == EntityType.ZOMBIE) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
 			return fileMobRoot(MobConfigManager.FILE_ZOMBIE);
 		}
 		return new JsonObject();
@@ -2594,7 +2594,7 @@ public final class MadokuMobManager {
 	}
 
 	private static JsonObject drownedRoot(EntityType<?> type) {
-		if (type == EntityType.DROWNED) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.DROWNED) {
 			return fileMobRoot(MobConfigManager.FILE_DROWNED);
 		}
 		return new JsonObject();
@@ -2605,7 +2605,7 @@ public final class MadokuMobManager {
 	}
 
 	private static JsonObject zombieVillagerRoot(EntityType<?> type) {
-		if (type == EntityType.ZOMBIE_VILLAGER) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER) {
 			return fileMobRoot(MobConfigManager.FILE_ZOMBIE_VILLAGER);
 		}
 		return new JsonObject();
@@ -2616,7 +2616,7 @@ public final class MadokuMobManager {
 	}
 
 	private static JsonObject huskRoot(EntityType<?> type) {
-		if (type == EntityType.HUSK) {
+		if (type == madoku.craft.entity.MadokuEntityTypes.HUSK) {
 			return fileMobRoot(MobConfigManager.FILE_HUSK);
 		}
 		return new JsonObject();

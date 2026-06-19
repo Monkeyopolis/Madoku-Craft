@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.spider.Spider;
 import net.minecraft.world.level.ServerLevelAccessor;
@@ -22,7 +21,7 @@ public final class MadokuMobCaveSpider {
 		if (spider == null || world == null || difficulty == null || !MadokuMobManager.isEnabled()) {
 			return;
 		}
-		if (spider.getType() != EntityType.CAVE_SPIDER) {
+		if (spider.getType() != madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
 			return;
 		}
 		String fileKey = MobConfigManager.FILE_CAVE_SPIDER;

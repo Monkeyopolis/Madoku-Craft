@@ -274,7 +274,7 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	public static double resolveCreeperExplosionPowerScaling(Mob mob, double baseExplosionPower) {
-		if (mob == null || mob.getType() != EntityType.CREEPER || !snapshot.enabled()) {
+		if (mob == null || mob.getType() != madoku.craft.entity.MadokuEntityTypes.CREEPER || !snapshot.enabled()) {
 			return 0.0D;
 		}
 		if (!(mob instanceof DifficultyScaledMob scaledMob)) {
@@ -760,10 +760,10 @@ public final class MadokuRegionalDifficultyManager {
 			return false;
 		}
 		EntityType<?> type = mob.getType();
-		return type == EntityType.ENDER_DRAGON
-			|| type == EntityType.ELDER_GUARDIAN
-			|| type == EntityType.WITHER
-			|| type == EntityType.WARDEN;
+		return type == madoku.craft.entity.MadokuEntityTypes.ENDER_DRAGON
+			|| type == madoku.craft.entity.MadokuEntityTypes.ELDER_GUARDIAN
+			|| type == madoku.craft.entity.MadokuEntityTypes.WITHER
+			|| type == madoku.craft.entity.MadokuEntityTypes.WARDEN;
 	}
 
 	private static StructureContext resolveStructureContext(
@@ -879,7 +879,7 @@ public final class MadokuRegionalDifficultyManager {
 			double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
 			double healthAddition = resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
 			double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			double flyingSpeedAddition = fullStatScaling && mob.getType() == EntityType.BEE
+			double flyingSpeedAddition = fullStatScaling && mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE
 				? resolveFlyingSpeedScalingAmount(mob, increments, modes, totalAdjustment)
 				: 0.0D;
 			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
@@ -892,7 +892,7 @@ public final class MadokuRegionalDifficultyManager {
 		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
 		if (fullStatScaling) {
 			addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
-			if (mob.getType() == EntityType.BEE) {
+			if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 				addAttribute(mob, Attributes.FLYING_SPEED, flyingSpeedAddition);
 			}
 			addAttribute(mob, Attributes.SCALE, scaleAddition);

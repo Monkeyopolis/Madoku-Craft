@@ -471,7 +471,7 @@ public final class MadokuRarity {
 
 		int rgb = color.getValue();
 		for (MadokuRarityTier rarity : MadokuRarityTier.values()) {
-			Integer rarityColor = rarity.color().getColor();
+			Integer rarityColor = net.minecraft.network.chat.TextColor.fromLegacyFormat(rarity.color()).getValue();
 			if (rarityColor != null && rarityColor == rgb) {
 				return rarity;
 			}

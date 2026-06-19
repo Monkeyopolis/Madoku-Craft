@@ -594,7 +594,7 @@ public final class MadokuMobBogged {
 	}
 
 	private static String fileKeyForType(AbstractSkeleton skeleton) {
-		if (skeleton == null || skeleton.getType() != net.minecraft.world.entity.EntityType.BOGGED) {
+		if (skeleton == null || skeleton.getType() != madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 			return "";
 		}
 		return MobConfigManager.FILE_BOGGED;

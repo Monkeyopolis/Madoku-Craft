@@ -232,7 +232,7 @@ public final class MadokuMobWitherSkeleton {
 		if (target == null || attacker == null || target.level().isClientSide() || !MadokuMobManager.isEnabled()) {
 			return false;
 		}
-		if (!(attacker instanceof AbstractSkeleton skeleton) || skeleton.getType() != net.minecraft.world.entity.EntityType.WITHER_SKELETON) {
+		if (!(attacker instanceof AbstractSkeleton skeleton) || skeleton.getType() != madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 			return false;
 		}
 		JsonObject root = resolveRuntimeRoot(skeleton);
@@ -387,6 +387,6 @@ public final class MadokuMobWitherSkeleton {
 		if (skeleton == null) {
 			return "";
 		}
-		return skeleton.getType() == net.minecraft.world.entity.EntityType.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON : "";
+		return skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON : "";
 	}
 }

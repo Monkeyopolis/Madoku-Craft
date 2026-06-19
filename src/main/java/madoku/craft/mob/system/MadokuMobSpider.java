@@ -29,7 +29,7 @@ public final class MadokuMobSpider {
 		if (spider == null || world == null || difficulty == null || !MadokuMobManager.isEnabled()) {
 			return false;
 		}
-		if (spider.getType() != EntityType.SPIDER || spawnReason == EntitySpawnReason.JOCKEY) {
+		if (spider.getType() != madoku.craft.entity.MadokuEntityTypes.SPIDER || spawnReason == EntitySpawnReason.JOCKEY) {
 			return false;
 		}
 
@@ -103,8 +103,8 @@ public final class MadokuMobSpider {
 		JsonObject alternativeMobRoot = readObject(spawnRules, MobConfigManager.FIELD_SPAWN_ALTERNATIVE_MOB);
 		if (!alternativeMobRoot.entrySet().isEmpty() && readBoolean(alternativeMobRoot, MobConfigManager.FIELD_ENABLED, false)) {
 			EntityType<?> replacementType = MadokuMobManager.resolveConfiguredMobEntityType(alternativeMobRoot);
-			if (replacementType != null && replacementType != EntityType.SPIDER) {
-				if (replacementType == EntityType.CAVE_SPIDER) {
+			if (replacementType != null && replacementType != madoku.craft.entity.MadokuEntityTypes.SPIDER) {
+				if (replacementType == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
 					MadokuMobManager.queueCaveSpiderReplacement(spider, spawnReason);
 				}
 				return true;
@@ -154,7 +154,7 @@ public final class MadokuMobSpider {
 	}
 
 	public static boolean shouldOverrideSpawnRules(Spider spider) {
-		if (spider == null || spider.getType() != EntityType.SPIDER || !MadokuMobManager.isEnabled()) {
+		if (spider == null || spider.getType() != madoku.craft.entity.MadokuEntityTypes.SPIDER || !MadokuMobManager.isEnabled()) {
 			return false;
 		}
 		String fileKey = MobConfigManager.FILE_SPIDER;
@@ -241,7 +241,7 @@ public final class MadokuMobSpider {
 
 	private static void clearExistingSkeletonPassengers(Spider spider) {
 		for (Entity passenger : new ArrayList<>(spider.getPassengers())) {
-			if (passenger.getType() == EntityType.SKELETON) {
+			if (passenger.getType() == madoku.craft.entity.MadokuEntityTypes.SKELETON) {
 				passenger.stopRiding();
 				passenger.discard();
 			}

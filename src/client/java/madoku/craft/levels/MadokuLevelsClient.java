@@ -36,8 +36,8 @@ public final class MadokuLevelsClient {
 		}
 
 		boolean openKeyDown = InputConstants.isKeyDown(client.getWindow(), GLFW.GLFW_KEY_K);
-		if (openKeyDown && !wasOpenKeyDown && client.screen == null) {
-			client.setScreen(new MadokuLevelsScreen());
+		if (openKeyDown && !wasOpenKeyDown && client.gui.screen() == null) {
+			client.setScreenAndShow(new MadokuLevelsScreen());
 		}
 		wasOpenKeyDown = openKeyDown;
 	}
