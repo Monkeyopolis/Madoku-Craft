@@ -8,10 +8,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 
 public final class MadokuArmorManager {
 	private static final double DAMAGE_ROUND_INCREMENT = 0.05d;
-	private static final double ARMOR_POINT_STEP = 0.25d;
-	private static final double ARMOR_POINT_DAMAGE_REDUCTION = 0.05d;
-	private static final double TOUGHNESS_POINT_STEP = 0.25d;
-	private static final double TOUGHNESS_PERCENT_REDUCTION = 0.01d;
+	private static final double POINT_STEP = 0.25d;
 
 	private static volatile ArmorConfigManager.Settings settings = ArmorConfigManager.Settings.defaults();
 
@@ -31,23 +28,28 @@ public final class MadokuArmorManager {
 			return amount;
 		}
 
-		double armorPoints = clampToLimit(entity.getAttributeValue(Attributes.ARMOR), settings.armorPointsClampLimit);
-		double armorToughnessPoints = clampToLimit(
+		double armorPoints = clampToRange(
+			entity.getAttributeValue(Attributes.ARMOR),
+			settings.armorPoints.startingArmor,
+			settings.armorPoints.maxPoints
+		);
+		double armorToughnessPoints = clampToRange(
 			entity.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
-			settings.armorToughnessPointsClampLimit
+			settings.armorToughnessPoints.startingArmorToughness,
+			settings.armorToughnessPoints.maxPoints
 		);
 
-		long armorPointSteps = getStepCount(armorPoints, ARMOR_POINT_STEP);
-		long toughnessPointSteps = getStepCount(armorToughnessPoints, TOUGHNESS_POINT_STEP);
+		double damageAfterArmor = applyDamageReduction(amount, armorPoints, settings.armorPoints.damageReduction);
+		double damageAfterToughness = applyDamageReduction(
+			damageAfterArmor,
+			armorToughnessPoints,
+			settings.armorToughnessPoints.damageReduction
+		);
 
-		double reducedDamage = Math.max(0.0d, amount - (armorPointSteps * ARMOR_POINT_DAMAGE_REDUCTION));
-		double toughnessMultiplier = 1.0d - (toughnessPointSteps * TOUGHNESS_PERCENT_REDUCTION);
-		toughnessMultiplier = Math.max(0.0d, toughnessMultiplier);
-
-		double finalDamage = reducedDamage * toughnessMultiplier;
+		double finalDamage = damageAfterToughness;
 		if (source.is(DamageTypeTags.IS_FALL)) {
 			double mitigatedDamage = Math.max(0.0d, amount - finalDamage);
-			finalDamage = amount - (mitigatedDamage * settings.fallDamageArmorEffectiveness);
+			finalDamage = amount - (mitigatedDamage * settings.main.fallDamageReduction);
 		}
 
 		return (float) Math.max(0.0d, roundToDamageIncrement(finalDamage));
@@ -57,11 +59,32 @@ public final class MadokuArmorManager {
 		settings = ArmorConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
 	}
 
-	private static double clampToLimit(double value, int limit) {
-		if (value < 0) {
-			return 0.0d;
+	private static double applyDamageReduction(double amount, double points, ArmorConfigManager.DamageReduction reduction) {
+		if (amount <= 0.0d || reduction == null) {
+			return amount;
 		}
-		return Math.min(value, Math.max(0, limit));
+
+		long pointSteps = getStepCount(points, POINT_STEP);
+		if (pointSteps <= 0L) {
+			return amount;
+		}
+
+		return switch (reduction.type) {
+			case FLAT -> Math.max(0.0d, amount - (pointSteps * reduction.value));
+			case PERCENTAGE -> {
+				double multiplier = Math.max(0.0d, 1.0d - (pointSteps * reduction.value));
+				yield amount * multiplier;
+			}
+		};
+	}
+
+	private static double clampToRange(double value, double min, double max) {
+		double lowerBound = Math.min(min, max);
+		double upperBound = Math.max(min, max);
+		if (value < lowerBound) {
+			return lowerBound;
+		}
+		return Math.min(value, upperBound);
 	}
 
 	private static long getStepCount(double value, double stepSize) {
@@ -74,5 +97,4 @@ public final class MadokuArmorManager {
 	private static double roundToDamageIncrement(double value) {
 		return Math.round(value / DAMAGE_ROUND_INCREMENT) * DAMAGE_ROUND_INCREMENT;
 	}
-
 }
