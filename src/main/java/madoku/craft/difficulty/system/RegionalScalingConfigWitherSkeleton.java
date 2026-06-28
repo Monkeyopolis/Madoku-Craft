@@ -14,25 +14,26 @@ public final class RegionalScalingConfigWitherSkeleton {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
-			"minecraft:wither_skeleton",
-			health,
-			movementSpeed,
-			null,
-			null,
-			null,
-			armor,
-			damage,
-			knockbackResistance,
-			experienceDrop,
-			1.0d,
-			1.0d,
-			null
-		);
-		root.add(
-			RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
-			RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
-		);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.putAll(RegionalScalingConfigManager.buildMobScalingDefaults(
+				"minecraft:wither_skeleton",
+				health,
+				movementSpeed,
+				null,
+				null,
+				null,
+				armor,
+				damage,
+				knockbackResistance,
+				experienceDrop,
+				1.0d,
+				1.0d,
+				null
+			))
+			.put(
+				RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
+				RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
+			)
+			.build();
 	}
 }

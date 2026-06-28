@@ -3,6 +3,7 @@ package madoku.craft.armor;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributes;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -225,12 +226,12 @@ public final class MadokuArmor {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("max-armor-points", armorPointsClampLimit);
-			root.addProperty("max-armor-toughness-points", armorToughnessPointsClampLimit);
-			root.addProperty("fall-damage-armor-reduction", fallDamageArmorEffectiveness);
-			return root;
+			return JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("max-armor-points", armorPointsClampLimit)
+				.put("max-armor-toughness-points", armorToughnessPointsClampLimit)
+				.put("fall-damage-armor-reduction", fallDamageArmorEffectiveness)
+				.build();
 		}
 
 		private Settings withEnabled(boolean attributesEnabled) {

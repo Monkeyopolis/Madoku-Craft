@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -12,26 +12,27 @@ public final class LootTableConfigEntities {
 	}
 
 	public static JsonObject buildEntityTableTemplate(String tableId) {
-		JsonObject root = new JsonObject();
-		root.addProperty(LootTableConfigManager.FIELD_ENABLED, false);
-		root.addProperty(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId);
-
-		JsonObject rolls = new JsonObject();
-		rolls.addProperty(LootTableConfigManager.FIELD_MIN, 1);
-		rolls.addProperty(LootTableConfigManager.FIELD_MAX, 2);
-		root.add(LootTableConfigManager.FIELD_ROLLS, rolls);
-		root.add(LootTableConfigManager.FIELD_GROUPS, new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ENABLED, false)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+				.put(LootTableConfigManager.FIELD_MIN, 1)
+				.put(LootTableConfigManager.FIELD_MAX, 2))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> {
+			})
+			.build();
 	}
 
 	public static JsonObject buildEntityTable(String tableId, boolean enabled, int minRolls, int maxRolls) {
-		JsonObject root = buildEntityTableTemplate(tableId);
-		root.addProperty(LootTableConfigManager.FIELD_ENABLED, enabled);
-		JsonObject rolls = new JsonObject();
-		rolls.addProperty(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls));
-		rolls.addProperty(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls));
-		root.add(LootTableConfigManager.FIELD_ROLLS, rolls);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ENABLED, enabled)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+				.put(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls))
+				.put(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls)))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> {
+			})
+			.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultEntityTableFiles() {

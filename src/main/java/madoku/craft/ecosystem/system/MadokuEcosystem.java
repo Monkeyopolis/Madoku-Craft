@@ -1,10 +1,10 @@
 package madoku.craft.ecosystem.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
@@ -3665,44 +3665,44 @@ public final class MadokuEcosystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(FIELD_GROUND_BLOCKS, new JsonArray());
-		root.add(FIELD_TREE_CANDIDATES, new JsonArray());
-		root.add(FIELD_CACTUS_CANDIDATES, new JsonArray());
-		root.add(FIELD_GRASS_CANDIDATES, new JsonArray());
-		root.add(FIELD_DESERT_FOLIAGE_GROWTH_CANDIDATES, new JsonArray());
-		root.add(FIELD_FOLIAGE_CANDIDATES, new JsonArray());
-		root.add(FIELD_TREE_DECAY_CANDIDATES, new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.array(FIELD_GROUND_BLOCKS, groundBlocks -> {
+			})
+			.array(FIELD_TREE_CANDIDATES, treeCandidates -> {
+			})
+			.array(FIELD_CACTUS_CANDIDATES, cactusCandidates -> {
+			})
+			.array(FIELD_GRASS_CANDIDATES, grassCandidates -> {
+			})
+			.array(FIELD_DESERT_FOLIAGE_GROWTH_CANDIDATES, desertFoliageGrowthCandidates -> {
+			})
+			.array(FIELD_FOLIAGE_CANDIDATES, foliageCandidates -> {
+			})
+			.array(FIELD_TREE_DECAY_CANDIDATES, treeDecayCandidates -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		JsonArray dirtBlocks = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder dirtBlocks = JsonFormatBuilder.array();
 		for (DirtState dirt : dirtBlocksByKey.values()) {
 			if (dirt != null) {
 				dirtBlocks.add(dirt.toJson());
 			}
 		}
-		root.add(FIELD_GROUND_BLOCKS, dirtBlocks);
-
-		JsonArray treeCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder treeCandidates = JsonFormatBuilder.array();
 		for (TreeCandidateState candidate : treeCandidatesByChunk.values()) {
 			if (candidate != null) {
 				treeCandidates.add(candidate.toJson());
 			}
 		}
-		root.add(FIELD_TREE_CANDIDATES, treeCandidates);
-
-		JsonArray cactusCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder cactusCandidates = JsonFormatBuilder.array();
 		for (CactusCandidateState candidate : cactusCandidatesByChunk.values()) {
 			if (candidate != null) {
 				cactusCandidates.add(candidate.toJson());
 			}
 		}
-		root.add(FIELD_CACTUS_CANDIDATES, cactusCandidates);
-
-		JsonArray grassCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder grassCandidates = JsonFormatBuilder.array();
 		for (List<GrassCandidateState> candidateList : grassCandidatesByChunk.values()) {
 			if (candidateList == null || candidateList.isEmpty()) {
 				continue;
@@ -3713,9 +3713,7 @@ public final class MadokuEcosystem {
 				}
 			}
 		}
-		root.add(FIELD_GRASS_CANDIDATES, grassCandidates);
-
-		JsonArray desertFoliageGrowthCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder desertFoliageGrowthCandidates = JsonFormatBuilder.array();
 		for (List<GrassCandidateState> candidateList : desertFoliageGrowthCandidatesByChunk.values()) {
 			if (candidateList == null || candidateList.isEmpty()) {
 				continue;
@@ -3726,9 +3724,7 @@ public final class MadokuEcosystem {
 				}
 			}
 		}
-		root.add(FIELD_DESERT_FOLIAGE_GROWTH_CANDIDATES, desertFoliageGrowthCandidates);
-
-		JsonArray foliageCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder foliageCandidates = JsonFormatBuilder.array();
 		for (List<FoliageCandidateState> candidateList : foliageCandidatesByChunk.values()) {
 			if (candidateList == null || candidateList.isEmpty()) {
 				continue;
@@ -3739,9 +3735,7 @@ public final class MadokuEcosystem {
 				}
 			}
 		}
-		root.add(FIELD_FOLIAGE_CANDIDATES, foliageCandidates);
-
-		JsonArray treeDecayCandidates = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder treeDecayCandidates = JsonFormatBuilder.array();
 		for (List<TreeDecayCandidateState> candidateList : treeDecayCandidatesByChunk.values()) {
 			if (candidateList == null || candidateList.isEmpty()) {
 				continue;
@@ -3752,8 +3746,15 @@ public final class MadokuEcosystem {
 				}
 			}
 		}
-		root.add(FIELD_TREE_DECAY_CANDIDATES, treeDecayCandidates);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_GROUND_BLOCKS, dirtBlocks.build())
+			.put(FIELD_TREE_CANDIDATES, treeCandidates.build())
+			.put(FIELD_CACTUS_CANDIDATES, cactusCandidates.build())
+			.put(FIELD_GRASS_CANDIDATES, grassCandidates.build())
+			.put(FIELD_DESERT_FOLIAGE_GROWTH_CANDIDATES, desertFoliageGrowthCandidates.build())
+			.put(FIELD_FOLIAGE_CANDIDATES, foliageCandidates.build())
+			.put(FIELD_TREE_DECAY_CANDIDATES, treeDecayCandidates.build())
+			.build();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -3871,16 +3872,16 @@ public final class MadokuEcosystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_CHUNK_X, chunkX);
-			root.addProperty(FIELD_CHUNK_Z, chunkZ);
-			root.addProperty(FIELD_CACTUS_GROUND_POS, groundPos);
-			root.addProperty(FIELD_INITIAL_SEASON_ID, initialSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_CHUNK_X, chunkX)
+				.put(FIELD_CHUNK_Z, chunkZ)
+				.put(FIELD_CACTUS_GROUND_POS, groundPos)
+				.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static CactusCandidateState fromJson(JsonElement element) {
@@ -3954,16 +3955,16 @@ public final class MadokuEcosystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_CHUNK_X, chunkX);
-			root.addProperty(FIELD_CHUNK_Z, chunkZ);
-			root.addProperty(FIELD_GRASS_GROUND_POS, groundPos);
-			root.addProperty(FIELD_INITIAL_SEASON_ID, initialSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_CHUNK_X, chunkX)
+				.put(FIELD_CHUNK_Z, chunkZ)
+				.put(FIELD_GRASS_GROUND_POS, groundPos)
+				.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static GrassCandidateState fromJson(JsonElement element) {
@@ -4041,17 +4042,17 @@ public final class MadokuEcosystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_CHUNK_X, chunkX);
-			root.addProperty(FIELD_CHUNK_Z, chunkZ);
-			root.addProperty(FIELD_FOLIAGE_GROUND_POS, groundPos);
-			root.addProperty(FIELD_FOLIAGE_TYPE, foliageType);
-			root.addProperty(FIELD_INITIAL_SEASON_ID, initialSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_CHUNK_X, chunkX)
+				.put(FIELD_CHUNK_Z, chunkZ)
+				.put(FIELD_FOLIAGE_GROUND_POS, groundPos)
+				.put(FIELD_FOLIAGE_TYPE, foliageType)
+				.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static FoliageCandidateState fromJson(JsonElement element) {
@@ -4127,16 +4128,16 @@ public final class MadokuEcosystem {
 		}
 
 			private JsonObject toJson() {
-				JsonObject root = new JsonObject();
-				root.addProperty(FIELD_LEVEL_ID, levelId);
-				root.addProperty(FIELD_CHUNK_X, chunkX);
-				root.addProperty(FIELD_CHUNK_Z, chunkZ);
-				root.addProperty(FIELD_TREE_DECAY_TARGET_POS, leafPos);
-				root.addProperty(FIELD_INITIAL_SEASON_ID, initialSeasonId);
-				root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredDecayTicks);
-				root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressDecayTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+				return JsonFormatBuilder.object()
+					.put(FIELD_LEVEL_ID, levelId)
+					.put(FIELD_CHUNK_X, chunkX)
+					.put(FIELD_CHUNK_Z, chunkZ)
+					.put(FIELD_TREE_DECAY_TARGET_POS, leafPos)
+					.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
+					.put(FIELD_REQUIRED_GROWTH_TICKS, requiredDecayTicks)
+					.put(FIELD_PROGRESS_GROWTH_TICKS, progressDecayTicks)
+					.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+					.build();
 		}
 
 		private static TreeDecayCandidateState fromJson(JsonElement element) {
@@ -4231,17 +4232,17 @@ public final class MadokuEcosystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_CHUNK_X, chunkX);
-			root.addProperty(FIELD_CHUNK_Z, chunkZ);
-			root.addProperty(FIELD_TREE_GROUND_POS, groundPos);
-			root.addProperty(FIELD_TREE_TYPE, treeType);
-			root.addProperty(FIELD_INITIAL_SEASON_ID, initialSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_CHUNK_X, chunkX)
+				.put(FIELD_CHUNK_Z, chunkZ)
+				.put(FIELD_TREE_GROUND_POS, groundPos)
+				.put(FIELD_TREE_TYPE, treeType)
+				.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static TreeCandidateState fromJson(JsonElement element) {
@@ -4318,15 +4319,15 @@ public final class MadokuEcosystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_BLOCK_POS, dirtPos);
-			root.addProperty(FIELD_MODE, mode);
-			root.addProperty(FIELD_EROSION_RULE_ID, erosionRuleId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_BLOCK_POS, dirtPos)
+				.put(FIELD_MODE, mode)
+				.put(FIELD_EROSION_RULE_ID, erosionRuleId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static DirtState fromJson(JsonElement element) {

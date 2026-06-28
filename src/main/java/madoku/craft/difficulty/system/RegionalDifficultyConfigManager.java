@@ -2,6 +2,7 @@ package madoku.craft.difficulty.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,24 +59,22 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_BIOMES_ENABLED, true);
-		root.addProperty(FIELD_STRUCTURES_ENABLED, true);
-		root.addProperty(FIELD_TIME_ENABLED, true);
-		root.addProperty(FIELD_DEFAULT_UNKNOWN_ADJUSTMENT, DEFAULT_UNKNOWN_ADJUSTMENT);
-
-			JsonObject scaling = new JsonObject();
-			scaling.add(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT));
-			scaling.add(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT));
-			scaling.add(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT));
-			scaling.add(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT));
-			scaling.add(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT));
-			scaling.add(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT));
-			scaling.add(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT));
-			root.add(FIELD_DIFFICULTY_SCALING, scaling);
-			return root;
-		}
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_BIOMES_ENABLED, true)
+			.put(FIELD_STRUCTURES_ENABLED, true)
+			.put(FIELD_TIME_ENABLED, true)
+			.put(FIELD_DEFAULT_UNKNOWN_ADJUSTMENT, DEFAULT_UNKNOWN_ADJUSTMENT)
+			.object(FIELD_DIFFICULTY_SCALING, scaling -> scaling
+				.put(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT))
+				.put(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT))
+				.put(FIELD_FLYING_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_FLYING_SPEED_INCREMENT))
+				.put(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_ARMOR_INCREMENT))
+				.put(FIELD_DAMAGE, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_DAMAGE_INCREMENT))
+				.put(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT))
+				.put(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT)))
+			.build();
+	}
 
 	public static Map<String, JsonObject> buildDefaultBiomeFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
@@ -244,25 +243,25 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	public static JsonObject buildBiomeRuleDefaults(int adjustment, List<String> biomeList) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ADJUSTMENT, Math.max(0, adjustment));
-		root.add(FIELD_BIOME_LIST, toStringArray(biomeList));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
+			.put(FIELD_BIOME_LIST, toStringArray(biomeList))
+			.build();
 	}
 
 	public static JsonObject buildStructureRuleDefaults(int adjustment, List<String> structureList) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ADJUSTMENT, Math.max(0, adjustment));
-		root.add(FIELD_STRUCTURE_LIST, toStringArray(structureList));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
+			.put(FIELD_STRUCTURE_LIST, toStringArray(structureList))
+			.build();
 	}
 
 	public static JsonObject buildTimeRuleDefaults(int minDay, int maxDay, int adjustment) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_MIN_DAY, Math.max(0, minDay));
-		root.addProperty(FIELD_MAX_DAY, maxDay < 0 ? TIME_UNBOUNDED_MAX_DAY : Math.max(minDay, maxDay));
-		root.addProperty(FIELD_ADJUSTMENT, Math.max(0, adjustment));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_MIN_DAY, Math.max(0, minDay))
+			.put(FIELD_MAX_DAY, maxDay < 0 ? TIME_UNBOUNDED_MAX_DAY : Math.max(minDay, maxDay))
+			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
+			.build();
 	}
 
 	public static JsonObject buildMobScalingDefaults(String mobId) {
@@ -298,9 +297,9 @@ public final class RegionalDifficultyConfigManager {
 		Double attackAccuracy,
 		Double explosionPower
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_MOB_ID, normalizeMobId(mobId));
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_MOB_ID, normalizeMobId(mobId));
 		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_MULTIPLY);
 		addScalingEntry(root, FIELD_MOVEMENT_SPEED, movementSpeed, SCALING_TYPE_MULTIPLY);
 		addScalingEntry(root, FIELD_SWIMMING_SPEED, swimmingSpeed, SCALING_TYPE_MULTIPLY);
@@ -313,7 +312,7 @@ public final class RegionalDifficultyConfigManager {
 		addScalingEntry(root, FIELD_RANGED_DAMAGE, rangedDamage, SCALING_TYPE_MULTIPLY);
 		addScalingEntry(root, FIELD_ATTACK_ACCURACY, attackAccuracy, SCALING_TYPE_MULTIPLY);
 		addScalingEntry(root, FIELD_EXPLOSION_POWER, explosionPower, SCALING_TYPE_MULTIPLY);
-		return root;
+		return root.build();
 	}
 
 	public static List<TimeTierDefinition> defaultTimeTiers() {
@@ -326,34 +325,41 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	private static JsonArray toStringArray(List<String> values) {
-		JsonArray array = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder array = JsonFormatBuilder.array();
 		if (values == null) {
-			return array;
+			return array.build();
 		}
 		for (String value : values) {
 			if (value != null && !value.isBlank()) {
 				array.add(value);
 			}
 		}
-		return array;
+		return array.build();
 	}
 
 	public static JsonObject buildScalingValueRule(String type, double value) {
-		JsonObject rule = new JsonObject();
 		String normalizedType = type == null ? SCALING_TYPE_ADD : type.trim().toLowerCase(Locale.ROOT);
 		if (!SCALING_TYPE_ADD.equals(normalizedType) && !SCALING_TYPE_MULTIPLY.equals(normalizedType)) {
 			normalizedType = SCALING_TYPE_ADD;
 		}
-		rule.addProperty(FIELD_SCALING_TYPE, normalizedType);
-		rule.addProperty(FIELD_SCALING_VALUE, roundDifficultyScaleValue(value));
-		return rule;
+		return JsonFormatBuilder.object()
+			.put(FIELD_SCALING_TYPE, normalizedType)
+			.put(FIELD_SCALING_VALUE, roundDifficultyScaleValue(value))
+			.build();
 	}
 
-	private static void addScalingEntry(JsonObject root, String field, Double value, String type) {
+	private static void addScalingEntry(JsonFormatBuilder.ObjectBuilder root, String field, Double value, String type) {
 		if (root == null || field == null || field.isBlank() || value == null) {
 			return;
 		}
-		root.add(field, buildScalingValueRule(type, value));
+		String normalizedType = type == null ? SCALING_TYPE_ADD : type.trim().toLowerCase(Locale.ROOT);
+		if (!SCALING_TYPE_ADD.equals(normalizedType) && !SCALING_TYPE_MULTIPLY.equals(normalizedType)) {
+			normalizedType = SCALING_TYPE_ADD;
+		}
+		final String scalingType = normalizedType;
+		root.object(field, scaling -> scaling
+			.put(FIELD_SCALING_TYPE, scalingType)
+			.put(FIELD_SCALING_VALUE, roundDifficultyScaleValue(value)));
 	}
 
 	private static double roundDifficultyScaleValue(double value) {

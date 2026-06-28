@@ -484,30 +484,29 @@ public final class MadokuOxygen {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add("players", new JsonArray());
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.array("players", players -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
 		int oxygenCapTicks = settings.maximumOxygenTicks;
 
-		JsonObject root = createDefaultData();
-
-		JsonArray players = new JsonArray();
+		madoku.craft.config.JsonFormatBuilder.ArrayBuilder players = madoku.craft.config.JsonFormatBuilder.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			if (!state.hasPersistableState(oxygenCapTicks)) {
 				continue;
 			}
 
-			JsonObject player = new JsonObject();
-			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("oxygen-ticks", state.oxygenTicks);
-			players.add(player);
+			players.object(player -> player
+				.put("uuid", entry.getKey().toString())
+				.put("oxygen-ticks", state.oxygenTicks));
 		}
-		root.add("players", players);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.put("players", players.build())
+			.build();
 	}
 
 	private static void applyPersistedData(JsonObject source) {
@@ -718,10 +717,10 @@ public final class MadokuOxygen {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("maximum-oxygen", maximumOxygenTicks);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("maximum-oxygen", maximumOxygenTicks)
+				.build();
 		}
 
 		private Settings withEnabled(boolean attributesEnabled) {

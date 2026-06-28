@@ -2,6 +2,8 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
+import madoku.craft.config.JsonFormatBuilder;
+
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -162,9 +164,9 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildMobSystemDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ENABLED, true);
-		return defaults;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultMobFileDefaults() {
@@ -206,13 +208,14 @@ public final class MobConfigManager {
 	}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.add(FIELD_MOB_STATS, new JsonObject());
-		root.add(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults());
-		root.add(FIELD_MOB_BEHAVIOR, buildMobBehaviorDefaults());
-		root.add(FIELD_MOB_GOALS, buildMobGoalsDefaults());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.object(FIELD_MOB_STATS, builder -> {
+			})
+			.put(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults())
+			.put(FIELD_MOB_BEHAVIOR, buildMobBehaviorDefaults())
+			.put(FIELD_MOB_GOALS, buildMobGoalsDefaults())
+			.build();
 	}
 
 	static JsonObject buildMobStatsDefaults(
@@ -258,69 +261,68 @@ public final class MobConfigManager {
 		Double chargeUpTicks,
 		String mobDropsReference
 	) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
 		if (hasConfiguredDoubleValue(health)) {
-			root.addProperty(FIELD_HEALTH, health);
+			root.put(FIELD_HEALTH, health);
 		}
 		if (hasConfiguredDoubleValue(armor)) {
-			root.addProperty(FIELD_ARMOR, armor);
+			root.put(FIELD_ARMOR, armor);
 		}
 		if (hasConfiguredDoubleValue(damage)) {
-			root.addProperty(FIELD_DAMAGE, damage);
+			root.put(FIELD_DAMAGE, damage);
 		}
 		if (hasConfiguredDoubleValue(movementSpeed)) {
-			root.addProperty(FIELD_MOVEMENT_SPEED, movementSpeed);
+			root.put(FIELD_MOVEMENT_SPEED, movementSpeed);
 		}
 		if (hasConfiguredDoubleValue(swimmingSpeed)) {
-			root.addProperty(FIELD_SWIMMING_SPEED, swimmingSpeed);
+			root.put(FIELD_SWIMMING_SPEED, swimmingSpeed);
 		}
 		if (hasConfiguredDoubleValue(flyingSpeed)) {
-			root.addProperty(FIELD_FLYING_SPEED, flyingSpeed);
+			root.put(FIELD_FLYING_SPEED, flyingSpeed);
 		}
 		if (hasConfiguredDoubleValue(knockbackResistance)) {
-			root.addProperty(FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
+			root.put(FIELD_KNOCKBACK_RESISTANCE, knockbackResistance);
 		}
 		if (hasConfiguredDoubleValue(scale)) {
-			root.addProperty(FIELD_SCALE, scale);
+			root.put(FIELD_SCALE, scale);
 		}
 		if (experienceDrop != null) {
-			root.addProperty(FIELD_EXPERIENCE_DROP, experienceDrop);
+			root.put(FIELD_EXPERIENCE_DROP, experienceDrop);
 		}
 		if (hasConfiguredDoubleValue(rangedDamage)) {
-			root.addProperty(FIELD_RANGED_DAMAGE, rangedDamage);
+			root.put(FIELD_RANGED_DAMAGE, rangedDamage);
 		}
 		if (hasConfiguredDoubleValue(attackAccuracy)) {
-			root.addProperty(FIELD_ATTACK_ACCURACY, attackAccuracy);
+			root.put(FIELD_ATTACK_ACCURACY, attackAccuracy);
 		}
 		if (hasConfiguredDoubleValue(attackInterval)) {
-			root.addProperty(FIELD_ATTACK_INTERVAL, attackInterval);
+			root.put(FIELD_ATTACK_INTERVAL, attackInterval);
 		}
 		if (hasConfiguredDoubleValue(chargeUpTicks)) {
-			root.addProperty(FIELD_CHARGE_INTERVAL, chargeUpTicks);
+			root.put(FIELD_CHARGE_INTERVAL, chargeUpTicks);
 		}
 		if (mobDropsReference != null && !mobDropsReference.isBlank()) {
-			root.addProperty(FIELD_MOB_DROPS, mobDropsReference);
+			root.put(FIELD_MOB_DROPS, mobDropsReference);
 		}
-		return root;
+		return root.build();
 	}
 
 	static JsonObject buildMobWeaponDefaults(String itemId) {
-		JsonObject weapon = new JsonObject();
-		if (itemId == null || itemId.isBlank()) {
-			return weapon;
+		JsonFormatBuilder.ObjectBuilder weapon = JsonFormatBuilder.object();
+		if (itemId != null && !itemId.isBlank()) {
+			weapon.put(FIELD_ITEM, itemId);
 		}
-		weapon.addProperty(FIELD_ITEM, itemId);
-		return weapon;
+		return weapon.build();
 	}
 
 	static JsonObject buildMobEffectDefaults(String effectId, int durationSeconds) {
 		if (effectId == null || effectId.isBlank() || durationSeconds <= 0) {
 			return new JsonObject();
 		}
-		JsonObject effect = new JsonObject();
-		effect.addProperty(FIELD_EFFECT, effectId);
-		effect.addProperty(FIELD_DURATION, durationSeconds);
-		return effect;
+		return JsonFormatBuilder.object()
+			.put(FIELD_EFFECT, effectId)
+			.put(FIELD_DURATION, durationSeconds)
+			.build();
 	}
 
 	private static boolean hasConfiguredDoubleValue(Double value) {

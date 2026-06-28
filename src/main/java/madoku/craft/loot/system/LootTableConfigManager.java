@@ -1,6 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 public final class LootTableConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
@@ -28,13 +29,13 @@ public final class LootTableConfigManager {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, true);
-		root.addProperty(FIELD_USE_MADOKU_LUCK, true);
-		root.addProperty(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true);
-		root.addProperty(FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true);
-		root.addProperty(FIELD_CUSTOM_ENTITY_EQUIPMENT, true);
-		root.addProperty(FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE, 10.0d);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_USE_MADOKU_LUCK, true)
+			.put(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true)
+			.put(FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true)
+			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT, true)
+			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE, 10.0d)
+			.build();
 	}
 }

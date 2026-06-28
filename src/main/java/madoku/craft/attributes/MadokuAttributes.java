@@ -2,6 +2,7 @@ package madoku.craft.attributes;
 
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,9 +112,9 @@ public final class MadokuAttributes {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			return root;
+			return JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.build();
 		}
 	}
 }

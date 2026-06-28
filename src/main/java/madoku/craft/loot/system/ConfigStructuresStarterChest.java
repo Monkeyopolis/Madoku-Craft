@@ -2,6 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 public final class ConfigStructuresStarterChest {
 	private static final String TABLE_ID = "minecraft:structure_chests/starter_chest";
@@ -10,15 +11,12 @@ public final class ConfigStructuresStarterChest {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = LootTableConfigStructures.buildStructureTable(TABLE_ID, 7, 11);
-		JsonArray groups = new JsonArray();
-
-		groups.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(
+		JsonArray groups = JsonFormatBuilder.array()
+			.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:potato", 1, 2, 6),
 				LootTableConfigStructures.item("minecraft:carrot", 1, 2, 6)
-			)));
-
-		groups.add(LootTableConfigStructures.group("common", 40, LootTableConfigStructures.entries(
+			)))
+			.add(LootTableConfigStructures.group("common", 40, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:stone_axe", 1, 1, 1, "mythic"),
 				LootTableConfigStructures.item("minecraft:stone_pickaxe", 1, 1, 1, "mythic"),
 				LootTableConfigStructures.item("minecraft:stone_sword", 1, 1, 1, "mythic"),
@@ -28,14 +26,12 @@ public final class ConfigStructuresStarterChest {
 				LootTableConfigStructures.item("minecraft:leather_chestplate", 1, 1, 1, "mythic"),
 				LootTableConfigStructures.item("minecraft:leather_leggings", 1, 1, 1, "mythic"),
 				LootTableConfigStructures.item("minecraft:leather_boots", 1, 1, 1, "mythic")
-			)));
-
-		groups.add(LootTableConfigStructures.group("rare", 75, LootTableConfigStructures.entries(
+			)))
+			.add(LootTableConfigStructures.group("rare", 75, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:baked_potato", 1, 2, 6),
 				LootTableConfigStructures.item("minecraft:bread", 1, 2, 6)
-			)));
-
-		groups.add(LootTableConfigStructures.group("rare", 30, LootTableConfigStructures.entries(
+			)))
+			.add(LootTableConfigStructures.group("rare", 30, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:copper_axe", 1, 1, 1, "epic"),
 				LootTableConfigStructures.item("minecraft:copper_pickaxe", 1, 1, 1, "epic"),
 				LootTableConfigStructures.item("minecraft:copper_sword", 1, 1, 1, "epic"),
@@ -45,10 +41,13 @@ public final class ConfigStructuresStarterChest {
 				LootTableConfigStructures.item("minecraft:copper_chestplate", 1, 1, 1, "epic"),
 				LootTableConfigStructures.item("minecraft:copper_leggings", 1, 1, 1, "epic"),
 				LootTableConfigStructures.item("minecraft:copper_boots", 1, 1, 1, "epic")
-			)));
+			)))
+			.build();
 
-		root.add(LootTableConfigManager.FIELD_GROUPS, groups);
-		return root;
+		return JsonFormatBuilder.object()
+			.putAll(LootTableConfigStructures.buildStructureTable(TABLE_ID, 7, 11))
+			.put(LootTableConfigManager.FIELD_GROUPS, groups)
+			.build();
 	}
 }
 

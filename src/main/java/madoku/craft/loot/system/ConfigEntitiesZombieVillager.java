@@ -1,6 +1,5 @@
 package madoku.craft.loot.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public final class ConfigEntitiesZombieVillager {
@@ -10,35 +9,25 @@ public final class ConfigEntitiesZombieVillager {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = LootTableConfigEntities.buildEntityTable(TABLE_ID, true, 0, 2);
-		JsonArray groups = new JsonArray();
-
-		JsonObject commonGroup = new JsonObject();
-		commonGroup.addProperty(LootTableConfigManager.FIELD_RARITY, "common");
-		commonGroup.addProperty(LootTableConfigManager.FIELD_WEIGHT, 97);
-		JsonArray commonEntries = new JsonArray();
-		commonEntries.add(buildEntry("minecraft:rotten_flesh", 1, 1, 3));
-		commonGroup.add(LootTableConfigManager.FIELD_ENTRIES, commonEntries);
-		groups.add(commonGroup);
-
-		JsonObject epicGroup = new JsonObject();
-		epicGroup.addProperty(LootTableConfigManager.FIELD_RARITY, "epic");
-		epicGroup.addProperty(LootTableConfigManager.FIELD_WEIGHT, 3);
-		JsonArray epicEntries = new JsonArray();
-		epicEntries.add(buildEntry("minecraft:gold_ingot", 1, 0, 2));
-		epicGroup.add(LootTableConfigManager.FIELD_ENTRIES, epicEntries);
-		groups.add(epicGroup);
-
-		root.add(LootTableConfigManager.FIELD_GROUPS, groups);
-		return root;
-	}
-
-	private static JsonObject buildEntry(String itemId, int weight, int minCount, int maxCount) {
-		JsonObject entry = new JsonObject();
-		entry.addProperty(LootTableConfigManager.FIELD_ITEM, itemId);
-		entry.addProperty(LootTableConfigManager.FIELD_WEIGHT, weight);
-		entry.addProperty(LootTableConfigManager.FIELD_MIN_COUNT, minCount);
-		entry.addProperty(LootTableConfigManager.FIELD_MAX_COUNT, maxCount);
-		return entry;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ENABLED, true)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, TABLE_ID)
+			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+				.put(LootTableConfigManager.FIELD_MIN, 0)
+				.put(LootTableConfigManager.FIELD_MAX, 2))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+				.object(commonGroup -> commonGroup
+					.put(LootTableConfigManager.FIELD_RARITY, "common")
+					.put(LootTableConfigManager.FIELD_WEIGHT, 97)
+					.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
+						LootTableConfigStructures.item("minecraft:rotten_flesh", 1, 1, 3)
+					)))
+				.object(epicGroup -> epicGroup
+					.put(LootTableConfigManager.FIELD_RARITY, "epic")
+					.put(LootTableConfigManager.FIELD_WEIGHT, 3)
+					.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
+						LootTableConfigStructures.item("minecraft:gold_ingot", 1, 0, 2)
+					))))
+			.build();
 	}
 }

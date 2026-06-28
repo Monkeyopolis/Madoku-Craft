@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
@@ -429,23 +430,24 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.addProperty("gameplay-ticks", 0L);
-		root.add("schedulers", new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.put("gameplay-ticks", 0L)
+			.array("schedulers", schedulers -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = createDefaultData();
-		root.addProperty("gameplay-ticks", Math.max(0L, MadokuTicks.getGameplayTicks()));
-		JsonArray schedulers = new JsonArray();
-		for (SchedulerEntry entry : SCHEDULERS.values()) {
-			if (entry != null && !entry.tasks.isEmpty()) {
-				schedulers.add(entry.schedulerId);
-			}
-		}
-		root.add("schedulers", schedulers);
-		return root;
+		return JsonFormatBuilder.object()
+			.put("gameplay-ticks", Math.max(0L, MadokuTicks.getGameplayTicks()))
+			.array("schedulers", schedulers -> {
+				for (SchedulerEntry entry : SCHEDULERS.values()) {
+					if (entry != null && !entry.tasks.isEmpty()) {
+						schedulers.add(entry.schedulerId);
+					}
+				}
+			})
+			.build();
 	}
 
 	private static void applyPersistedData(MinecraftServer server, JsonObject source) {
@@ -1123,22 +1125,21 @@ public final class SchedulerManagerSystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("scheduler-id", schedulerId);
-			JsonObject general = new JsonObject();
-			general.addProperty(FIELD_EXPIRATION, expirationDays);
-			general.addProperty(FIELD_LAST_TOUCHED_DAY, Math.max(0L, lastTouchedDay));
-			root.add(GROUP_GENERAL, general);
-			root.add("binding", binding.toJson());
-			root.addProperty("next-request-id", Math.max(1L, nextRequestId));
-			JsonArray tasksArray = new JsonArray();
+			JsonFormatBuilder.ArrayBuilder tasksArray = JsonFormatBuilder.array();
 			List<ScheduledTask> snapshot = new ArrayList<>(tasks);
 			snapshot.sort(TASK_COMPARATOR);
 			for (ScheduledTask task : snapshot) {
 				tasksArray.add(task.toJson());
 			}
-			root.add("tasks", tasksArray);
-			return root;
+			return JsonFormatBuilder.object()
+				.put("scheduler-id", schedulerId)
+				.object(GROUP_GENERAL, general -> general
+					.put(FIELD_EXPIRATION, expirationDays)
+					.put(FIELD_LAST_TOUCHED_DAY, Math.max(0L, lastTouchedDay)))
+				.put("binding", binding.toJson())
+				.put("next-request-id", Math.max(1L, nextRequestId))
+				.put("tasks", tasksArray.build())
+				.build();
 		}
 
 		private static SchedulerEntry fromJson(JsonElement element) {
@@ -1197,14 +1198,14 @@ public final class SchedulerManagerSystem {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("request-id", requestId);
-			root.addProperty("enqueued-tick", enqueuedTick);
-			root.addProperty("due-tick", dueTick);
-			root.addProperty("domain", domain.id());
-			root.addProperty("task-type", taskType);
-			root.add("payload", payload.deepCopy());
-			return root;
+			return JsonFormatBuilder.object()
+				.put("request-id", requestId)
+				.put("enqueued-tick", enqueuedTick)
+				.put("due-tick", dueTick)
+				.put("domain", domain.id())
+				.put("task-type", taskType)
+				.put("payload", payload.deepCopy())
+				.build();
 		}
 
 		private static ScheduledTask fromJson(JsonElement element) {

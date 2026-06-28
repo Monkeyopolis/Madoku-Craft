@@ -14,25 +14,26 @@ public final class RegionalScalingConfigStray {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		JsonObject root = RegionalScalingConfigManager.buildMobScalingDefaults(
-			"minecraft:stray",
-			health,
-			movementSpeed,
-			null,
-			null,
-			null,
-			armor,
-			damage,
-			knockbackResistance,
-			experienceDrop,
-			5.0d,
-			0.02d,
-			null
-		);
-		root.add(
-			RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
-			RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
-		);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.putAll(RegionalScalingConfigManager.buildMobScalingDefaults(
+				"minecraft:stray",
+				health,
+				movementSpeed,
+				null,
+				null,
+				null,
+				armor,
+				damage,
+				knockbackResistance,
+				experienceDrop,
+				5.0d,
+				0.02d,
+				null
+			))
+			.put(
+				RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY,
+				RegionalDifficultyConfigManager.buildScalingValueRule(RegionalDifficultyConfigManager.SCALING_TYPE_ADD, 0.02d)
+			)
+			.build();
 	}
 }

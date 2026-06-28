@@ -2,61 +2,60 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
+import madoku.craft.config.JsonFormatBuilder;
+
 public final class MobConfigDrowned {
 	private MobConfigDrowned() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_STATS, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_GOALS, true);
-		root.addProperty(MobConfigManager.FIELD_MOB_BABY, true);
-		root.addProperty(MobConfigManager.FIELD_MOB_VARIANT, true);
-
-		JsonObject drowned = new JsonObject();
-		drowned.addProperty(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true);
-		drowned.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALING, true);
-		drowned.addProperty(MobConfigManager.FIELD_WEAPON_DAMAGE, false);
-
-		JsonObject difficultyScale = new JsonObject();
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d);
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE, 0.10d);
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED, 0.10d);
-		MobConfigManager.addDifficultyScaleEntry(difficultyScale, MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
-		drowned.add(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
-
-		JsonObject regionalDifficultyScale = new JsonObject();
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		drowned.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
-
-		JsonObject defaultGroup = new JsonObject();
-		defaultGroup.add(
-			MobConfigManager.FIELD_MOB_STATS,
-			buildDrownedMeleeMobStatsDefaults(
-				20.0d,
-				5.0d,
-				0.24d,
-				0.012d,
-				1.0d,
-				7,
-				resolveDefaultMobDropsReference()
+		JsonObject defaultGroup = JsonFormatBuilder.object()
+			.put(
+				MobConfigManager.FIELD_MOB_STATS,
+				buildDrownedMeleeMobStatsDefaults(
+					20.0d,
+					5.0d,
+					0.24d,
+					0.012d,
+					1.0d,
+					7,
+					resolveDefaultMobDropsReference()
+				)
 			)
-		);
-		defaultGroup.add(MobConfigManager.FIELD_SPAWN_RULES, buildDrownedSpawnRulesDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildDrownedBehaviorDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildDrownedGoalsDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildDrownedAgeOverride(false));
-		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildDrownedAgeOverride(true));
-		drowned.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
-		drowned.add("ranged-drowned", buildRangedDrownedVariantDefaults());
+			.put(MobConfigManager.FIELD_SPAWN_RULES, buildDrownedSpawnRulesDefaults())
+			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildDrownedBehaviorDefaults())
+			.put(MobConfigManager.FIELD_MOB_GOALS, buildDrownedGoalsDefaults())
+			.put(MobConfigManager.FIELD_ADULT_GROUP, buildDrownedAgeOverride(false))
+			.put(MobConfigManager.FIELD_BABY_GROUP, buildDrownedAgeOverride(true))
+			.build();
 
-		root.add(MobConfigManager.FILE_DROWNED, drowned);
-		return root;
+		JsonObject drowned = JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
+			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
+			.put(MobConfigManager.FIELD_WEAPON_DAMAGE, false)
+			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d))
+			.object(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale ->
+				regionalDifficultyScale.put(MobConfigManager.FIELD_ENABLED, true))
+			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
+			.put("ranged-drowned", buildRangedDrownedVariantDefaults())
+			.build();
+
+		return JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_ENABLED, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_GOALS, true)
+			.put(MobConfigManager.FIELD_MOB_BABY, true)
+			.put(MobConfigManager.FIELD_MOB_VARIANT, true)
+			.put(MobConfigManager.FILE_DROWNED, drowned)
+			.build();
 	}
 
 	private static JsonObject buildDrownedMeleeMobStatsDefaults(
@@ -94,28 +93,25 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedEquipmentSetDefaults() {
-		JsonObject equipmentSet = new JsonObject();
-		equipmentSet.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		equipmentSet.addProperty(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference());
-		equipmentSet.addProperty(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d);
-		return equipmentSet;
+		return JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_ENABLED, true)
+			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference())
+			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
+			.build();
 	}
 
 	private static JsonObject buildRangedDrownedVariantDefaults() {
-		JsonObject variant = new JsonObject();
-		variant.add(
-			MobConfigManager.FIELD_MOB_STATS,
-			buildRangedDrownedSharedMobStatsDefaults(resolveDefaultMobDropsReference(), "minecraft:trident")
-		);
-		variant.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildRangedDrownedBehaviorDefaults());
-		variant.add(MobConfigManager.FIELD_MOB_GOALS, buildRangedDrownedGoalsDefaults());
-		variant.add(
-			MobConfigManager.FIELD_SPAWN_RULES,
-			buildRangedDrownedSpawnRulesDefaults()
-		);
-		variant.add(MobConfigManager.FIELD_ADULT_GROUP, buildRangedDrownedAgeOverride(false));
-		variant.add(MobConfigManager.FIELD_BABY_GROUP, buildRangedDrownedAgeOverride(true));
-		return variant;
+		return JsonFormatBuilder.object()
+			.put(
+				MobConfigManager.FIELD_MOB_STATS,
+				buildRangedDrownedSharedMobStatsDefaults(resolveDefaultMobDropsReference(), "minecraft:trident")
+			)
+			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildRangedDrownedBehaviorDefaults())
+			.put(MobConfigManager.FIELD_MOB_GOALS, buildRangedDrownedGoalsDefaults())
+			.put(MobConfigManager.FIELD_SPAWN_RULES, buildRangedDrownedSpawnRulesDefaults())
+			.put(MobConfigManager.FIELD_ADULT_GROUP, buildRangedDrownedAgeOverride(false))
+			.put(MobConfigManager.FIELD_BABY_GROUP, buildRangedDrownedAgeOverride(true))
+			.build();
 	}
 
 	private static JsonObject buildDrownedGoalsDefaults() {
@@ -141,7 +137,8 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildRangedDrownedSharedMobStatsDefaults(String mobDropsReference, String weaponItemId) {
-		JsonObject mobStats = MobConfigManager.buildMobStatsDefaults(
+		return JsonFormatBuilder.object()
+			.putAll(MobConfigManager.buildMobStatsDefaults(
 			null,
 			null,
 			null,
@@ -156,12 +153,9 @@ public final class MobConfigDrowned {
 			30.0d,
 			15.0d,
 			mobDropsReference
-		);
-		mobStats.add(
-			MobConfigManager.FIELD_MOB_WEAPON,
-			MobConfigManager.buildMobWeaponDefaults(weaponItemId)
-		);
-		return mobStats;
+		))
+			.put(MobConfigManager.FIELD_MOB_WEAPON, MobConfigManager.buildMobWeaponDefaults(weaponItemId))
+			.build();
 	}
 
 	private static JsonObject buildRangedDrownedSpawnRulesDefaults() {
@@ -180,16 +174,13 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildRangedDrownedAgeOverride(boolean baby) {
-		JsonObject root = new JsonObject();
-		root.add(
-			MobConfigManager.FIELD_MOB_STATS,
-			buildDrownedRangedAgeMobStatsDefaults(baby)
-		);
-		root.add(
-			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()
-		);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_MOB_STATS, buildDrownedRangedAgeMobStatsDefaults(baby))
+			.put(
+				MobConfigManager.FIELD_SPAWN_RULES,
+				MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()
+			)
+			.build();
 	}
 
 	private static JsonObject buildDrownedRangedAgeMobStatsDefaults(boolean baby) {
@@ -212,9 +203,13 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedAgeOverride(boolean baby) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+			.put(
+				MobConfigManager.FIELD_SPAWN_RULES,
+				MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()
+			);
 		if (baby) {
-			root.add(
+			root.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				buildDrownedMeleeMobStatsDefaults(
 					10.0d,
@@ -227,12 +222,7 @@ public final class MobConfigDrowned {
 				)
 			);
 		}
-
-		root.add(
-			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()
-		);
-		return root;
+		return root.build();
 	}
 
 	private static String resolveDefaultMobDropsReference() {

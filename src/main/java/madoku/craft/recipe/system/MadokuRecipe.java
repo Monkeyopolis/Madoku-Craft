@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -1041,7 +1042,7 @@ public final class MadokuRecipe {
 
 	private static JsonObject buildRecipeDefaults(String recipeId, RecipeSnapshot snapshot, Recipe<?> recipe) {
 		boolean defaultEnabled = isDefaultEnabled(recipeId);
-		JsonObject root = MadokuRecipeConfig.buildBaseRecipeDefaults(
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object().putAll(MadokuRecipeConfig.buildBaseRecipeDefaults(
 			recipeId,
 			snapshot.recipeTypeId(),
 			snapshot.resultItemId(),
@@ -1049,13 +1050,13 @@ public final class MadokuRecipe {
 			snapshot.outputCategory(),
 			snapshot.processCategory(),
 			defaultEnabled
-		);
+		));
 
 		if (recipe instanceof ShapedRecipe shapedRecipe) {
-			root.addProperty(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPED);
+			root.put(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPED);
 			writeShapedDefaults(root, shapedRecipe);
 		} else if (recipe instanceof ShapelessRecipe shapelessRecipe) {
-			root.addProperty(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPELESS);
+			root.put(MadokuRecipeConfig.FIELD_CRAFTING_SHAPE, MadokuRecipeConfig.CRAFTING_SHAPE_SHAPELESS);
 			writeShapelessDefaults(root, shapelessRecipe);
 		} else if (recipe instanceof SmithingRecipe smithingRecipe) {
 			writeSmithingDefaults(root, smithingRecipe);
@@ -1063,7 +1064,7 @@ public final class MadokuRecipe {
 			writeSingleInputDefaults(root, singleItemRecipe);
 		}
 
-		return root;
+		return root.build();
 	}
 
 	private static boolean isDefaultEnabled(String recipeId) {
@@ -1074,14 +1075,14 @@ public final class MadokuRecipe {
 		return !normalized.equals("minecraft:bone_meal");
 	}
 
-	private static void writeShapedDefaults(JsonObject root, ShapedRecipe recipe) {
+	private static void writeShapedDefaults(JsonFormatBuilder.ObjectBuilder root, ShapedRecipe recipe) {
 		List<Optional<Ingredient>> ingredients = recipe.getIngredients();
 		int width = Math.max(1, recipe.getWidth());
 		int height = Math.max(1, recipe.getHeight());
 
 		Map<String, Character> symbolBySignature = new LinkedHashMap<>();
 		Map<Character, String> firstItemIdBySymbol = new LinkedHashMap<>();
-		JsonArray pattern = new JsonArray();
+		madoku.craft.config.JsonFormatBuilder.ArrayBuilder pattern = madoku.craft.config.JsonFormatBuilder.array();
 		int symbolIndex = 0;
 
 		for (int row = 0; row < height; row++) {
@@ -1112,30 +1113,30 @@ public final class MadokuRecipe {
 			pattern.add(rowBuilder.toString());
 		}
 
-		JsonObject key = new JsonObject();
+		madoku.craft.config.JsonFormatBuilder.ObjectBuilder key = madoku.craft.config.JsonFormatBuilder.object();
 		for (Map.Entry<Character, String> entry : firstItemIdBySymbol.entrySet()) {
-			key.addProperty(String.valueOf(entry.getKey()), entry.getValue());
+			key.put(String.valueOf(entry.getKey()), entry.getValue());
 		}
 
-		root.add(MadokuRecipeConfig.FIELD_PATTERN, pattern);
-		root.add(MadokuRecipeConfig.FIELD_KEY, key);
+		root.put(MadokuRecipeConfig.FIELD_PATTERN, pattern.build());
+		root.put(MadokuRecipeConfig.FIELD_KEY, key.build());
 		writeCraftingIngredientsDefaults(root, readShapedIngredients(recipe));
 	}
 
-	private static void writeSingleInputDefaults(JsonObject root, SingleItemRecipe recipe) {
+	private static void writeSingleInputDefaults(JsonFormatBuilder.ObjectBuilder root, SingleItemRecipe recipe) {
 		Ingredient ingredient = recipe.input();
 		String itemId = firstItemIdFromIngredient(ingredient);
 		if (!itemId.isBlank()) {
-			root.addProperty(MadokuRecipeConfig.FIELD_INPUT, itemId);
+			root.put(MadokuRecipeConfig.FIELD_INPUT, itemId);
 		}
 	}
 
-	private static void writeShapelessDefaults(JsonObject root, ShapelessRecipe recipe) {
+	private static void writeShapelessDefaults(JsonFormatBuilder.ObjectBuilder root, ShapelessRecipe recipe) {
 		writeCraftingIngredientsDefaults(root, readShapelessIngredients(recipe));
 	}
 
-	private static void writeCraftingIngredientsDefaults(JsonObject root, List<Ingredient> ingredientList) {
-		JsonArray ingredients = new JsonArray();
+	private static void writeCraftingIngredientsDefaults(JsonFormatBuilder.ObjectBuilder root, List<Ingredient> ingredientList) {
+		JsonFormatBuilder.ArrayBuilder ingredients = JsonFormatBuilder.array();
 		if (ingredientList == null || ingredientList.isEmpty()) {
 			return;
 		}
@@ -1148,12 +1149,13 @@ public final class MadokuRecipe {
 				ingredients.add(itemId);
 			}
 		}
-		if (!ingredients.isEmpty()) {
-			root.add(MadokuRecipeConfig.FIELD_INGREDIENTS, ingredients);
+		JsonArray builtIngredients = ingredients.build();
+		if (!builtIngredients.isEmpty()) {
+			root.put(MadokuRecipeConfig.FIELD_INGREDIENTS, builtIngredients);
 		}
 	}
 
-	private static void writeSmithingDefaults(JsonObject root, SmithingRecipe recipe) {
+	private static void writeSmithingDefaults(JsonFormatBuilder.ObjectBuilder root, SmithingRecipe recipe) {
 		if (recipe == null) {
 			return;
 		}
@@ -1161,20 +1163,20 @@ public final class MadokuRecipe {
 		recipe.templateIngredient().ifPresent(ingredient -> {
 			String itemId = firstItemIdFromIngredient(ingredient);
 			if (!itemId.isBlank()) {
-				root.addProperty(MadokuRecipeConfig.FIELD_TEMPLATE, itemId);
+				root.put(MadokuRecipeConfig.FIELD_TEMPLATE, itemId);
 			}
 		});
 
 		Ingredient base = recipe.baseIngredient();
 		String baseItemId = firstItemIdFromIngredient(base);
 		if (!baseItemId.isBlank()) {
-			root.addProperty(MadokuRecipeConfig.FIELD_BASE, baseItemId);
+			root.put(MadokuRecipeConfig.FIELD_BASE, baseItemId);
 		}
 
 		recipe.additionIngredient().ifPresent(ingredient -> {
 			String itemId = firstItemIdFromIngredient(ingredient);
 			if (!itemId.isBlank()) {
-				root.addProperty(MadokuRecipeConfig.FIELD_ADDITION, itemId);
+				root.put(MadokuRecipeConfig.FIELD_ADDITION, itemId);
 			}
 		});
 	}

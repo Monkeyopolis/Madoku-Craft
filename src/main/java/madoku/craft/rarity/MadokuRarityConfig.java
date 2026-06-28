@@ -2,6 +2,7 @@ package madoku.craft.rarity;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 public final class MadokuRarityConfig {
 	private static final String FIELD_ENABLED = "enabled";
@@ -77,16 +78,16 @@ public final class MadokuRarityConfig {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ENABLED, true);
-		defaults.addProperty(FIELD_COMMON_CHANCE_WEIGHT, DEFAULT_COMMON_CHANCE_WEIGHT);
-		defaults.addProperty(FIELD_RARE_CHANCE_WEIGHT, DEFAULT_RARE_CHANCE_WEIGHT);
-		defaults.addProperty(FIELD_EPIC_CHANCE_WEIGHT, DEFAULT_EPIC_CHANCE_WEIGHT);
-		defaults.addProperty(FIELD_MYTHIC_CHANCE_WEIGHT, DEFAULT_MYTHIC_CHANCE_WEIGHT);
-		defaults.addProperty(FIELD_RARE_STAT_BUFF_PERCENT, DEFAULT_RARE_STAT_BUFF_PERCENT);
-		defaults.addProperty(FIELD_EPIC_STAT_BUFF_PERCENT, DEFAULT_EPIC_STAT_BUFF_PERCENT);
-		defaults.addProperty(FIELD_MYTHIC_STAT_BUFF_PERCENT, DEFAULT_MYTHIC_STAT_BUFF_PERCENT);
-		return defaults;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_COMMON_CHANCE_WEIGHT, DEFAULT_COMMON_CHANCE_WEIGHT)
+			.put(FIELD_RARE_CHANCE_WEIGHT, DEFAULT_RARE_CHANCE_WEIGHT)
+			.put(FIELD_EPIC_CHANCE_WEIGHT, DEFAULT_EPIC_CHANCE_WEIGHT)
+			.put(FIELD_MYTHIC_CHANCE_WEIGHT, DEFAULT_MYTHIC_CHANCE_WEIGHT)
+			.put(FIELD_RARE_STAT_BUFF_PERCENT, DEFAULT_RARE_STAT_BUFF_PERCENT)
+			.put(FIELD_EPIC_STAT_BUFF_PERCENT, DEFAULT_EPIC_STAT_BUFF_PERCENT)
+			.put(FIELD_MYTHIC_STAT_BUFF_PERCENT, DEFAULT_MYTHIC_STAT_BUFF_PERCENT)
+			.build();
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {

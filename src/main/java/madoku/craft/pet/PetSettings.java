@@ -77,14 +77,14 @@ final class PetSettings {
 	}
 
 	JsonObject toConfigJson() {
-		JsonObject root = new JsonObject();
-		root.addProperty("enabled", enabled);
-		root.addProperty("pet-entity", entitiesEnabled);
-		root.addProperty("pet-rarity-common", petRarityCommonChanceWeight);
-		root.addProperty("pet-rarity-rare", petRarityRareChanceWeight);
-		root.addProperty("pet-rarity-epic", petRarityEpicChanceWeight);
-		root.addProperty("pet-rarity-mythic", petRarityMythicChanceWeight);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.put("enabled", enabled)
+			.put("pet-entity", entitiesEnabled)
+			.put("pet-rarity-common", petRarityCommonChanceWeight)
+			.put("pet-rarity-rare", petRarityRareChanceWeight)
+			.put("pet-rarity-epic", petRarityEpicChanceWeight)
+			.put("pet-rarity-mythic", petRarityMythicChanceWeight)
+			.build();
 	}
 
 	static long clampLong(long value, long min, long max) {

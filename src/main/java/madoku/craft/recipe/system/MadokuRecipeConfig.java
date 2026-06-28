@@ -2,6 +2,7 @@ package madoku.craft.recipe.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 public final class MadokuRecipeConfig {
 	public static final String FIELD_ENABLED = "enabled";
@@ -37,9 +38,9 @@ public final class MadokuRecipeConfig {
 	}
 
 	public static JsonObject buildRecipeSystemDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ENABLED, true);
-		return defaults;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, true)
+			.build();
 	}
 
 	public static JsonObject buildBaseRecipeDefaults(
@@ -51,25 +52,25 @@ public final class MadokuRecipeConfig {
 		String processCategory,
 		boolean enabled
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, enabled);
-		root.addProperty(FIELD_RECIPE_ID, recipeId == null ? "" : recipeId);
-		root.addProperty(FIELD_RECIPE_TYPE_ID, recipeTypeId == null ? "" : recipeTypeId);
-		root.addProperty(FIELD_RESULT_ITEM_ID, resultItemId == null ? "" : resultItemId);
-		root.addProperty(FIELD_RESULT_COUNT, Math.max(1, resultCount));
-		root.add(FIELD_CATEGORIES, buildCategoryArray(outputCategory, processCategory));
-		root.addProperty(FIELD_CUSTOM_RECIPE, false);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, enabled)
+			.put(FIELD_RECIPE_ID, recipeId == null ? "" : recipeId)
+			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId == null ? "" : recipeTypeId)
+			.put(FIELD_RESULT_ITEM_ID, resultItemId == null ? "" : resultItemId)
+			.put(FIELD_RESULT_COUNT, Math.max(1, resultCount))
+			.put(FIELD_CATEGORIES, buildCategoryArray(outputCategory, processCategory))
+			.put(FIELD_CUSTOM_RECIPE, false)
+			.build();
 	}
 
 	private static JsonArray buildCategoryArray(String outputCategory, String processCategory) {
-		JsonArray categories = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder categories = JsonFormatBuilder.array();
 		if (outputCategory != null && !outputCategory.isBlank()) {
 			categories.add(outputCategory);
 		}
 		if (processCategory != null && !processCategory.isBlank()) {
 			categories.add(processCategory);
 		}
-		return categories;
+		return categories.build();
 	}
 }

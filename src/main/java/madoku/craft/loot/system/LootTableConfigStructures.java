@@ -2,6 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,41 +14,43 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject buildStructureTableTemplate(String tableId) {
-		JsonObject root = new JsonObject();
-		root.addProperty(LootTableConfigManager.FIELD_ENABLED, true);
-		root.addProperty(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId);
-
-		JsonObject rolls = new JsonObject();
-		rolls.addProperty(LootTableConfigManager.FIELD_MIN, 1);
-		rolls.addProperty(LootTableConfigManager.FIELD_MAX, 3);
-		root.add(LootTableConfigManager.FIELD_ROLLS, rolls);
-		root.add(LootTableConfigManager.FIELD_GROUPS, new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ENABLED, true)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+				.put(LootTableConfigManager.FIELD_MIN, 1)
+				.put(LootTableConfigManager.FIELD_MAX, 3))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> {
+			})
+			.build();
 	}
 
 	public static JsonObject buildStructureTable(String tableId, int minRolls, int maxRolls) {
-		JsonObject root = buildStructureTableTemplate(tableId);
-		JsonObject rolls = new JsonObject();
-		rolls.addProperty(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls));
-		rolls.addProperty(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls));
-		root.add(LootTableConfigManager.FIELD_ROLLS, rolls);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ENABLED, true)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+				.put(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls))
+				.put(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls)))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> {
+			})
+			.build();
 	}
 
 	public static JsonObject group(String rarity, int weight, JsonArray entries) {
-		JsonObject group = new JsonObject();
-		group.addProperty(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity);
-		group.addProperty(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight));
-		group.add(
-			LootTableConfigManager.FIELD_ENTRIES,
-			entries == null ? new JsonArray() : entries
-		);
-		return group;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
+			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JsonFormatBuilder.array().build() : entries)
+			.build();
 	}
 
 	public static JsonObject group(String rarity, int weight, List<String> tags, JsonArray entries) {
-		JsonObject group = group(rarity, weight, entries);
-		JsonArray tagArray = new JsonArray();
+		JsonFormatBuilder.ObjectBuilder group = JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
+			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JsonFormatBuilder.array().build() : entries);
+		JsonFormatBuilder.ArrayBuilder tagArray = JsonFormatBuilder.array();
 		if (tags != null) {
 			for (String tag : tags) {
 				if (tag == null || tag.isBlank()) {
@@ -56,41 +59,45 @@ public final class LootTableConfigStructures {
 				tagArray.add(tag);
 			}
 		}
-		if (!tagArray.isEmpty()) {
-			group.add(LootTableConfigManager.FIELD_TAGS, tagArray);
+		JsonArray builtTags = tagArray.build();
+		if (!builtTags.isEmpty()) {
+			group.put(LootTableConfigManager.FIELD_TAGS, builtTags);
 		}
-		return group;
+		return group.build();
 	}
 
 	public static JsonArray entries(JsonObject... entries) {
-		JsonArray array = new JsonArray();
-		if (entries == null) {
-			return array;
-		}
-		for (JsonObject entry : entries) {
-			if (entry == null || entry.isEmpty()) {
-				continue;
+		JsonFormatBuilder.ArrayBuilder array = JsonFormatBuilder.array();
+		if (entries != null) {
+			for (JsonObject entry : entries) {
+				if (entry == null || entry.isEmpty()) {
+					continue;
+				}
+				array.add(entry);
 			}
-			array.add(entry);
 		}
-		return array;
+		return array.build();
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount) {
-		JsonObject entry = new JsonObject();
-		entry.addProperty(LootTableConfigManager.FIELD_ITEM, itemId == null ? "" : itemId);
-		entry.addProperty(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight));
-		entry.addProperty(LootTableConfigManager.FIELD_MIN_COUNT, minCount);
-		entry.addProperty(LootTableConfigManager.FIELD_MAX_COUNT, Math.max(minCount, maxCount));
-		return entry;
+		return JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ITEM, itemId == null ? "" : itemId)
+			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
+			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)
+			.put(LootTableConfigManager.FIELD_MAX_COUNT, Math.max(minCount, maxCount))
+			.build();
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount, String itemRarity) {
-		JsonObject entry = item(itemId, weight, minCount, maxCount);
+		JsonFormatBuilder.ObjectBuilder entry = JsonFormatBuilder.object()
+			.put(LootTableConfigManager.FIELD_ITEM, itemId == null ? "" : itemId)
+			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
+			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)
+			.put(LootTableConfigManager.FIELD_MAX_COUNT, Math.max(minCount, maxCount));
 		if (itemRarity != null && !itemRarity.isBlank()) {
-			entry.addProperty(LootTableConfigManager.FIELD_ITEM_RARITY, itemRarity);
+			entry.put(LootTableConfigManager.FIELD_ITEM_RARITY, itemRarity);
 		}
-		return entry;
+		return entry.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultStructureTableFiles() {

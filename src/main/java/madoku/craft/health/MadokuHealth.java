@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
@@ -747,29 +748,29 @@ public final class MadokuHealth {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add("players", new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.array("players", players -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = createDefaultData();
-		JsonArray players = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder players = JsonFormatBuilder.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			if (!state.hasPersistableState()) {
 				continue;
 			}
 
-			JsonObject player = new JsonObject();
-			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("pending-health", state.pendingHealth);
-			player.addProperty("high-hunger-drain-active", state.highHungerDrainActive);
-			player.addProperty("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick));
-			players.add(player);
+			players.object(player -> player
+				.put("uuid", entry.getKey().toString())
+				.put("pending-health", state.pendingHealth)
+				.put("high-hunger-drain-active", state.highHungerDrainActive)
+				.put("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick)));
 		}
-		root.add("players", players);
-		return root;
+		return JsonFormatBuilder.object()
+			.put("players", players.build())
+			.build();
 	}
 
 	private static void applyPersistedData(JsonObject source) {
@@ -999,13 +1000,13 @@ public final class MadokuHealth {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("maximum-health", maximumHealth);
-			root.addProperty("hunger-drain-ratio", hungerDrainRatio);
-			root.addProperty("hunger-penalty-ratio", hungerPenaltyRatio);
-			root.addProperty("health-penalty-ratio", healthPenaltyRatio);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("maximum-health", maximumHealth)
+				.put("hunger-drain-ratio", hungerDrainRatio)
+				.put("hunger-penalty-ratio", hungerPenaltyRatio)
+				.put("health-penalty-ratio", healthPenaltyRatio)
+				.build();
 		}
 
 		private Settings withEnabled(boolean attributesEnabled) {

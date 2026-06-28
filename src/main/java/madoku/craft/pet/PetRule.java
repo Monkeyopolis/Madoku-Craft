@@ -119,7 +119,6 @@ final class PetRule {
 	}
 
 	static JsonObject defaultsForItem(String itemId, String abilityType) {
-		JsonObject root = new JsonObject();
 		String resolvedItemId = itemId == null ? "" : itemId.trim();
 		String resolvedAbilityType = PlayerEntitiesSystem.normalizeKey(abilityType);
 		boolean usesRangedHomingArrow = PlayerEntitiesSystem.PET_ABILITY_RANGED_HOMING_ARROW.equals(resolvedAbilityType);
@@ -132,62 +131,63 @@ final class PetRule {
 		boolean usesDamageBlock = PlayerEntitiesSystem.PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 		boolean usesMobScan = PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 		boolean usesBeeSwarm = PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
-		root.addProperty("enabled", true);
-		root.addProperty("item-id", resolvedItemId);
-		root.addProperty("rarity", PlayerEntitiesSystem.defaultRarityForItem(resolvedItemId));
-		root.addProperty("pet-scale", PlayerEntitiesSystem.defaultPetScaleForItem(resolvedItemId));
-		root.addProperty("follow-speed", 1.2D);
-		root.addProperty("teleport-distance", 8.0D);
-		root.addProperty("ability", resolvedAbilityType.isBlank() ? PlayerEntitiesSystem.PET_ABILITY_NONE : resolvedAbilityType);
+		madoku.craft.config.JsonFormatBuilder.ObjectBuilder root = madoku.craft.config.JsonFormatBuilder.object()
+			.put("enabled", true)
+			.put("item-id", resolvedItemId)
+			.put("rarity", PlayerEntitiesSystem.defaultRarityForItem(resolvedItemId))
+			.put("pet-scale", PlayerEntitiesSystem.defaultPetScaleForItem(resolvedItemId))
+			.put("follow-speed", 1.2D)
+			.put("teleport-distance", 8.0D)
+			.put("ability", resolvedAbilityType.isBlank() ? PlayerEntitiesSystem.PET_ABILITY_NONE : resolvedAbilityType);
 		if (usesRangedHomingArrow) {
-			root.addProperty("attack-damage", 3.0D);
-			root.addProperty("attack-speed", 1.5D);
-			root.addProperty("cooldown-ticks", 5L * 20L);
-			root.addProperty("shot-delay-ticks", 10L);
+			root.put("attack-damage", 3.0D)
+				.put("attack-speed", 1.5D)
+				.put("cooldown-ticks", 5L * 20L)
+				.put("shot-delay-ticks", 10L);
 		}
 		if (usesWebProjectile) {
-			root.addProperty("follow-speed", 1.0D);
-			root.addProperty("attack-damage", 1.5D);
-			root.addProperty("attack-speed", 1.0D);
-			root.addProperty("effect-duration-ticks", 100L);
-			root.addProperty("cooldown-ticks", 15L * 20L);
-			root.addProperty("shot-delay-ticks", 10L);
+			root.put("follow-speed", 1.0D)
+				.put("attack-damage", 1.5D)
+				.put("attack-speed", 1.0D)
+				.put("effect-duration-ticks", 100L)
+				.put("cooldown-ticks", 15L * 20L)
+				.put("shot-delay-ticks", 10L);
 		}
 		if (usesExplosiveProjectile) {
-			root.addProperty("follow-speed", 1.2D);
-			root.addProperty("attack-damage", 12.0D);
-			root.addProperty("attack-speed", 2.0D);
-			root.addProperty("cooldown-ticks", 60L * 20L);
-			root.addProperty("shot-delay-ticks", 10L);
-			root.addProperty("explosion-radius", 4D);
+			root.put("follow-speed", 1.2D)
+				.put("attack-damage", 12.0D)
+				.put("attack-speed", 2.0D)
+				.put("cooldown-ticks", 60L * 20L)
+				.put("shot-delay-ticks", 10L)
+				.put("explosion-radius", 4D);
 		}
 		if (usesPlayerDamageBonus) {
-			root.addProperty("player-damage-bonus", 1.25D);
+			root.put("player-damage-bonus", 1.25D);
 		}
 		if (usesFallDamageReduction) {
-			root.addProperty("fall-damage-reduction", 0.20D);
+			root.put("fall-damage-reduction", 0.20D);
 		}
 		if (usesMaxHealthBonus) {
-			root.addProperty("max-health-bonus", 0.125D);
+			root.put("max-health-bonus", 0.125D);
 		}
 		if (usesArmorBonus) {
-			root.addProperty("armor-bonus", 2.0D);
+			root.put("armor-bonus", 2.0D);
 		}
 		if (usesDamageBlock) {
-			root.addProperty("damage-block", 4.0D);
-			root.addProperty("cooldown-ticks", 30L * 20L);
+			root.put("damage-block", 4.0D)
+				.put("cooldown-ticks", 30L * 20L);
 		}
 		if (usesMobScan) {
-			root.addProperty("cooldown-ticks", 3L * 60L * 20L);
+			root.put("cooldown-ticks", 3L * 60L * 20L);
 		}
 		if (usesBeeSwarm) {
-			root.addProperty("follow-speed", 1.5D);
-			root.addProperty("idle-move-speed", 1.25D);
-			root.addProperty("idle-wander-radius", 4.0D);
-			root.addProperty("attack-damage", 1.5D);
-			root.addProperty("cooldown-ticks", 0L);
+			root.put("follow-speed", 1.5D)
+				.put("idle-move-speed", 1.25D)
+				.put("idle-wander-radius", 4.0D)
+				.put("attack-damage", 1.5D)
+				.put("cooldown-ticks", 0L);
 		}
-		return root;
+		return root.build();
 	}
 
 	static PetRule fromJson(JsonObject source, String fileKey) {

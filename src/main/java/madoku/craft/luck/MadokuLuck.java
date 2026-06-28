@@ -1223,15 +1223,15 @@ public final class MadokuLuck {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("base-luck", baseLuck);
-			root.addProperty("drop-multiplier", dropMultiplier);
-			root.addProperty("mob-drop-multiplier", mobDropMultiplier);
-			root.addProperty("creeper-grief-reduction-multiplier", creeperGriefReductionMultiplier);
-			root.addProperty("ranged-accuracy-reduction-multiplier", rangedAccuracyReductionMultiplier);
-			root.addProperty("player-crit-damage-multiplier", playerCritDamageMultiplier);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("base-luck", baseLuck)
+				.put("drop-multiplier", dropMultiplier)
+				.put("mob-drop-multiplier", mobDropMultiplier)
+				.put("creeper-grief-reduction-multiplier", creeperGriefReductionMultiplier)
+				.put("ranged-accuracy-reduction-multiplier", rangedAccuracyReductionMultiplier)
+				.put("player-crit-damage-multiplier", playerCritDamageMultiplier)
+				.build();
 		}
 	}
 

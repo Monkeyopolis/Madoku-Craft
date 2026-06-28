@@ -1,6 +1,5 @@
 package madoku.craft.loot.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public final class ConfigEntitiesStray {
@@ -10,42 +9,30 @@ public final class ConfigEntitiesStray {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = new JsonObject();
-		JsonObject general = new JsonObject();
-		general.addProperty("version", "1.1.7");
-		general.addProperty("type", "dynamic");
-		general.addProperty(LootTableConfigManager.FIELD_ENABLED, true);
-		root.add("general", general);
-
-		JsonObject main = new JsonObject();
-		main.addProperty(LootTableConfigManager.FIELD_TABLE_ID, TABLE_ID);
-		JsonObject rolls = new JsonObject();
-		rolls.addProperty(LootTableConfigManager.FIELD_MIN, 0);
-		rolls.addProperty(LootTableConfigManager.FIELD_MAX, 2);
-		main.add(LootTableConfigManager.FIELD_ROLLS, rolls);
-
-		JsonArray groups = new JsonArray();
-		groups.add(
-			LootTableConfigStructures.group(
-				"common",
-				60,
-				LootTableConfigStructures.entries(
-					LootTableConfigStructures.item("minecraft:bone", 1, 1, 3)
-				)
-			)
-		);
-		groups.add(
-			LootTableConfigStructures.group(
-				"epic",
-				40,
-				LootTableConfigStructures.entries(
-					LootTableConfigStructures.item("minecraft:arrow", 1, 0, 2)
-				)
-			)
-		);
-		main.add(LootTableConfigManager.FIELD_GROUPS, groups);
-		root.add("main", main);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.object("general", general -> general
+				.put("version", "1.1.7")
+				.put("type", "dynamic")
+				.put(LootTableConfigManager.FIELD_ENABLED, true))
+			.object("main", main -> main
+				.put(LootTableConfigManager.FIELD_TABLE_ID, TABLE_ID)
+				.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
+					.put(LootTableConfigManager.FIELD_MIN, 0)
+					.put(LootTableConfigManager.FIELD_MAX, 2))
+				.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+					.object(commonGroup -> commonGroup
+						.put(LootTableConfigManager.FIELD_RARITY, "common")
+						.put(LootTableConfigManager.FIELD_WEIGHT, 60)
+						.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
+							LootTableConfigStructures.item("minecraft:bone", 1, 1, 3)
+						)))
+					.object(epicGroup -> epicGroup
+						.put(LootTableConfigManager.FIELD_RARITY, "epic")
+						.put(LootTableConfigManager.FIELD_WEIGHT, 40)
+						.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
+							LootTableConfigStructures.item("minecraft:arrow", 1, 0, 2)
+						)))))
+			.build();
 	}
 }
 

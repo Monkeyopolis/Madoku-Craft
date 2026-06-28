@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuClock;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -513,13 +514,13 @@ public final class MadokuSmeltingManager {
 		double smeltingSpeed,
 		double fuelEfficiency
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_BLOCK_ID, blockId);
-		root.addProperty(FIELD_BLOCK_ENTITY_ID, blockEntityId);
-		root.addProperty(FIELD_RECIPE_TYPE_ID, recipeTypeId);
-		root.addProperty(FIELD_SMELTING_SPEED, smeltingSpeed);
-		root.addProperty(FIELD_FUEL_EFFICIENCY, fuelEfficiency);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_BLOCK_ID, blockId)
+			.put(FIELD_BLOCK_ENTITY_ID, blockEntityId)
+			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId)
+			.put(FIELD_SMELTING_SPEED, smeltingSpeed)
+			.put(FIELD_FUEL_EFFICIENCY, fuelEfficiency)
+			.build();
 	}
 
 	private static String normalizeBlockId(String value, String fallback) {

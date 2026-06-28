@@ -7,6 +7,7 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
@@ -214,9 +215,10 @@ public final class MadokuItemStack {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(DATA_KEPT_STACKS_KEY, new JsonObject());
-		return root;
+		return JsonFormatBuilder.object()
+			.object(DATA_KEPT_STACKS_KEY, kept -> {
+			})
+			.build();
 	}
 
 	private static void applyPersistedData(MinecraftServer server, JsonObject data) {
@@ -277,45 +279,42 @@ public final class MadokuItemStack {
 	}
 
 	private static JsonObject toPersistedData(MinecraftServer server) {
-		JsonObject root = new JsonObject();
-		JsonObject keptRoot = new JsonObject();
-		if (server == null) {
-			root.add(DATA_KEPT_STACKS_KEY, keptRoot);
-			return root;
-		}
-
-		RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
-		for (Map.Entry<UUID, List<KeptStack>> entry : keptStacksByPlayer.entrySet()) {
-			UUID playerId = entry.getKey();
-			List<KeptStack> keptStacks = entry.getValue();
-			if (playerId == null || keptStacks == null || keptStacks.isEmpty()) {
-				continue;
-			}
-
-			JsonArray encodedStacks = new JsonArray();
-			for (KeptStack keptStack : keptStacks) {
-				if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
-					continue;
-				}
-				DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, keptStack.stack());
-				JsonElement stackElement = encoded.result().orElse(null);
-				if (stackElement == null) {
+		JsonFormatBuilder.ObjectBuilder keptRoot = JsonFormatBuilder.object();
+		if (server != null) {
+			RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
+			for (Map.Entry<UUID, List<KeptStack>> entry : keptStacksByPlayer.entrySet()) {
+				UUID playerId = entry.getKey();
+				List<KeptStack> keptStacks = entry.getValue();
+				if (playerId == null || keptStacks == null || keptStacks.isEmpty()) {
 					continue;
 				}
 
-				JsonObject encodedEntry = new JsonObject();
-				encodedEntry.addProperty(DATA_ENTRY_SLOT_KEY, keptStack.slot());
-				encodedEntry.add(DATA_ENTRY_STACK_KEY, stackElement);
-				encodedStacks.add(encodedEntry);
-			}
+				JsonFormatBuilder.ArrayBuilder encodedStacks = JsonFormatBuilder.array();
+				for (KeptStack keptStack : keptStacks) {
+					if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
+						continue;
+					}
+					DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, keptStack.stack());
+					JsonElement stackElement = encoded.result().orElse(null);
+					if (stackElement == null) {
+						continue;
+					}
 
-			if (encodedStacks.size() > 0) {
-				keptRoot.add(playerId.toString(), encodedStacks);
+					encodedStacks.object(encodedEntry -> encodedEntry
+						.put(DATA_ENTRY_SLOT_KEY, keptStack.slot())
+						.put(DATA_ENTRY_STACK_KEY, stackElement));
+				}
+
+				JsonArray encodedArray = encodedStacks.build();
+				if (!encodedArray.isEmpty()) {
+					keptRoot.put(playerId.toString(), encodedArray);
+				}
 			}
 		}
 
-		root.add(DATA_KEPT_STACKS_KEY, keptRoot);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(DATA_KEPT_STACKS_KEY, keptRoot.build())
+			.build();
 	}
 
 	private static void loadStaticConfig() {

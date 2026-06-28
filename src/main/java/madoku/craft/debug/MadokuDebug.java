@@ -3,6 +3,7 @@ package madoku.craft.debug;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import org.slf4j.Logger;
@@ -272,22 +273,22 @@ public final class MadokuDebug {
 	}
 
 	private static JsonObject createDefaultConfig() {
-		JsonObject root = new JsonObject();
-		root.addProperty("enabled", false);
-		JsonArray activeDomains = new JsonArray();
-			activeDomains.add(Domain.SCHEDULER.id());
-				activeDomains.add(Domain.SLEEP.id());
-				activeDomains.add(Domain.SMELTING.id());
-				activeDomains.add(Domain.HEALTH.id());
-				activeDomains.add(Domain.HUNGER.id());
-				activeDomains.add(Domain.MOB.id());
-				activeDomains.add(Domain.FARMING.id());
-				activeDomains.add(Domain.ECOSYSTEM.id());
-				activeDomains.add(Domain.SEASON.id());
-				activeDomains.add(Domain.PET.id());
-				root.add("active-domains", activeDomains);
-				root.add("disabled-metrics", new JsonArray());
-				return root;
+		return JsonFormatBuilder.object()
+			.put("enabled", false)
+			.array("active-domains", activeDomains -> activeDomains
+				.add(Domain.SCHEDULER.id())
+				.add(Domain.SLEEP.id())
+				.add(Domain.SMELTING.id())
+				.add(Domain.HEALTH.id())
+				.add(Domain.HUNGER.id())
+				.add(Domain.MOB.id())
+				.add(Domain.FARMING.id())
+				.add(Domain.ECOSYSTEM.id())
+				.add(Domain.SEASON.id())
+				.add(Domain.PET.id()))
+			.array("disabled-metrics", disabledMetrics -> {
+			})
+			.build();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {

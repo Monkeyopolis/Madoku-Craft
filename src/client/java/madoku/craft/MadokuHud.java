@@ -2,6 +2,7 @@ package madoku.craft;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -1164,15 +1165,15 @@ public final class MadokuHud {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("world-hud-enabled", worldHudEnabled);
-			root.addProperty("health-hud-enabled", healthHudEnabled);
-			root.addProperty("hunger-hud-enabled", hungerHudEnabled);
-			root.addProperty("armor-hud-enabled", armorHudEnabled);
-			root.addProperty("oxygen-hud-enabled", oxygenHudEnabled);
-			root.addProperty("season-hud-enabled", seasonHudEnabled);
-			return root;
+			return JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("world-hud-enabled", worldHudEnabled)
+				.put("health-hud-enabled", healthHudEnabled)
+				.put("hunger-hud-enabled", hungerHudEnabled)
+				.put("armor-hud-enabled", armorHudEnabled)
+				.put("oxygen-hud-enabled", oxygenHudEnabled)
+				.put("season-hud-enabled", seasonHudEnabled)
+				.build();
 		}
 	}
 }

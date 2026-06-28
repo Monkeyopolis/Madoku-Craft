@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import madoku.craft.config.DynamicStaticSystem;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
@@ -184,11 +185,12 @@ public final class MadokuItem {
 	}
 
 	public static String createClientSyncSnapshot() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, enabled);
-		root.add(FIELD_SYNC_TOOL_PROFILES, writeToolProfilesSnapshot(toolProfilesByItem));
-		root.add(FIELD_SYNC_ARMOR_PROFILES, writeArmorProfilesSnapshot(armorProfilesByItem));
-		return root.toString();
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, enabled)
+			.put(FIELD_SYNC_TOOL_PROFILES, writeToolProfilesSnapshot(toolProfilesByItem))
+			.put(FIELD_SYNC_ARMOR_PROFILES, writeArmorProfilesSnapshot(armorProfilesByItem))
+			.build()
+			.toString();
 	}
 
 	public static void applySynchronizedProfiles(String snapshotJson) {
@@ -1057,9 +1059,9 @@ public final class MadokuItem {
 	}
 
 	private static JsonObject writeToolProfilesSnapshot(Map<Item, MadokuToolProfile> profiles) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
 		if (profiles == null || profiles.isEmpty()) {
-			return root;
+			return root.build();
 		}
 
 		for (Map.Entry<Item, MadokuToolProfile> entry : profiles.entrySet()) {
@@ -1076,16 +1078,16 @@ public final class MadokuItem {
 
 			JsonObject profileRoot = writeToolProfile(profile);
 			if (!profileRoot.entrySet().isEmpty()) {
-				root.add(itemId.toString(), profileRoot);
+				root.put(itemId.toString(), profileRoot);
 			}
 		}
-		return root;
+		return root.build();
 	}
 
 	private static JsonObject writeArmorProfilesSnapshot(Map<Item, MadokuArmorProfile> profiles) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
 		if (profiles == null || profiles.isEmpty()) {
-			return root;
+			return root.build();
 		}
 
 		for (Map.Entry<Item, MadokuArmorProfile> entry : profiles.entrySet()) {
@@ -1102,32 +1104,32 @@ public final class MadokuItem {
 
 			JsonObject profileRoot = writeArmorProfile(profile);
 			if (!profileRoot.entrySet().isEmpty()) {
-				root.add(itemId.toString(), profileRoot);
+				root.put(itemId.toString(), profileRoot);
 			}
 		}
-		return root;
+		return root.build();
 	}
 
 	private static JsonObject writeToolProfile(MadokuToolProfile profile) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
 		if (profile == null) {
-			return root;
+			return root.build();
 		}
 
 		if (profile.hasDurability()) {
-			root.addProperty(MadokuItemConfig.FIELD_DURABILITY, profile.durability());
+			root.put(MadokuItemConfig.FIELD_DURABILITY, profile.durability());
 		}
 		if (profile.hasAttackDamage()) {
-			root.addProperty(MadokuItemConfig.FIELD_ATTACK_DAMAGE, profile.attackDamage());
+			root.put(MadokuItemConfig.FIELD_ATTACK_DAMAGE, profile.attackDamage());
 		}
 		if (profile.hasAttackSpeed()) {
-			root.addProperty(MadokuItemConfig.FIELD_ATTACK_SPEED, profile.attackSpeed());
+			root.put(MadokuItemConfig.FIELD_ATTACK_SPEED, profile.attackSpeed());
 		}
 		if (profile.hasMiningSpeed()) {
-			root.addProperty(MadokuItemConfig.FIELD_MINING_SPEED, profile.miningSpeed());
+			root.put(MadokuItemConfig.FIELD_MINING_SPEED, profile.miningSpeed());
 		}
 		if (profile.hasMaterialLevel()) {
-			root.addProperty(MadokuItemConfig.FIELD_MATERIAL_LEVEL, profile.materialLevel());
+			root.put(MadokuItemConfig.FIELD_MATERIAL_LEVEL, profile.materialLevel());
 		}
 
 		MadokuToolProfile.ReachProfile reach = profile.reach();
@@ -1135,25 +1137,25 @@ public final class MadokuItem {
 			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MIN, reach.minRange());
 			addOptionalDouble(root, MadokuItemConfig.FIELD_REACH_MAX, reach.maxRange());
 		}
-		return root;
+		return root.build();
 	}
 
 	private static JsonObject writeArmorProfile(MadokuArmorProfile profile) {
-		JsonObject root = new JsonObject();
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
 		if (profile == null) {
-			return root;
+			return root.build();
 		}
 
 		if (profile.hasDurability()) {
-			root.addProperty(MadokuItemConfig.FIELD_DURABILITY, profile.durability());
+			root.put(MadokuItemConfig.FIELD_DURABILITY, profile.durability());
 		}
 		if (profile.hasArmor()) {
-			root.addProperty(MadokuItemConfig.FIELD_ARMOR, profile.armor());
+			root.put(MadokuItemConfig.FIELD_ARMOR, profile.armor());
 		}
 		if (profile.hasArmorToughness()) {
-			root.addProperty(MadokuItemConfig.FIELD_ARMOR_TOUGHNESS, profile.armorToughness());
+			root.put(MadokuItemConfig.FIELD_ARMOR_TOUGHNESS, profile.armorToughness());
 		}
-		return root;
+		return root.build();
 	}
 
 	private static Map<Item, MadokuToolProfile> readToolProfilesSnapshot(JsonObject root) {
@@ -1215,11 +1217,11 @@ public final class MadokuItem {
 		return element.getAsJsonObject();
 	}
 
-	private static void addOptionalDouble(JsonObject root, String key, Double value) {
+	private static void addOptionalDouble(JsonFormatBuilder.ObjectBuilder root, String key, Double value) {
 		if (root == null || key == null || key.isBlank() || value == null) {
 			return;
 		}
-		root.addProperty(key, value);
+		root.put(key, value);
 	}
 
 	private static StackMode readStackMode(JsonObject root, StackMode fallback) {

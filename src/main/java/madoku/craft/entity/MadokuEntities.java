@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
@@ -434,17 +435,17 @@ public final class MadokuEntities {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(DATA_NEXT_HAG_SPAWN_DAY, -1L);
-		root.addProperty(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(DATA_NEXT_HAG_SPAWN_DAY, -1L)
+			.put(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE)
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay);
-		root.addProperty(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay)
+			.put(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay)
+			.build();
 	}
 
 	private static long getLong(JsonObject root, String key, long fallback) {

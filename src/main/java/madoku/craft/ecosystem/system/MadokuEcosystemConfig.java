@@ -4,6 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import madoku.craft.config.JsonFormatBuilder;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -213,50 +215,46 @@ public final class MadokuEcosystemConfig {
 
 	public static JsonObject toSystemJson(SystemSettings settings) {
 		SystemSettings value = settings == null ? defaults().system() : settings;
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_NATURAL_GROWTH_ENABLED, value.naturalGrowthEnabled());
-		root.addProperty(FIELD_NATURAL_EROSION_ENABLED, value.naturalErosionEnabled());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_NATURAL_GROWTH_ENABLED, value.naturalGrowthEnabled())
+			.put(FIELD_NATURAL_EROSION_ENABLED, value.naturalErosionEnabled())
+			.build();
 	}
 
 	public static JsonObject toNaturalGrowthJson(NaturalGrowthSettings settings) {
 		NaturalGrowthSettings value = settings == null ? defaults().naturalGrowth() : settings;
-		JsonObject root = new JsonObject();
-
-		root.add(FIELD_NATURAL_DIRT_GROWTH, toGrowthProfileJson(value.dirtGrowth()));
-		root.add(FIELD_NATURAL_GRASS_GROWTH, toGrowthProfileJson(value.grassGrowth()));
-		root.add(FIELD_NATURAL_DESERT_FOLIAGE_GROWTH, toGrowthProfileJson(value.desertFoliageGrowth()));
-		root.add(FIELD_NATURAL_CACTUS_GROWTH, toGrowthProfileJson(value.cactusGrowth()));
-		JsonObject foliageRoot = new JsonObject();
-		foliageRoot.add(FIELD_FOLIAGE_WILDFLOWERS, toGrowthProfileJson(value.foliageWildflowersGrowth()));
-		foliageRoot.add(FIELD_FOLIAGE_PINK_PETALS, toGrowthProfileJson(value.foliagePinkPetalsGrowth()));
-		root.add(FIELD_NATURAL_FOLIAGE_GROWTH, foliageRoot);
-
-		JsonObject treeRoot = new JsonObject();
-		treeRoot.add(FIELD_TREE_OAK, toGrowthProfileJson(value.treeOakGrowth()));
-		treeRoot.add(FIELD_TREE_SPRUCE, toGrowthProfileJson(value.treeSpruceGrowth()));
-		treeRoot.add(FIELD_TREE_BIRCH, toGrowthProfileJson(value.treeBirchGrowth()));
-		treeRoot.add(FIELD_TREE_JUNGLE, toGrowthProfileJson(value.treeJungleGrowth()));
-		treeRoot.add(FIELD_TREE_MANGROVE, toGrowthProfileJson(value.treeMangroveGrowth()));
-		treeRoot.add(FIELD_TREE_ACACIA, toGrowthProfileJson(value.treeAcaciaGrowth()));
-		treeRoot.add(FIELD_TREE_DARK_OAK, toGrowthProfileJson(value.treeDarkOakGrowth()));
-		treeRoot.add(FIELD_TREE_PALE_OAK, toGrowthProfileJson(value.treePaleOakGrowth()));
-		treeRoot.add(FIELD_TREE_CHERRY, toGrowthProfileJson(value.treeCherryGrowth()));
-		root.add(FIELD_NATURAL_TREE_GROWTH, treeRoot);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_NATURAL_DIRT_GROWTH, toGrowthProfileJson(value.dirtGrowth()))
+			.put(FIELD_NATURAL_GRASS_GROWTH, toGrowthProfileJson(value.grassGrowth()))
+			.put(FIELD_NATURAL_DESERT_FOLIAGE_GROWTH, toGrowthProfileJson(value.desertFoliageGrowth()))
+			.put(FIELD_NATURAL_CACTUS_GROWTH, toGrowthProfileJson(value.cactusGrowth()))
+			.object(FIELD_NATURAL_FOLIAGE_GROWTH, foliageRoot -> foliageRoot
+				.put(FIELD_FOLIAGE_WILDFLOWERS, toGrowthProfileJson(value.foliageWildflowersGrowth()))
+				.put(FIELD_FOLIAGE_PINK_PETALS, toGrowthProfileJson(value.foliagePinkPetalsGrowth())))
+			.object(FIELD_NATURAL_TREE_GROWTH, treeRoot -> treeRoot
+				.put(FIELD_TREE_OAK, toGrowthProfileJson(value.treeOakGrowth()))
+				.put(FIELD_TREE_SPRUCE, toGrowthProfileJson(value.treeSpruceGrowth()))
+				.put(FIELD_TREE_BIRCH, toGrowthProfileJson(value.treeBirchGrowth()))
+				.put(FIELD_TREE_JUNGLE, toGrowthProfileJson(value.treeJungleGrowth()))
+				.put(FIELD_TREE_MANGROVE, toGrowthProfileJson(value.treeMangroveGrowth()))
+				.put(FIELD_TREE_ACACIA, toGrowthProfileJson(value.treeAcaciaGrowth()))
+				.put(FIELD_TREE_DARK_OAK, toGrowthProfileJson(value.treeDarkOakGrowth()))
+				.put(FIELD_TREE_PALE_OAK, toGrowthProfileJson(value.treePaleOakGrowth()))
+				.put(FIELD_TREE_CHERRY, toGrowthProfileJson(value.treeCherryGrowth())))
+			.build();
 	}
 
 	public static JsonObject toNaturalErosionJson(NaturalErosionSettings settings) {
 		NaturalErosionSettings value = settings == null ? defaults().naturalErosion() : settings;
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_WATER_EROSION_RADIUS, value.waterErosionRadius());
-		root.addProperty(FIELD_LAVA_EROSION_RADIUS, value.lavaErosionRadius());
-		root.add(FIELD_BLOCK_EROSION_MUD, toRuleJson(value.blockErosionMud()));
-		root.add(FIELD_BLOCK_EROSION_RED_SAND, toRuleJson(value.blockErosionRedSand()));
-		root.add(FIELD_BLOCK_EROSION_SAND, toRuleJson(value.blockErosionSand()));
-		root.add(FIELD_BLOCK_EROSION_MAGMA_BLOCK, toRuleJson(value.blockErosionMagmaBlock()));
-		root.add(FIELD_NATURAL_TREE_DECAY, toDecayProfileJson(value.naturalTreeDecay()));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_WATER_EROSION_RADIUS, value.waterErosionRadius())
+			.put(FIELD_LAVA_EROSION_RADIUS, value.lavaErosionRadius())
+			.put(FIELD_BLOCK_EROSION_MUD, toRuleJson(value.blockErosionMud()))
+			.put(FIELD_BLOCK_EROSION_RED_SAND, toRuleJson(value.blockErosionRedSand()))
+			.put(FIELD_BLOCK_EROSION_SAND, toRuleJson(value.blockErosionSand()))
+			.put(FIELD_BLOCK_EROSION_MAGMA_BLOCK, toRuleJson(value.blockErosionMagmaBlock()))
+			.put(FIELD_NATURAL_TREE_DECAY, toDecayProfileJson(value.naturalTreeDecay()))
+			.build();
 	}
 
 	public static List<NamedErosionRule> erosionRulesInPriority(NaturalErosionSettings settings) {
@@ -290,10 +288,10 @@ public final class MadokuEcosystemConfig {
 		GrowthProfile value = profile == null
 			? new GrowthProfile(new DayRange(1, 1), new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d))
 			: profile;
-		JsonObject root = new JsonObject();
-		root.add(FIELD_GROWTH_TIME, toRangeJson(value.growthTime()));
-		root.add(FIELD_GROWTH_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.growthSpeedMultiplier()));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_GROWTH_TIME, toRangeJson(value.growthTime()))
+			.put(FIELD_GROWTH_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.growthSpeedMultiplier()))
+			.build();
 	}
 
 	private static SeasonGrowthMultiplier readSeasonGrowthMultiplier(JsonObject root, SeasonGrowthMultiplier fallback) {
@@ -312,12 +310,12 @@ public final class MadokuEcosystemConfig {
 		SeasonGrowthMultiplier value = multiplier == null
 			? new SeasonGrowthMultiplier(1.0d, 1.0d, 1.0d, 1.0d)
 			: multiplier;
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_SEASON_SPRING, value.spring());
-		root.addProperty(FIELD_SEASON_SUMMER, value.summer());
-		root.addProperty(FIELD_SEASON_FALL, value.fall());
-		root.addProperty(FIELD_SEASON_WINTER, value.winter());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_SEASON_SPRING, value.spring())
+			.put(FIELD_SEASON_SUMMER, value.summer())
+			.put(FIELD_SEASON_FALL, value.fall())
+			.put(FIELD_SEASON_WINTER, value.winter())
+			.build();
 	}
 
 	private static ErosionRule readRule(JsonObject root, String key, ErosionRule fallback) {
@@ -334,14 +332,14 @@ public final class MadokuEcosystemConfig {
 
 	private static JsonObject toRuleJson(ErosionRule rule) {
 		ErosionRule value = rule == null ? defaults().naturalErosion().blockErosionSand() : rule;
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_ENABLED, value.enabled());
-		root.add(FIELD_SOURCE_BLOCKS, toStringArray(value.sourceBlocks()));
-		root.addProperty(FIELD_TARGET_BLOCK, value.targetBlock());
-		root.add(FIELD_REQUIRED_BIOME_IDS, toStringArray(value.requiredBiomeIds()));
-		root.add(FIELD_REQUIRED_BIOME_TAGS, toStringArray(value.requiredBiomeTags()));
-		root.add(FIELD_EROSION_TIME, toRangeJson(value.erosionTime(), FIELD_MIN_EROSION_TIME, FIELD_MAX_EROSION_TIME));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_ENABLED, value.enabled())
+			.put(FIELD_SOURCE_BLOCKS, toStringArray(value.sourceBlocks()))
+			.put(FIELD_TARGET_BLOCK, value.targetBlock())
+			.put(FIELD_REQUIRED_BIOME_IDS, toStringArray(value.requiredBiomeIds()))
+			.put(FIELD_REQUIRED_BIOME_TAGS, toStringArray(value.requiredBiomeTags()))
+			.put(FIELD_EROSION_TIME, toRangeJson(value.erosionTime(), FIELD_MIN_EROSION_TIME, FIELD_MAX_EROSION_TIME))
+			.build();
 	}
 
 	private static DecayProfile readDecayProfile(JsonObject root, DecayProfile fallback) {
@@ -362,10 +360,10 @@ public final class MadokuEcosystemConfig {
 		DecayProfile value = profile == null
 			? new DecayProfile(new DayRange(3, 7), new SeasonGrowthMultiplier(1.0d, 0.0d, 3.0d, 0.0d))
 			: profile;
-		JsonObject root = new JsonObject();
-		root.add(FIELD_DECAY_TIME, toRangeJson(value.decayTime(), FIELD_MIN_DECAY_TIME, FIELD_MAX_DECAY_TIME));
-		root.add(FIELD_DECAY_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.decaySpeedMultiplier()));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_DECAY_TIME, toRangeJson(value.decayTime(), FIELD_MIN_DECAY_TIME, FIELD_MAX_DECAY_TIME))
+			.put(FIELD_DECAY_SPEED_MULTIPLIER, toSeasonGrowthMultiplierJson(value.decaySpeedMultiplier()))
+			.build();
 	}
 
 	private static DayRange readRange(JsonObject object, String key, DayRange fallback) {
@@ -403,10 +401,10 @@ public final class MadokuEcosystemConfig {
 
 	private static JsonObject toRangeJson(DayRange range, String minKey, String maxKey) {
 		DayRange safe = range == null ? new DayRange(1, 1) : range;
-		JsonObject root = new JsonObject();
-		root.addProperty(minKey, safe.minDays());
-		root.addProperty(maxKey, safe.maxDays());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(minKey, safe.minDays())
+			.put(maxKey, safe.maxDays())
+			.build();
 	}
 
 	private static List<String> readStringArray(JsonObject object, String key, List<String> fallback) {
@@ -426,11 +424,11 @@ public final class MadokuEcosystemConfig {
 	}
 
 	private static JsonArray toStringArray(List<String> values) {
-		JsonArray array = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder array = JsonFormatBuilder.array();
 		for (String value : normalizeList(values)) {
 			array.add(value);
 		}
-		return array;
+		return array.build();
 	}
 
 	private static List<String> normalizeList(List<String> source) {

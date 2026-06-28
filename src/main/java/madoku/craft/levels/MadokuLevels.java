@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
@@ -451,9 +452,10 @@ public final class MadokuLevels {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add("players", new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.array("players", players -> {
+			})
+			.build();
 	}
 
 	private static void applyPersistedData(JsonObject data) {
@@ -500,25 +502,26 @@ public final class MadokuLevels {
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		JsonArray players = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder players = JsonFormatBuilder.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
-			JsonObject playerData = new JsonObject();
-			playerData.addProperty("uuid", entry.getKey().toString());
-			playerData.addProperty("level", state.level);
-			playerData.addProperty("currentXp", state.currentXp);
-			playerData.addProperty("requiredXp", state.requiredXp);
-			playerData.addProperty("availablePoints", state.availablePoints);
-			JsonObject statsObject = new JsonObject();
-			for (MadokuLevelStat stat : MadokuLevelStat.values()) {
-				statsObject.addProperty(stat.id(), state.statLevels.getOrDefault(stat, MadokuLevelStat.DEFAULT_STAT_LEVEL));
-			}
-			playerData.add("stats", statsObject);
-			players.add(playerData);
+			players.object(playerData -> {
+				playerData
+					.put("uuid", entry.getKey().toString())
+					.put("level", state.level)
+					.put("currentXp", state.currentXp)
+					.put("requiredXp", state.requiredXp)
+					.put("availablePoints", state.availablePoints)
+					.object("stats", statsObject -> {
+						for (MadokuLevelStat stat : MadokuLevelStat.values()) {
+							statsObject.put(stat.id(), state.statLevels.getOrDefault(stat, MadokuLevelStat.DEFAULT_STAT_LEVEL));
+						}
+					});
+			});
 		}
-		root.add("players", players);
-		return root;
+		return JsonFormatBuilder.object()
+			.put("players", players.build())
+			.build();
 	}
 
 	private static int getInt(JsonObject object, String memberName, int fallback) {
@@ -699,22 +702,22 @@ public final class MadokuLevels {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("base-xp-requirement", baseXpRequirement);
-			root.addProperty("base-xp-multiplier", baseXpMultiplier);
-			root.addProperty("max-player-level-attributes", maxPlayerLevelAttributes);
-			root.addProperty("max-player-level-attributes-partial", maxPlayerLevelAttributesPartial);
-			root.addProperty("max-player-level-vanilla", maxPlayerLevelVanilla);
-			root.addProperty("max-stat-level-attributes", maxStatLevelAttributes);
-			root.addProperty("max-stat-level-vanilla", maxStatLevelVanilla);
-			root.addProperty("health-per-level", healthPerLevel);
-			root.addProperty("player-damage-per-level", playerDamagePerLevel);
-			root.addProperty("player-armor-per-level-attributes", playerArmorPerLevelAttributes);
-			root.addProperty("player-armor-per-level-vanilla", playerArmorPerLevelVanilla);
-			root.addProperty("player-luck-per-level", playerLuckPerLevel);
-			root.addProperty("player-hunger-per-level", playerHungerPerLevel);
-			root.addProperty("player-movement-speed-per-level", playerMovementSpeedPerLevel);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put("base-xp-requirement", baseXpRequirement)
+				.put("base-xp-multiplier", baseXpMultiplier)
+				.put("max-player-level-attributes", maxPlayerLevelAttributes)
+				.put("max-player-level-attributes-partial", maxPlayerLevelAttributesPartial)
+				.put("max-player-level-vanilla", maxPlayerLevelVanilla)
+				.put("max-stat-level-attributes", maxStatLevelAttributes)
+				.put("max-stat-level-vanilla", maxStatLevelVanilla)
+				.put("health-per-level", healthPerLevel)
+				.put("player-damage-per-level", playerDamagePerLevel)
+				.put("player-armor-per-level-attributes", playerArmorPerLevelAttributes)
+				.put("player-armor-per-level-vanilla", playerArmorPerLevelVanilla)
+				.put("player-luck-per-level", playerLuckPerLevel)
+				.put("player-hunger-per-level", playerHungerPerLevel)
+				.put("player-movement-speed-per-level", playerMovementSpeedPerLevel)
+				.build();
 		}
 	}
 }

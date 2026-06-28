@@ -2,69 +2,68 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
+import madoku.craft.config.JsonFormatBuilder;
+
 public final class MobConfigBee {
 	private MobConfigBee() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject root = new JsonObject();
-		root.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_STATS, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true);
-		root.addProperty(MobConfigManager.FIELD_OVERRIDE_GOALS, true);
-		root.addProperty(MobConfigManager.FIELD_MOB_VARIANT, false);
-		root.addProperty(MobConfigManager.FIELD_MOB_BABY, true);
+		JsonObject defaultGroup = JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d)
+			.put(MobConfigManager.FIELD_MOB_STATS, buildSharedBeeStatsDefaults())
+			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildSharedBeeBehaviorDefaults())
+			.put(MobConfigManager.FIELD_MOB_GOALS, buildSharedBeeGoalsDefaults())
+			.put(MobConfigManager.FIELD_ADULT_GROUP, buildBeeAgeOverrides(false))
+			.put(MobConfigManager.FIELD_BABY_GROUP, buildBeeAgeOverrides(true))
+			.build();
 
-		JsonObject bee = new JsonObject();
-		bee.addProperty(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true);
-		bee.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALING, true);
-		JsonObject difficultyScale = new JsonObject();
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_FLYING_SPEED, 0.10d);
-		difficultyScale.addProperty(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d);
-		bee.add(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale);
-		JsonObject regionalDifficultyScale = new JsonObject();
-		regionalDifficultyScale.addProperty(MobConfigManager.FIELD_ENABLED, true);
-		bee.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale);
+		JsonObject bee = JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
+			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
+			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_FLYING_SPEED, 0.10d)
+				.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d))
+			.object(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING, regionalDifficultyScale ->
+				regionalDifficultyScale.put(MobConfigManager.FIELD_ENABLED, true))
+			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
+			.build();
 
-		JsonObject defaultGroup = new JsonObject();
-		defaultGroup.addProperty(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d);
-		defaultGroup.add(MobConfigManager.FIELD_MOB_STATS, buildSharedBeeStatsDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_BEHAVIOR, buildSharedBeeBehaviorDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_MOB_GOALS, buildSharedBeeGoalsDefaults());
-		defaultGroup.add(MobConfigManager.FIELD_ADULT_GROUP, buildBeeAgeOverrides(false));
-		defaultGroup.add(MobConfigManager.FIELD_BABY_GROUP, buildBeeAgeOverrides(true));
-		bee.add(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup);
-
-		root.add(MobConfigManager.FILE_BEE, bee);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(MobConfigManager.FIELD_ENABLED, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_BEHAVIOR, true)
+			.put(MobConfigManager.FIELD_OVERRIDE_GOALS, true)
+			.put(MobConfigManager.FIELD_MOB_VARIANT, false)
+			.put(MobConfigManager.FIELD_MOB_BABY, true)
+			.put(MobConfigManager.FILE_BEE, bee)
+			.build();
 	}
 
 	private static JsonObject buildSharedBeeStatsDefaults() {
-		JsonObject stats = MobConfigManager.buildMobStatsDefaults(
-			10.0d,
-			null,
-			2.0d,
-			0.30d,
-			null,
-			0.60d,
-			null,
-			0.5d,
-			null,
-			null,
-			null,
-			null,
-			null,
-			"minecraft-entities-bee.json"
-		);
-		stats.add(
-			MobConfigManager.FIELD_MOB_EFFECT,
-			MobConfigManager.buildMobEffectDefaults("minecraft:poison", 60)
-		);
-		return stats;
+		return JsonFormatBuilder.object()
+			.putAll(MobConfigManager.buildMobStatsDefaults(
+				10.0d,
+				null,
+				2.0d,
+				0.30d,
+				null,
+				0.60d,
+				null,
+				0.5d,
+				null,
+				null,
+				null,
+				null,
+				null,
+				"minecraft-entities-bee.json"
+			))
+			.put(MobConfigManager.FIELD_MOB_EFFECT, MobConfigManager.buildMobEffectDefaults("minecraft:poison", 60))
+			.build();
 	}
 
 	private static JsonObject buildSharedBeeBehaviorDefaults() {
@@ -97,31 +96,31 @@ public final class MobConfigBee {
 	}
 
 	private static JsonObject buildBeeAgeOverrides(boolean baby) {
-		JsonObject group = new JsonObject();
-		group.add(
-			MobConfigManager.FIELD_MOB_STATS,
-			MobConfigManager.buildMobStatsDefaults(
-				baby ? 5.0d : null,
-				null,
-				null,
-				baby ? 0.25d : null,
-				null,
-				baby ? 0.45d : null,
-				null,
-				null,
-				baby ? 1 : 3,
-				null,
-				null,
-				null,
-				null,
-				null
+		JsonObject group = JsonFormatBuilder.object()
+			.put(
+				MobConfigManager.FIELD_MOB_STATS,
+				MobConfigManager.buildMobStatsDefaults(
+					baby ? 5.0d : null,
+					null,
+					null,
+					baby ? 0.25d : null,
+					null,
+					baby ? 0.45d : null,
+					null,
+					null,
+					baby ? 1 : 3,
+					null,
+					null,
+					null,
+					null,
+					null
+				)
 			)
-		);
-
-		group.add(
-			MobConfigManager.FIELD_SPAWN_RULES,
-			MobConfigManager.mobSpawnRules().spawnWeight(baby ? 20.0d : 80.0d).build()
-		);
+			.put(
+				MobConfigManager.FIELD_SPAWN_RULES,
+				MobConfigManager.mobSpawnRules().spawnWeight(baby ? 20.0d : 80.0d).build()
+			)
+			.build();
 
 		if (baby) {
 			group.add(MobConfigManager.FIELD_MOB_GOALS, new JsonObject());

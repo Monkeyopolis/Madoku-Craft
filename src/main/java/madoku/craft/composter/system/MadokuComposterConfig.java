@@ -1,6 +1,7 @@
 package madoku.craft.composter.system;
 
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.item.system.MadokuItemConfig;
 
 import java.util.LinkedHashMap;
@@ -19,9 +20,9 @@ public final class MadokuComposterConfig {
 	}
 
 	public static JsonObject buildComposterSystemDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_COMPOSTER_SYSTEM_ENABLED, true);
-		return defaults;
+		return JsonFormatBuilder.object()
+			.put(FIELD_COMPOSTER_SYSTEM_ENABLED, true)
+			.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultComposterFileDefaults(boolean farmingSystemEnabled) {

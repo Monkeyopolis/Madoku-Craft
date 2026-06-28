@@ -1015,12 +1015,12 @@ public final class MadokuLootTableStructures {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(LootTableConfigManager.FIELD_ENABLED, enabled);
-			root.addProperty(LootTableConfigManager.FIELD_USE_MADOKU_LUCK, useMadokuLuck);
-			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, overrideStructureLootTables);
-			root.addProperty(LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, overrideEntityLootTables);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put(LootTableConfigManager.FIELD_ENABLED, enabled)
+				.put(LootTableConfigManager.FIELD_USE_MADOKU_LUCK, useMadokuLuck)
+				.put(LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, overrideStructureLootTables)
+				.put(LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, overrideEntityLootTables)
+				.build();
 		}
 
 		private static LuckCurve defaultRollCurve() {

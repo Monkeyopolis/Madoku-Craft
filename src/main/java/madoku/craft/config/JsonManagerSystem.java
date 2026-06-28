@@ -123,24 +123,30 @@ public final class JsonManagerSystem {
 	}
 
 	static void writeManagedDocument(Path file, ManagedJsonType type, JsonObject main, JsonObject defaults) throws IOException {
-		JsonObject payload = new JsonObject();
 		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
 		boolean enabled = resolveWriteEnabled(safeMain, null, defaults);
 		safeMain.remove(FIELD_ENABLED);
-		payload.add(FIELD_GENERAL, createGeneral(type, enabled));
-		payload.add(FIELD_MAIN, safeMain);
-		writeJsonObject(file, payload);
+		writeJsonObject(
+			file,
+			JsonFormatBuilder.object()
+				.put(FIELD_GENERAL, createGeneral(type, enabled))
+				.put(FIELD_MAIN, safeMain)
+				.build()
+		);
 	}
 
 	static void writeManagedDocumentWithGeneral(Path file, ManagedJsonType type, JsonObject general, JsonObject main) throws IOException {
-		JsonObject payload = new JsonObject();
 		JsonObject safeMain = main == null ? new JsonObject() : main.deepCopy();
 		JsonObject safeGeneral = general == null ? new JsonObject() : general.deepCopy();
 		boolean enabled = resolveWriteEnabled(safeMain, safeGeneral, null);
 		safeMain.remove(FIELD_ENABLED);
-		payload.add(FIELD_GENERAL, createGeneral(type, enabled, safeGeneral));
-		payload.add(FIELD_MAIN, safeMain);
-		writeJsonObject(file, payload);
+		writeJsonObject(
+			file,
+			JsonFormatBuilder.object()
+				.put(FIELD_GENERAL, createGeneral(type, enabled, safeGeneral))
+				.put(FIELD_MAIN, safeMain)
+				.build()
+		);
 	}
 
 	static boolean samePrimitiveType(JsonPrimitive source, JsonPrimitive defaults) {
@@ -161,16 +167,12 @@ public final class JsonManagerSystem {
 	}
 
 	private static JsonObject createGeneral(ManagedJsonType type, boolean enabled, JsonObject source) {
-		JsonObject general = new JsonObject();
-		if (source != null) {
-			for (var entry : source.entrySet()) {
-				general.add(entry.getKey(), entry.getValue() == null ? null : entry.getValue().deepCopy());
-			}
-		}
-		general.addProperty(FIELD_VERSION, getCurrentModVersion());
-		general.addProperty(FIELD_TYPE, type.id());
-		general.addProperty(FIELD_ENABLED, enabled);
-		return general;
+		JsonFormatBuilder.ObjectBuilder general = JsonFormatBuilder.object().putAll(source);
+		return general
+			.put(FIELD_VERSION, getCurrentModVersion())
+			.put(FIELD_TYPE, type.id())
+			.put(FIELD_ENABLED, enabled)
+			.build();
 	}
 
 	private static boolean resolveReadEnabled(JsonObject general, JsonObject defaults) {

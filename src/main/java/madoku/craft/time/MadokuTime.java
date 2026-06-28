@@ -2,6 +2,7 @@ package madoku.craft.time;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
@@ -552,14 +553,14 @@ public final class MadokuTime {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("real-minutes-per-day", realMinutesPerDay);
-			root.addProperty("real-minutes-per-night", realMinutesPerNight);
-			root.addProperty("clock-day-start", formatClockMinutes(clockDayStartMinutes));
-			root.addProperty("clock-night-start", formatClockMinutes(clockNightStartMinutes));
-			root.addProperty("clock-midnight", formatClockMinutes(clockMidnightMinutes));
-			return root;
+			return JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("real-minutes-per-day", realMinutesPerDay)
+				.put("real-minutes-per-night", realMinutesPerNight)
+				.put("clock-day-start", formatClockMinutes(clockDayStartMinutes))
+				.put("clock-night-start", formatClockMinutes(clockNightStartMinutes))
+				.put("clock-midnight", formatClockMinutes(clockMidnightMinutes))
+				.build();
 		}
 	}
 }

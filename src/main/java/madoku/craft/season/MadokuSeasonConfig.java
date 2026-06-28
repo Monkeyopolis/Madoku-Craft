@@ -1,6 +1,7 @@
 package madoku.craft.season;
 
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 
 import java.util.Locale;
 
@@ -32,13 +33,13 @@ public final class MadokuSeasonConfig {
 		double temperature,
 		String precipitation
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_BIOME_ID, biomeId == null ? "" : biomeId);
-		root.addProperty(FIELD_DEFAULT_CLASSIFICATION, normalizeClassification(defaultClassification));
-		root.addProperty(FIELD_CLASSIFICATION, normalizeClassification(classification));
-		root.addProperty(FIELD_BIOME_TEMPERATURE, temperature);
-		root.addProperty(FIELD_BIOME_PRECIPITATION, normalizeKey(precipitation));
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_BIOME_ID, biomeId == null ? "" : biomeId)
+			.put(FIELD_DEFAULT_CLASSIFICATION, normalizeClassification(defaultClassification))
+			.put(FIELD_CLASSIFICATION, normalizeClassification(classification))
+			.put(FIELD_BIOME_TEMPERATURE, temperature)
+			.put(FIELD_BIOME_PRECIPITATION, normalizeKey(precipitation))
+			.build();
 	}
 
 	public static String normalizeClassification(String value) {

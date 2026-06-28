@@ -1,10 +1,10 @@
 package madoku.craft.farming.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
@@ -1528,33 +1528,33 @@ public final class MadokuFarming {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CHUNK_CURSOR, 0);
-		root.add(FIELD_PLOTS, new JsonArray());
-		root.add(FIELD_CROPS, new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_CHUNK_CURSOR, 0)
+			.array(FIELD_PLOTS, plots -> {
+			})
+			.array(FIELD_CROPS, crops -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CHUNK_CURSOR, Math.max(0, chunkScanCursor));
-
-		JsonArray plots = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder plots = JsonFormatBuilder.array();
 		for (PlotState plot : plotsByKey.values()) {
 			if (plot != null) {
 				plots.add(plot.toJson());
 			}
 		}
-		root.add(FIELD_PLOTS, plots);
-
-		JsonArray crops = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder crops = JsonFormatBuilder.array();
 		for (CropState crop : cropsByKey.values()) {
 			if (crop != null) {
 				crops.add(crop.toJson());
 			}
 		}
-		root.add(FIELD_CROPS, crops);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_CHUNK_CURSOR, Math.max(0, chunkScanCursor))
+			.put(FIELD_PLOTS, plots.build())
+			.put(FIELD_CROPS, crops.build())
+			.build();
 	}
 
 	private static void loadStaticConfig() {
@@ -2278,15 +2278,15 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_SOIL_POS, soilPos);
-			root.addProperty(FIELD_CROP_POS, cropPos);
-			root.addProperty(FIELD_CROP_ID, cropId);
-			root.addProperty(FIELD_FERTILIZED, fertilized);
-			root.addProperty(FIELD_FERTILIZED_AT_GAMEPLAY_TICK,
-				fertilizedAtGameplayTick == Long.MIN_VALUE ? -1L : fertilizedAtGameplayTick);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_SOIL_POS, soilPos)
+				.put(FIELD_CROP_POS, cropPos)
+				.put(FIELD_CROP_ID, cropId)
+				.put(FIELD_FERTILIZED, fertilized)
+				.put(FIELD_FERTILIZED_AT_GAMEPLAY_TICK,
+					fertilizedAtGameplayTick == Long.MIN_VALUE ? -1L : fertilizedAtGameplayTick)
+				.build();
 		}
 
 		private static PlotState fromJson(JsonElement element) {
@@ -2354,16 +2354,16 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(FIELD_LEVEL_ID, levelId);
-			root.addProperty(FIELD_CROP_POS, cropPos);
-			root.addProperty(FIELD_SOIL_POS, soilPos);
-			root.addProperty(FIELD_CROP_ID, cropId);
-			root.addProperty(FIELD_DISCOVERED_SEASON_ID, discoveredSeasonId);
-			root.addProperty(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks);
-			root.addProperty(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks);
-			root.addProperty(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime);
-			return root;
+			return JsonFormatBuilder.object()
+				.put(FIELD_LEVEL_ID, levelId)
+				.put(FIELD_CROP_POS, cropPos)
+				.put(FIELD_SOIL_POS, soilPos)
+				.put(FIELD_CROP_ID, cropId)
+				.put(FIELD_DISCOVERED_SEASON_ID, discoveredSeasonId)
+				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
+				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
+				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.build();
 		}
 
 		private static CropState fromJson(JsonElement element) {
@@ -2481,13 +2481,13 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(MadokuFarmingConfig.FIELD_ENABLED, enabled);
-			root.addProperty(MadokuFarmingConfig.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost);
-			root.addProperty(MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost);
-			root.addProperty(MadokuFarmingConfig.FIELD_OUT_OF_SEASON_PENALTY, outOfSeasonPenalty);
-			root.addProperty(MadokuFarmingConfig.FIELD_DRY_FARMLAND_PENALTY, dryFarmlandPenalty);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put(MadokuFarmingConfig.FIELD_ENABLED, enabled)
+				.put(MadokuFarmingConfig.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost)
+				.put(MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost)
+				.put(MadokuFarmingConfig.FIELD_OUT_OF_SEASON_PENALTY, outOfSeasonPenalty)
+				.put(MadokuFarmingConfig.FIELD_DRY_FARMLAND_PENALTY, dryFarmlandPenalty)
+				.build();
 		}
 	}
 

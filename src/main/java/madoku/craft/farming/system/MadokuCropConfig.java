@@ -1,7 +1,8 @@
 package madoku.craft.farming.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+
+import madoku.craft.config.JsonFormatBuilder;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -195,31 +196,34 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CROP_ID, normalizeRegistryId(cropId));
+		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+			.put(FIELD_CROP_ID, normalizeRegistryId(cropId))
+			.put(FIELD_GROWTH_TIME, growthMinecraftDays)
+			.put(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount))
+			.put(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
+
 		String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
 		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizeRegistryId(cropBlockId))) {
-			root.addProperty(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
+			root.put(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
 		}
+
 		String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
 		if (!normalizedSecondaryHarvestItemId.isEmpty()) {
-			root.addProperty(FIELD_MIN_HARVEST_SEEDS, Math.max(0, secondaryMinHarvestCount));
-			root.addProperty(FIELD_MAX_HARVEST_SEEDS, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
+			root.put(FIELD_MIN_HARVEST_SEEDS, Math.max(0, secondaryMinHarvestCount));
+			root.put(FIELD_MAX_HARVEST_SEEDS, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
 		}
-		root.addProperty(FIELD_GROWTH_TIME, growthMinecraftDays);
-		root.addProperty(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount));
-		root.addProperty(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
-		JsonArray seasons = new JsonArray();
+
+		JsonFormatBuilder.ArrayBuilder seasons = JsonFormatBuilder.array();
 		if (blockedSeasons != null) {
 			for (String season : blockedSeasons) {
 				String normalized = normalizeSeasonId(season);
-					if (!normalized.isEmpty()) {
-						seasons.add(normalized);
-					}
+				if (!normalized.isEmpty()) {
+					seasons.add(normalized);
 				}
 			}
-		root.add(FIELD_PLANTING_BLOCKED_SEASONS, seasons);
-		return root;
+		}
+		root.put(FIELD_PLANTING_BLOCKED_SEASONS, seasons.build());
+		return root.build();
 	}
 
 	public static String normalizeRegistryId(String value) {

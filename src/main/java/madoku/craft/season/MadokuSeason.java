@@ -591,7 +591,7 @@ public final class MadokuSeason {
 	}
 
 	private static JsonObject createDefaultData() {
-		return new JsonObject();
+		return madoku.craft.config.JsonFormatBuilder.object().build();
 	}
 
 	private static SeasonState parsePersistedState(JsonObject source) {
@@ -599,7 +599,7 @@ public final class MadokuSeason {
 	}
 
 	private static JsonObject toPersistedData() {
-		return new JsonObject();
+		return madoku.craft.config.JsonFormatBuilder.object().build();
 	}
 
 	private static void loadStaticConfig() {
@@ -800,12 +800,12 @@ public final class MadokuSeason {
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty(MadokuSeasonConfig.FIELD_ENABLED, enabled);
-			root.addProperty(MadokuSeasonConfig.FIELD_BIOME_OVERRIDES_ENABLED, biomeOverridesEnabled);
-			root.addProperty(MadokuSeasonConfig.FIELD_COLD_TEMPERATURE_THRESHOLD, coldTemperatureThreshold);
-			root.addProperty(MadokuSeasonConfig.FIELD_HOT_TEMPERATURE_THRESHOLD, hotTemperatureThreshold);
-			return root;
+			return madoku.craft.config.JsonFormatBuilder.object()
+				.put(MadokuSeasonConfig.FIELD_ENABLED, enabled)
+				.put(MadokuSeasonConfig.FIELD_BIOME_OVERRIDES_ENABLED, biomeOverridesEnabled)
+				.put(MadokuSeasonConfig.FIELD_COLD_TEMPERATURE_THRESHOLD, coldTemperatureThreshold)
+				.put(MadokuSeasonConfig.FIELD_HOT_TEMPERATURE_THRESHOLD, hotTemperatureThreshold)
+				.build();
 		}
 	}
 

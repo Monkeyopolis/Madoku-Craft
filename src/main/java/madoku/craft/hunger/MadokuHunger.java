@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributes;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
@@ -830,30 +831,30 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add("players", new JsonArray());
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.array("players", players -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = createDefaultData();
-		JsonArray players = new JsonArray();
+		madoku.craft.config.JsonFormatBuilder.ArrayBuilder players = madoku.craft.config.JsonFormatBuilder.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
-			JsonObject player = new JsonObject();
-			player.addProperty("uuid", entry.getKey().toString());
-			player.addProperty("hunger-points", state.hungerPoints);
-			player.addProperty("pending-hunger", state.pendingHunger);
-			player.addProperty("block-break-progress", state.blockBreakProgress);
-			player.addProperty("travel-progress", state.travelProgress);
-			player.addProperty("time-progress-ticks", state.timeProgressTicks);
-			player.addProperty("last-observed-absolute-day-time", state.lastObservedAbsoluteDayTime);
-			player.addProperty("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick));
-			player.addProperty("next-pending-allocation-tick", Math.max(0L, state.nextPendingAllocationTick));
-			players.add(player);
+			players.object(player -> player
+				.put("uuid", entry.getKey().toString())
+				.put("hunger-points", state.hungerPoints)
+				.put("pending-hunger", state.pendingHunger)
+				.put("block-break-progress", state.blockBreakProgress)
+				.put("travel-progress", state.travelProgress)
+				.put("time-progress-ticks", state.timeProgressTicks)
+				.put("last-observed-absolute-day-time", state.lastObservedAbsoluteDayTime)
+				.put("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick))
+				.put("next-pending-allocation-tick", Math.max(0L, state.nextPendingAllocationTick)));
 		}
-		root.add("players", players);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.put("players", players.build())
+			.build();
 	}
 
 	private static void applyPersistedData(JsonObject source) {
@@ -1094,14 +1095,14 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		}
 
 		private JsonObject toConfigJson() {
-			JsonObject root = new JsonObject();
-			root.addProperty("enabled", enabled);
-			root.addProperty("maximum-hunger-points", maximumHungerPoints);
-			root.addProperty("block-break-goal", blockBreakGoal);
-			root.addProperty("travel-goal-distance", travelGoalDistance);
-			root.addProperty("time-goal-ticks", timeGoalTicks);
-			root.addProperty("teleport-distance-threshold", teleportDistanceThreshold);
-			return root;
+			return JsonFormatBuilder.object()
+				.put("enabled", enabled)
+				.put("maximum-hunger-points", maximumHungerPoints)
+				.put("block-break-goal", blockBreakGoal)
+				.put("travel-goal-distance", travelGoalDistance)
+				.put("time-goal-ticks", timeGoalTicks)
+				.put("teleport-distance-threshold", teleportDistanceThreshold)
+				.build();
 		}
 
 		private Settings withEnabled(boolean attributesEnabled) {

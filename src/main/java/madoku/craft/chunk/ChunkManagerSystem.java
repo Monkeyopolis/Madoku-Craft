@@ -2,6 +2,7 @@ package madoku.craft.chunk;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -1400,14 +1401,14 @@ public final class ChunkManagerSystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(FIELD_LEVELS, new JsonArray());
-		return root;
+		return JsonFormatBuilder.object()
+			.array(FIELD_LEVELS, levels -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = new JsonObject();
-		JsonArray levels = new JsonArray();
+		JsonFormatBuilder.ArrayBuilder levels = JsonFormatBuilder.array();
 		for (Map.Entry<String, Map<Long, FullChunkStatus>> levelEntry : CHUNK_STATUSES_BY_LEVEL.entrySet()) {
 			String levelId = levelEntry.getKey();
 			Map<Long, FullChunkStatus> chunks = levelEntry.getValue();
@@ -1415,11 +1416,9 @@ public final class ChunkManagerSystem {
 				continue;
 			}
 
-			JsonObject levelObject = new JsonObject();
-			levelObject.addProperty(FIELD_LEVEL_ID, levelId);
-			JsonArray chunkArray = new JsonArray();
 			List<Map.Entry<Long, FullChunkStatus>> orderedChunks = new ArrayList<>(chunks.entrySet());
 			orderedChunks.sort(Comparator.comparingLong(Map.Entry::getKey));
+			JsonFormatBuilder.ArrayBuilder chunkBuilder = JsonFormatBuilder.array();
 			for (Map.Entry<Long, FullChunkStatus> chunkEntry : orderedChunks) {
 				Long packedChunk = chunkEntry.getKey();
 				FullChunkStatus status = chunkEntry.getValue();
@@ -1427,19 +1426,21 @@ public final class ChunkManagerSystem {
 					continue;
 				}
 
-				JsonObject chunkObject = new JsonObject();
-				chunkObject.addProperty(FIELD_CHUNK_X, unpackChunkX(packedChunk));
-				chunkObject.addProperty(FIELD_CHUNK_Z, unpackChunkZ(packedChunk));
-				chunkObject.addProperty(FIELD_STATUS, status.name().toLowerCase());
-				chunkArray.add(chunkObject);
+				chunkBuilder.object(chunk -> chunk
+					.put(FIELD_CHUNK_X, unpackChunkX(packedChunk))
+					.put(FIELD_CHUNK_Z, unpackChunkZ(packedChunk))
+					.put(FIELD_STATUS, status.name().toLowerCase()));
 			}
+			JsonArray chunkArray = chunkBuilder.build();
 			if (!chunkArray.isEmpty()) {
-				levelObject.add(FIELD_CHUNKS, chunkArray);
-				levels.add(levelObject);
+				levels.object(level -> level
+					.put(FIELD_LEVEL_ID, levelId)
+					.put(FIELD_CHUNKS, chunkArray));
 			}
 		}
-		root.add(FIELD_LEVELS, levels);
-		return root;
+		return JsonFormatBuilder.object()
+			.put(FIELD_LEVELS, levels.build())
+			.build();
 	}
 
 	private static FullChunkStatus resolveChunkStatus(ServerLevel level, long packedChunk) {

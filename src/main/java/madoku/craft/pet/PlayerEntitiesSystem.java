@@ -7,6 +7,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
@@ -967,7 +968,7 @@ public final class PlayerEntitiesSystem {
 	private static JsonObject buildDynamicPetRuleDefaults(String fileKey) {
 		String itemId = resolvePetItemId(fileKey, null);
 		if (itemId == null) {
-			return new JsonObject();
+			return JsonFormatBuilder.object().build();
 		}
 		return PetRule.defaultsForItem(itemId, defaultAbilityForItem(itemId));
 	}
@@ -2514,12 +2515,13 @@ public final class PlayerEntitiesSystem {
 			return false;
 		}
 
-		JsonObject payload = new JsonObject();
-		payload.addProperty(FIELD_SLOT, slot);
-		payload.addProperty(FIELD_TARGET_UUID, target.getUUID().toString());
-		payload.addProperty(FIELD_SPAWN_X, spawnPosition.x);
-		payload.addProperty(FIELD_SPAWN_Y, spawnPosition.y);
-		payload.addProperty(FIELD_SPAWN_Z, spawnPosition.z);
+		JsonObject payload = madoku.craft.config.JsonFormatBuilder.object()
+			.put(FIELD_SLOT, slot)
+			.put(FIELD_TARGET_UUID, target.getUUID().toString())
+			.put(FIELD_SPAWN_X, spawnPosition.x)
+			.put(FIELD_SPAWN_Y, spawnPosition.y)
+			.put(FIELD_SPAWN_Z, spawnPosition.z)
+			.build();
 		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
@@ -2932,31 +2934,30 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add("slot-cooldowns", new JsonArray());
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.array("slot-cooldowns", cooldowns -> {
+			})
+			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonObject root = createDefaultData();
-
-		JsonArray cooldowns = new JsonArray();
+		madoku.craft.config.JsonFormatBuilder.ArrayBuilder cooldowns = madoku.craft.config.JsonFormatBuilder.array();
 		for (Map.Entry<UUID, long[]> entry : PLAYER_SLOT_COOLDOWNS.entrySet()) {
 			if (entry.getKey() == null || !hasNonZeroCooldown(entry.getValue())) {
 				continue;
 			}
-			JsonObject playerCooldowns = new JsonObject();
-			playerCooldowns.addProperty("uuid", entry.getKey().toString());
-			JsonArray values = new JsonArray();
 			long[] source = entry.getValue();
+			madoku.craft.config.JsonFormatBuilder.ArrayBuilder values = madoku.craft.config.JsonFormatBuilder.array();
 			for (int slot = 0; slot < SLOT_COUNT; slot++) {
 				values.add(slot < source.length ? Math.max(0L, source[slot]) : 0L);
 			}
-			playerCooldowns.add("cooldowns", values);
-			cooldowns.add(playerCooldowns);
+			cooldowns.object(playerCooldowns -> playerCooldowns
+				.put("uuid", entry.getKey().toString())
+				.put("cooldowns", values.build()));
 		}
-		root.add("slot-cooldowns", cooldowns);
-		return root;
+		return madoku.craft.config.JsonFormatBuilder.object()
+			.put("slot-cooldowns", cooldowns.build())
+			.build();
 	}
 
 	private static void applyPersistedData(JsonObject source) {
