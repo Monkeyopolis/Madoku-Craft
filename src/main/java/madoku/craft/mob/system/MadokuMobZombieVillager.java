@@ -523,3 +523,4 @@ public final class MadokuMobZombieVillager {
 		}
 	}
 }
+

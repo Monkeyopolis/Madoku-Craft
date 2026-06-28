@@ -91,3 +91,4 @@ public final class LootTableConfigEntities {
 		return collapsed.isBlank() ? "entity-table" : collapsed;
 	}
 }
+

@@ -39,3 +39,4 @@ public abstract class ThrownTridentGroundClearMixin {
 		return -1;
 	}
 }
+

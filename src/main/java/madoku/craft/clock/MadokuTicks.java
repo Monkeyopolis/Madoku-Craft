@@ -37,3 +37,4 @@ public final class MadokuTicks {
 		MadokuTime.advanceSkippedTimeTicks(Math.max(1L, ignoredAmount));
 	}
 }
+

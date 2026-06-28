@@ -26,3 +26,4 @@ public abstract class BeeStingEffectMixin {
 		return MadokuMobBee.applyStingingAttackEffect((Bee) (Object) this, target, effect, attacker);
 	}
 }
+

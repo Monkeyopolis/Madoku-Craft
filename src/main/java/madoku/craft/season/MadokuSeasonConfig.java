@@ -68,3 +68,4 @@ public final class MadokuSeasonConfig {
 		return builder.toString();
 	}
 }
+

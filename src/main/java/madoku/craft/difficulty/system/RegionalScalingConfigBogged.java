@@ -37,3 +37,4 @@ public final class RegionalScalingConfigBogged {
 			.build();
 	}
 }
+

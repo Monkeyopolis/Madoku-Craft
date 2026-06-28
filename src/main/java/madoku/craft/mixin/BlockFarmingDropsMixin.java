@@ -2,7 +2,7 @@ package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;
@@ -114,7 +114,7 @@ public abstract class BlockFarmingDropsMixin {
 		if (secondaryHarvestItem != null && secondaryCount > 0) {
 			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
 		}
-		MadokuLuck.applyManagedCropDrops(random, drops);
+		MadokuLuckManager.applyManagedCropDrops(random, drops);
 		for (ItemStack drop : drops) {
 			if (drop != null && !drop.isEmpty()) {
 				Block.popResource(level, pos, drop);
@@ -124,3 +124,4 @@ public abstract class BlockFarmingDropsMixin {
 		ci.cancel();
 	}
 }
+

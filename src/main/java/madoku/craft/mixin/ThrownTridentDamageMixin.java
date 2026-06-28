@@ -33,3 +33,4 @@ public abstract class ThrownTridentDamageMixin {
 		return hit;
 	}
 }
+

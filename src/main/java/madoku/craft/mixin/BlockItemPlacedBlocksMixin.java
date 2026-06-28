@@ -61,3 +61,4 @@ public abstract class BlockItemPlacedBlocksMixin {
 		return placedPos == null ? null : placedPos.immutable();
 	}
 }
+

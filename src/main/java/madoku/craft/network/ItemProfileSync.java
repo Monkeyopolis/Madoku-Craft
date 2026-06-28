@@ -26,3 +26,4 @@ public final class ItemProfileSync {
 		initialized = true;
 	}
 }
+

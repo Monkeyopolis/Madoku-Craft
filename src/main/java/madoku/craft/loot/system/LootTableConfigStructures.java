@@ -161,3 +161,4 @@ public final class LootTableConfigStructures {
 		return collapsed.isBlank() ? "structure-table" : collapsed;
 	}
 }
+

@@ -64,3 +64,4 @@ public abstract class BatPetBehaviorMixin {
 		((BatTargetAccessor) self).madokuCraft$setTargetPosition(targetPos);
 	}
 }
+

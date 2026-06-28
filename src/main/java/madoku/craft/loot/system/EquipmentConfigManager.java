@@ -316,3 +316,4 @@ public final class EquipmentConfigManager {
 		}
 	}
 }
+

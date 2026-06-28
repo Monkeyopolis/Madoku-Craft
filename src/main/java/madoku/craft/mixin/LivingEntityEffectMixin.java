@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.health.MadokuHealth;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.health.MadokuHealthManager;
+import madoku.craft.luck.MadokuLuckManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -18,24 +18,25 @@ public abstract class LivingEntityEffectMixin {
 	@Inject(method = "onEffectAdded", at = @At("TAIL"))
 	private void madokuCraft$onEffectAdded(MobEffectInstance effect, Entity source, CallbackInfo ci) {
 		if ((Object) this instanceof ServerPlayer player) {
-			MadokuHealth.handlePlayerEffectsChanged(player);
-			MadokuLuck.handlePlayerEffectsChanged(player);
+			MadokuHealthManager.handlePlayerEffectsChanged(player);
+			MadokuLuckManager.handlePlayerEffectsChanged(player);
 		}
 	}
 
 	@Inject(method = "onEffectUpdated", at = @At("TAIL"))
 	private void madokuCraft$onEffectUpdated(MobEffectInstance effect, boolean reapplyEffect, Entity source, CallbackInfo ci) {
 		if ((Object) this instanceof ServerPlayer player) {
-			MadokuHealth.handlePlayerEffectsChanged(player);
-			MadokuLuck.handlePlayerEffectsChanged(player);
+			MadokuHealthManager.handlePlayerEffectsChanged(player);
+			MadokuLuckManager.handlePlayerEffectsChanged(player);
 		}
 	}
 
 	@Inject(method = "onEffectsRemoved", at = @At("TAIL"))
 	private void madokuCraft$onEffectsRemoved(Collection<MobEffectInstance> effects, CallbackInfo ci) {
 		if ((Object) this instanceof ServerPlayer player) {
-			MadokuHealth.handlePlayerEffectsChanged(player);
-			MadokuLuck.handlePlayerEffectsChanged(player);
+			MadokuHealthManager.handlePlayerEffectsChanged(player);
+			MadokuLuckManager.handlePlayerEffectsChanged(player);
 		}
 	}
 }
+

@@ -22,3 +22,4 @@ public record WorldSeasonPayload(String season) implements CustomPacketPayload {
 		return TYPE;
 	}
 }
+

@@ -39,3 +39,4 @@ public abstract class ServerPlayerSleepTimeMixin {
 		return allowed;
 	}
 }
+

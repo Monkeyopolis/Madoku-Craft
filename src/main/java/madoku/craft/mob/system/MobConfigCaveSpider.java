@@ -79,3 +79,4 @@ public final class MobConfigCaveSpider {
 		return MobConfigManager.mobSpawnRules().spawnWeight(100.0d).build();
 	}
 }
+

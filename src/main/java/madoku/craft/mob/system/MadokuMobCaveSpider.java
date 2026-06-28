@@ -136,3 +136,4 @@ public final class MadokuMobCaveSpider {
 		return element.getAsString();
 	}
 }
+

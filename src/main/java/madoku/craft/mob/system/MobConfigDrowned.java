@@ -233,3 +233,4 @@ public final class MobConfigDrowned {
 		return "minecraft-equipment-drowned.json";
 	}
 }
+

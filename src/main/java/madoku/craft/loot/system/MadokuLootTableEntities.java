@@ -8,7 +8,7 @@ import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.debug.MadokuDebug;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
@@ -542,14 +542,14 @@ public final class MadokuLootTableEntities {
 		return player != null
 			&& activeSettings != null
 			&& activeSettings.useMadokuLuck
-			&& MadokuLuck.isEnabled();
+			&& MadokuLuckManager.isEnabled();
 	}
 
 	private static double resolveLuckStat(ServerPlayer player, Settings activeSettings) {
 		if (!isLuckActiveForLoot(player, activeSettings)) {
 			return 0.0d;
 		}
-		return MadokuLuck.resolveLootLuckStat(player);
+		return MadokuLuckManager.resolveLootLuckStat(player);
 	}
 
 	private static String resolveQueriedLootTableId(LootContext lootContext) {
@@ -877,7 +877,7 @@ public final class MadokuLootTableEntities {
 		}
 		return switch (tag) {
 			case GROUP_TAG_MADOKU_PETS -> PlayerEntitiesSystem.isEnabled();
-			case GROUP_TAG_MADOKU_LUCK -> MadokuLuck.isEnabled();
+			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
 			case GROUP_TAG_MADOKU_RARITY -> MadokuRarity.isEnabled();
 			default -> true;
 		};
@@ -1227,6 +1227,7 @@ public final class MadokuLootTableEntities {
 		}
 	}
 }
+
 
 
 

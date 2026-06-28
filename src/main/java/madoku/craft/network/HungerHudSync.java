@@ -26,3 +26,4 @@ public final class HungerHudSync {
 		return true;
 	}
 }
+

@@ -3,10 +3,8 @@ package madoku.craft.hunger;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.attributes.MadokuAttributes;
+import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.levels.MadokuLevels;
@@ -26,26 +24,21 @@ import net.minecraft.world.food.FoodData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-public final class MadokuHunger {
-private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHunger.class);
+public final class MadokuHungerManager {
+private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHungerManager.class);
 
 private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 private static final int MAX_LEVEL_BONUS_HUNGER_POINTS = 20;
 private static final int MAX_CONFIG_HUNGER_POINTS = 8192;
-private static final int DEFAULT_TIME_GOAL_CLOCK_TICKS = 7200;
 private static final double RESPAWN_HUNGER_RATIO = 0.5d;
 private static final long HUNGER_EFFECT_INTERVAL_TICKS = 20L;
 private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 
-	private static final String HUNGER_CONFIG_DIRECTORY_NAME = "madoku-hunger";
-	private static final String HUNGER_CONFIG_FILE_NAME = "madoku-hunger";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-hunger";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
 	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
@@ -53,19 +46,19 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	private static final long HUNGER_PLAYER_TICK_DELAY = 1L;
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
-	private static volatile Settings settings = Settings.defaults();
+	private static volatile HungerConfigManager.Settings settings = HungerConfigManager.Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
-	private MadokuHunger() {
+	private MadokuHungerManager() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHunger::runPlayerTickTask);
-		ServerPlayerEvents.JOIN.register(MadokuHunger::handlePlayerJoin);
-		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHunger::handlePlayerRespawn);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHungerManager::runPlayerTickTask);
+		ServerPlayerEvents.JOIN.register(MadokuHungerManager::handlePlayerJoin);
+		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHungerManager::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
 	}
 
@@ -895,19 +888,7 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = Settings.defaults().toConfigJson();
-		Settings fallback = Settings.defaults();
-
-		try {
-			Path configFile = MadokuAttributes.prepareSystemConfigFile(HUNGER_CONFIG_DIRECTORY_NAME, HUNGER_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
-			Settings configured = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
-			settings = configured.withEnabled(MadokuAttributes.isEnabled());
-		} catch (IOException | RuntimeException exception) {
-			settings = fallback.withEnabled(MadokuAttributes.isEnabled());
-			LOGGER.error("Failed to load MadokuHunger static config; using defaults.", exception);
-		}
+		settings = HungerConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
 	}
 
 	private static String getString(JsonObject object, String key, String fallback) {
@@ -947,21 +928,6 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		}
 		try {
 			return element.getAsDouble();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
-			return fallback;
-		}
-		try {
-			return element.getAsBoolean();
 		} catch (RuntimeException exception) {
 			return fallback;
 		}
@@ -1023,107 +989,4 @@ private static final long SATURATION_HUNGER_INTERVAL_TICKS = 20L;
 		}
 	}
 
-	private static final class Settings {
-		private final boolean enabled;
-		private final int maximumHungerPoints;
-		private final int pendingAllocationIntervalTicks;
-		private final long pendingIdleTimeoutTicks;
-		private final int blockBreakGoal;
-		private final double travelGoalDistance;
-		private final int timeGoalTicks;
-		private final double teleportDistanceThreshold;
-
-		private Settings(
-			boolean enabled,
-			int maximumHungerPoints,
-			int pendingAllocationIntervalTicks,
-			long pendingIdleTimeoutTicks,
-			int blockBreakGoal,
-			double travelGoalDistance,
-			int timeGoalTicks,
-			double teleportDistanceThreshold
-		) {
-			this.enabled = enabled;
-			this.maximumHungerPoints = maximumHungerPoints;
-			this.pendingAllocationIntervalTicks = pendingAllocationIntervalTicks;
-			this.pendingIdleTimeoutTicks = pendingIdleTimeoutTicks;
-			this.blockBreakGoal = blockBreakGoal;
-			this.travelGoalDistance = travelGoalDistance;
-			this.timeGoalTicks = timeGoalTicks;
-			this.teleportDistanceThreshold = teleportDistanceThreshold;
-		}
-
-		private static Settings defaults() {
-			return new Settings(
-				true,
-				30,
-				10,
-				1500L,
-				128,
-				150.0d,
-				DEFAULT_TIME_GOAL_CLOCK_TICKS,
-				16.0d
-			);
-		}
-
-		private static Settings fromJson(JsonObject source) {
-			Settings defaults = defaults();
-
-			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			int maximumHungerPoints = (int) clampLong(getLong(source, "maximum-hunger-points", defaults.maximumHungerPoints), 1L, MAX_CONFIG_HUNGER_POINTS);
-			int pendingAllocationIntervalTicks = defaults.pendingAllocationIntervalTicks;
-			long pendingIdleTimeoutTicks = defaults.pendingIdleTimeoutTicks;
-			int blockBreakGoal = (int) clampLong(getLong(source, "block-break-goal", defaults.blockBreakGoal), 1L, 100000L);
-			double travelGoalDistance = clampDouble(getDouble(source, "travel-goal-distance", defaults.travelGoalDistance), 1.0d, 1000000.0d);
-			int timeGoalTicks = (int) clampLong(getLong(source, "time-goal-ticks", defaults.timeGoalTicks), 1L, 20L * 60L * 60L * 24L);
-			double teleportDistanceThreshold = clampDouble(
-				getDouble(source, "teleport-distance-threshold", defaults.teleportDistanceThreshold),
-				1.0d,
-				1024.0d
-			);
-
-			return new Settings(
-				enabled,
-				maximumHungerPoints,
-				pendingAllocationIntervalTicks,
-				pendingIdleTimeoutTicks,
-				blockBreakGoal,
-				travelGoalDistance,
-				timeGoalTicks,
-				teleportDistanceThreshold
-			);
-		}
-
-		private JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
-				.put("enabled", enabled)
-				.put("maximum-hunger-points", maximumHungerPoints)
-				.put("block-break-goal", blockBreakGoal)
-				.put("travel-goal-distance", travelGoalDistance)
-				.put("time-goal-ticks", timeGoalTicks)
-				.put("teleport-distance-threshold", teleportDistanceThreshold)
-				.build();
-		}
-
-		private Settings withEnabled(boolean attributesEnabled) {
-			return new Settings(
-				attributesEnabled && enabled,
-				maximumHungerPoints,
-				pendingAllocationIntervalTicks,
-				pendingIdleTimeoutTicks,
-				blockBreakGoal,
-				travelGoalDistance,
-				timeGoalTicks,
-				teleportDistanceThreshold
-			);
-		}
-
-		private static long clampLong(long value, long min, long max) {
-			return Math.max(min, Math.min(max, value));
-		}
-
-		private static double clampDouble(double value, double min, double max) {
-			return Math.max(min, Math.min(max, value));
-		}
-	}
 }

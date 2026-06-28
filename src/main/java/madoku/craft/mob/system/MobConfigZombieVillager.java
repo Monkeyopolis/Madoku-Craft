@@ -159,3 +159,4 @@ public final class MobConfigZombieVillager {
 		return root.build();
 	}
 }
+

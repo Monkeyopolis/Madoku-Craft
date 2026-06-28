@@ -10,3 +10,4 @@ public interface ItemComponentsAccessor {
 	@Invoker("bindComponents")
 	void madokuCraft$bindComponents(DataComponentMap components);
 }
+

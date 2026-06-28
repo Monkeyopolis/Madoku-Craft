@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.hunger.MadokuHungerManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -25,9 +25,10 @@ public abstract class FoodDataStarvationDamageMixin {
 		DamageSource source,
 		float amount
 	) {
-		if (MadokuHunger.isEnabled() && source.is(DamageTypes.STARVE)) {
+		if (MadokuHungerManager.isEnabled() && source.is(DamageTypes.STARVE)) {
 			return false;
 		}
 		return player.hurtServer(level, source, amount);
 	}
 }
+

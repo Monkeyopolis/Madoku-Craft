@@ -37,3 +37,4 @@ public abstract class SkeletonRuntimeTickMixin {
 		MadokuMobSkeleton.tickRangedSkeletonRuntime(skeleton);
 	}
 }
+

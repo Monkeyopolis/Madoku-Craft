@@ -20,3 +20,4 @@ public abstract class DrownedTravelInWaterSpeedMixin {
 		return (float) MadokuMobDrowned.resolveSwimmingSpeedForRuntime((Drowned) (Object) this, vanillaSpeed);
 	}
 }
+

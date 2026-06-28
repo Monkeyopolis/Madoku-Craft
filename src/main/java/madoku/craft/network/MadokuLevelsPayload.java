@@ -48,3 +48,4 @@ public record MadokuLevelsPayload(
 		return TYPE;
 	}
 }
+

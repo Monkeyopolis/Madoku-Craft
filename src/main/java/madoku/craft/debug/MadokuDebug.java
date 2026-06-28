@@ -533,3 +533,4 @@ public final class MadokuDebug {
 		return value == null ? "" : value.trim();
 	}
 }
+

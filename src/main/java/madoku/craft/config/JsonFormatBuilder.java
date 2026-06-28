@@ -159,3 +159,4 @@ public final class JsonFormatBuilder {
 		return value == null || value.isBlank();
 	}
 }
+

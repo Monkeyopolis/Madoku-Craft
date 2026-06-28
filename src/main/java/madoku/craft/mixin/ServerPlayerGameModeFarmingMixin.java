@@ -49,3 +49,4 @@ public abstract class ServerPlayerGameModeFarmingMixin {
 		cir.setReturnValue(InteractionResult.FAIL);
 	}
 }
+

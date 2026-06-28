@@ -591,3 +591,4 @@ public final class MadokuItemConfig {
 	}
 
 }
+

@@ -26,3 +26,4 @@ public abstract class WitherSkeletonWitherEffectMixin {
 		return MadokuMobManager.applyWitherSkeletonMeleeHitEffect(target, attacker);
 	}
 }
+

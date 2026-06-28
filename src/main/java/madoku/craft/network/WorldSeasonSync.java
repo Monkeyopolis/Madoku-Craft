@@ -103,3 +103,4 @@ public final class WorldSeasonSync {
 		return new WorldSeasonPayload(season);
 	}
 }
+

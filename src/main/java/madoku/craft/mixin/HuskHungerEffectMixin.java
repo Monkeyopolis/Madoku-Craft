@@ -26,3 +26,4 @@ public abstract class HuskHungerEffectMixin {
 		return MadokuMobHusk.applyHungerAttackEffect((Husk) (Object) this, target, effect, attacker);
 	}
 }
+

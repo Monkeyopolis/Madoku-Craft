@@ -19,3 +19,4 @@ public final class PlayerEntitiesSlot extends Slot {
 		return 1;
 	}
 }
+

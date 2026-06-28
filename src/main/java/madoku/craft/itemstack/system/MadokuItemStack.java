@@ -500,3 +500,4 @@ public final class MadokuItemStack {
 	private record KeptStack(int slot, ItemStack stack) {
 	}
 }
+

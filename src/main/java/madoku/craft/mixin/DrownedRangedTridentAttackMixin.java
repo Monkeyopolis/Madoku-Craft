@@ -31,3 +31,4 @@ public abstract class DrownedRangedTridentAttackMixin {
 		return MadokuMobDrowned.resolveTridentAttackIntervalTicks((Drowned) (Object) this);
 	}
 }
+

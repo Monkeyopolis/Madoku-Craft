@@ -74,3 +74,4 @@ public final class MadokuRecipeConfig {
 		return categories.build();
 	}
 }
+

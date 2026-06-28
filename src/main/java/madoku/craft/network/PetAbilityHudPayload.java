@@ -51,3 +51,4 @@ public record PetAbilityHudPayload(
 		return index >= 0 && index < values.length ? Math.max(0, values[index]) : 0;
 	}
 }
+

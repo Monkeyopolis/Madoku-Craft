@@ -6,13 +6,12 @@ import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuAttributes;
+import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.debug.MadokuDebug;
-import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.hunger.MadokuHungerManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -30,20 +29,16 @@ import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public final class MadokuHealth {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHealth.class);
+public final class MadokuHealthManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHealthManager.class);
 	private static final float EPSILON = 1.0e-4f;
 	private static final float HEALTH_ROUND_STEP = 0.125f;
 	private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 
-	private static final String HEALTH_CONFIG_DIRECTORY_NAME = "madoku-health";
-	private static final String HEALTH_CONFIG_FILE_NAME = "madoku-health";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-health";
 	private static final String DATA_FILE_NAME = "madoku-health";
 	private static final String TASK_TYPE_HEALTH_PLAYER_TICK = "health_player_tick";
@@ -71,21 +66,25 @@ public final class MadokuHealth {
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
-	private static volatile Settings settings = Settings.defaults();
+	private static volatile HealthConfigManager.Settings settings = HealthConfigManager.Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static long lastNaturalRegenDisableTick = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
-	private MadokuHealth() {
+	private MadokuHealthManager() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealth::runPlayerTickTask);
-		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealth::handleAfterPlayerDamage);
-		ServerPlayerEvents.JOIN.register(MadokuHealth::handlePlayerJoin);
-		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealth::handlePlayerRespawn);
+		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealthManager::runPlayerTickTask);
+		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealthManager::handleAfterPlayerDamage);
+		ServerPlayerEvents.JOIN.register(MadokuHealthManager::handlePlayerJoin);
+		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealthManager::handlePlayerRespawn);
+	}
+
+	public static boolean isEnabled() {
+		return settings.enabled;
 	}
 
 	public static void reset() {
@@ -570,8 +569,8 @@ public final class MadokuHealth {
 		if (amount <= 0) {
 			return 0;
 		}
-		if (MadokuHunger.isEnabled()) {
-			return MadokuHunger.drainHunger(player, amount);
+		if (MadokuHungerManager.isEnabled()) {
+			return MadokuHungerManager.drainHunger(player, amount);
 		}
 
 		FoodData foodData = player.getFoodData();
@@ -801,19 +800,7 @@ public final class MadokuHealth {
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = Settings.defaults().toConfigJson();
-		Settings fallback = Settings.defaults();
-
-		try {
-			Path configFile = MadokuAttributes.prepareSystemConfigFile(HEALTH_CONFIG_DIRECTORY_NAME, HEALTH_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
-			Settings configured = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
-			settings = configured.withEnabled(MadokuAttributes.isEnabled());
-		} catch (IOException | RuntimeException exception) {
-			settings = fallback.withEnabled(MadokuAttributes.isEnabled());
-			LOGGER.error("Failed to load MadokuHealth static config; using defaults.", exception);
-		}
+		settings = HealthConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
 	}
 
 	private static String getString(JsonObject object, String key, String fallback) {
@@ -920,110 +907,4 @@ public final class MadokuHealth {
 		}
 	}
 
-	private static final class Settings {
-		private final boolean enabled;
-		private final long schedulerTickInterval;
-		private final int actionIntervalTicks;
-		private final double maximumHealth;
-		private final float hungerDrainRatio;
-		private final float hungerPenaltyRatio;
-		private final double healthPenaltyRatio;
-		private final long pendingIdleTimeoutTicks;
-
-		private Settings(
-			boolean enabled,
-			long schedulerTickInterval,
-			int actionIntervalTicks,
-			double maximumHealth,
-			float hungerDrainRatio,
-			float hungerPenaltyRatio,
-			double healthPenaltyRatio,
-			long pendingIdleTimeoutTicks
-		) {
-			this.enabled = enabled;
-			this.schedulerTickInterval = schedulerTickInterval;
-			this.actionIntervalTicks = actionIntervalTicks;
-			this.maximumHealth = maximumHealth;
-			this.hungerDrainRatio = hungerDrainRatio;
-			this.hungerPenaltyRatio = hungerPenaltyRatio;
-			this.healthPenaltyRatio = healthPenaltyRatio;
-			this.pendingIdleTimeoutTicks = pendingIdleTimeoutTicks;
-		}
-
-		private static Settings defaults() {
-			return new Settings(
-				true,
-				1L,
-				10,
-				20.0d,
-				0.75f,
-				0.25f,
-				0.50d,
-				1500L
-			);
-		}
-
-		private static Settings fromJson(JsonObject source) {
-			Settings defaults = defaults();
-
-			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			long schedulerTickInterval = defaults.schedulerTickInterval;
-			int actionIntervalTicks = defaults.actionIntervalTicks;
-			double maximumHealth = clampDouble(getDouble(source, "maximum-health", defaults.maximumHealth), 1.0d, 1024.0d);
-			double hungerDrainRatioRaw = getDouble(source, "hunger-drain-ratio", Double.NaN);
-			if (Double.isNaN(hungerDrainRatioRaw)) {
-				hungerDrainRatioRaw = getDouble(source, "high-hunger-start-ratio", defaults.hungerDrainRatio);
-			}
-			float hungerDrainRatio = (float) clampDouble(hungerDrainRatioRaw, 0.0d, 1.0d);
-			double hungerPenaltyRatioRaw = getDouble(source, "hunger-penalty-ratio", Double.NaN);
-			if (Double.isNaN(hungerPenaltyRatioRaw)) {
-				hungerPenaltyRatioRaw = getDouble(source, "low-hunger-threshold-ratio", defaults.hungerPenaltyRatio);
-			}
-			float hungerPenaltyRatio = (float) clampDouble(hungerPenaltyRatioRaw, 0.0d, 1.0d);
-			double healthPenaltyRatioRaw = getDouble(source, "health-penalty-ratio", Double.NaN);
-			if (Double.isNaN(healthPenaltyRatioRaw)) {
-				healthPenaltyRatioRaw = getDouble(source, "minimum-max-health-multiplier", defaults.healthPenaltyRatio);
-			}
-			double healthPenaltyRatio = clampDouble(healthPenaltyRatioRaw, 0.10d, 1.0d);
-			long pendingIdleTimeoutTicks = defaults.pendingIdleTimeoutTicks;
-
-			return new Settings(
-				enabled,
-				schedulerTickInterval,
-				actionIntervalTicks,
-				maximumHealth,
-				hungerDrainRatio,
-				hungerPenaltyRatio,
-				healthPenaltyRatio,
-				pendingIdleTimeoutTicks
-			);
-		}
-
-		private JsonObject toConfigJson() {
-			return madoku.craft.config.JsonFormatBuilder.object()
-				.put("enabled", enabled)
-				.put("maximum-health", maximumHealth)
-				.put("hunger-drain-ratio", hungerDrainRatio)
-				.put("hunger-penalty-ratio", hungerPenaltyRatio)
-				.put("health-penalty-ratio", healthPenaltyRatio)
-				.build();
-		}
-
-		private Settings withEnabled(boolean attributesEnabled) {
-			return new Settings(
-				attributesEnabled && enabled,
-				schedulerTickInterval,
-				actionIntervalTicks,
-				maximumHealth,
-				hungerDrainRatio,
-				hungerPenaltyRatio,
-				healthPenaltyRatio,
-				pendingIdleTimeoutTicks
-			);
-		}
-
-		private static double clampDouble(double value, double min, double max) {
-			return Math.max(min, Math.min(max, value));
-		}
-	}
 }

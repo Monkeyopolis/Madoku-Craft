@@ -33,3 +33,4 @@ public final class MadokuEntityTypes {
 		return identifier == null ? null : BuiltInRegistries.ENTITY_TYPE.getValue(identifier);
 	}
 }
+

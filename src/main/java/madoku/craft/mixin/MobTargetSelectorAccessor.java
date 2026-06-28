@@ -10,3 +10,4 @@ public interface MobTargetSelectorAccessor {
 	@Accessor("targetSelector")
 	GoalSelector madokuCraft$getTargetSelector();
 }
+

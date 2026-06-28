@@ -3,7 +3,7 @@ package madoku.craft.mob.system;
 import com.google.gson.JsonObject;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import net.minecraft.sounds.SoundEvents;
@@ -840,7 +840,7 @@ public final class MadokuMobSkeleton {
 	}
 
 	private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
-		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
+		accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		double dx = target.getX() - skeleton.getX();
 		double dz = target.getZ() - skeleton.getZ();
 		double horizontal = Math.sqrt(dx * dx + dz * dz);
@@ -903,3 +903,4 @@ public final class MadokuMobSkeleton {
 		}
 	}
 }
+

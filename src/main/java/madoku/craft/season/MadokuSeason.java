@@ -822,3 +822,4 @@ public final class MadokuSeason {
 		return element.getAsBoolean();
 	}
 }
+

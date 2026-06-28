@@ -27,3 +27,4 @@ public final class RegionalTimeDifficultyConfigManager {
 		return RegionalDifficultyConfigManager.defaultTimeTiers();
 	}
 }
+

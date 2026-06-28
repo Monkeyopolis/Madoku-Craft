@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import net.minecraft.core.component.DataComponents;
@@ -685,7 +685,7 @@ public final class MadokuMobDrowned {
 		}
 		double accuracy = resolveScaledAttackAccuracy(baseAccuracy, drowned.level().getDifficulty(), isHardcoreWorld(drowned.level()));
 		accuracy = MadokuRegionalDifficultyManager.resolveMobAttackAccuracyScaling(drowned, accuracy);
-		accuracy = MadokuLuck.reduceHostileRangedAccuracyForTarget(target, accuracy);
+		accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 		return Mth.clamp(accuracy, 0.0D, 1.0D);
 	}
 
@@ -992,3 +992,4 @@ public final class MadokuMobDrowned {
 		}
 	}
 }
+

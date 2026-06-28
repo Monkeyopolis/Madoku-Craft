@@ -459,3 +459,4 @@ public final class MadokuEntities {
 		}
 	}
 }
+

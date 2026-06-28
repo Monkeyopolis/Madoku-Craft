@@ -136,3 +136,4 @@ public final class MobConfigWitherSkeleton {
 			.build();
 	}
 }
+

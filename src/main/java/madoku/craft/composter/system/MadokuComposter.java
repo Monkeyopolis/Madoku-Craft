@@ -119,3 +119,4 @@ public final class MadokuComposter {
 		return directory.resolve(normalized);
 	}
 }
+

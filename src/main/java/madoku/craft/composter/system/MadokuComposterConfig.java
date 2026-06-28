@@ -193,3 +193,4 @@ public final class MadokuComposterConfig {
 		return fileKey.trim().toLowerCase(Locale.ROOT);
 	}
 }
+

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.hunger.MadokuHungerManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,8 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class PlayerEatGateMixin {
 	@Inject(method = "canEat(Z)Z", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$gateEatByPendingTotal(boolean ignoreHunger, CallbackInfoReturnable<Boolean> cir) {
-		if ((Object) this instanceof ServerPlayer player && !MadokuHunger.canConsumeFood(player, ignoreHunger)) {
+		if ((Object) this instanceof ServerPlayer player && !MadokuHungerManager.canConsumeFood(player, ignoreHunger)) {
 			cir.setReturnValue(false);
 		}
 	}
 }
+

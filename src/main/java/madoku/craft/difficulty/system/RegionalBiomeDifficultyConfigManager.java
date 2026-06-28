@@ -43,3 +43,4 @@ public final class RegionalBiomeDifficultyConfigManager {
 		return RegionalDifficultyConfigManager.buildBiomeRuleDefaults(adjustment, biomeList);
 	}
 }
+

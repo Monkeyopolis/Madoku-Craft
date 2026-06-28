@@ -88,3 +88,4 @@ public final class MadokuMobCreeper {
 		return element.getAsBoolean();
 	}
 }
+

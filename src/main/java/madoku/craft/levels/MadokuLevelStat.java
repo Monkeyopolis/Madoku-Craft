@@ -1,7 +1,9 @@
 package madoku.craft.levels;
 
-import madoku.craft.attributes.MadokuAttributes;
-import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.armor.MadokuArmorManager;
+import madoku.craft.health.MadokuHealthManager;
+import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.luck.MadokuLuckManager;
 import net.minecraft.resources.Identifier;
 
 import java.math.BigDecimal;
@@ -55,13 +57,13 @@ public enum MadokuLevelStat {
 	public double valueAtLevel(int level) {
 		int normalizedLevel = clampLevel(level);
 		return switch (this) {
-			case HEALTH -> normalizedLevel * MadokuLevels.healthPerLevel();
+			case HEALTH -> normalizedLevel * (MadokuHealthManager.isEnabled() ? MadokuLevels.healthPerLevel() : 0.0d);
 			case PLAYER_DAMAGE -> normalizedLevel * MadokuLevels.playerDamagePerLevel();
 			case PLAYER_ARMOR -> normalizedLevel * (
-				MadokuAttributes.isEnabled() ? MadokuLevels.playerArmorPerLevelAttributes() : MadokuLevels.playerArmorPerLevelVanilla()
+				MadokuArmorManager.isEnabled() ? MadokuLevels.playerArmorPerLevelAttributes() : MadokuLevels.playerArmorPerLevelVanilla()
 			);
-			case PLAYER_LUCK -> normalizedLevel * MadokuLevels.playerLuckPerLevel();
-			case PLAYER_HUNGER -> normalizedLevel * (MadokuHunger.isEnabled() ? MadokuLevels.playerHungerPerLevel() : 0.0d);
+			case PLAYER_LUCK -> normalizedLevel * (MadokuLuckManager.isEnabled() ? MadokuLevels.playerLuckPerLevel() : 0.0d);
+			case PLAYER_HUNGER -> normalizedLevel * (MadokuHungerManager.isEnabled() ? MadokuLevels.playerHungerPerLevel() : 0.0d);
 			case PLAYER_MOVEMENT_SPEED -> normalizedLevel * MadokuLevels.playerMovementSpeedPerLevel();
 		};
 	}
@@ -189,3 +191,4 @@ public enum MadokuLevelStat {
 		return decoded;
 	}
 }
+

@@ -25,3 +25,4 @@ public class ItemInputRarityMixin {
 		PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
 	}
 }
+

@@ -64,3 +64,4 @@ public abstract class FarmlandBlockFarmingMixin {
 		return false;
 	}
 }
+

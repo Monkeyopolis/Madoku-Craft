@@ -26,3 +26,4 @@ public record WorldTimePayload(long day, int hour, int minute) implements Custom
 		return TYPE;
 	}
 }
+

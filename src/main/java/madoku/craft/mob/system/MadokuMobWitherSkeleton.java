@@ -390,3 +390,4 @@ public final class MadokuMobWitherSkeleton {
 		return skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON ? MobConfigManager.FILE_WITHER_SKELETON : "";
 	}
 }
+

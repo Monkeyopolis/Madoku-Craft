@@ -128,3 +128,4 @@ public final class MobConfigBee {
 		return group;
 	}
 }
+

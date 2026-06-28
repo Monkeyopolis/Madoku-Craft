@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
@@ -41,11 +41,11 @@ public abstract class PlayerLuckCriticalHitMixin {
 	private boolean madokuCraft$applyLuckCriticalHit(Entity entity, DamageSource source, float amount) {
 		float resolvedDamage = amount;
 		if (this.canCriticalAttack(entity)) {
-			resolvedDamage /= MadokuLuck.playerCritDamageMultiplier();
+			resolvedDamage /= MadokuLuckManager.playerCritDamageMultiplier();
 		}
 		Player player = (Player) (Object) this;
-		if (MadokuLuck.shouldApplyPlayerMeleeCrit(player, entity)) {
-			resolvedDamage *= MadokuLuck.playerCritDamageMultiplier();
+		if (MadokuLuckManager.shouldApplyPlayerMeleeCrit(player, entity)) {
+			resolvedDamage *= MadokuLuckManager.playerCritDamageMultiplier();
 			this.madokuCraft$luckCriticalHitActive = true;
 		}
 		return entity.hurtOrSimulate(source, resolvedDamage);
@@ -89,3 +89,4 @@ public abstract class PlayerLuckCriticalHitMixin {
 		level.playSound(null, player.getX(), player.getY(), player.getZ(), sound, player.getSoundSource(), 1.0f, 1.0f);
 	}
 }
+

@@ -40,3 +40,4 @@ public abstract class AbstractFurnaceServerTickMixin {
 		MadokuSmeltingManager.onFurnaceServerTick(level, blockPos, blockState, furnace);
 	}
 }
+

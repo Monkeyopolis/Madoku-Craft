@@ -92,3 +92,4 @@ public abstract class FurnaceMenuMixin {
 		return null;
 	}
 }
+

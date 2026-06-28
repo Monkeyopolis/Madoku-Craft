@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.health.MadokuHealth;
-import madoku.craft.hunger.MadokuHunger;
+import madoku.craft.health.MadokuHealthManager;
+import madoku.craft.hunger.MadokuHungerManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,9 +25,10 @@ public abstract class MobEffectTickOverrideMixin {
 		int amplifier,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuHealth.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
-			|| MadokuHunger.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)) {
+		if (MadokuHealthManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
+			|| MadokuHungerManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)) {
 			cir.setReturnValue(true);
 		}
 	}
 }
+

@@ -18,3 +18,4 @@ public abstract class DrownedRuntimeTickMixin {
 		MadokuMobDrowned.tickRangedDrownedRuntime(drowned);
 	}
 }
+

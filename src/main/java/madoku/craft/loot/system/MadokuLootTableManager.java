@@ -38,3 +38,4 @@ public final class MadokuLootTableManager {
 		return MadokuLootTableEntities.generateManagedLootForContext(lootContext);
 	}
 }
+

@@ -22,3 +22,4 @@ public record ItemProfileSyncPayload(String snapshot) implements CustomPacketPay
 		return TYPE;
 	}
 }
+

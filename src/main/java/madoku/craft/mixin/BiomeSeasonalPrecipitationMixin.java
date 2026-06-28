@@ -25,3 +25,4 @@ public abstract class BiomeSeasonalPrecipitationMixin {
 		cir.setReturnValue(MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla());
 	}
 }
+

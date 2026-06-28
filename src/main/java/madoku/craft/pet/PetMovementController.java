@@ -302,3 +302,4 @@ final class PetMovementController {
 	private record SlotOffset(double side, double back) {
 	}
 }
+

@@ -25,3 +25,4 @@ public abstract class PlayerSleepTickMixin {
 		return MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, (Player) (Object) this);
 	}
 }
+

@@ -4,14 +4,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuAttributes;
+import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.network.MadokuLevelUpPayload;
 import madoku.craft.network.MadokuLevelsPayload;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -97,7 +97,7 @@ public final class MadokuLevels {
 	}
 
 	public static int maxStatLevel() {
-		return Math.max(1, MadokuAttributes.isEnabled() ? settings.maxStatLevelAttributes : settings.maxStatLevelVanilla);
+		return Math.max(1, MadokuAttributesManager.isEnabled() ? settings.maxStatLevelAttributes : settings.maxStatLevelVanilla);
 	}
 
 	public static double healthPerLevel() {
@@ -259,7 +259,7 @@ public final class MadokuLevels {
 		state.statLevels.put(stat, MadokuLevelStat.clampLevel(currentStatLevel + 1));
 		state.availablePoints--;
 		applyPlayerAttributes(player);
-		MadokuHunger.handleMaximumHungerChanged(player);
+		MadokuHungerManager.handleMaximumHungerChanged(player);
 		markDirty(player.getUUID());
 	}
 
@@ -314,7 +314,7 @@ public final class MadokuLevels {
 	}
 
 	public static int getPlayerHungerBonusPoints(ServerPlayer player) {
-		if (player == null || !MadokuHunger.isEnabled()) {
+		if (player == null || !MadokuHungerManager.isEnabled()) {
 			return 0;
 		}
 
@@ -344,20 +344,20 @@ public final class MadokuLevels {
 	}
 
 	private static boolean useAttributesContainer() {
-		return MadokuAttributes.isEnabled() && hasExtendedAttributeStats();
+		return MadokuAttributesManager.isEnabled() && hasExtendedAttributeStats();
 	}
 
 	private static List<MadokuLevelStat> visibleStats() {
-		if (!MadokuAttributes.isEnabled()) {
+		if (!MadokuAttributesManager.isEnabled()) {
 			return MadokuLevelStat.vanillaVisibleStats();
 		}
 		if (!hasExtendedAttributeStats()) {
 			return MadokuLevelStat.vanillaVisibleStats();
 		}
-		if (!MadokuHunger.isEnabled()) {
+		if (!MadokuHungerManager.isEnabled()) {
 			return MadokuLevelStat.attributeVisibleStatsWithoutHunger();
 		}
-		if (!MadokuLuck.isEnabled()) {
+		if (!MadokuLuckManager.isEnabled()) {
 			return MadokuLevelStat.attributeVisibleStatsWithoutLuck();
 		}
 		// Health remains visible even if the custom health subsystem is disabled.
@@ -365,15 +365,15 @@ public final class MadokuLevels {
 	}
 
 	private static boolean hasExtendedAttributeStats() {
-		return MadokuHunger.isEnabled() || MadokuLuck.isEnabled();
+		return MadokuHungerManager.isEnabled() || MadokuLuckManager.isEnabled();
 	}
 
 	private static int activeExtendedAttributeStatCount() {
 		int count = 0;
-		if (MadokuHunger.isEnabled()) {
+		if (MadokuHungerManager.isEnabled()) {
 			count++;
 		}
-		if (MadokuLuck.isEnabled()) {
+		if (MadokuLuckManager.isEnabled()) {
 			count++;
 		}
 		return count;
@@ -410,7 +410,7 @@ public final class MadokuLevels {
 	}
 
 	private static int maxPlayerLevel() {
-		if (!MadokuAttributes.isEnabled()) {
+		if (!MadokuAttributesManager.isEnabled()) {
 			return Math.max(1, settings.maxPlayerLevelVanilla);
 		}
 
@@ -721,3 +721,4 @@ public final class MadokuLevels {
 		}
 	}
 }
+

@@ -796,3 +796,4 @@ public final class MadokuSmeltingManager {
 	private record FurnaceBehavior(double smeltingSpeed, double fuelEfficiency) {
 	}
 }
+

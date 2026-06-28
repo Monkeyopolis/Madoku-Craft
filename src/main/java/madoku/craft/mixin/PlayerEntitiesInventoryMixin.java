@@ -82,3 +82,4 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 		return inventory;
 	}
 }
+

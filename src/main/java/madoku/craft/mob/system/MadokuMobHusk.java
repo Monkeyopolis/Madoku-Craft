@@ -726,3 +726,4 @@ public final class MadokuMobHusk {
 		}
 	}
 }
+

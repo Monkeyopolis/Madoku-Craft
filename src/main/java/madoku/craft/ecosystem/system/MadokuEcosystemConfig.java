@@ -725,3 +725,4 @@ public final class MadokuEcosystemConfig {
 		return new DayRange(adjustedMin, adjustedMax);
 	}
 }
+

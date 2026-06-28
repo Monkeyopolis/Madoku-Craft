@@ -24,3 +24,4 @@ public record PetSoundStatePayload(String petUuid, String itemId) implements Cus
 		return TYPE;
 	}
 }
+

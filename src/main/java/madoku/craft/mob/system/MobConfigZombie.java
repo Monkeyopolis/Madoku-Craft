@@ -230,3 +230,4 @@ public final class MobConfigZombie {
 		return root.build();
 	}
 }
+

@@ -1,11 +1,8 @@
 package madoku.craft.luck;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuAttributes;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.farming.system.MadokuFarming;
@@ -30,43 +27,27 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public final class MadokuLuck {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuLuck.class);
-
+public final class MadokuLuckManager {
 	private static final Identifier BASE_LUCK_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck");
 	private static final Identifier EFFECT_LUCK_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck_effect");
-	private static final String LUCK_CONFIG_DIRECTORY_NAME = "madoku-luck";
-	private static final String LUCK_CONFIG_FILE_NAME = "madoku-luck";
-	private static final boolean DEFAULT_ENABLED = true;
-	private static final double DEFAULT_BASE_LUCK = 0.05d;
-	private static final double LUCK_EFFECT_BONUS_PER_LEVEL = 0.05d;
-	private static final double DEFAULT_DROP_MULTIPLIER = 1.0d;
-	private static final double DEFAULT_MOB_DROP_MULTIPLIER = 0.5d;
-	private static final double DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER = 0.5d;
-	private static final double DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER = 0.5d;
-	private static final double FARMING_DROP_MULTIPLIER = 0.5d;
-	private static final float DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER = 1.5f;
 
-	private static volatile Settings settings = Settings.defaults();
+	private static volatile LuckConfigManager.Settings settings = LuckConfigManager.Settings.defaults();
 	private static final ThreadLocal<ActiveDropContext> ACTIVE_DROP_CONTEXT = new ThreadLocal<>();
 
-	private MadokuLuck() {
+	private MadokuLuckManager() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		ServerPlayerEvents.JOIN.register(MadokuLuck::handlePlayerJoin);
+		ServerPlayerEvents.JOIN.register(MadokuLuckManager::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> refreshPlayerLuck(newPlayer));
 	}
 
@@ -200,7 +181,7 @@ public final class MadokuLuck {
 
 		luckAttribute.removeModifier(EFFECT_LUCK_MODIFIER_ID);
 		int effectLevel = getLuckEffectLevel(player);
-		double bonus = settings.enabled ? effectLevel * LUCK_EFFECT_BONUS_PER_LEVEL : 0.0d;
+		double bonus = settings.enabled ? effectLevel * 0.05d : 0.0d;
 		if (bonus > 0.0d) {
 			luckAttribute.addOrUpdateTransientModifier(
 				new AttributeModifier(EFFECT_LUCK_MODIFIER_ID, bonus, AttributeModifier.Operation.ADD_VALUE)
@@ -625,7 +606,7 @@ public final class MadokuLuck {
 	}
 
 	private static double resolveDropBonusMultiplier(boolean managedCrop) {
-		return Math.max(0.0d, managedCrop ? FARMING_DROP_MULTIPLIER : settings.dropMultiplier);
+		return Math.max(0.0d, managedCrop ? 0.5d : settings.dropMultiplier);
 	}
 
 	private static void applyGeneratedMobDrops(LootContext lootContext, ObjectArrayList<ItemStack> stacks) {
@@ -920,49 +901,7 @@ public final class MadokuLuck {
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = Settings.defaults().toConfigJson();
-		Settings fallback = Settings.defaults();
-
-		try {
-			var configFile = MadokuAttributes.prepareSystemConfigFile(LUCK_CONFIG_DIRECTORY_NAME, LUCK_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
-			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
-			settings = loaded;
-		} catch (IOException | RuntimeException exception) {
-			settings = fallback;
-			LOGGER.error("Failed to load MadokuLuck static config; using defaults.", exception);
-		}
-	}
-
-	private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
-			return fallback;
-		}
-		try {
-			return element.getAsBoolean();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	private static double getDouble(JsonObject object, String key, double fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-		try {
-			return element.getAsDouble();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
+		settings = LuckConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
 	}
 
 	private static double clampDouble(double value, double min, double max) {
@@ -1148,96 +1087,10 @@ public final class MadokuLuck {
 		return "combat:" + target.getType().toShortString();
 	}
 
-	private static final class Settings {
-		private final boolean enabled;
-		private final double baseLuck;
-		private final double dropMultiplier;
-		private final double mobDropMultiplier;
-		private final double creeperGriefReductionMultiplier;
-		private final double rangedAccuracyReductionMultiplier;
-		private final float playerCritDamageMultiplier;
-
-		private Settings(
-			boolean enabled,
-			double baseLuck,
-			double dropMultiplier,
-			double mobDropMultiplier,
-			double creeperGriefReductionMultiplier,
-			double rangedAccuracyReductionMultiplier,
-			float playerCritDamageMultiplier
-		) {
-			this.enabled = enabled;
-			this.baseLuck = baseLuck;
-			this.dropMultiplier = dropMultiplier;
-			this.mobDropMultiplier = mobDropMultiplier;
-			this.creeperGriefReductionMultiplier = creeperGriefReductionMultiplier;
-			this.rangedAccuracyReductionMultiplier = rangedAccuracyReductionMultiplier;
-			this.playerCritDamageMultiplier = playerCritDamageMultiplier;
-		}
-
-		private static Settings defaults() {
-			return new Settings(
-				DEFAULT_ENABLED,
-				DEFAULT_BASE_LUCK,
-				DEFAULT_DROP_MULTIPLIER,
-				DEFAULT_MOB_DROP_MULTIPLIER,
-				DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER,
-				DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER,
-				DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER
-			);
-		}
-
-		private static Settings fromJson(JsonObject source) {
-			Settings defaults = defaults();
-			double baseLuck = clampDouble(getDouble(source, "base-luck", defaults.baseLuck), 0.0d, 1024.0d);
-			double dropMultiplier = clampDouble(getDouble(source, "drop-multiplier", defaults.dropMultiplier), 0.0d, 1024.0d);
-			double mobDropMultiplier = clampDouble(
-				getDouble(source, "mob-drop-multiplier", defaults.mobDropMultiplier),
-				0.0d,
-				1024.0d
-			);
-			double creeperGriefReductionMultiplier = clampDouble(
-				getDouble(source, "creeper-grief-reduction-multiplier", defaults.creeperGriefReductionMultiplier),
-				0.0d,
-				1.0d
-			);
-			double rangedAccuracyReductionMultiplier = clampDouble(
-				getDouble(source, "ranged-accuracy-reduction-multiplier", defaults.rangedAccuracyReductionMultiplier),
-				0.0d,
-				1.0d
-			);
-			float playerCritDamageMultiplier = (float) clampDouble(
-				getDouble(source, "player-crit-damage-multiplier", defaults.playerCritDamageMultiplier),
-				0.0d,
-				1024.0d
-			);
-			return new Settings(
-				getBoolean(source, "enabled", defaults.enabled),
-				baseLuck,
-				dropMultiplier,
-				mobDropMultiplier,
-				creeperGriefReductionMultiplier,
-				rangedAccuracyReductionMultiplier,
-				playerCritDamageMultiplier
-			);
-		}
-
-		private JsonObject toConfigJson() {
-			return madoku.craft.config.JsonFormatBuilder.object()
-				.put("enabled", enabled)
-				.put("base-luck", baseLuck)
-				.put("drop-multiplier", dropMultiplier)
-				.put("mob-drop-multiplier", mobDropMultiplier)
-				.put("creeper-grief-reduction-multiplier", creeperGriefReductionMultiplier)
-				.put("ranged-accuracy-reduction-multiplier", rangedAccuracyReductionMultiplier)
-				.put("player-crit-damage-multiplier", playerCritDamageMultiplier)
-				.build();
-		}
-	}
-
 	private record DropScalingResult(int scaledStacks, int originalTotal, int extraTotal) {
 	}
 
 	private record ActiveDropContext(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
 	}
+
 }

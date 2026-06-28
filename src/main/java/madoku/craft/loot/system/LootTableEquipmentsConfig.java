@@ -43,3 +43,4 @@ public final class LootTableEquipmentsConfig {
 		return defaults;
 	}
 }
+

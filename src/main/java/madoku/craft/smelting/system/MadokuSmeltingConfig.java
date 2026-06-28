@@ -7,3 +7,4 @@ public final class MadokuSmeltingConfig {
 		enableFeature = true;
 	}
 }
+

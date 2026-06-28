@@ -87,3 +87,4 @@ public final class WorldTimeSync {
 	private record WorldTimeSnapshot(long day, int hour, int minute, long totalMinutes) {
 	}
 }
+

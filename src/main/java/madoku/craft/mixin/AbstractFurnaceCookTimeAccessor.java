@@ -12,3 +12,4 @@ public interface AbstractFurnaceCookTimeAccessor {
 	@Accessor("cookingTotalTime")
 	void madokuCraft$setCookingTotalTime(int value);
 }
+

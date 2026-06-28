@@ -162,3 +162,4 @@ public final class MobConfigHusk {
 		return root.build();
 	}
 }
+

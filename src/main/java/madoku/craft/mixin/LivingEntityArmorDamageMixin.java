@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.armor.MadokuArmor;
+import madoku.craft.armor.MadokuArmorManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.tags.DamageTypeTags;
@@ -25,17 +25,17 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean fallDamage = source != null && source.is(DamageTypeTags.IS_FALL);
 		boolean bypassesArmor = source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !fallDamage;
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
-		if (!MadokuArmor.isEnabled() && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
+		if (!MadokuArmorManager.isEnabled() && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
 			return;
 		}
 
-		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && source != null && !bypassesArmor) {
+		if (MadokuArmorManager.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && source != null && !bypassesArmor) {
 			this.hurtArmor(source, amount);
 		}
 
 		float damageAfterArmor;
-		if (MadokuArmor.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && !bypassesArmor) {
-			damageAfterArmor = MadokuArmor.applyCustomArmorDamage(entity, source, amount);
+		if (MadokuArmorManager.isEnabled() && !skeletonIgnoresArmor && !mobIgnoresArmor && !bypassesArmor) {
+			damageAfterArmor = MadokuArmorManager.applyCustomArmorDamage(entity, source, amount);
 		} else {
 			damageAfterArmor = amount;
 		}
@@ -45,4 +45,5 @@ public abstract class LivingEntityArmorDamageMixin {
 		cir.setReturnValue(damageAfterArmor);
 	}
 }
+
 

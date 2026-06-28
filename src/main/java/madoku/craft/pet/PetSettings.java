@@ -95,3 +95,4 @@ final class PetSettings {
 		return Math.max(min, Math.min(max, value));
 	}
 }
+

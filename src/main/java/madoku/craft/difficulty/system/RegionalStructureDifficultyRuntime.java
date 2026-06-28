@@ -19,3 +19,4 @@ public record RegionalStructureDifficultyRuntime(
 		return adjustments.getOrDefault(structureId, defaultUnknownAdjustment);
 	}
 }
+

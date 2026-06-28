@@ -163,3 +163,4 @@ public final class MobConfigSkeleton {
 			.build();
 	}
 }
+

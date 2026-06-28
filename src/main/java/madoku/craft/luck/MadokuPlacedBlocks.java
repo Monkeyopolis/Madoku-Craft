@@ -178,7 +178,7 @@ public final class MadokuPlacedBlocks {
 			}
 
 			setDirty();
-			MadokuLuck.emitLuckDebug(
+			MadokuLuckManager.emitLuckDebug(
 				"luck.place_recorded",
 				level,
 				pos,
@@ -198,7 +198,7 @@ public final class MadokuPlacedBlocks {
 			long packedChunk = packChunk(pos.getX() >> 4, pos.getZ() >> 4);
 			Set<Integer> positions = chunks == null ? null : chunks.get(packedChunk);
 			boolean tracked = positions != null && positions.contains(packLocalBlockPos(pos));
-			MadokuLuck.emitLuckDebug(
+			MadokuLuckManager.emitLuckDebug(
 				"luck.place_lookup",
 				level,
 				pos,
@@ -237,7 +237,7 @@ public final class MadokuPlacedBlocks {
 			}
 
 			setDirty();
-			MadokuLuck.emitLuckDebug(
+			MadokuLuckManager.emitLuckDebug(
 				"luck.place_consumed",
 				level,
 				pos,
@@ -266,7 +266,7 @@ public final class MadokuPlacedBlocks {
 			placedBlocksByLevel.clear();
 			trackedSinceGameplayTick = -1L;
 			setDirty();
-			MadokuLuck.emitLuckDebug(
+			MadokuLuckManager.emitLuckDebug(
 				"luck.place_list_expired",
 				level,
 				null,
@@ -425,3 +425,4 @@ public final class MadokuPlacedBlocks {
 		}
 	}
 }
+

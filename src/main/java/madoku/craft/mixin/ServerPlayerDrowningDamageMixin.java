@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.oxygen.MadokuOxygen;
+import madoku.craft.oxygen.MadokuOxygenManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -19,8 +19,9 @@ public abstract class ServerPlayerDrowningDamageMixin {
 		CallbackInfoReturnable<Boolean> cir
 	) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
-		if (MadokuOxygen.shouldSuppressVanillaDrowningDamage(player, source)) {
+		if (MadokuOxygenManager.shouldSuppressVanillaDrowningDamage(player, source)) {
 			cir.setReturnValue(false);
 		}
 	}
 }
+

@@ -138,3 +138,4 @@ public abstract class BiomeSeasonalFreezeMixin {
 		return Blocks.SNOW.defaultBlockState().canSurvive(levelReader, pos);
 	}
 }
+

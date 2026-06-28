@@ -524,3 +524,4 @@ public final class MadokuRarity {
 			.log();
 	}
 }
+

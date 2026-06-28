@@ -37,3 +37,4 @@ public abstract class LevelChunkDiscoveryCacheSyncMixin {
 		ChunkManagerSystem.onWorldPositionChanged(serverLevel, pos, null, nextState);
 	}
 }
+

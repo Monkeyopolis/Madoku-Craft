@@ -37,3 +37,4 @@ public abstract class SnowLayerBlockSeasonalMeltMixin {
 		ci.cancel();
 	}
 }
+

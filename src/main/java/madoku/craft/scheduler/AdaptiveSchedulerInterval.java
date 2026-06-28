@@ -320,3 +320,4 @@ public final class AdaptiveSchedulerInterval {
 		return sum / count;
 	}
 }
+

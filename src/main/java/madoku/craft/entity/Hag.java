@@ -294,3 +294,4 @@ public class Hag extends Witch implements Merchant {
 		return PlayerEntitiesSystem.petRarity(new ItemStack(item));
 	}
 }
+

@@ -6,13 +6,13 @@ import madoku.craft.config.JsonFormatBuilder;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.hunger.MadokuHunger;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.pet.PlayerEntitiesHolder;
 import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.mixin.client.GuiAccessor;
-import madoku.craft.oxygen.MadokuOxygen;
+import madoku.craft.oxygen.MadokuOxygenManager;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
@@ -373,7 +373,7 @@ public final class MadokuHud {
 		oldElement.extractRenderState(context, tickCounter);
 		context.pose().popMatrix();
 
-		int fallbackMax = Math.max(1, MadokuHunger.getConfiguredMaximumHungerPoints());
+		int fallbackMax = Math.max(1, MadokuHungerManager.getConfiguredMaximumHungerPoints());
 		int currentHunger;
 		int maxHunger;
 		int pendingHunger;
@@ -495,7 +495,7 @@ public final class MadokuHud {
 		updateOxygenState(player, level.getGameTime());
 
 		boolean shouldRenderOxygen = cachedAirSupply < cachedMaxAirSupply || player.isEyeInFluid(FluidTags.WATER);
-		if (!shouldRenderOxygen && !MadokuLuck.isEnabled()) {
+		if (!shouldRenderOxygen && !MadokuLuckManager.isEnabled()) {
 			return;
 		}
 
@@ -909,7 +909,7 @@ public final class MadokuHud {
 			return;
 		}
 		lastOxygenStateUpdateTick = gameTime;
-		cachedMaxAirSupply = Math.max(1, MadokuOxygen.getMaximumOxygenTicksForEntity(player));
+		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(player));
 		int observedAirSupply = clampInt(player.getAirSupply(), 0, Math.max(cachedMaxAirSupply, VANILLA_MAX_AIR_SUPPLY_TICKS));
 		cachedAirSupply = decodeAirSupplyForDisplay(observedAirSupply, cachedMaxAirSupply);
 		cachedOxygenPoints = toOxygenPoints(cachedAirSupply, cachedMaxAirSupply);
@@ -1067,7 +1067,7 @@ public final class MadokuHud {
 	}
 
 	public static void clearOxygenHudState() {
-		cachedMaxAirSupply = Math.max(1, MadokuOxygen.getMaximumOxygenTicksForEntity(null));
+		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(null));
 		cachedAirSupply = cachedMaxAirSupply;
 		cachedOxygenPoints = 10;
 		previousDisplayedOxygenSeconds = -1;

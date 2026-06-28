@@ -1627,3 +1627,4 @@ public final class MadokuItem {
 		MULTI
 	}
 }
+

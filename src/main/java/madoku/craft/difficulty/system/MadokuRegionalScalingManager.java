@@ -47,3 +47,4 @@ public final class MadokuRegionalScalingManager {
 		return rawValue == null ? "" : rawValue.trim().toLowerCase(Locale.ROOT);
 	}
 }
+

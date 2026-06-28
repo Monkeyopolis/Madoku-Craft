@@ -9,7 +9,7 @@ import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
@@ -728,7 +728,7 @@ public final class MadokuMobManager {
 			0.0D,
 			1.0D
 		);
-		chance = MadokuLuck.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
+		chance = MadokuLuckManager.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
 		float power = (float) resolveCreeperExplosionPower(creeper, root, variant, vanillaPower);
 		Level.ExplosionInteraction interaction = level.getRandom().nextDouble() < chance
 			? Level.ExplosionInteraction.MOB
@@ -3341,6 +3341,7 @@ public final class MadokuMobManager {
 		}
 	}
 }
+
 
 
 

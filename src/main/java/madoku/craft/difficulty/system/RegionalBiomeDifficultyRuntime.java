@@ -19,3 +19,4 @@ public record RegionalBiomeDifficultyRuntime(
 		return adjustments.getOrDefault(biomeId, defaultUnknownAdjustment);
 	}
 }
+

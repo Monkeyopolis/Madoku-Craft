@@ -22,3 +22,4 @@ public record MadokuLevelUpPayload(String statId) implements CustomPacketPayload
 		return TYPE;
 	}
 }
+

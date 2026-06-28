@@ -244,3 +244,4 @@ public final class MadokuCropConfig {
 		return value.trim().toLowerCase(Locale.ROOT);
 	}
 }
+

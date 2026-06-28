@@ -10,3 +10,4 @@ public interface ItemBuiltInRegistryHolderAccessor {
 	@Accessor("builtInRegistryHolder")
 	Holder.Reference<Item> madokuCraft$getBuiltInRegistryHolder();
 }
+
