@@ -3,6 +3,8 @@ package madoku.craft.armor;
 import madoku.craft.attributes.MadokuAttributesManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
@@ -21,6 +23,10 @@ public final class MadokuArmorManager {
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	public static boolean isResistanceEnabled() {
+		return settings.enabled && settings.main.resistance.enabled;
 	}
 
 	public static float applyCustomArmorDamage(LivingEntity entity, DamageSource source, float amount) {
@@ -45,8 +51,9 @@ public final class MadokuArmorManager {
 			armorToughnessPoints,
 			settings.armorToughnessPoints.damageReduction
 		);
+		double damageAfterResistance = applyResistanceReduction(entity, source, damageAfterToughness);
 
-		double finalDamage = damageAfterToughness;
+		double finalDamage = damageAfterResistance;
 		if (source.is(DamageTypeTags.IS_FALL)) {
 			double mitigatedDamage = Math.max(0.0d, amount - finalDamage);
 			finalDamage = amount - (mitigatedDamage * settings.main.fallDamageReduction);
@@ -75,6 +82,32 @@ public final class MadokuArmorManager {
 				double multiplier = Math.max(0.0d, 1.0d - (pointSteps * reduction.value));
 				yield amount * multiplier;
 			}
+			};
+	}
+
+	private static double applyResistanceReduction(LivingEntity entity, DamageSource source, double amount) {
+		if (entity == null || amount <= 0.0d || !isResistanceEnabled()) {
+			return amount;
+		}
+		if (source != null && (source.is(DamageTypeTags.BYPASSES_EFFECTS) || source.is(DamageTypeTags.BYPASSES_RESISTANCE))) {
+			return amount;
+		}
+
+		MobEffectInstance resistance = entity.getEffect(MobEffects.RESISTANCE);
+		if (resistance == null) {
+			return amount;
+		}
+
+		int level = Math.max(0, resistance.getAmplifier() + 1);
+		if (level <= 0) {
+			return amount;
+		}
+
+		double perLevelValue = settings.main.resistance.value;
+		double reduction = perLevelValue * level;
+		return switch (settings.main.resistance.type) {
+			case PERCENTAGE -> Math.max(0.0d, amount * Math.max(0.0d, 1.0d - reduction));
+			case FLAT -> Math.max(0.0d, amount - reduction);
 		};
 	}
 

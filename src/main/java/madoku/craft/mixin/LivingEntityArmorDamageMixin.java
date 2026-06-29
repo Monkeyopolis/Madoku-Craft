@@ -3,12 +3,16 @@ package madoku.craft.mixin;
 import madoku.craft.armor.MadokuArmorManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
+import net.minecraft.core.Holder;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -43,6 +47,19 @@ public abstract class LivingEntityArmorDamageMixin {
 		damageAfterArmor = PlayerEntitiesSystem.applyFallDamageAbilityReduction(entity, source, damageAfterArmor);
 		damageAfterArmor = PlayerEntitiesSystem.applyIncomingDamageBlockAbility(entity, source, damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
+	}
+
+	@Redirect(
+		method = "getDamageAfterMagicAbsorb",
+		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;hasEffect(Lnet/minecraft/core/Holder;)Z")
+	)
+	private boolean madokuCraft$overrideVanillaResistanceCheck(LivingEntity instance, Holder<MobEffect> effect) {
+		if (effect != null
+			&& effect.value() == MobEffects.RESISTANCE.value()
+			&& MadokuArmorManager.isResistanceEnabled()) {
+			return false;
+		}
+		return instance.getEffect(effect) != null;
 	}
 }
 

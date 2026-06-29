@@ -15,7 +15,6 @@ import madoku.craft.hunger.MadokuHungerManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -25,7 +24,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.food.FoodData;
-import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,21 +41,17 @@ public final class MadokuHealthManager {
 	private static final String DATA_FILE_NAME = "madoku-health";
 	private static final String TASK_TYPE_HEALTH_PLAYER_TICK = "health_player_tick";
 	private static final String HEALTH_PLAYER_TICK_SCHEDULER_KEY = "health_player_tick";
-	private static final long HEALTH_PLAYER_TICK_DELAY = 1L;
-	private static final float DEATH_RESPAWN_HEALTH_RATIO = 0.5f;
+	private static final long HEALTH_PLAYER_TICK_MIN_INTERVAL = 1L;
+	private static final long HEALTH_PLAYER_TICK_MAX_INTERVAL = 5L;
+	private static final int ACTION_INTERVAL_TICKS = 10;
+	private static final long POISON_TICK_INTERVAL = 10L;
+	private static final long WITHER_TICK_INTERVAL = 20L;
+	private static final long REGEN_TICK_INTERVAL = 20L;
+	private static final long PENDING_IDLE_TIMEOUT_TICKS = 1500L;
 	private static final Identifier LOW_HUNGER_MAX_HEALTH_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_low_hunger_max_health");
 	private static final Identifier HEALTH_BOOST_MAX_HEALTH_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_health_health_boost_max_health");
-	private static final long WITHER_TICK_INTERVAL = 20L;
-	private static final long REGEN_TICK_INTERVAL = 20L;
-	private static final long POISON_TICK_INTERVAL = 20L;
-	private static final float EFFECT_DAMAGE_AMOUNT = 1.0f;
-	private static final float POISON_DAMAGE_PER_LEVEL = EFFECT_DAMAGE_AMOUNT;
-	private static final float WITHER_DAMAGE_PER_LEVEL = EFFECT_DAMAGE_AMOUNT;
-	private static final float REGEN_FRACTION_PER_LEVEL = 0.05f;
-	private static final double HEALTH_BOOST_MAX_HEALTH_FRACTION_PER_LEVEL = 0.10d;
-	private static final float ABSORPTION_FRACTION_PER_LEVEL = 0.20f;
 	private static final float POISON_MIN_HEALTH = 1.0f;
 	private static final float LOW_HUNGER_STEP_RATIO = 0.05f;
 	private static final double MAX_HEALTH_REDUCTION_PER_STEP = 0.10d;
@@ -65,10 +59,9 @@ public final class MadokuHealthManager {
 	private static final double PENDING_HEALTH_APPLY_AMOUNT = 1.0d;
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
-	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static volatile HealthConfigManager.Settings settings = HealthConfigManager.Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static long lastNaturalRegenDisableTick = Long.MIN_VALUE;
+	private static long lastProcessedGameplayTick = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
@@ -84,16 +77,16 @@ public final class MadokuHealthManager {
 	}
 
 	public static boolean isEnabled() {
-		return settings.enabled;
+		return settings.health.enabled;
 	}
 
 	public static void reset() {
 		PLAYER_STATES.clear();
-		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
-		lastNaturalRegenDisableTick = Long.MIN_VALUE;
+		lastProcessedGameplayTick = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
+		SchedulerManagerSystem.clearAdaptiveDelayState(HEALTH_PLAYER_TICK_SCHEDULER_KEY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -129,7 +122,7 @@ public final class MadokuHealthManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ensureQueued(server, HEALTH_PLAYER_TICK_DELAY);
+		ensureQueued(server);
 	}
 
 	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -139,19 +132,32 @@ public final class MadokuHealthManager {
 		}
 
 		schedulerId = context.getSchedulerId();
-		long gameplayTick = context.getNowTick();
-		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
+		long gameplayTick = Math.max(0L, context.getNowTick());
+		long startTick;
+		if (lastProcessedGameplayTick == Long.MIN_VALUE || gameplayTick < lastProcessedGameplayTick) {
+			startTick = gameplayTick;
+		} else {
+			startTick = lastProcessedGameplayTick + 1L;
 		}
-		ensureQueued(server, HEALTH_PLAYER_TICK_DELAY);
+		for (long tick = startTick; tick <= gameplayTick; tick++) {
+			onGameplayTick(server, tick);
+		}
+		lastProcessedGameplayTick = gameplayTick;
+		ensureQueued(server);
 	}
 
-	private static void ensureQueued(MinecraftServer server, long delayTicks) {
+	private static void ensureQueued(MinecraftServer server) {
 		if (server == null || tickQueued) {
 			return;
 		}
 
 		String currentSchedulerId = ensureScheduler();
+		long delayTicks = SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+			server,
+			HEALTH_PLAYER_TICK_SCHEDULER_KEY,
+			HEALTH_PLAYER_TICK_MIN_INTERVAL,
+			HEALTH_PLAYER_TICK_MAX_INTERVAL
+		);
 		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
@@ -198,40 +204,26 @@ public final class MadokuHealthManager {
 			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
 	}
 
-	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
-		if (server == null || player == null) {
+	private static void onGameplayTick(MinecraftServer server, long gameplayTick) {
+		if (server == null) {
+			return;
+		}
+		if (!settings.health.enabled) {
 			return;
 		}
 
-		if (gameplayTick != lastNaturalRegenDisableTick) {
-			disableVanillaNaturalRegen(server, gameplayTick);
-			lastNaturalRegenDisableTick = gameplayTick;
-		}
-		if (!settings.enabled) {
-			return;
-		}
-
-		UUID playerId = player.getUUID();
-		long nextProcessTick = NEXT_PROCESS_TICKS_BY_PLAYER.getOrDefault(playerId, 0L);
-		if (gameplayTick < nextProcessTick) {
-			return;
-		}
-
-		boolean stillActive = processPlayer(player, gameplayTick);
-		if (stillActive) {
-			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, gameplayTick + Math.max(1L, settings.schedulerTickInterval));
-		} else {
-			NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			processPlayer(player, gameplayTick);
 		}
 	}
 
-	private static boolean processPlayer(ServerPlayer player, long gameplayTick) {
+	private static void processPlayer(ServerPlayer player, long gameplayTick) {
 		if (player == null) {
-			return false;
+			return;
 		}
 
 		UUID playerId = player.getUUID();
-		boolean actionTick = Math.floorMod(gameplayTick, Math.max(1, settings.actionIntervalTicks)) == 0;
+		boolean actionTick = Math.floorMod(gameplayTick, ACTION_INTERVAL_TICKS) == 0;
 		PlayerState state = PLAYER_STATES.computeIfAbsent(playerId, ignored -> new PlayerState());
 		if (!state.onlineThisSession) {
 			state.onlineThisSession = true;
@@ -241,7 +233,7 @@ public final class MadokuHealthManager {
 			// Never run the heal/drain loop while the player is dead; this can interfere with respawn.
 			state.pendingHealth = 0.0f;
 			state.highHungerDrainActive = false;
-			return false;
+			return;
 		}
 
 		applyLowHungerMaxHealthScaling(player, state, gameplayTick);
@@ -253,7 +245,6 @@ public final class MadokuHealthManager {
 			applyPendingHealth(player, state, gameplayTick);
 		}
 		clearIdlePendingHealth(state, playerId, gameplayTick);
-		return true;
 	}
 
 	private static void processStatusEffects(ServerPlayer player, PlayerState state, long gameplayTick) {
@@ -261,31 +252,45 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		int poisonLevel = getEffectLevel(player, MobEffects.POISON);
-		if (poisonLevel > 0) {
-			if (Math.floorMod(gameplayTick, POISON_TICK_INTERVAL) == 0L) {
+		if (settings.main.poison.enabled) {
+			int poisonLevel = getEffectLevel(player, MobEffects.POISON);
+			if (poisonLevel > 0 && Math.floorMod(gameplayTick, POISON_TICK_INTERVAL) == 0L) {
 				applyPoisonTick(player, gameplayTick, poisonLevel);
 			}
 		}
 
-		int witherLevel = getEffectLevel(player, MobEffects.WITHER);
-		if (witherLevel > 0 && Math.floorMod(gameplayTick, WITHER_TICK_INTERVAL) == 0L) {
-			applyWitherTick(player, gameplayTick, witherLevel);
+		if (settings.main.wither.enabled) {
+			int witherLevel = getEffectLevel(player, MobEffects.WITHER);
+			if (witherLevel > 0 && Math.floorMod(gameplayTick, WITHER_TICK_INTERVAL) == 0L) {
+				applyWitherTick(player, gameplayTick, witherLevel);
+			}
 		}
 
-		int regenerationLevel = getEffectLevel(player, MobEffects.REGENERATION);
-		if (regenerationLevel > 0 && Math.floorMod(gameplayTick, REGEN_TICK_INTERVAL) == 0L) {
-			applyRegenerationTick(player, state, gameplayTick, regenerationLevel);
+		if (settings.main.regeneration.enabled) {
+			int regenerationLevel = getEffectLevel(player, MobEffects.REGENERATION);
+			if (regenerationLevel > 0 && Math.floorMod(gameplayTick, REGEN_TICK_INTERVAL) == 0L) {
+				applyRegenerationTick(player, state, gameplayTick, regenerationLevel);
+			}
 		}
 	}
 
 	private static void applyPoisonTick(ServerPlayer player, long gameplayTick, int poisonLevel) {
 		float current = player.getHealth();
-		if (current <= POISON_MIN_HEALTH + EPSILON) {
+		float maxHealth = player.getMaxHealth();
+		if (maxHealth <= EPSILON) {
 			return;
 		}
 
-		float damage = POISON_DAMAGE_PER_LEVEL * Math.max(1, poisonLevel);
+		if (settings.main.poison.poisonPenalty.enabled
+			&& current < (float) (maxHealth * settings.main.poison.poisonPenalty.penaltyPercentage) - EPSILON) {
+			return;
+		}
+
+		float damage = (float) resolveEffectAmount(maxHealth, settings.main.poison, poisonLevel);
+		if (damage <= EPSILON) {
+			return;
+		}
+
 		float target = quantizeHealth(Math.max(POISON_MIN_HEALTH, current - damage));
 		if (target >= current - EPSILON) {
 			return;
@@ -305,7 +310,10 @@ public final class MadokuHealthManager {
 	}
 
 	private static void applyWitherTick(ServerPlayer player, long gameplayTick, int witherLevel) {
-		float damage = WITHER_DAMAGE_PER_LEVEL * Math.max(1, witherLevel);
+		float damage = (float) resolveEffectAmount(player.getMaxHealth(), settings.main.wither, witherLevel);
+		if (damage <= EPSILON) {
+			return;
+		}
 		player.hurtServer(player.level(), player.damageSources().wither(), damage);
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.effect_wither_tick")) {
 			MadokuDebug.event("health.effect_wither_tick", MadokuDebug.Domain.HEALTH)
@@ -326,7 +334,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		float healing = maxHealth * REGEN_FRACTION_PER_LEVEL * regenerationLevel;
+		float healing = (float) resolveEffectAmount(maxHealth, settings.main.regeneration, regenerationLevel);
 		if (healing <= EPSILON) {
 			return;
 		}
@@ -355,10 +363,10 @@ public final class MadokuHealthManager {
 		float hungerRatio = hungerRatio(player.getFoodData().getFoodLevel());
 		boolean hasRecoveryNeed = missingHealth > EPSILON;
 
-		if (hungerRatio > settings.hungerDrainRatio && hasRecoveryNeed) {
+		if (hungerRatio > settings.health.hungerDrainPercentage && hasRecoveryNeed) {
 			state.highHungerDrainActive = true;
 		}
-		if (hungerRatio <= settings.hungerDrainRatio || !hasRecoveryNeed) {
+		if (hungerRatio <= settings.health.hungerDrainPercentage || !hasRecoveryNeed) {
 			state.highHungerDrainActive = false;
 		}
 		if (!state.highHungerDrainActive) {
@@ -373,7 +381,7 @@ public final class MadokuHealthManager {
 
 		state.pendingHealth += drained * (float) PENDING_HEALTH_PER_HUNGER;
 		state.lastPendingActivityTick = gameplayTick;
-		if (hungerRatio(player.getFoodData().getFoodLevel()) <= settings.hungerDrainRatio) {
+		if (hungerRatio(player.getFoodData().getFoodLevel()) <= settings.health.hungerDrainPercentage) {
 			state.highHungerDrainActive = false;
 		}
 
@@ -436,7 +444,7 @@ public final class MadokuHealthManager {
 		}
 
 		long idleTicks = gameplayTick - state.lastPendingActivityTick;
-		if (idleTicks < settings.pendingIdleTimeoutTicks) {
+		if (idleTicks < PENDING_IDLE_TIMEOUT_TICKS) {
 			return;
 		}
 
@@ -459,7 +467,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		double targetBaseMaxHealth = settings.maximumHealth;
+		double targetBaseMaxHealth = settings.health.maximumHealth;
 		if (Math.abs(maxHealthAttribute.getBaseValue() - targetBaseMaxHealth) > 1.0e-5d) {
 			maxHealthAttribute.setBaseValue(targetBaseMaxHealth);
 		}
@@ -502,14 +510,24 @@ public final class MadokuHealthManager {
 			return;
 		}
 
+		if (!settings.main.healthBoost.enabled) {
+			if (Math.abs(state.appliedHealthBoostAmount) > EPSILON || maxHealthAttribute.hasModifier(HEALTH_BOOST_MAX_HEALTH_MODIFIER_ID)) {
+				maxHealthAttribute.removeModifier(HEALTH_BOOST_MAX_HEALTH_MODIFIER_ID);
+				state.appliedHealthBoostAmount = 0.0d;
+			}
+			float maxHealth = player.getMaxHealth();
+			if (player.getHealth() > maxHealth + EPSILON) {
+				player.setHealth(Math.min(maxHealth, quantizeHealth(maxHealth)));
+			}
+			return;
+		}
+
 		int healthBoostLevel = getEffectLevel(player, MobEffects.HEALTH_BOOST);
 		double referenceMaxHealth = player.getMaxHealth() - state.appliedHealthBoostAmount;
 		if (referenceMaxHealth < 0.0d) {
 			referenceMaxHealth = player.getMaxHealth();
 		}
-		double targetAmount = healthBoostLevel <= 0
-			? 0.0d
-			: referenceMaxHealth * HEALTH_BOOST_MAX_HEALTH_FRACTION_PER_LEVEL * healthBoostLevel;
+		double targetAmount = resolveEffectAmount(referenceMaxHealth, settings.main.healthBoost, healthBoostLevel);
 
 		boolean modifierChanged = false;
 		boolean missingExpectedModifier = targetAmount > 1.0e-5d && !maxHealthAttribute.hasModifier(HEALTH_BOOST_MAX_HEALTH_MODIFIER_ID);
@@ -544,10 +562,16 @@ public final class MadokuHealthManager {
 	}
 
 	private static void applyAbsorptionScaling(ServerPlayer player, PlayerState state, long gameplayTick) {
+		if (!settings.main.absorption.enabled) {
+			if (Math.abs(state.appliedAbsorptionAmount) > EPSILON) {
+				player.setAbsorptionAmount(0.0f);
+				state.appliedAbsorptionAmount = 0.0f;
+			}
+			return;
+		}
+
 		int absorptionLevel = getEffectLevel(player, MobEffects.ABSORPTION);
-		float targetAbsorption = absorptionLevel <= 0
-			? 0.0f
-			: quantizeHealth(player.getMaxHealth() * ABSORPTION_FRACTION_PER_LEVEL * absorptionLevel);
+		float targetAbsorption = quantizeHealth((float) resolveEffectAmount(player.getMaxHealth(), settings.main.absorption, absorptionLevel));
 
 		if (Math.abs(targetAbsorption - state.appliedAbsorptionAmount) <= EPSILON) {
 			return;
@@ -587,17 +611,18 @@ public final class MadokuHealthManager {
 	}
 
 	private static double calculateMaxHealthMultiplier(float hungerRatio) {
-		if (hungerRatio >= settings.hungerPenaltyRatio) {
+		HealthConfigManager.HealthPenaltySettings penalty = settings.health.healthPenalty;
+		if (!penalty.enabled || hungerRatio >= settings.health.healthPenalty.hungerPenaltyPercentage) {
 			return 1.0d;
 		}
 
-		double belowThreshold = settings.hungerPenaltyRatio - hungerRatio;
+		double belowThreshold = settings.health.healthPenalty.hungerPenaltyPercentage - hungerRatio;
 		int steps = (int) Math.ceil((belowThreshold - EPSILON) / LOW_HUNGER_STEP_RATIO);
 		steps = Math.max(0, steps);
 		double reduction = steps * MAX_HEALTH_REDUCTION_PER_STEP;
 		double multiplier = 1.0d - reduction;
-		if (multiplier < settings.healthPenaltyRatio) {
-			return settings.healthPenaltyRatio;
+		if (multiplier < penalty.penaltyPercentage) {
+			return penalty.penaltyPercentage;
 		}
 		return Math.min(1.0d, multiplier);
 	}
@@ -607,27 +632,12 @@ public final class MadokuHealthManager {
 		return (float) clamped / (float) VANILLA_MAX_HUNGER_POINTS;
 	}
 
-	private static void disableVanillaNaturalRegen(MinecraftServer server, long gameplayTick) {
-		for (ServerLevel level : server.getAllLevels()) {
-			boolean wasEnabled = level.getGameRules().get(GameRules.NATURAL_HEALTH_REGENERATION);
-			level.getGameRules().set(GameRules.NATURAL_HEALTH_REGENERATION, false, server);
-			if (wasEnabled && MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.vanilla_regen_disabled")) {
-				MadokuDebug.event("health.vanilla_regen_disabled", MadokuDebug.Domain.HEALTH)
-					.side(MadokuDebug.Side.SERVER)
-					.tick(gameplayTick)
-					.world(level.dimension().toString())
-					.subject("world:" + level.dimension())
-					.log();
-			}
-		}
-	}
-
 	private static void handlePlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
-		if (newPlayer == null || alive) {
+		if (newPlayer == null || alive || !settings.health.enabled) {
 			return;
 		}
 
-		float targetHealth = Math.max(0.5f, newPlayer.getMaxHealth() * DEATH_RESPAWN_HEALTH_RATIO);
+		float targetHealth = Math.max(0.5f, newPlayer.getMaxHealth() * settings.health.respawnHealthPercentage);
 		targetHealth = Math.min(newPlayer.getMaxHealth(), quantizeHealth(targetHealth));
 		newPlayer.setHealth(targetHealth);
 
@@ -639,7 +649,6 @@ public final class MadokuHealthManager {
 		state.appliedHealthBoostAmount = 0.0d;
 		state.appliedAbsorptionAmount = 0.0f;
 		state.onlineThisSession = true;
-		NEXT_PROCESS_TICKS_BY_PLAYER.put(newPlayer.getUUID(), 0L);
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.respawn_half_health")) {
 			MadokuDebug.event("health.respawn_half_health", MadokuDebug.Domain.HEALTH)
@@ -659,7 +668,7 @@ public final class MadokuHealthManager {
 		float damageTaken,
 		boolean blocked
 	) {
-		if (!(entity instanceof ServerPlayer player) || damageTaken <= EPSILON) {
+		if (!(entity instanceof ServerPlayer player) || damageTaken <= EPSILON || !settings.health.enabled) {
 			return;
 		}
 
@@ -667,7 +676,6 @@ public final class MadokuHealthManager {
 		state.onlineThisSession = true;
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
-		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 
 		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.HEALTH, "health.damage_detected")) {
 			MadokuDebug.event("health.damage_detected", MadokuDebug.Domain.HEALTH)
@@ -681,7 +689,7 @@ public final class MadokuHealthManager {
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
-		if (player == null) {
+		if (player == null || !settings.health.enabled) {
 			return;
 		}
 
@@ -690,11 +698,10 @@ public final class MadokuHealthManager {
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
 		applyImmediateEffectOverrides(player, state, MadokuTicks.getGameplayTicks());
-		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
 	public static void handlePlayerEffectsChanged(ServerPlayer player) {
-		if (player == null) {
+		if (player == null || !settings.health.enabled) {
 			return;
 		}
 
@@ -703,31 +710,30 @@ public final class MadokuHealthManager {
 		long gameplayTick = MadokuTicks.getGameplayTicks();
 		state.lastPendingActivityTick = gameplayTick;
 		applyImmediateEffectOverrides(player, state, gameplayTick);
-		NEXT_PROCESS_TICKS_BY_PLAYER.put(player.getUUID(), 0L);
 	}
 
 	public static boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) {
-		if (!settings.enabled || !(entity instanceof ServerPlayer) || effect == null) {
+		if (!settings.health.enabled || !(entity instanceof ServerPlayer) || effect == null) {
 			return false;
 		}
 
-		return effect == MobEffects.POISON.value()
-			|| effect == MobEffects.WITHER.value()
-			|| effect == MobEffects.REGENERATION.value()
-			|| effect == MobEffects.ABSORPTION.value();
+		return (settings.main.poison.enabled && effect == MobEffects.POISON.value())
+			|| (settings.main.wither.enabled && effect == MobEffects.WITHER.value())
+			|| (settings.main.regeneration.enabled && effect == MobEffects.REGENERATION.value())
+			|| (settings.main.absorption.enabled && effect == MobEffects.ABSORPTION.value());
 	}
 
 	public static boolean shouldOverrideVanillaEffectAttributes(LivingEntity entity, MobEffect effect) {
-		if (!settings.enabled || !(entity instanceof ServerPlayer) || effect == null) {
+		if (!settings.health.enabled || !(entity instanceof ServerPlayer) || effect == null) {
 			return false;
 		}
 
-		return effect == MobEffects.HEALTH_BOOST.value()
-			|| effect == MobEffects.ABSORPTION.value();
+		return (settings.main.healthBoost.enabled && effect == MobEffects.HEALTH_BOOST.value())
+			|| (settings.main.absorption.enabled && effect == MobEffects.ABSORPTION.value());
 	}
 
 	private static void applyImmediateEffectOverrides(ServerPlayer player, PlayerState state, long gameplayTick) {
-		if (!settings.enabled || player == null || state == null) {
+		if (!settings.health.enabled || player == null || state == null) {
 			return;
 		}
 		applyLowHungerMaxHealthScaling(player, state, gameplayTick);
@@ -744,6 +750,17 @@ public final class MadokuHealthManager {
 			return 0;
 		}
 		return Math.max(0, effectInstance.getAmplifier() + 1);
+	}
+
+	private static double resolveEffectAmount(double maxHealth, HealthConfigManager.EffectSettings effect, int level) {
+		if (effect == null || level <= 0) {
+			return 0.0d;
+		}
+
+		double perLevelAmount = effect.type == HealthConfigManager.ValueType.FLAT
+			? effect.value
+			: maxHealth * effect.value;
+		return perLevelAmount * Math.max(1, level);
 	}
 
 	private static JsonObject createDefaultData() {
@@ -774,7 +791,6 @@ public final class MadokuHealthManager {
 
 	private static void applyPersistedData(JsonObject source) {
 		PLAYER_STATES.clear();
-		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 
 		JsonArray players = getArray(source, "players");
 		if (players == null) {

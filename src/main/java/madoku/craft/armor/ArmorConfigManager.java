@@ -27,6 +27,8 @@ public final class ArmorConfigManager {
 	private static final double DEFAULT_ARMOR_TOUGHNESS_REDUCTION_VALUE = 0.01d;
 
 	private static final double DEFAULT_FALL_DAMAGE_REDUCTION = 0.5d;
+	private static final DamageReductionType DEFAULT_RESISTANCE_REDUCTION_TYPE = DamageReductionType.PERCENTAGE;
+	private static final double DEFAULT_RESISTANCE_REDUCTION_VALUE = 0.2d;
 
 	private static final String ARMOR_CONFIG_DIRECTORY_NAME = "madoku-armor";
 	private static final String ARMOR_CONFIG_FILE_NAME = "madoku-armor";
@@ -84,7 +86,7 @@ public final class ArmorConfigManager {
 			Settings defaults = defaults();
 
 			boolean enabled = getBoolean(source, "enabled", defaults.enabled);
-			MainSettings main = MainSettings.fromJson(readObject(source, "main"));
+			MainSettings main = MainSettings.fromJson(source);
 			ArmorPointsSettings armorPoints = ArmorPointsSettings.fromJson(readObject(source, "armor-points"));
 			ArmorToughnessPointsSettings armorToughnessPoints = ArmorToughnessPointsSettings.fromJson(
 				readObject(source, "armor-toughness-points")
@@ -96,7 +98,12 @@ public final class ArmorConfigManager {
 		JsonObject toConfigJson() {
 			return JsonFormatBuilder.object()
 				.put("enabled", enabled)
-				.object("main", group -> group.put("fall-damage-reduction", main.fallDamageReduction))
+				.put("fall-damage-reduction", main.fallDamageReduction)
+				.object("resistance", resistance -> {
+					resistance.put("enabled", main.resistance.enabled);
+					resistance.put("type", main.resistance.type.configValue);
+					resistance.put("value", main.resistance.value);
+				})
 				.object("armor-points", group -> {
 					group.put("starting-points", armorPoints.startingArmor);
 					group.put("max-points", armorPoints.maxPoints);
@@ -196,13 +203,18 @@ public final class ArmorConfigManager {
 
 	static final class MainSettings {
 		final double fallDamageReduction;
+		final ResistanceSettings resistance;
 
-		private MainSettings(double fallDamageReduction) {
+		private MainSettings(double fallDamageReduction, ResistanceSettings resistance) {
 			this.fallDamageReduction = fallDamageReduction;
+			this.resistance = resistance;
 		}
 
 		static MainSettings defaults() {
-			return new MainSettings(DEFAULT_FALL_DAMAGE_REDUCTION);
+			return new MainSettings(
+				DEFAULT_FALL_DAMAGE_REDUCTION,
+				ResistanceSettings.defaults()
+			);
 		}
 
 		static MainSettings fromJson(JsonObject source) {
@@ -212,7 +224,36 @@ public final class ArmorConfigManager {
 				0.0d,
 				1.0d
 			);
-			return new MainSettings(fallDamageReduction);
+			ResistanceSettings resistance = ResistanceSettings.fromJson(Settings.readObject(source, "resistance"));
+			return new MainSettings(fallDamageReduction, resistance);
+		}
+	}
+
+	static final class ResistanceSettings {
+		final boolean enabled;
+		final DamageReductionType type;
+		final double value;
+
+		private ResistanceSettings(boolean enabled, DamageReductionType type, double value) {
+			this.enabled = enabled;
+			this.type = type;
+			this.value = value;
+		}
+
+		static ResistanceSettings defaults() {
+			return new ResistanceSettings(
+				true,
+				DEFAULT_RESISTANCE_REDUCTION_TYPE,
+				DEFAULT_RESISTANCE_REDUCTION_VALUE
+			);
+		}
+
+		static ResistanceSettings fromJson(JsonObject source) {
+			ResistanceSettings defaults = defaults();
+			boolean enabled = Settings.getBoolean(source, "enabled", defaults.enabled);
+			DamageReductionType type = Settings.readDamageReductionType(source, defaults.type);
+			double value = Settings.readDamageReductionValue(source, type, defaults.value);
+			return new ResistanceSettings(enabled, type, value);
 		}
 	}
 
