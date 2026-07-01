@@ -105,6 +105,7 @@ public final class ArmorConfigManager {
 					resistance.put("value", main.resistance.value);
 				})
 				.object("armor-points", group -> {
+					group.put("enabled", armorPoints.enabled);
 					group.put("starting-points", armorPoints.startingArmor);
 					group.put("max-points", armorPoints.maxPoints);
 					group.object("damage-reduction", damageReduction -> {
@@ -113,6 +114,7 @@ public final class ArmorConfigManager {
 					});
 				})
 				.object("armor-toughness-points", group -> {
+					group.put("enabled", armorToughnessPoints.enabled);
 					group.put("starting-points", armorToughnessPoints.startingArmorToughness);
 					group.put("max-points", armorToughnessPoints.maxPoints);
 					group.object("damage-reduction", damageReduction -> {
@@ -258,11 +260,13 @@ public final class ArmorConfigManager {
 	}
 
 	static final class ArmorPointsSettings {
+		final boolean enabled;
 		final double startingArmor;
 		final double maxPoints;
 		final DamageReduction damageReduction;
 
-		private ArmorPointsSettings(double startingArmor, double maxPoints, DamageReduction damageReduction) {
+		private ArmorPointsSettings(boolean enabled, double startingArmor, double maxPoints, DamageReduction damageReduction) {
+			this.enabled = enabled;
 			this.startingArmor = startingArmor;
 			this.maxPoints = maxPoints;
 			this.damageReduction = damageReduction;
@@ -270,6 +274,7 @@ public final class ArmorConfigManager {
 
 		static ArmorPointsSettings defaults() {
 			return new ArmorPointsSettings(
+				true,
 				DEFAULT_STARTING_ARMOR_POINTS,
 				DEFAULT_MAX_ARMOR_POINTS,
 				DamageReduction.defaults(DEFAULT_ARMOR_POINTS_REDUCTION_TYPE, DEFAULT_ARMOR_POINTS_REDUCTION_VALUE)
@@ -278,6 +283,7 @@ public final class ArmorConfigManager {
 
 		static ArmorPointsSettings fromJson(JsonObject source) {
 			ArmorPointsSettings defaults = defaults();
+			boolean enabled = Settings.getBoolean(source, "enabled", defaults.enabled);
 			double startingArmor = Settings.clampDouble(
 				Settings.getDouble(source, "starting-points", defaults.startingArmor),
 				0.0d,
@@ -294,20 +300,23 @@ public final class ArmorConfigManager {
 				DEFAULT_ARMOR_POINTS_REDUCTION_TYPE,
 				DEFAULT_ARMOR_POINTS_REDUCTION_VALUE
 			);
-			return new ArmorPointsSettings(startingArmor, maxPoints, damageReduction);
+			return new ArmorPointsSettings(enabled, startingArmor, maxPoints, damageReduction);
 		}
 	}
 
 	static final class ArmorToughnessPointsSettings {
+		final boolean enabled;
 		final double startingArmorToughness;
 		final double maxPoints;
 		final DamageReduction damageReduction;
 
 		private ArmorToughnessPointsSettings(
+			boolean enabled,
 			double startingArmorToughness,
 			double maxPoints,
 			DamageReduction damageReduction
 		) {
+			this.enabled = enabled;
 			this.startingArmorToughness = startingArmorToughness;
 			this.maxPoints = maxPoints;
 			this.damageReduction = damageReduction;
@@ -315,6 +324,7 @@ public final class ArmorConfigManager {
 
 		static ArmorToughnessPointsSettings defaults() {
 			return new ArmorToughnessPointsSettings(
+				true,
 				DEFAULT_STARTING_ARMOR_TOUGHNESS_POINTS,
 				DEFAULT_MAX_ARMOR_TOUGHNESS_POINTS,
 				DamageReduction.defaults(DEFAULT_ARMOR_TOUGHNESS_REDUCTION_TYPE, DEFAULT_ARMOR_TOUGHNESS_REDUCTION_VALUE)
@@ -323,6 +333,7 @@ public final class ArmorConfigManager {
 
 		static ArmorToughnessPointsSettings fromJson(JsonObject source) {
 			ArmorToughnessPointsSettings defaults = defaults();
+			boolean enabled = Settings.getBoolean(source, "enabled", defaults.enabled);
 			double startingArmorToughness = Settings.clampDouble(
 				Settings.getDouble(source, "starting-points", defaults.startingArmorToughness),
 				0.0d,
@@ -339,7 +350,7 @@ public final class ArmorConfigManager {
 				DEFAULT_ARMOR_TOUGHNESS_REDUCTION_TYPE,
 				DEFAULT_ARMOR_TOUGHNESS_REDUCTION_VALUE
 			);
-			return new ArmorToughnessPointsSettings(startingArmorToughness, maxPoints, damageReduction);
+			return new ArmorToughnessPointsSettings(enabled, startingArmorToughness, maxPoints, damageReduction);
 		}
 	}
 

@@ -35,6 +35,7 @@
     "EffectCommandsSaturationDurationMixin",
     "EntityPetBehaviorMixin",
     "FarmlandBlockFarmingMixin",
+    "FoodDataSaturationDisableMixin",
     "FoodDataStarvationDamageMixin",
     "FuelValuesMixin",
     "FurnaceCookTimeMixin",

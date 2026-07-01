@@ -45,12 +45,16 @@ public final class MadokuArmorManager {
 			settings.armorToughnessPoints.maxPoints
 		);
 
-		double damageAfterArmor = applyDamageReduction(amount, armorPoints, settings.armorPoints.damageReduction);
-		double damageAfterToughness = applyDamageReduction(
-			damageAfterArmor,
-			armorToughnessPoints,
-			settings.armorToughnessPoints.damageReduction
-		);
+		double damageAfterArmor = settings.armorPoints.enabled
+			? applyDamageReduction(amount, armorPoints, settings.armorPoints.damageReduction)
+			: amount;
+		double damageAfterToughness = settings.armorToughnessPoints.enabled
+			? applyDamageReduction(
+				damageAfterArmor,
+				armorToughnessPoints,
+				settings.armorToughnessPoints.damageReduction
+			)
+			: damageAfterArmor;
 		double damageAfterResistance = applyResistanceReduction(entity, source, damageAfterToughness);
 
 		double finalDamage = damageAfterResistance;
