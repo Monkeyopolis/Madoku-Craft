@@ -21,7 +21,7 @@ public final class LuckConfigManager {
 	private static final boolean DEFAULT_ENABLED = true;
 	private static final double DEFAULT_STARTING_POINTS = 5.0d;
 	private static final double DEFAULT_MAX_POINTS = 100.0d;
-	private static final double DEFAULT_LUCK_VALUE = 10.0d;
+	private static final double DEFAULT_LUCK_EFFECT_VALUE = 10.0d;
 
 	private static final ValueType DEFAULT_DROP_ADJUSTMENT_TYPE = ValueType.MULTIPLIER;
 	private static final double DEFAULT_BLOCK_DROP_ADJUSTMENT_VALUE = 2.0d;
@@ -210,17 +210,15 @@ public final class LuckConfigManager {
 		final boolean enabled;
 		final double startingPoints;
 		final double maxPoints;
-		final double value;
 
-		private LuckSettings(boolean enabled, double startingPoints, double maxPoints, double value) {
+		private LuckSettings(boolean enabled, double startingPoints, double maxPoints) {
 			this.enabled = enabled;
 			this.startingPoints = startingPoints;
 			this.maxPoints = maxPoints;
-			this.value = value;
 		}
 
 		static LuckSettings defaults() {
-			return new LuckSettings(true, DEFAULT_STARTING_POINTS, DEFAULT_MAX_POINTS, DEFAULT_LUCK_VALUE);
+			return new LuckSettings(true, DEFAULT_STARTING_POINTS, DEFAULT_MAX_POINTS);
 		}
 
 		static LuckSettings fromJson(JsonObject source, LuckSettings defaults) {
@@ -232,38 +230,40 @@ public final class LuckConfigManager {
 				0.0d,
 				maxPoints
 			);
-			double value = Settings.clampDouble(Settings.getDouble(source, "value", base.value), 0.0d, 1024.0d);
-			return new LuckSettings(enabled, startingPoints, maxPoints, value);
+			return new LuckSettings(enabled, startingPoints, maxPoints);
 		}
 
 		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("starting-points", startingPoints)
-				.put("max-points", maxPoints)
-				.put("value", value);
+				.put("max-points", maxPoints);
 			return builder.build();
 		}
 	}
 
 	static final class LuckEffectSettings {
 		final boolean enabled;
+		final double value;
 
-		private LuckEffectSettings(boolean enabled) {
+		private LuckEffectSettings(boolean enabled, double value) {
 			this.enabled = enabled;
+			this.value = value;
 		}
 
 		static LuckEffectSettings defaults() {
-			return new LuckEffectSettings(true);
+			return new LuckEffectSettings(true, DEFAULT_LUCK_EFFECT_VALUE);
 		}
 
 		static LuckEffectSettings fromJson(JsonObject source, LuckEffectSettings defaults) {
 			LuckEffectSettings base = defaults == null ? defaults() : defaults;
 			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
-			return new LuckEffectSettings(enabled);
+			double value = Settings.clampDouble(Settings.getDouble(source, "value", base.value), 0.0d, 1024.0d);
+			return new LuckEffectSettings(enabled, value);
 		}
 
 		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
-			builder.put("enabled", enabled);
+			builder.put("enabled", enabled)
+				.put("value", value);
 			return builder.build();
 		}
 	}

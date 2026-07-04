@@ -153,7 +153,7 @@ public final class MadokuLuckManager {
 		int effectLevel = getLuckEffectLevel(player);
 		double maxBonus = Math.max(0.0d, settings.luck.maxPoints - settings.luck.startingPoints);
 		double bonus = settings.enabled && settings.luckEffect.enabled
-			? Math.min(maxBonus, effectLevel * settings.luck.value)
+			? Math.min(maxBonus, effectLevel * settings.luckEffect.value)
 			: 0.0d;
 		if (bonus > 0.0d) {
 			luckAttribute.addOrUpdateTransientModifier(

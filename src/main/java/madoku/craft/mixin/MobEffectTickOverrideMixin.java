@@ -16,8 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 	"net.minecraft.world.effect.WitherMobEffect",
 	"net.minecraft.world.effect.RegenerationMobEffect",
 	"net.minecraft.world.effect.AbsorptionMobEffect",
-	"net.minecraft.world.effect.HungerMobEffect",
-	"net.minecraft.world.effect.LuckMobEffect"
+	"net.minecraft.world.effect.HungerMobEffect"
 })
 public abstract class MobEffectTickOverrideMixin {
 	@Inject(method = "applyEffectTick", at = @At("HEAD"), cancellable = true)

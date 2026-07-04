@@ -2,7 +2,9 @@ package madoku.craft.mixin;
 
 import madoku.craft.health.MadokuHealthManager;
 import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.oxygen.MadokuOxygenManager;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -20,6 +22,9 @@ public abstract class LivingEntityEffectMixin {
 		if ((Object) this instanceof ServerPlayer player) {
 			MadokuHealthManager.handlePlayerEffectsChanged(player);
 			MadokuLuckManager.handlePlayerEffectsChanged(player);
+			if (madokuCraft$isOxygenEffect(effect)) {
+				MadokuOxygenManager.handlePlayerEffectsChanged(player);
+			}
 		}
 	}
 
@@ -28,6 +33,9 @@ public abstract class LivingEntityEffectMixin {
 		if ((Object) this instanceof ServerPlayer player) {
 			MadokuHealthManager.handlePlayerEffectsChanged(player);
 			MadokuLuckManager.handlePlayerEffectsChanged(player);
+			if (madokuCraft$isOxygenEffect(effect)) {
+				MadokuOxygenManager.handlePlayerEffectsChanged(player);
+			}
 		}
 	}
 
@@ -36,7 +44,31 @@ public abstract class LivingEntityEffectMixin {
 		if ((Object) this instanceof ServerPlayer player) {
 			MadokuHealthManager.handlePlayerEffectsChanged(player);
 			MadokuLuckManager.handlePlayerEffectsChanged(player);
+			if (madokuCraft$hasRemovedOxygenEffect(effects)) {
+				MadokuOxygenManager.handlePlayerEffectsChanged(player);
+			}
 		}
+	}
+
+	private boolean madokuCraft$isOxygenEffect(MobEffectInstance effect) {
+		if (effect == null || effect.getEffect() == null) {
+			return false;
+		}
+		MobEffect mobEffect = effect.getEffect().value();
+		return mobEffect != null && MadokuOxygenManager.shouldOverrideVanillaEffect((LivingEntity) (Object) this, mobEffect);
+	}
+
+	private boolean madokuCraft$hasRemovedOxygenEffect(Collection<MobEffectInstance> effects) {
+		if (effects == null || effects.isEmpty()) {
+			return false;
+		}
+
+		for (MobEffectInstance effect : effects) {
+			if (madokuCraft$isOxygenEffect(effect)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 

@@ -2,6 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.health.MadokuHealthManager;
 import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.oxygen.MadokuOxygenManager;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -32,6 +33,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
+				|| MadokuOxygenManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -55,6 +57,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
+				|| MadokuOxygenManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -79,6 +82,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
+				|| MadokuOxygenManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -100,6 +104,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
+				|| MadokuOxygenManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}

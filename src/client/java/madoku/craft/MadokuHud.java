@@ -100,7 +100,7 @@ public final class MadokuHud {
 	private static final int SECOND_LEFT_VANILLA_FOOD_SLOT_INDEX = 8;
 	private static final String HUNGER_BASELINE_TEXT = "Hunger: 20/20";
 	private static final String OXYGEN_BASELINE_TEXT = "Oxygen: 20/20";
-	private static final String LUCK_BASELINE_TEXT = "Luck: 100";
+	private static final String LUCK_BASELINE_TEXT = "Luck: 100%";
 	private static final int VANILLA_MAX_FOOD_LEVEL = 20;
 	private static final int VANILLA_MAX_AIR_SUPPLY_TICKS = 300;
 	private static final int TICKS_PER_SECOND = 20;
@@ -901,7 +901,7 @@ public final class MadokuHud {
 
 	private static String formatLuckPoints(double value) {
 		long points = Math.max(0L, Math.round(value));
-		return Long.toString(points);
+		return points + "%";
 	}
 
 	private static void updateOxygenState(LocalPlayer player, long gameTime) {
