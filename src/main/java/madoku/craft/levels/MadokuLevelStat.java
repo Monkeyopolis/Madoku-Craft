@@ -69,9 +69,6 @@ public enum MadokuLevelStat {
 	}
 
 	public String formattedValue(int level) {
-		if (this == PLAYER_LUCK) {
-			return "+" + BigDecimal.valueOf(valueAtLevel(level) * 100.0d).stripTrailingZeros().toPlainString() + "%";
-		}
 		return "+" + BigDecimal.valueOf(valueAtLevel(level)).stripTrailingZeros().toPlainString();
 	}
 

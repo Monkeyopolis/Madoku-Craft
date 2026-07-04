@@ -31,7 +31,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 	) {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
-				|| MadokuLuckManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -54,7 +54,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 	) {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
-				|| MadokuLuckManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -78,7 +78,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 	) {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
-				|| MadokuLuckManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}
@@ -99,7 +99,7 @@ public abstract class LivingEntityEffectAttributeOverrideMixin {
 	) {
 		if (
 			MadokuHealthManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
-				|| MadokuLuckManager.shouldOverrideVanillaEffectAttributes((LivingEntity) (Object) this, effect)
+				|| MadokuLuckManager.shouldOverrideVanillaLuckEffect((LivingEntity) (Object) this, effect)
 		) {
 			return;
 		}

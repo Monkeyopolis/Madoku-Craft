@@ -1,5 +1,6 @@
 package madoku.craft.luck;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.AttributesConfigManager;
 import madoku.craft.config.JsonFormatBuilder;
@@ -9,19 +10,25 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
 public final class LuckConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LuckConfigManager.class);
 
 	private static final String LUCK_CONFIG_DIRECTORY_NAME = "madoku-luck";
 	private static final String LUCK_CONFIG_FILE_NAME = "madoku-luck";
+
 	private static final boolean DEFAULT_ENABLED = true;
-	private static final double DEFAULT_BASE_LUCK = 0.05d;
-	private static final double DEFAULT_DROP_MULTIPLIER = 1.0d;
-	private static final double DEFAULT_MOB_DROP_MULTIPLIER = 0.5d;
+	private static final double DEFAULT_STARTING_POINTS = 5.0d;
+	private static final double DEFAULT_MAX_POINTS = 100.0d;
+	private static final double DEFAULT_LUCK_VALUE = 10.0d;
+
+	private static final ValueType DEFAULT_DROP_ADJUSTMENT_TYPE = ValueType.MULTIPLIER;
+	private static final double DEFAULT_BLOCK_DROP_ADJUSTMENT_VALUE = 2.0d;
+	private static final double DEFAULT_MOB_DROP_ADJUSTMENT_VALUE = 1.5d;
 	private static final double DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER = 0.5d;
-	private static final double DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER = 0.5d;
-	private static final float DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER = 1.5f;
+	private static final double DEFAULT_SKELETON_ACCURACY_REDUCTION_MULTIPLIER = 0.5d;
+	private static final double DEFAULT_PLAYER_CRITICAL_DAMAGE_MULTIPLIER = 1.5d;
 
 	private LuckConfigManager() {
 	}
@@ -31,7 +38,10 @@ public final class LuckConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(LUCK_CONFIG_DIRECTORY_NAME, LUCK_CONFIG_FILE_NAME);
+			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
+				LUCK_CONFIG_DIRECTORY_NAME,
+				LUCK_CONFIG_FILE_NAME
+			);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
@@ -44,107 +54,112 @@ public final class LuckConfigManager {
 
 	static final class Settings {
 		final boolean enabled;
-		final double baseLuck;
-		final double dropMultiplier;
-		final double mobDropMultiplier;
-		final double creeperGriefReductionMultiplier;
-		final double rangedAccuracyReductionMultiplier;
-		final float playerCritDamageMultiplier;
+		final LuckSettings luck;
+		final LuckEffectSettings luckEffect;
+		final DropGroupSettings blockDrops;
+		final DropGroupSettings mobDrops;
+		final ReductionGroupSettings creeperGriefReduction;
+		final ReductionGroupSettings skeletonAccuracyReduction;
+		final CriticalDamageSettings playerCriticalDamage;
 
 		private Settings(
 			boolean enabled,
-			double baseLuck,
-			double dropMultiplier,
-			double mobDropMultiplier,
-			double creeperGriefReductionMultiplier,
-			double rangedAccuracyReductionMultiplier,
-			float playerCritDamageMultiplier
+			LuckSettings luck,
+			LuckEffectSettings luckEffect,
+			DropGroupSettings blockDrops,
+			DropGroupSettings mobDrops,
+			ReductionGroupSettings creeperGriefReduction,
+			ReductionGroupSettings skeletonAccuracyReduction,
+			CriticalDamageSettings playerCriticalDamage
 		) {
 			this.enabled = enabled;
-			this.baseLuck = baseLuck;
-			this.dropMultiplier = dropMultiplier;
-			this.mobDropMultiplier = mobDropMultiplier;
-			this.creeperGriefReductionMultiplier = creeperGriefReductionMultiplier;
-			this.rangedAccuracyReductionMultiplier = rangedAccuracyReductionMultiplier;
-			this.playerCritDamageMultiplier = playerCritDamageMultiplier;
+			this.luck = luck;
+			this.luckEffect = luckEffect;
+			this.blockDrops = blockDrops;
+			this.mobDrops = mobDrops;
+			this.creeperGriefReduction = creeperGriefReduction;
+			this.skeletonAccuracyReduction = skeletonAccuracyReduction;
+			this.playerCriticalDamage = playerCriticalDamage;
 		}
 
 		static Settings defaults() {
 			return new Settings(
 				DEFAULT_ENABLED,
-				DEFAULT_BASE_LUCK,
-				DEFAULT_DROP_MULTIPLIER,
-				DEFAULT_MOB_DROP_MULTIPLIER,
-				DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER,
-				DEFAULT_RANGED_ACCURACY_REDUCTION_MULTIPLIER,
-				DEFAULT_PLAYER_CRIT_DAMAGE_MULTIPLIER
+				LuckSettings.defaults(),
+				LuckEffectSettings.defaults(),
+				DropGroupSettings.defaults(DEFAULT_BLOCK_DROP_ADJUSTMENT_VALUE),
+				DropGroupSettings.defaults(DEFAULT_MOB_DROP_ADJUSTMENT_VALUE),
+				ReductionGroupSettings.defaults(DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER),
+				ReductionGroupSettings.defaults(DEFAULT_SKELETON_ACCURACY_REDUCTION_MULTIPLIER),
+				CriticalDamageSettings.defaults(DEFAULT_PLAYER_CRITICAL_DAMAGE_MULTIPLIER)
 			);
 		}
 
 		static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
-			double baseLuck = clampDouble(getDouble(source, "base-luck", defaults.baseLuck), 0.0d, 1024.0d);
-			double dropMultiplier = clampDouble(getDouble(source, "drop-multiplier", defaults.dropMultiplier), 0.0d, 1024.0d);
-			double mobDropMultiplier = clampDouble(
-				getDouble(source, "mob-drop-multiplier", defaults.mobDropMultiplier),
-				0.0d,
-				1024.0d
-			);
-			double creeperGriefReductionMultiplier = clampDouble(
-				getDouble(source, "creeper-grief-reduction-multiplier", defaults.creeperGriefReductionMultiplier),
-				0.0d,
-				1.0d
-			);
-			double rangedAccuracyReductionMultiplier = clampDouble(
-				getDouble(source, "ranged-accuracy-reduction-multiplier", defaults.rangedAccuracyReductionMultiplier),
-				0.0d,
-				1.0d
-			);
-			float playerCritDamageMultiplier = (float) clampDouble(
-				getDouble(source, "player-crit-damage-multiplier", defaults.playerCritDamageMultiplier),
-				0.0d,
-				1024.0d
-			);
 			return new Settings(
 				getBoolean(source, "enabled", defaults.enabled),
-				baseLuck,
-				dropMultiplier,
-				mobDropMultiplier,
-				creeperGriefReductionMultiplier,
-				rangedAccuracyReductionMultiplier,
-				playerCritDamageMultiplier
+				LuckSettings.fromJson(readObject(source, "luck"), defaults.luck),
+				LuckEffectSettings.fromJson(readObject(source, "luck-effect"), defaults.luckEffect),
+				DropGroupSettings.fromJson(readObject(source, "block-drops"), defaults.blockDrops),
+				DropGroupSettings.fromJson(readObject(source, "mob-drops"), defaults.mobDrops),
+				ReductionGroupSettings.fromJson(
+					readObject(source, "creeper-grief-reduction"),
+					defaults.creeperGriefReduction
+				),
+				ReductionGroupSettings.fromJson(
+					readObject(source, "skeleton-accuracy-reduction"),
+					defaults.skeletonAccuracyReduction
+				),
+				CriticalDamageSettings.fromJson(
+					readObject(source, "player-critical-damage"),
+					defaults.playerCriticalDamage
+				)
 			);
 		}
 
 		JsonObject toConfigJson() {
 			return JsonFormatBuilder.object()
 				.put("enabled", enabled)
-				.put("base-luck", baseLuck)
-				.put("drop-multiplier", dropMultiplier)
-				.put("mob-drop-multiplier", mobDropMultiplier)
-				.put("creeper-grief-reduction-multiplier", creeperGriefReductionMultiplier)
-				.put("ranged-accuracy-reduction-multiplier", rangedAccuracyReductionMultiplier)
-				.put("player-crit-damage-multiplier", playerCritDamageMultiplier)
+				.object("luck", luck -> this.luck.toConfigJson(luck))
+				.object("luck-effect", luckEffect -> this.luckEffect.toConfigJson(luckEffect))
+				.object("block-drops", blockDrops -> this.blockDrops.toConfigJson(blockDrops))
+				.object("mob-drops", mobDrops -> this.mobDrops.toConfigJson(mobDrops))
+				.object("creeper-grief-reduction", creeper -> this.creeperGriefReduction.toConfigJson(creeper))
+				.object("skeleton-accuracy-reduction", skeleton -> this.skeletonAccuracyReduction.toConfigJson(skeleton))
+				.object("player-critical-damage", criticalDamage -> this.playerCriticalDamage.toConfigJson(criticalDamage))
 				.build();
 		}
 
 		Settings withEnabled(boolean systemEnabled) {
 			return new Settings(
 				systemEnabled && enabled,
-				baseLuck,
-				dropMultiplier,
-				mobDropMultiplier,
-				creeperGriefReductionMultiplier,
-				rangedAccuracyReductionMultiplier,
-				playerCritDamageMultiplier
+				luck,
+				luckEffect,
+				blockDrops,
+				mobDrops,
+				creeperGriefReduction,
+				skeletonAccuracyReduction,
+				playerCriticalDamage
 			);
+		}
+
+		private static JsonObject readObject(JsonObject object, String key) {
+			if (object == null || key == null || key.isBlank()) {
+				return new JsonObject();
+			}
+			JsonElement element = object.get(key);
+			if (element == null || !element.isJsonObject()) {
+				return new JsonObject();
+			}
+			return element.getAsJsonObject();
 		}
 
 		private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
 			if (object == null || key == null || key.isBlank()) {
 				return fallback;
 			}
-			var element = object.get(key);
+			JsonElement element = object.get(key);
 			if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
 				return fallback;
 			}
@@ -159,7 +174,7 @@ public final class LuckConfigManager {
 			if (object == null || key == null || key.isBlank()) {
 				return fallback;
 			}
-			var element = object.get(key);
+			JsonElement element = object.get(key);
 			if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
 				return fallback;
 			}
@@ -170,9 +185,231 @@ public final class LuckConfigManager {
 			}
 		}
 
+		private static String getString(JsonObject object, String key, String fallback) {
+			if (object == null || key == null || key.isBlank()) {
+				return fallback;
+			}
+			JsonElement element = object.get(key);
+			if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+				return fallback;
+			}
+			try {
+				String value = element.getAsString();
+				return value == null ? fallback : value.trim();
+			} catch (RuntimeException exception) {
+				return fallback;
+			}
+		}
+
 		private static double clampDouble(double value, double min, double max) {
 			return Math.max(min, Math.min(max, value));
 		}
 	}
-}
 
+	static final class LuckSettings {
+		final boolean enabled;
+		final double startingPoints;
+		final double maxPoints;
+		final double value;
+
+		private LuckSettings(boolean enabled, double startingPoints, double maxPoints, double value) {
+			this.enabled = enabled;
+			this.startingPoints = startingPoints;
+			this.maxPoints = maxPoints;
+			this.value = value;
+		}
+
+		static LuckSettings defaults() {
+			return new LuckSettings(true, DEFAULT_STARTING_POINTS, DEFAULT_MAX_POINTS, DEFAULT_LUCK_VALUE);
+		}
+
+		static LuckSettings fromJson(JsonObject source, LuckSettings defaults) {
+			LuckSettings base = defaults == null ? defaults() : defaults;
+			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
+			double maxPoints = Settings.clampDouble(Settings.getDouble(source, "max-points", base.maxPoints), 1.0d, 1024.0d);
+			double startingPoints = Settings.clampDouble(
+				Settings.getDouble(source, "starting-points", base.startingPoints),
+				0.0d,
+				maxPoints
+			);
+			double value = Settings.clampDouble(Settings.getDouble(source, "value", base.value), 0.0d, 1024.0d);
+			return new LuckSettings(enabled, startingPoints, maxPoints, value);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("enabled", enabled)
+				.put("starting-points", startingPoints)
+				.put("max-points", maxPoints)
+				.put("value", value);
+			return builder.build();
+		}
+	}
+
+	static final class LuckEffectSettings {
+		final boolean enabled;
+
+		private LuckEffectSettings(boolean enabled) {
+			this.enabled = enabled;
+		}
+
+		static LuckEffectSettings defaults() {
+			return new LuckEffectSettings(true);
+		}
+
+		static LuckEffectSettings fromJson(JsonObject source, LuckEffectSettings defaults) {
+			LuckEffectSettings base = defaults == null ? defaults() : defaults;
+			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
+			return new LuckEffectSettings(enabled);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("enabled", enabled);
+			return builder.build();
+		}
+	}
+
+	static final class DropGroupSettings {
+		final boolean enabled;
+		final DropAdjustmentSettings dropAdjustment;
+
+		private DropGroupSettings(boolean enabled, DropAdjustmentSettings dropAdjustment) {
+			this.enabled = enabled;
+			this.dropAdjustment = dropAdjustment;
+		}
+
+		static DropGroupSettings defaults(double value) {
+			return new DropGroupSettings(true, DropAdjustmentSettings.defaults(DEFAULT_DROP_ADJUSTMENT_TYPE, value));
+		}
+
+		static DropGroupSettings fromJson(JsonObject source, DropGroupSettings defaults) {
+			DropGroupSettings base = defaults == null ? defaults(1.0d) : defaults;
+			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
+			DropAdjustmentSettings dropAdjustment = DropAdjustmentSettings.fromJson(
+				Settings.readObject(source, "drop-adjustment"),
+				base.dropAdjustment
+			);
+			return new DropGroupSettings(enabled, dropAdjustment);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("enabled", enabled)
+				.object("drop-adjustment", dropAdjustment -> this.dropAdjustment.toConfigJson(dropAdjustment));
+			return builder.build();
+		}
+	}
+
+	static final class DropAdjustmentSettings {
+		final ValueType type;
+		final double value;
+
+		private DropAdjustmentSettings(ValueType type, double value) {
+			this.type = type;
+			this.value = value;
+		}
+
+		static DropAdjustmentSettings defaults(ValueType type, double value) {
+			return new DropAdjustmentSettings(type, value);
+		}
+
+		static DropAdjustmentSettings fromJson(JsonObject source, DropAdjustmentSettings defaults) {
+			DropAdjustmentSettings base = defaults == null ? defaults(DEFAULT_DROP_ADJUSTMENT_TYPE, 1.0d) : defaults;
+			ValueType type = ValueType.fromJson(Settings.getString(source, "type", base.type.configValue), base.type);
+			double value = Settings.clampDouble(Settings.getDouble(source, "value", base.value), 0.0d, 1024.0d);
+			return new DropAdjustmentSettings(type, value);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("type", type.configValue)
+				.put("value", value);
+			return builder.build();
+		}
+	}
+
+	static final class ReductionGroupSettings {
+		final boolean enabled;
+		final double adjustmentMultiplier;
+
+		private ReductionGroupSettings(boolean enabled, double adjustmentMultiplier) {
+			this.enabled = enabled;
+			this.adjustmentMultiplier = adjustmentMultiplier;
+		}
+
+		static ReductionGroupSettings defaults(double multiplier) {
+			return new ReductionGroupSettings(true, multiplier);
+		}
+
+		static ReductionGroupSettings fromJson(JsonObject source, ReductionGroupSettings defaults) {
+			ReductionGroupSettings base = defaults == null ? defaults(0.5d) : defaults;
+			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
+			JsonObject multiplier = Settings.readObject(source, "adjustment-multiplier");
+			double value = Settings.clampDouble(
+				Settings.getDouble(multiplier, "value", base.adjustmentMultiplier),
+				0.0d,
+				1.0d
+			);
+			return new ReductionGroupSettings(enabled, value);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("enabled", enabled)
+				.object("adjustment-multiplier", multiplier -> multiplier.put("value", adjustmentMultiplier));
+			return builder.build();
+		}
+	}
+
+	static final class CriticalDamageSettings {
+		final boolean enabled;
+		final double damageMultiplier;
+
+		private CriticalDamageSettings(boolean enabled, double damageMultiplier) {
+			this.enabled = enabled;
+			this.damageMultiplier = damageMultiplier;
+		}
+
+		static CriticalDamageSettings defaults(double damageMultiplier) {
+			return new CriticalDamageSettings(true, damageMultiplier);
+		}
+
+		static CriticalDamageSettings fromJson(JsonObject source, CriticalDamageSettings defaults) {
+			CriticalDamageSettings base = defaults == null ? defaults(DEFAULT_PLAYER_CRITICAL_DAMAGE_MULTIPLIER) : defaults;
+			boolean enabled = Settings.getBoolean(source, "enabled", base.enabled);
+			JsonObject damageMultiplier = Settings.readObject(source, "damage-multiplier");
+			double value = Settings.clampDouble(
+				Settings.getDouble(damageMultiplier, "value", base.damageMultiplier),
+				0.0d,
+				1024.0d
+			);
+			return new CriticalDamageSettings(enabled, value);
+		}
+
+		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+			builder.put("enabled", enabled)
+				.object("damage-multiplier", damageMultiplier -> damageMultiplier.put("value", this.damageMultiplier));
+			return builder.build();
+		}
+	}
+
+	enum ValueType {
+		MULTIPLIER("multiplier"),
+		FLAT("flat");
+
+		final String configValue;
+
+		ValueType(String configValue) {
+			this.configValue = configValue;
+		}
+
+		static ValueType fromJson(String rawValue, ValueType fallback) {
+			if (rawValue == null || rawValue.isBlank()) {
+				return fallback;
+			}
+			String normalized = rawValue.trim().toLowerCase(Locale.ROOT);
+			for (ValueType valueType : values()) {
+				if (valueType.configValue.equals(normalized)) {
+					return valueType;
+				}
+			}
+			return fallback;
+		}
+	}
+}

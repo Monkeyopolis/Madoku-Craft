@@ -18,7 +18,7 @@ public abstract class SaturationMobEffectMixin {
 		int amplifier,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (livingEntity instanceof ServerPlayer && MadokuHungerManager.isEnabled()) {
+		if (livingEntity instanceof ServerPlayer && MadokuHungerManager.isSaturationEnabled()) {
 			cir.setReturnValue(true);
 		}
 	}

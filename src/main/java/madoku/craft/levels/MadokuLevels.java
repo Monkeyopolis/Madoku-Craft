@@ -9,6 +9,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.health.MadokuHealthManager;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.hunger.MadokuHungerManager;
 import madoku.craft.luck.MadokuLuckManager;
@@ -51,7 +52,7 @@ public final class MadokuLevels {
 	private static final double DEFAULT_PLAYER_DAMAGE_PER_LEVEL = 0.2d;
 	private static final double DEFAULT_PLAYER_ARMOR_PER_LEVEL_ATTRIBUTES = 0.4d;
 	private static final double DEFAULT_PLAYER_ARMOR_PER_LEVEL_VANILLA = 0.2d;
-	private static final double DEFAULT_PLAYER_LUCK_PER_LEVEL = 0.02d;
+	private static final double DEFAULT_PLAYER_LUCK_PER_LEVEL = 2.0d;
 	private static final double DEFAULT_PLAYER_HUNGER_PER_LEVEL = 2.0d;
 	private static final double DEFAULT_PLAYER_MOVEMENT_SPEED_PER_LEVEL = 0.001d;
 	private static final Identifier HEALTH_BONUS_MODIFIER_ID =
@@ -141,6 +142,7 @@ public final class MadokuLevels {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ensurePlayerState(player);
 			applyPlayerAttributes(player);
+			MadokuHealthManager.restoreJoinHealth(player);
 			markDirty(player.getUUID());
 		}
 	}
@@ -219,6 +221,7 @@ public final class MadokuLevels {
 
 		ensurePlayerState(player);
 		applyPlayerAttributes(player);
+		MadokuHealthManager.restoreJoinHealth(player);
 		markDirty(player.getUUID());
 	}
 
@@ -691,7 +694,7 @@ public final class MadokuLevels {
 					0.0d,
 					1000.0d
 				),
-				clampDouble(getDouble(source, "player-luck-per-level", defaults.playerLuckPerLevel), 0.0d, 1000.0d),
+				normalizeLuckPerLevel(getDouble(source, "player-luck-per-level", defaults.playerLuckPerLevel), defaults.playerLuckPerLevel),
 				clampDouble(getDouble(source, "player-hunger-per-level", defaults.playerHungerPerLevel), 0.0d, 1000.0d),
 				clampDouble(
 					getDouble(source, "player-movement-speed-per-level", defaults.playerMovementSpeedPerLevel),
@@ -718,6 +721,14 @@ public final class MadokuLevels {
 				.put("player-hunger-per-level", playerHungerPerLevel)
 				.put("player-movement-speed-per-level", playerMovementSpeedPerLevel)
 				.build();
+		}
+
+		private static double normalizeLuckPerLevel(double value, double fallback) {
+			double sanitized = clampDouble(value, 0.0d, 1000.0d);
+			if (sanitized <= 1.0d && fallback > 1.0d) {
+				return sanitized * 100.0d;
+			}
+			return sanitized;
 		}
 	}
 }

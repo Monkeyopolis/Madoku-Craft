@@ -111,6 +111,53 @@ public final class MadokuHungerManager {
 		return settings.hunger.enabled;
 	}
 
+	public static boolean isSaturationEnabled() {
+		return settings.hunger.enabled && settings.saturation.enabled;
+	}
+
+	public static boolean isHungerEffectEnabled() {
+		return settings.hunger.enabled && settings.hungerEffect.enabled;
+	}
+
+	public static int getCurrentHungerPoints(ServerPlayer player) {
+		if (player == null) {
+			return 0;
+		}
+
+		if (!settings.hunger.enabled) {
+			return clampVanillaFood(player.getFoodData().getFoodLevel());
+		}
+
+		int maxHungerPoints = resolveMaximumHungerPoints(player);
+		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
+		initializeHungerFromPlayer(player, state, maxHungerPoints);
+		return clampInternalHunger(state.hungerPoints, maxHungerPoints);
+	}
+
+	public static int getEffectiveHungerPoints(ServerPlayer player) {
+		if (player == null) {
+			return 0;
+		}
+
+		if (!settings.hunger.enabled) {
+			return clampVanillaFood(player.getFoodData().getFoodLevel());
+		}
+
+		int maxHungerPoints = resolveMaximumHungerPoints(player);
+		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
+		initializeHungerFromPlayer(player, state, maxHungerPoints);
+		long totalHunger = Math.max(0L, (long) state.hungerPoints) + Math.max(0L, (long) state.pendingHunger);
+		return (int) Math.min((long) maxHungerPoints, totalHunger);
+	}
+
+	public static int getMaximumHungerPoints(ServerPlayer player) {
+		if (player == null) {
+			return 0;
+		}
+
+		return Math.max(1, settings.hunger.enabled ? resolveMaximumHungerPoints(player) : VANILLA_MAX_HUNGER_POINTS);
+	}
+
 	public static int getConfiguredMaximumHungerPoints() {
 		return Math.max(1, settings.hunger.maxHunger);
 	}
@@ -152,7 +199,7 @@ public final class MadokuHungerManager {
 	}
 
 	public static boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) {
-		if (!settings.hunger.enabled || !(entity instanceof ServerPlayer) || effect == null) {
+		if (!isHungerEffectEnabled() || !(entity instanceof ServerPlayer) || effect == null) {
 			return false;
 		}
 		return effect == MobEffects.HUNGER.value();

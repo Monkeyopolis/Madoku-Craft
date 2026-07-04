@@ -3,8 +3,8 @@ package madoku.craft.luck;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.clock.MadokuTicks;
+import madoku.craft.debug.MadokuDebug;
 import madoku.craft.farming.system.MadokuFarming;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
@@ -59,19 +59,23 @@ public final class MadokuLuckManager {
 		refreshPlayerLuck(player);
 	}
 
-	public static boolean shouldOverrideVanillaEffectAttributes(LivingEntity entity, MobEffect effect) {
-		if (!settings.enabled || !(entity instanceof ServerPlayer) || effect == null) {
+	public static boolean shouldOverrideVanillaLuckEffect(LivingEntity entity, MobEffect effect) {
+		if (!settings.enabled || !settings.luckEffect.enabled || !(entity instanceof ServerPlayer) || effect == null) {
 			return false;
 		}
 
 		return effect == MobEffects.LUCK.value();
 	}
 
+	public static boolean shouldOverrideVanillaEffectAttributes(LivingEntity entity, MobEffect effect) {
+		return shouldOverrideVanillaLuckEffect(entity, effect);
+	}
+
 	public static double reduceCreeperGriefChanceForTarget(LivingEntity target, double chance) {
 		return reduceChanceByTargetLuck(
 			target,
 			chance,
-			settings.creeperGriefReductionMultiplier,
+			settings.creeperGriefReduction.adjustmentMultiplier,
 			"luck.creeper_grief_reduction_applied",
 			"luck.creeper_grief_reduction_skipped",
 			"creeper_grief_chance"
@@ -82,7 +86,7 @@ public final class MadokuLuckManager {
 		return reduceChanceByTargetLuck(
 			target,
 			accuracy,
-			settings.rangedAccuracyReductionMultiplier,
+			settings.skeletonAccuracyReduction.adjustmentMultiplier,
 			"luck.ranged_accuracy_reduction_applied",
 			"luck.ranged_accuracy_reduction_skipped",
 			"ranged_accuracy"
@@ -90,56 +94,18 @@ public final class MadokuLuckManager {
 	}
 
 	public static boolean shouldApplyPlayerMeleeCrit(Player player, Entity target) {
-		if (!settings.enabled || !(player instanceof ServerPlayer serverPlayer)) {
-			return false;
-		}
-
-		ServerLevel level = serverPlayer.level() instanceof ServerLevel serverLevel ? serverLevel : null;
-		double critChance = resolveLuckProcChance(serverPlayer);
-		if (critChance <= 0.0d) {
-			emitLuckDebug(
-				"luck.player_crit_skipped",
-				level,
-				target == null ? player.blockPosition() : target.blockPosition(),
-				subjectForCombatTarget(target),
-				Map.of(
-					"reason", "non_positive_chance",
-					"player", serverPlayer.getScoreboardName(),
-					"chance", Double.toString(critChance),
-					"multiplier", Float.toString(settings.playerCritDamageMultiplier)
-				)
-			);
-			return false;
-		}
-
-		RandomSource random = serverPlayer.getRandom();
-		double roll = random == null ? 1.0d : random.nextDouble();
-		boolean crit = roll < critChance;
-		emitLuckDebug(
-			crit ? "luck.player_crit_applied" : "luck.player_crit_skipped",
-			level,
-			target == null ? player.blockPosition() : target.blockPosition(),
-			subjectForCombatTarget(target),
-			Map.of(
-				"reason", crit ? "chance_succeeded" : "chance_failed",
-				"player", serverPlayer.getScoreboardName(),
-				"chance", Double.toString(critChance),
-				"roll", Double.toString(roll),
-				"multiplier", Float.toString(settings.playerCritDamageMultiplier)
-			)
-		);
-		return crit;
+		return resolvePlayerCriticalDamageMultiplier(player, target) > 0.0d;
 	}
 
 	public static float playerCritDamageMultiplier() {
-		return settings.playerCritDamageMultiplier;
+		return (float) settings.playerCriticalDamage.damageMultiplier;
 	}
 
 	public static double resolveLootLuckStat(ServerPlayer player) {
-		if (!settings.enabled || player == null) {
+		if (!settings.enabled || !settings.luck.enabled || player == null) {
 			return 0.0d;
 		}
-		return resolveLuckProcChance(player) * 100.0d;
+		return resolveLuckValue(player);
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -162,9 +128,13 @@ public final class MadokuLuckManager {
 		}
 
 		luckAttribute.removeModifier(BASE_LUCK_MODIFIER_ID);
-		if (settings.baseLuck > 0.0d) {
+		if (settings.enabled && settings.luck.enabled && settings.luck.startingPoints > 0.0d) {
 			luckAttribute.addOrUpdateTransientModifier(
-				new AttributeModifier(BASE_LUCK_MODIFIER_ID, settings.baseLuck, AttributeModifier.Operation.ADD_VALUE)
+				new AttributeModifier(
+					BASE_LUCK_MODIFIER_ID,
+					settings.luck.startingPoints,
+					AttributeModifier.Operation.ADD_VALUE
+				)
 			);
 		}
 	}
@@ -181,7 +151,10 @@ public final class MadokuLuckManager {
 
 		luckAttribute.removeModifier(EFFECT_LUCK_MODIFIER_ID);
 		int effectLevel = getLuckEffectLevel(player);
-		double bonus = settings.enabled ? effectLevel * 0.05d : 0.0d;
+		double maxBonus = Math.max(0.0d, settings.luck.maxPoints - settings.luck.startingPoints);
+		double bonus = settings.enabled && settings.luckEffect.enabled
+			? Math.min(maxBonus, effectLevel * settings.luck.value)
+			: 0.0d;
 		if (bonus > 0.0d) {
 			luckAttribute.addOrUpdateTransientModifier(
 				new AttributeModifier(EFFECT_LUCK_MODIFIER_ID, bonus, AttributeModifier.Operation.ADD_VALUE)
@@ -213,7 +186,7 @@ public final class MadokuLuckManager {
 	}
 
 	public static void applyManagedCropDrops(RandomSource random, ObjectArrayList<ItemStack> stacks) {
-		if (!settings.enabled || stacks == null || stacks.isEmpty()) {
+		if (!settings.enabled || !settings.blockDrops.enabled || stacks == null || stacks.isEmpty()) {
 			return;
 		}
 
@@ -265,17 +238,15 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		double dropBonusMultiplier = resolveDropBonusMultiplier(true);
 		double luckValue = resolveLuckValue(context.player);
-		double dropChance = resolveLuckProcChance(context.player);
-		if (dropBonusMultiplier <= 0.0d || dropChance <= 0.0d) {
+		if (luckValue <= 0.0d) {
 			emitLuckDebug(
 				"luck.drop_scale_skipped",
 				context.level,
 				context.pos,
 				subjectForPos("block", context.pos),
 				Map.of(
-					"reason", dropBonusMultiplier <= 0.0d ? "non_positive_multiplier" : "non_positive_chance",
+					"reason", "non_positive_luck",
 					"player", context.player.getScoreboardName(),
 					"luck", Double.toString(luckValue),
 					"managed_crop", Boolean.TRUE.toString(),
@@ -285,19 +256,17 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		double roll = random == null ? 1.0d : random.nextDouble();
-		if (roll >= dropChance) {
+		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
+		if (stepCount <= 0) {
 			emitLuckDebug(
 				"luck.drop_scale_skipped",
 				context.level,
 				context.pos,
 				subjectForPos("block", context.pos),
 				Map.of(
-					"reason", "chance_failed",
+					"reason", "no_adjustment_step",
 					"player", context.player.getScoreboardName(),
 					"luck", Double.toString(luckValue),
-					"chance", Double.toString(dropChance),
-					"roll", Double.toString(roll),
 					"managed_crop", Boolean.TRUE.toString(),
 					"state", context.state.getBlock().toString()
 				)
@@ -305,7 +274,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		DropScalingResult scaling = scaleStacks(stacks, dropBonusMultiplier, random);
+		DropScalingResult scaling = scaleStacks(stacks, settings.blockDrops.dropAdjustment, stepCount);
 		emitLuckDebug(
 			"luck.drop_scale_applied",
 			context.level,
@@ -315,12 +284,9 @@ public final class MadokuLuckManager {
 				Map.entry("player", context.player.getScoreboardName()),
 				Map.entry("state", context.state.getBlock().toString()),
 				Map.entry("luck", Double.toString(luckValue)),
-				Map.entry("chance", Double.toString(dropChance)),
-				Map.entry("roll", Double.toString(roll)),
+				Map.entry("tier_size", Double.toString(resolveLuckTierSize())),
+				Map.entry("steps", Integer.toString(stepCount)),
 				Map.entry("managed_crop", Boolean.TRUE.toString()),
-				Map.entry("drop_multiplier", Double.toString(settings.dropMultiplier)),
-				Map.entry("effective_drop_multiplier", Double.toString(dropBonusMultiplier)),
-				Map.entry("bonus_multiplier", Double.toString(dropBonusMultiplier)),
 				Map.entry("stacks", Integer.toString(scaling.scaledStacks())),
 				Map.entry("original_total", Integer.toString(scaling.originalTotal())),
 				Map.entry("extra_total", Integer.toString(scaling.extraTotal()))
@@ -343,133 +309,10 @@ public final class MadokuLuckManager {
 		boolean causedByPlayer,
 		Consumer<ItemStack> downstream
 	) {
-		if (!settings.enabled || level == null || target == null || downstream == null || ACTIVE_DROP_CONTEXT.get() != null) {
+		if (!settings.enabled || !settings.mobDrops.enabled || level == null || target == null || downstream == null) {
 			return downstream;
 		}
-
-		if (!(target instanceof Mob mob)) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				null,
-				Map.of(
-					"reason", "non_mob_target",
-					"entity", target.getType().toShortString(),
-					"entity_class", target.getClass().getSimpleName()
-				)
-			);
-			return downstream;
-		}
-
-		ServerPlayer player = resolveMobLootPlayer(target, damageSource);
-		if (!causedByPlayer && player == null) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of("reason", "not_player_kill", "mob", mob.getType().toShortString())
-			);
-			return downstream;
-		}
-		if (player == null) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of("reason", "missing_player")
-			);
-			return downstream;
-		}
-		if (player.isCreative()) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of(
-					"reason", "creative",
-					"player", player.getScoreboardName(),
-					"mob", mob.getType().toShortString()
-				)
-			);
-			return downstream;
-		}
-
-		double mobDropBonusMultiplier = resolveMobDropBonusMultiplier();
-		if (mobDropBonusMultiplier <= 0.0d) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of(
-					"reason", "non_positive_multiplier",
-					"player", player.getScoreboardName(),
-					"multiplier", Double.toString(mobDropBonusMultiplier),
-					"mob", mob.getType().toShortString()
-				)
-			);
-			return downstream;
-		}
-
-		double luckValue = resolveLuckValue(player);
-		double mobDropChance = resolveLuckProcChance(player);
-		if (mobDropChance <= 0.0d) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of(
-					"reason", "non_positive_chance",
-					"player", player.getScoreboardName(),
-					"luck", Double.toString(luckValue),
-					"mob", mob.getType().toShortString()
-				)
-			);
-			return downstream;
-		}
-
-		RandomSource random = level.getRandom();
-		double roll = random == null ? 1.0d : random.nextDouble();
-		if (roll >= mobDropChance) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				level,
-				mob,
-				Map.of(
-					"reason", "chance_failed",
-					"player", player.getScoreboardName(),
-					"luck", Double.toString(luckValue),
-					"chance", Double.toString(mobDropChance),
-					"roll", Double.toString(roll),
-					"mob", mob.getType().toShortString()
-				)
-			);
-			return downstream;
-		}
-
-		emitMobLuckDebug(
-			"luck.mob_drop_scale_applied",
-			level,
-			mob,
-			Map.of(
-				"player", player.getScoreboardName(),
-				"mob", mob.getType().toShortString(),
-				"luck", Double.toString(luckValue),
-				"chance", Double.toString(mobDropChance),
-				"roll", Double.toString(roll),
-				"mob_drop_multiplier", Double.toString(settings.mobDropMultiplier),
-				"bonus_multiplier", Double.toString(mobDropBonusMultiplier)
-			)
-		);
-
-		return stack -> {
-			if (stack != null && !stack.isEmpty()) {
-				int extraCount = calculateExtraCount(stack.getCount(), mobDropBonusMultiplier, random);
-				if (extraCount > 0) {
-					stack.grow(extraCount);
-				}
-			}
-			downstream.accept(stack);
-		};
+		return downstream;
 	}
 
 	private static void applyGeneratedBlockDrops(
@@ -477,6 +320,9 @@ public final class MadokuLuckManager {
 		ObjectArrayList<ItemStack> stacks,
 		ActiveDropContext context
 	) {
+		if (!settings.enabled || !settings.blockDrops.enabled) {
+			return;
+		}
 		boolean creative = context.player.isCreative();
 		boolean playerPlaced = MadokuPlacedBlocks.isPlayerPlacedBlock(context.level, context.pos);
 		boolean managedCrop = MadokuFarming.isManagedCrop(context.level, context.pos, context.state)
@@ -525,56 +371,35 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		double dropBonusMultiplier = resolveDropBonusMultiplier(managedCrop);
-		if (dropBonusMultiplier <= 0.0d) {
-			emitLuckDebug(
-				"luck.drop_scale_skipped",
-				context.level,
-				context.pos,
-				subjectForPos("block", context.pos),
-				Map.of(
-					"reason", "non_positive_multiplier",
-					"player", context.player.getScoreboardName(),
-					"managed_crop", Boolean.toString(managedCrop),
-					"multiplier", Double.toString(dropBonusMultiplier)
-				)
-			);
-			return;
-		}
-
 		double luckValue = resolveLuckValue(context.player);
-		double dropChance = resolveLuckProcChance(context.player);
-		if (dropChance <= 0.0d) {
+		if (luckValue <= 0.0d) {
 			emitLuckDebug(
 				"luck.drop_scale_skipped",
 				context.level,
 				context.pos,
 				subjectForPos("block", context.pos),
 				Map.of(
-					"reason", "non_positive_chance",
+					"reason", "non_positive_luck",
 					"player", context.player.getScoreboardName(),
-					"luck", Double.toString(luckValue),
 					"managed_crop", Boolean.toString(managedCrop),
-					"state", context.state.getBlock().toString()
+					"luck", Double.toString(luckValue)
 				)
 			);
 			return;
 		}
 
 		RandomSource random = lootContext.getRandom();
-		double roll = random == null ? 1.0d : random.nextDouble();
-		if (roll >= dropChance) {
+		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
+		if (stepCount <= 0) {
 			emitLuckDebug(
 				"luck.drop_scale_skipped",
 				context.level,
 				context.pos,
 				subjectForPos("block", context.pos),
 				Map.of(
-					"reason", "chance_failed",
+					"reason", "no_adjustment_step",
 					"player", context.player.getScoreboardName(),
 					"luck", Double.toString(luckValue),
-					"chance", Double.toString(dropChance),
-					"roll", Double.toString(roll),
 					"managed_crop", Boolean.toString(managedCrop),
 					"state", context.state.getBlock().toString()
 				)
@@ -582,7 +407,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		DropScalingResult scaling = scaleStacks(stacks, dropBonusMultiplier, random);
+		DropScalingResult scaling = scaleStacks(stacks, settings.blockDrops.dropAdjustment, stepCount);
 		emitLuckDebug(
 			"luck.drop_scale_applied",
 			context.level,
@@ -592,12 +417,9 @@ public final class MadokuLuckManager {
 				Map.entry("player", context.player.getScoreboardName()),
 				Map.entry("state", context.state.getBlock().toString()),
 				Map.entry("luck", Double.toString(luckValue)),
-				Map.entry("chance", Double.toString(dropChance)),
-				Map.entry("roll", Double.toString(roll)),
+				Map.entry("tier_size", Double.toString(resolveLuckTierSize())),
+				Map.entry("steps", Integer.toString(stepCount)),
 				Map.entry("managed_crop", Boolean.toString(managedCrop)),
-				Map.entry("drop_multiplier", Double.toString(settings.dropMultiplier)),
-				Map.entry("effective_drop_multiplier", Double.toString(dropBonusMultiplier)),
-				Map.entry("bonus_multiplier", Double.toString(dropBonusMultiplier)),
 				Map.entry("stacks", Integer.toString(scaling.scaledStacks())),
 				Map.entry("original_total", Integer.toString(scaling.originalTotal())),
 				Map.entry("extra_total", Integer.toString(scaling.extraTotal()))
@@ -605,11 +427,10 @@ public final class MadokuLuckManager {
 		);
 	}
 
-	private static double resolveDropBonusMultiplier(boolean managedCrop) {
-		return Math.max(0.0d, managedCrop ? 0.5d : settings.dropMultiplier);
-	}
-
 	private static void applyGeneratedMobDrops(LootContext lootContext, ObjectArrayList<ItemStack> stacks) {
+		if (!settings.enabled || !settings.mobDrops.enabled) {
+			return;
+		}
 		Entity entity = resolveLootContextParameter(lootContext, "THIS_ENTITY", Entity.class);
 		if (entity == null) {
 			emitMobLuckDebug(
@@ -658,31 +479,14 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		double mobDropBonusMultiplier = resolveMobDropBonusMultiplier();
-		if (mobDropBonusMultiplier <= 0.0d) {
-			emitMobLuckDebug(
-				"luck.mob_drop_scale_skipped",
-				lootContext.getLevel(),
-				mob,
-				Map.of(
-					"reason", "non_positive_multiplier",
-					"player", player.getScoreboardName(),
-					"multiplier", Double.toString(mobDropBonusMultiplier),
-					"mob", mob.getType().toShortString()
-				)
-			);
-			return;
-		}
-
 		double luckValue = resolveLuckValue(player);
-		double mobDropChance = resolveLuckProcChance(player);
-		if (mobDropChance <= 0.0d) {
+		if (luckValue <= 0.0d) {
 			emitMobLuckDebug(
 				"luck.mob_drop_scale_skipped",
 				lootContext.getLevel(),
 				mob,
 				Map.of(
-					"reason", "non_positive_chance",
+					"reason", "non_positive_luck",
 					"player", player.getScoreboardName(),
 					"luck", Double.toString(luckValue),
 					"mob", mob.getType().toShortString()
@@ -692,25 +496,23 @@ public final class MadokuLuckManager {
 		}
 
 		RandomSource random = lootContext.getRandom();
-		double roll = random == null ? 1.0d : random.nextDouble();
-		if (roll >= mobDropChance) {
+		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
+		if (stepCount <= 0) {
 			emitMobLuckDebug(
 				"luck.mob_drop_scale_skipped",
 				lootContext.getLevel(),
 				mob,
 				Map.of(
-					"reason", "chance_failed",
+					"reason", "no_adjustment_step",
 					"player", player.getScoreboardName(),
 					"luck", Double.toString(luckValue),
-					"chance", Double.toString(mobDropChance),
-					"roll", Double.toString(roll),
 					"mob", mob.getType().toShortString()
 				)
 			);
 			return;
 		}
 
-		DropScalingResult scaling = scaleStacks(stacks, mobDropBonusMultiplier, random);
+		DropScalingResult scaling = scaleStacks(stacks, settings.mobDrops.dropAdjustment, stepCount);
 		emitMobLuckDebug(
 			"luck.mob_drop_scale_applied",
 			lootContext.getLevel(),
@@ -719,19 +521,13 @@ public final class MadokuLuckManager {
 				"player", player.getScoreboardName(),
 				"mob", mob.getType().toShortString(),
 				"luck", Double.toString(luckValue),
-				"chance", Double.toString(mobDropChance),
-				"roll", Double.toString(roll),
-				"mob_drop_multiplier", Double.toString(settings.mobDropMultiplier),
-				"bonus_multiplier", Double.toString(mobDropBonusMultiplier),
+				"tier_size", Double.toString(resolveLuckTierSize()),
+				"steps", Integer.toString(stepCount),
 				"stacks", Integer.toString(scaling.scaledStacks()),
 				"original_total", Integer.toString(scaling.originalTotal()),
 				"extra_total", Integer.toString(scaling.extraTotal())
 			)
 		);
-	}
-
-	private static double resolveMobDropBonusMultiplier() {
-		return Math.max(0.0d, settings.mobDropMultiplier);
 	}
 
 	private static double reduceChanceByTargetLuck(
@@ -748,7 +544,7 @@ public final class MadokuLuckManager {
 			: target == null
 				? "player:unknown"
 				: "entity:" + target.getType().toShortString();
-		if (!settings.enabled) {
+		if (!settings.enabled || !settings.luck.enabled) {
 			double clampedBaseValue = clampDouble(baseValue, 0.0d, 1.0d);
 			emitLuckDebug(
 				skippedMetricId,
@@ -834,50 +630,66 @@ public final class MadokuLuckManager {
 	}
 
 	private static double resolveTargetLuckReductionChance(LivingEntity target) {
+		if (!settings.enabled || !settings.luck.enabled) {
+			return 0.0d;
+		}
 		AttributeInstance luckAttribute = target == null ? null : target.getAttribute(Attributes.LUCK);
-		double luckValue = luckAttribute == null ? 0.0d : luckAttribute.getValue();
+		double luckValue = luckAttribute == null ? settings.luck.startingPoints : luckAttribute.getValue();
 		if (!Double.isFinite(luckValue)) {
 			return 0.0d;
 		}
-		return clampDouble(luckValue / 100.0d, 0.0d, 1.0d);
+		return clampDouble(luckValue / resolveLuckTierSize(), 0.0d, 1.0d);
 	}
 
 	private static double resolveLuckProcChance(ServerPlayer player) {
-		return clampDouble(resolveLuckValue(player), 0.0d, 1.0d);
+		if (!settings.enabled || !settings.luck.enabled) {
+			return 0.0d;
+		}
+		return clampDouble(resolveLuckValue(player) / resolveLuckTierSize(), 0.0d, 1.0d);
 	}
 
 	private static double resolveLuckValue(ServerPlayer player) {
+		if (!settings.enabled || !settings.luck.enabled) {
+			return 0.0d;
+		}
 		AttributeInstance luckAttribute = player == null ? null : player.getAttribute(Attributes.LUCK);
-		double luckValue = luckAttribute == null ? settings.baseLuck : luckAttribute.getValue();
+		double luckValue = luckAttribute == null ? settings.luck.startingPoints : luckAttribute.getValue();
 		if (!Double.isFinite(luckValue)) {
-			return settings.baseLuck;
+			return settings.luck.startingPoints;
 		}
 		return luckValue;
 	}
 
-	private static int calculateExtraCount(int originalCount, double dropBonusMultiplier, RandomSource random) {
-		if (originalCount <= 0 || dropBonusMultiplier <= 0.0d) {
+	private static double resolveLuckTierSize() {
+		return Math.max(1.0d, settings.luck.maxPoints);
+	}
+
+	private static int calculateLuckAdjustmentSteps(double luckValue, RandomSource random) {
+		if (!Double.isFinite(luckValue) || luckValue <= 0.0d) {
 			return 0;
 		}
-
-		double rawExtraCount = originalCount * dropBonusMultiplier;
-		if (!Double.isFinite(rawExtraCount) || rawExtraCount <= 0.0d) {
+		double tierSize = resolveLuckTierSize();
+		if (tierSize <= 0.0d) {
 			return 0;
 		}
-
-		int guaranteedExtraCount = (int) Math.floor(rawExtraCount);
-		double fractionalExtraCount = rawExtraCount - guaranteedExtraCount;
-		if (fractionalExtraCount > 0.0d && random != null && random.nextDouble() < fractionalExtraCount) {
-			guaranteedExtraCount++;
+		double sanitizedLuck = Math.max(0.0d, luckValue);
+		int guaranteedSteps = (int) Math.floor(sanitizedLuck / tierSize);
+		double fractionalLuck = sanitizedLuck - (guaranteedSteps * tierSize);
+		if (fractionalLuck > 0.0d && random != null && random.nextDouble() < (fractionalLuck / tierSize)) {
+			guaranteedSteps++;
 		}
-		return guaranteedExtraCount;
+		return guaranteedSteps;
 	}
 
 	private static DropScalingResult scaleStacks(
 		ObjectArrayList<ItemStack> stacks,
-		double dropBonusMultiplier,
-		RandomSource random
+		LuckConfigManager.DropAdjustmentSettings adjustment,
+		int stepCount
 	) {
+		if (stacks == null || stacks.isEmpty() || adjustment == null || stepCount <= 0) {
+			return new DropScalingResult(0, 0, 0);
+		}
+
 		int scaledStacks = 0;
 		int originalTotal = 0;
 		int extraTotal = 0;
@@ -887,17 +699,115 @@ public final class MadokuLuckManager {
 			}
 
 			int originalCount = stack.getCount();
-			int extraCount = calculateExtraCount(originalCount, dropBonusMultiplier, random);
+			int adjustedCount = scaleStackCount(originalCount, adjustment, stepCount);
 			originalTotal += originalCount;
-			if (extraCount <= 0) {
+			if (adjustedCount <= originalCount) {
 				continue;
 			}
 
-			stack.grow(extraCount);
+			stack.setCount(adjustedCount);
 			scaledStacks++;
-			extraTotal += extraCount;
+			extraTotal += adjustedCount - originalCount;
 		}
 		return new DropScalingResult(scaledStacks, originalTotal, extraTotal);
+	}
+
+	private static int scaleStackCount(int originalCount, LuckConfigManager.DropAdjustmentSettings adjustment, int stepCount) {
+		if (originalCount <= 0 || adjustment == null || stepCount <= 0) {
+			return originalCount;
+		}
+
+		double scaledCount = originalCount;
+		if (adjustment.type == LuckConfigManager.ValueType.MULTIPLIER) {
+			scaledCount *= Math.pow(Math.max(0.0d, adjustment.value), stepCount);
+		} else {
+			scaledCount += Math.max(0.0d, adjustment.value) * stepCount;
+		}
+		if (!Double.isFinite(scaledCount)) {
+			return originalCount;
+		}
+		return Math.max(0, (int) Math.round(scaledCount));
+	}
+
+	public static double resolvePlayerCriticalDamageMultiplier(Player player, Entity target) {
+		if (!settings.enabled || !settings.luck.enabled || !(player instanceof ServerPlayer serverPlayer)) {
+			return 0.0d;
+		}
+
+		ServerLevel level = serverPlayer.level() instanceof ServerLevel serverLevel ? serverLevel : null;
+		double critChance = resolveLuckProcChance(serverPlayer);
+		if (critChance <= 0.0d) {
+			emitLuckDebug(
+				"luck.player_crit_skipped",
+				level,
+				target == null ? player.blockPosition() : target.blockPosition(),
+				subjectForCombatTarget(target),
+				Map.of(
+					"reason", "non_positive_chance",
+					"player", serverPlayer.getScoreboardName(),
+					"chance", Double.toString(critChance),
+					"multiplier", Double.toString(settings.playerCriticalDamage.damageMultiplier)
+				)
+			);
+			return 0.0d;
+		}
+
+		RandomSource random = serverPlayer.getRandom();
+		double roll = random == null ? 1.0d : random.nextDouble();
+		if (roll >= critChance) {
+			emitLuckDebug(
+				"luck.player_crit_skipped",
+				level,
+				target == null ? player.blockPosition() : target.blockPosition(),
+				subjectForCombatTarget(target),
+				Map.of(
+					"reason", "chance_failed",
+					"player", serverPlayer.getScoreboardName(),
+					"chance", Double.toString(critChance),
+					"roll", Double.toString(roll),
+					"multiplier", Double.toString(settings.playerCriticalDamage.damageMultiplier)
+				)
+			);
+			return 0.0d;
+		}
+
+		double baseMultiplier = Math.max(0.0d, settings.playerCriticalDamage.damageMultiplier);
+		if (baseMultiplier <= 0.0d) {
+			emitLuckDebug(
+				"luck.player_crit_skipped",
+				level,
+				target == null ? player.blockPosition() : target.blockPosition(),
+				subjectForCombatTarget(target),
+				Map.of(
+					"reason", "non_positive_multiplier",
+					"player", serverPlayer.getScoreboardName(),
+					"chance", Double.toString(critChance),
+					"roll", Double.toString(roll),
+					"multiplier", Double.toString(baseMultiplier)
+				)
+			);
+			return 0.0d;
+		}
+		double bonusLuck = Math.max(0.0d, resolveLuckValue(serverPlayer) - resolveLuckTierSize());
+		int bonusSteps = calculateLuckAdjustmentSteps(bonusLuck, random);
+		double bonusMultiplier = baseMultiplier * 0.5d;
+		double finalMultiplier = baseMultiplier + (bonusSteps * bonusMultiplier);
+		emitLuckDebug(
+			"luck.player_crit_applied",
+			level,
+			target == null ? player.blockPosition() : target.blockPosition(),
+			subjectForCombatTarget(target),
+			Map.of(
+				"reason", bonusSteps > 0 ? "bonus_applied" : "chance_succeeded",
+				"player", serverPlayer.getScoreboardName(),
+				"chance", Double.toString(critChance),
+				"roll", Double.toString(roll),
+				"base_multiplier", Double.toString(baseMultiplier),
+				"bonus_steps", Integer.toString(bonusSteps),
+				"final_multiplier", Double.toString(finalMultiplier)
+			)
+		);
+		return finalMultiplier;
 	}
 
 	private static void loadStaticConfig() {
@@ -996,17 +906,6 @@ public final class MadokuLuckManager {
 		}
 
 		return resolveLootContextParameter(lootContext, "KILLER_ENTITY", ServerPlayer.class);
-	}
-
-	private static ServerPlayer resolveMobLootPlayer(LivingEntity target, DamageSource damageSource) {
-		if (damageSource != null) {
-			Entity attacker = damageSource.getEntity();
-			if (attacker instanceof ServerPlayer player) {
-				return player;
-			}
-		}
-
-		return target.getLastHurtByPlayer() instanceof ServerPlayer player ? player : null;
 	}
 
 	private static <T> T resolveLootContextParameter(LootContext lootContext, String fieldName, Class<T> targetType) {

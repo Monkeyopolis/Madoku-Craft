@@ -40,12 +40,14 @@ public abstract class PlayerLuckCriticalHitMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyLuckCriticalHit(Entity entity, DamageSource source, float amount) {
 		float resolvedDamage = amount;
-		if (this.canCriticalAttack(entity)) {
-			resolvedDamage /= MadokuLuckManager.playerCritDamageMultiplier();
+		float vanillaCritMultiplier = MadokuLuckManager.playerCritDamageMultiplier();
+		if (this.canCriticalAttack(entity) && vanillaCritMultiplier > 0.0f) {
+			resolvedDamage /= vanillaCritMultiplier;
 		}
 		Player player = (Player) (Object) this;
-		if (MadokuLuckManager.shouldApplyPlayerMeleeCrit(player, entity)) {
-			resolvedDamage *= MadokuLuckManager.playerCritDamageMultiplier();
+		double luckCritMultiplier = MadokuLuckManager.resolvePlayerCriticalDamageMultiplier(player, entity);
+		if (luckCritMultiplier > 0.0d) {
+			resolvedDamage *= (float) luckCritMultiplier;
 			this.madokuCraft$luckCriticalHitActive = true;
 		}
 		return entity.hurtOrSimulate(source, resolvedDamage);

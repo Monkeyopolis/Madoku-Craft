@@ -29,6 +29,17 @@ public final class MadokuArmorManager {
 		return settings.enabled && settings.main.resistance.enabled;
 	}
 
+	public static boolean shouldOverrideVanillaArmorDamage(DamageSource source) {
+		if (!settings.enabled || source == null) {
+			return false;
+		}
+
+		return settings.armorPoints.enabled
+			|| settings.armorToughnessPoints.enabled
+			|| isResistanceEnabled()
+			|| (source.is(DamageTypeTags.IS_FALL) && settings.main.fallDamageReduction != 1.0d);
+	}
+
 	public static float applyCustomArmorDamage(LivingEntity entity, DamageSource source, float amount) {
 		if (entity == null || source == null || amount <= 0.0f || !settings.enabled) {
 			return amount;

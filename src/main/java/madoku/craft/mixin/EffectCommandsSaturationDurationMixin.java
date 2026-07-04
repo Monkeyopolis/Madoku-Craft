@@ -18,7 +18,7 @@ public abstract class EffectCommandsSaturationDurationMixin {
 		)
 	)
 	private static boolean madokuCraft$overrideSaturationInstantDuration(MobEffect effect) {
-		if (MadokuHungerManager.isEnabled() && effect == MobEffects.SATURATION.value()) {
+		if (MadokuHungerManager.isSaturationEnabled() && effect == MobEffects.SATURATION.value()) {
 			// Treat saturation as a timed effect for command duration conversion (seconds -> ticks).
 			return false;
 		}
