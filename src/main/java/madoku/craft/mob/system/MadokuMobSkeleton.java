@@ -646,10 +646,10 @@ public final class MadokuMobSkeleton {
 		String detail
 	) {
 		String metricId = "mob.skeleton_spawn_trace";
-		if (skeleton == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+		if (skeleton == null || !MadokuDebug.shouldEmit("mobs", "skeleton", "skeleton")) {
 			return;
 		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "skeleton", "skeleton")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("skeleton:" + skeleton.getUUID())
 			.world(world == null || world.getLevel() == null ? "" : world.getLevel().dimension().toString())

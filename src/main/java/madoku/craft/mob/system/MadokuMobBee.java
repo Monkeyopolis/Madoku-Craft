@@ -497,10 +497,10 @@ public final class MadokuMobBee {
 		String fieldTwoName,
 		Object fieldTwoValue
 	) {
-		if (level == null || bee == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_BEE_CROP_STATE)) {
+		if (level == null || bee == null || !MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_BEE_CROP_STATE, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_BEE_CROP_STATE, "mobs", "bee", "bee")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(level.getGameTime())
 			.world(level.dimension().toString())
@@ -518,10 +518,10 @@ public final class MadokuMobBee {
 	}
 
 	private static void emitBeeTargetDebug(ServerLevel level, Bee bee, String outcome, long cropPos, String cropKey) {
-		if (level == null || bee == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_BEE_CROP_TARGET)) {
+		if (level == null || bee == null || !MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
 			return;
 		}
-		MadokuDebug.event(METRIC_BEE_CROP_TARGET, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(METRIC_BEE_CROP_TARGET, "mobs", "bee", "bee")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(level.getGameTime())
 			.world(level.dimension().toString())
@@ -547,8 +547,8 @@ public final class MadokuMobBee {
 		if (level == null || bee == null) {
 			return;
 		}
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_BEE_CROP_MODE)) {
-			MadokuDebug.event(METRIC_BEE_CROP_MODE, MadokuDebug.Domain.MOB)
+		if (MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
+			MadokuDebug.event(METRIC_BEE_CROP_MODE, "mobs", "bee", "bee")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(level.getGameTime())
 				.world(level.dimension().toString())
@@ -559,10 +559,10 @@ public final class MadokuMobBee {
 				.field("is_baby", bee.isBaby())
 				.log();
 		}
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_BEE_CROP_GROWTH)) {
+		if (!MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
 			return;
 		}
-		MadokuDebug.event(METRIC_BEE_CROP_GROWTH, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(METRIC_BEE_CROP_GROWTH, "mobs", "bee", "bee")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(level.getGameTime())
 			.world(level.dimension().toString())

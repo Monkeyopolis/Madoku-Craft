@@ -506,11 +506,11 @@ public final class MadokuRarity {
 
 	private static void emitConfigLoaded() {
 		String metricId = "rarity.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("rarity", "rarity", "rarity")) {
 			return;
 		}
 
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "rarity", "rarity", "rarity")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("rarity:global")
 			.field("enabled", config.enabled)

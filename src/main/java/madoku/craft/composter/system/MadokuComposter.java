@@ -98,10 +98,10 @@ public final class MadokuComposter {
 
 	private static void emitConfigLoaded() {
 		String metricId = "composter.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("composter", "composter", "composter")) {
 			return;
 		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "composter", "composter", "composter")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("composter:global")
 			.field("enabled", enabled)

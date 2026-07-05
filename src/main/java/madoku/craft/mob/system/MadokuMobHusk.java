@@ -588,10 +588,10 @@ public final class MadokuMobHusk {
 	}
 
 	private static void emitHuskEquipmentDebug(Husk husk, String phase, String fileKey, EquipmentLoadoutResult result) {
-		if (husk == null || result == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_HUSK_EQUIPMENT)) {
+		if (husk == null || result == null || !MadokuDebug.shouldEmit("mobs", "husk", "husk")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_EQUIPMENT, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_EQUIPMENT, "mobs", "husk", "husk")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("husk:" + husk.getUUID())
 			.field("phase", phase)
@@ -612,10 +612,10 @@ public final class MadokuMobHusk {
 	}
 
 	private static void emitHuskDropsDebug(Husk husk, String phase, String fileKey, boolean customDropsEnabled, String configuredReference) {
-		if (husk == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_HUSK_DROPS)) {
+		if (husk == null || !MadokuDebug.shouldEmit("mobs", "husk", "husk")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_DROPS, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_DROPS, "mobs", "husk", "husk")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("husk:" + husk.getUUID())
 			.field("phase", phase)

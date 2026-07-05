@@ -141,8 +141,8 @@ public final class MadokuSmeltingManager {
 		double speedFactor = behavior.smeltingSpeed / (double) baseCookTicks;
 		double adjusted = originalTicks * speedFactor * behavior.fuelEfficiency;
 		int result = Math.max(1, toTicks(adjusted));
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.fuel_adjusted")) {
-			MadokuDebug.event("smelting.fuel_adjusted", MadokuDebug.Domain.SMELTING)
+		if (MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
+			MadokuDebug.event("smelting.fuel_adjusted", "smelting", "furnace", "furnace")
 				.side(MadokuDebug.Side.SERVER)
 				.subject("furnace:" + describeBlockEntityType(furnace))
 				.field("furnace", describeBlockEntityType(furnace))
@@ -238,8 +238,8 @@ public final class MadokuSmeltingManager {
 					// should fast-forward furnaces.
 					long extraTicksFromWorldTimeJump = Math.max(0L, MadokuClock.getLastWorldTimeDelta() - 1L);
 					long extraTicks = extraTicksFromScheduling + extraTicksFromWorldTimeJump;
-					if (extraTicks > 0L && MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.catch_up")) {
-						MadokuDebug.event("smelting.catch_up", MadokuDebug.Domain.SMELTING)
+					if (extraTicks > 0L && MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
+						MadokuDebug.event("smelting.catch_up", "smelting", "furnace", "furnace")
 							.side(MadokuDebug.Side.SERVER)
 							.subject("furnace:" + describeBlockEntityType(furnace))
 							.world(key.levelId())
@@ -257,9 +257,9 @@ public final class MadokuSmeltingManager {
 					if (extraTicks > 0L) {
 						advanceSingleFurnaceTicks(level, blockPos, extraTicks);
 						BlockEntity afterBlockEntity = level.getBlockEntity(blockPos);
-						if (afterBlockEntity instanceof AbstractFurnaceBlockEntity afterFurnace && MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.catch_up_state")) {
+						if (afterBlockEntity instanceof AbstractFurnaceBlockEntity afterFurnace && MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
 							BlockState afterState = level.getBlockState(blockPos);
-							MadokuDebug.event("smelting.catch_up_state", MadokuDebug.Domain.SMELTING)
+							MadokuDebug.event("smelting.catch_up_state", "smelting", "furnace", "furnace")
 								.side(MadokuDebug.Side.SERVER)
 								.subject("furnace:" + describeBlockEntityType(afterFurnace))
 								.world(key.levelId())

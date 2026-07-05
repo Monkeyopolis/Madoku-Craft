@@ -793,7 +793,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static MadokuDebug.EventBuilder debugPlayerEvent(String metricId, ServerPlayer player) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.PET)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "pet", "pet", "pet")
 			.side(MadokuDebug.Side.SERVER);
 		if (player == null) {
 			return builder;
@@ -806,14 +806,14 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static MadokuDebug.EventBuilder debugPlayerIdEvent(String metricId, UUID playerId) {
-		return MadokuDebug.event(metricId, MadokuDebug.Domain.PET)
+		return MadokuDebug.event(metricId, "pet", "pet", "pet")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("player:" + (playerId == null ? "unknown" : playerId))
 			.field("player_uuid", playerId);
 	}
 
 	private static MadokuDebug.EventBuilder debugPetEvent(String metricId, Mob pet) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.PET)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "pet", "pet", "pet")
 			.side(MadokuDebug.Side.SERVER);
 		if (pet == null) {
 			return builder;

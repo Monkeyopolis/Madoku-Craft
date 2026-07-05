@@ -378,11 +378,11 @@ public final class MadokuSeason {
 	}
 
 	private static void emitSeasonTransitionDebug(SeasonState previousState, SeasonState currentState) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.SEASON, "season.transition")) {
+		if (!MadokuDebug.shouldEmit("season", "season", "season")) {
 			return;
 		}
 
-		MadokuDebug.event("season.transition", MadokuDebug.Domain.SEASON)
+		MadokuDebug.event("season.transition", "season", "season", "season")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.subject("season")

@@ -388,10 +388,10 @@ public final class MadokuMobZombieVillager {
 		String fileKey,
 		EquipmentLoadoutResult result
 	) {
-		if (zombieVillager == null || result == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_VILLAGER_EQUIPMENT)) {
+		if (zombieVillager == null || result == null || !MadokuDebug.shouldEmit("mobs", "zombie-villager", "zombie-villager")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_EQUIPMENT, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_EQUIPMENT, "mobs", "zombie-villager", "zombie-villager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("zombie_villager:" + zombieVillager.getUUID())
 			.field("phase", phase)
@@ -418,10 +418,10 @@ public final class MadokuMobZombieVillager {
 		boolean customDropsEnabled,
 		String configuredReference
 	) {
-		if (zombieVillager == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_VILLAGER_DROPS)) {
+		if (zombieVillager == null || !MadokuDebug.shouldEmit("mobs", "zombie-villager", "zombie-villager")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_DROPS, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_DROPS, "mobs", "zombie-villager", "zombie-villager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("zombie_villager:" + zombieVillager.getUUID())
 			.field("phase", phase)

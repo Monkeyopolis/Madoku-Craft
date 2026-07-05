@@ -1,15 +1,14 @@
 package madoku.craft.debug;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,37 +17,28 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MadokuDebug {
 	private static final Logger LOGGER = LoggerFactory.getLogger("Debug");
 	private static final String DEBUG_CONFIG_FOLDER_NAME = "madoku-craft-debug";
-	private static final String DEBUG_CONFIG_FILE_NAME = "madoku-debug";
+	private static final String GROUP_ENABLED_KEY = "enabled";
 	private static final int MAX_RECENT_EVENTS = 512;
 	private static final Object BUFFER_LOCK = new Object();
 
 	private static final Deque<String> RECENT_EVENTS = new ArrayDeque<>(MAX_RECENT_EVENTS);
-	private static final Set<Domain> DISABLED_DOMAINS = ConcurrentHashMap.newKeySet();
-	private static final Set<String> DISABLED_METRIC_PATTERNS = ConcurrentHashMap.newKeySet();
-
-	private static volatile boolean enabled = false;
+	private static final Map<String, GroupConfig> GROUP_CONFIG_CACHE = new ConcurrentHashMap<>();
 
 	private MadokuDebug() {
 	}
 
 	public static void initialize() {
-		resetFilters();
-		JsonObject defaults = createDefaultConfig();
-
+		GROUP_CONFIG_CACHE.clear();
+		resetSession();
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(DEBUG_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, DEBUG_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
-			loadConfig(normalized, defaults);
-		} catch (IOException | RuntimeException exception) {
-			loadConfig(defaults, defaults);
-			LOGGER.error("Failed to load MadokuDebug config; using defaults.", exception);
+			Files.createDirectories(resolveRootDirectory());
+		} catch (IOException exception) {
+			LOGGER.error("Failed to initialize MadokuDebug config root.", exception);
 		}
 	}
 
@@ -58,65 +48,13 @@ public final class MadokuDebug {
 		}
 	}
 
-	public static void resetFilters() {
-		DISABLED_DOMAINS.clear();
-		DISABLED_METRIC_PATTERNS.clear();
+	public static boolean shouldEmit(String mainSystem, String subSystem, String group) {
+		return getGroupConfig(mainSystem, subSystem, group).enabled();
 	}
 
-	public static boolean isEnabled() {
-		return enabled;
-	}
-
-	public static void setEnabled(boolean value) {
-		enabled = value;
-	}
-
-	public static boolean isDomainEnabled(Domain domain) {
-		return !DISABLED_DOMAINS.contains(normalizeDomain(domain));
-	}
-
-	public static void setDomainEnabled(Domain domain, boolean value) {
-		Domain normalizedDomain = normalizeDomain(domain);
-		if (value) {
-			DISABLED_DOMAINS.remove(normalizedDomain);
-		} else {
-			DISABLED_DOMAINS.add(normalizedDomain);
-		}
-	}
-
-	public static void setMetricEnabled(String metricPattern, boolean value) {
-		String normalizedPattern = normalizeMetricPattern(metricPattern);
-		if (normalizedPattern.isEmpty()) {
-			return;
-		}
-
-		if (value) {
-			DISABLED_METRIC_PATTERNS.remove(normalizedPattern);
-		} else {
-			DISABLED_METRIC_PATTERNS.add(normalizedPattern);
-		}
-	}
-
-	public static boolean shouldEmit(Domain domain, String metricId) {
-		if (!enabled) {
-			return false;
-		}
-
-		if (DISABLED_DOMAINS.contains(normalizeDomain(domain))) {
-			return false;
-		}
-
-		String normalizedMetricId = normalizeMetric(metricId);
-		for (String pattern : DISABLED_METRIC_PATTERNS) {
-			if (metricPatternMatches(normalizedMetricId, pattern)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	public static EventBuilder event(String metricId, Domain domain) {
-		return new EventBuilder(metricId, domain);
+	public static EventBuilder event(String metricId, String mainSystem, String subSystem, String group) {
+		GroupConfig config = getGroupConfig(mainSystem, subSystem, group);
+		return new EventBuilder(metricId, config);
 	}
 
 	public static List<String> dumpRecent(int maxEntries) {
@@ -136,7 +74,7 @@ public final class MadokuDebug {
 	}
 
 	private static void emit(DebugEvent debugEvent) {
-		if (debugEvent == null || !shouldEmit(debugEvent.domain, debugEvent.metricId)) {
+		if (debugEvent == null || !debugEvent.groupConfig.enabled()) {
 			return;
 		}
 
@@ -147,7 +85,7 @@ public final class MadokuDebug {
 			}
 			RECENT_EVENTS.addLast(formatted);
 		}
-		LOGGER.info("{}{}", formatted, System.lineSeparator());
+		LOGGER.info("{}", formatted);
 	}
 
 	private static String format(DebugEvent debugEvent) {
@@ -158,6 +96,8 @@ public final class MadokuDebug {
 			.append(tickText)
 			.append("][")
 			.append(debugEvent.side.label)
+			.append("][")
+			.append(debugEvent.groupConfig.pathLabel())
 			.append("][")
 			.append(debugEvent.metricId)
 			.append("] ")
@@ -190,251 +130,101 @@ public final class MadokuDebug {
 		return builder.toString();
 	}
 
-	private static void loadConfig(JsonObject source, JsonObject defaults) {
-		JsonObject general = getObject(source, "general");
-		JsonObject main = getObject(source, "main");
-		enabled = getBoolean(source, "enabled", getBoolean(general, "enabled", false));
-		JsonArray activeDomains = getArray(source, "active-domains");
-		if (activeDomains == null) {
-			activeDomains = getArray(main, "active-domains");
-		}
-		JsonArray disabledMetrics = getArray(source, "disabled-metrics");
-		if (disabledMetrics == null) {
-			disabledMetrics = getArray(main, "disabled-metrics");
-		}
-		applyActiveDomains(activeDomains, defaults);
-		applyDisabledMetrics(disabledMetrics);
+	private static GroupConfig getGroupConfig(String mainSystem, String subSystem, String group) {
+		String normalizedMain = normalizePathPart(mainSystem, "main system");
+		String normalizedSub = normalizePathPart(subSystem, "sub system");
+		String normalizedGroup = normalizePathPart(group, "group");
+		String cacheKey = normalizedMain + "/" + normalizedSub + "/" + normalizedGroup;
+		return GROUP_CONFIG_CACHE.computeIfAbsent(
+			cacheKey,
+			ignored -> loadGroupConfig(normalizedMain, normalizedSub, normalizedGroup)
+		);
 	}
 
-	private static void applyActiveDomains(JsonArray domains, JsonObject defaults) {
-		for (Domain domain : Domain.values()) {
-			setDomainEnabled(domain, false);
+	private static GroupConfig loadGroupConfig(String mainSystem, String subSystem, String group) {
+		Path file = resolveGroupFile(mainSystem, subSystem, group);
+		JsonObject source = readOrCreateGroupFile(file);
+		boolean enabled = getBoolean(source, GROUP_ENABLED_KEY, false);
+		return new GroupConfig(mainSystem, subSystem, group, enabled);
+	}
+
+	private static JsonObject readOrCreateGroupFile(Path file) {
+		if (file == null) {
+			return defaultGroupConfig();
 		}
 
-		boolean anyEnabled = false;
-		if (domains != null) {
-			for (JsonElement element : domains) {
-				if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-					continue;
-				}
-				Domain domain = Domain.fromId(element.getAsString());
-				if (domain == null) {
-					continue;
-				}
-				setDomainEnabled(domain, true);
-				anyEnabled = true;
+		if (!Files.isRegularFile(file)) {
+			JsonObject defaults = defaultGroupConfig();
+			try {
+				JsonManagerSystem.writeJsonFile(file, defaults);
+			} catch (IOException exception) {
+				LOGGER.error("Failed to create debug config file at {}.", file, exception);
 			}
+			return defaults;
 		}
 
-		if (!anyEnabled) {
-			JsonArray fallbackDomains = getArray(defaults, "active-domains");
-			if (fallbackDomains != null) {
-				for (JsonElement element : fallbackDomains) {
-					if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-						continue;
-					}
-					Domain domain = Domain.fromId(element.getAsString());
-					if (domain != null) {
-						setDomainEnabled(domain, true);
-						anyEnabled = true;
-					}
-				}
-			}
-		}
-
-					if (!anyEnabled) {
-						setDomainEnabled(Domain.SCHEDULER, true);
-						setDomainEnabled(Domain.SLEEP, true);
-						setDomainEnabled(Domain.SMELTING, true);
-						setDomainEnabled(Domain.HEALTH, true);
-						setDomainEnabled(Domain.HUNGER, true);
-						setDomainEnabled(Domain.MOB, true);
-						setDomainEnabled(Domain.FARMING, true);
-						setDomainEnabled(Domain.ECOSYSTEM, true);
-						setDomainEnabled(Domain.PET, true);
-					}
-			}
-
-	private static void applyDisabledMetrics(JsonArray patterns) {
-		DISABLED_METRIC_PATTERNS.clear();
-		if (patterns == null) {
-			return;
-		}
-
-		for (JsonElement element : patterns) {
-			if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-				continue;
-			}
-			String normalized = normalizeMetricPattern(element.getAsString());
-			if (!normalized.isEmpty()) {
-				DISABLED_METRIC_PATTERNS.add(normalized);
-			}
+		try {
+			return JsonManagerSystem.readJsonFile(file);
+		} catch (IOException exception) {
+			LOGGER.error("Failed to read debug config file at {}.", file, exception);
+			return defaultGroupConfig();
 		}
 	}
 
-	private static JsonObject createDefaultConfig() {
+	private static JsonObject defaultGroupConfig() {
 		return JsonFormatBuilder.object()
-			.put("enabled", false)
-			.array("active-domains", activeDomains -> activeDomains
-				.add(Domain.SCHEDULER.id())
-				.add(Domain.SLEEP.id())
-				.add(Domain.SMELTING.id())
-				.add(Domain.HEALTH.id())
-				.add(Domain.HUNGER.id())
-				.add(Domain.MOB.id())
-				.add(Domain.FARMING.id())
-				.add(Domain.ECOSYSTEM.id())
-				.add(Domain.SEASON.id())
-				.add(Domain.PET.id()))
-			.array("disabled-metrics", disabledMetrics -> {
-			})
+			.put(GROUP_ENABLED_KEY, false)
 			.build();
 	}
 
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
+	private static Path resolveRootDirectory() {
+		return JsonManagerSystem.getOrCreateGlobalSystemDirectory(DEBUG_CONFIG_FOLDER_NAME);
+	}
+
+	private static Path resolveGroupFile(String mainSystem, String subSystem, String group) {
+		Path file = resolveRootDirectory()
+			.resolve(mainSystem)
+			.resolve(subSystem)
+			.resolve(group + ".json");
+		try {
+			Files.createDirectories(file.getParent());
+		} catch (IOException exception) {
+			throw new IllegalStateException("Failed to create debug config directory: " + file.getParent(), exception);
 		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
+		return file;
 	}
 
 	private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
-		if (object == null) {
+		if (object == null || key == null || key.isBlank()) {
 			return fallback;
 		}
 		JsonElement element = object.get(key);
 		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
 			return fallback;
 		}
-		return element.getAsBoolean();
+		try {
+			return element.getAsBoolean();
+		} catch (RuntimeException exception) {
+			return fallback;
+		}
 	}
 
-	private static JsonArray getArray(JsonObject object, String key) {
-		if (object == null) {
-			return null;
+	private static String normalizePathPart(String value, String label) {
+		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+		normalized = normalized.replace(' ', '-').replace('_', '-').replace('\\', '-').replace('/', '-');
+		while (normalized.contains("--")) {
+			normalized = normalized.replace("--", "-");
 		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonArray()) {
-			return null;
+		while (normalized.startsWith("-")) {
+			normalized = normalized.substring(1);
 		}
-		return element.getAsJsonArray();
-	}
-
-	private static JsonObject getObject(JsonObject object, String key) {
-		if (object == null) {
-			return null;
+		while (normalized.endsWith("-")) {
+			normalized = normalized.substring(0, normalized.length() - 1);
 		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonObject()) {
-			return null;
-		}
-		return element.getAsJsonObject();
-	}
-
-	private static Domain normalizeDomain(Domain domain) {
-		return domain == null ? Domain.OTHER : domain;
-	}
-
-	private static String normalizeMetricPattern(String metricPattern) {
-		if (metricPattern == null) {
-			return "";
-		}
-		String normalized = metricPattern.trim().toLowerCase(Locale.ROOT);
-		if (normalized.equals("*")) {
-			return "";
+		if (normalized.isBlank()) {
+			throw new IllegalArgumentException(label + " must not be blank.");
 		}
 		return normalized;
-	}
-
-	private static String normalizeMetric(String metricId) {
-		String normalized = metricId == null ? "" : metricId.trim().toLowerCase(Locale.ROOT);
-		return normalized.isEmpty() ? "other.unknown" : normalized;
-	}
-
-	private static boolean metricPatternMatches(String metricId, String pattern) {
-		if (pattern == null || pattern.isBlank()) {
-			return false;
-		}
-		if (pattern.endsWith("*")) {
-			return metricId.startsWith(pattern.substring(0, pattern.length() - 1));
-		}
-		return metricId.equals(pattern);
-	}
-
-	public enum Domain {
-		PLAYER("player"),
-		LUCK("luck"),
-		MOB("mob"),
-		ENTITY("entity"),
-		BLOCK_ENTITY("block_entity"),
-		BLOCK("block"),
-		ITEM("item"),
-		UI("ui"),
-		SPAWNING("spawning"),
-		SCHEDULER("scheduler"),
-		SMELTING("smelting"),
-		HEALTH("health"),
-				HUNGER("hunger"),
-		PET("pet"),
-			NETWORK("network"),
-			CLOCK("clock"),
-			SLEEP("sleep"),
-			FARMING("farming"),
-			ECOSYSTEM("ecosystem"),
-			SEASON("season"),
-			WORLD("world"),
-			OTHER("other");
-
-		private final String id;
-
-		Domain(String id) {
-			this.id = id;
-		}
-
-		public String id() {
-			return id;
-		}
-
-		public static Domain fromId(String rawValue) {
-			if (rawValue == null) {
-				return null;
-			}
-
-			String value = rawValue.trim().toLowerCase(Locale.ROOT);
-			if (value.isEmpty()) {
-				return null;
-			}
-
-			return switch (value) {
-				case "player", "players" -> PLAYER;
-				case "luck" -> LUCK;
-				case "mob", "mobs" -> MOB;
-				case "entity", "entities" -> ENTITY;
-				case "blockentity", "block_entity", "blockentities", "block_entities", "entityblock", "entityblocks", "entity_block", "entity_blocks" -> BLOCK_ENTITY;
-				case "block", "blocks" -> BLOCK;
-				case "item", "items" -> ITEM;
-				case "ui" -> UI;
-				case "spawn", "spawning", "mob_spawning" -> SPAWNING;
-					case "scheduler", "schedulers" -> SCHEDULER;
-					case "smelting", "smelt" -> SMELTING;
-					case "health", "hp" -> HEALTH;
-						case "hunger", "food" -> HUNGER;
-						case "pet", "pets" -> PET;
-						case "network", "net" -> NETWORK;
-						case "clock", "time_clock" -> CLOCK;
-						case "sleep", "sleeping" -> SLEEP;
-						case "farming", "farm", "farmland" -> FARMING;
-						case "ecosystem", "eco" -> ECOSYSTEM;
-						case "season", "seasons" -> SEASON;
-						case "world" -> WORLD;
-					case "other", "*" -> OTHER;
-				default -> null;
-			};
-		}
 	}
 
 	public enum Side {
@@ -451,7 +241,7 @@ public final class MadokuDebug {
 
 	public static final class EventBuilder {
 		private final String metricId;
-		private final Domain domain;
+		private final GroupConfig groupConfig;
 		private final LinkedHashMap<String, String> fields = new LinkedHashMap<>();
 		private Side side = Side.UNKNOWN;
 		private long tick = -1L;
@@ -459,9 +249,9 @@ public final class MadokuDebug {
 		private String subject = "global";
 		private String details = "";
 
-		private EventBuilder(String metricId, Domain domain) {
+		private EventBuilder(String metricId, GroupConfig groupConfig) {
 			this.metricId = normalizeMetric(metricId);
-			this.domain = normalizeDomain(domain);
+			this.groupConfig = groupConfig == null ? GroupConfig.disabled("unknown", "unknown", "unknown") : groupConfig;
 		}
 
 		public EventBuilder tick(long value) {
@@ -502,10 +292,13 @@ public final class MadokuDebug {
 		}
 
 		public void log() {
+			if (!groupConfig.enabled()) {
+				return;
+			}
 			emit(
 				new DebugEvent(
 					metricId,
-					domain,
+					groupConfig,
 					side,
 					tick,
 					world,
@@ -517,9 +310,19 @@ public final class MadokuDebug {
 		}
 	}
 
+	private record GroupConfig(String mainSystem, String subSystem, String group, boolean enabled) {
+		private static GroupConfig disabled(String mainSystem, String subSystem, String group) {
+			return new GroupConfig(mainSystem, subSystem, group, false);
+		}
+
+		private String pathLabel() {
+			return mainSystem + "/" + subSystem + "/" + group;
+		}
+	}
+
 	private record DebugEvent(
 		String metricId,
-		Domain domain,
+		GroupConfig groupConfig,
 		Side side,
 		long tick,
 		String world,
@@ -529,8 +332,12 @@ public final class MadokuDebug {
 	) {
 	}
 
+	private static String normalizeMetric(String metricId) {
+		String normalized = metricId == null ? "" : metricId.trim().toLowerCase(Locale.ROOT);
+		return normalized.isEmpty() ? "other.unknown" : normalized;
+	}
+
 	private static String normalizeText(String value) {
 		return value == null ? "" : value.trim();
 	}
 }
-

@@ -315,10 +315,10 @@ public final class MadokuMobZombie {
 	}
 
 	private static void emitZombieEquipmentDebug(Zombie zombie, String phase, String fileKey, EquipmentLoadoutResult result) {
-		if (zombie == null || result == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_EQUIPMENT)) {
+		if (zombie == null || result == null || !MadokuDebug.shouldEmit("mobs", "zombie", "zombie")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_EQUIPMENT, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_EQUIPMENT, "mobs", "zombie", "zombie")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("zombie:" + zombie.getUUID())
 			.field("phase", phase)
@@ -339,10 +339,10 @@ public final class MadokuMobZombie {
 	}
 
 	private static void emitZombieDropsDebug(Zombie zombie, String phase, String fileKey, boolean customDropsEnabled, String configuredReference) {
-		if (zombie == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_DROPS)) {
+		if (zombie == null || !MadokuDebug.shouldEmit("mobs", "zombie", "zombie")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS, "mobs", "zombie", "zombie")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("zombie:" + zombie.getUUID())
 			.field("phase", phase)

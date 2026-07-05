@@ -237,10 +237,10 @@ public final class MadokuLootTableEntities {
 		String resolutionSource,
 		String resolvedManagedTableId
 	) {
-		if (entity == null || !MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_ZOMBIE_DROPS_RESOLUTION)) {
+		if (entity == null || !MadokuDebug.shouldEmit("loot", "entities", "entities")) {
 			return;
 		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS_RESOLUTION, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS_RESOLUTION, "loot", "entities", "entities")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("zombie:" + entity.getUUID())
 			.field("mob_type", entity.getType().toShortString())
@@ -267,11 +267,11 @@ public final class MadokuLootTableEntities {
 		ManagedLootTable managed,
 		boolean vanillaFallback
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, METRIC_LOOT_CONTEXT_PROBE)) {
+		if (!MadokuDebug.shouldEmit("loot", "entities", "entities")) {
 			return;
 		}
 		String subject = thisEntity == null ? "loot-context:no-entity" : "loot-context:" + thisEntity.getUUID();
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_LOOT_CONTEXT_PROBE, MadokuDebug.Domain.MOB)
+		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_LOOT_CONTEXT_PROBE, "loot", "entities", "entities")
 			.side(MadokuDebug.Side.SERVER)
 			.subject(subject)
 			.field("phase", phase == null || phase.isBlank() ? "unknown" : phase)

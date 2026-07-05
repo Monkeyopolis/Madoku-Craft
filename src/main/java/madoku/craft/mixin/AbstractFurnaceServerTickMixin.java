@@ -27,8 +27,8 @@ public abstract class AbstractFurnaceServerTickMixin {
 			if (currentTotal > 0 && desiredTotal > 0 && currentTotal != desiredTotal) {
 				((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$setCookingTotalTime(desiredTotal);
 				furnace.setChanged();
-				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.cook_time_sync")) {
-					MadokuDebug.event("smelting.cook_time_sync", MadokuDebug.Domain.SMELTING)
+				if (MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
+					MadokuDebug.event("smelting.cook_time_sync", "smelting", "furnace", "furnace")
 						.side(MadokuDebug.Side.SERVER)
 						.subject("furnace:" + furnace.getClass().getSimpleName())
 						.field("current_ticks", currentTotal)

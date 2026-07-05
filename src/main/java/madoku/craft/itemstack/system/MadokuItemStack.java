@@ -339,11 +339,11 @@ public final class MadokuItemStack {
 
 	private static void emitConfigLoaded() {
 		String metricId = "itemstack.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
 			return;
 		}
 
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("itemstack:global")
 			.field("enabled", configuration.enabled)
@@ -443,10 +443,10 @@ public final class MadokuItemStack {
 
 	private static void emitDeathDropHandled(ServerPlayer player, int droppedStacks, int keptStacks) {
 		String metricId = "itemstack.death_drop_handled";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
 			return;
 		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("player:" + player.getUUID())
 			.world(player.level().dimension().toString())
@@ -458,10 +458,10 @@ public final class MadokuItemStack {
 
 	private static void emitRespawnRestore(ServerPlayer player, int restored, int inserted, int dropped) {
 		String metricId = "itemstack.death_restore";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
 			return;
 		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("player:" + player.getUUID())
 			.world(player.level().dimension().toString())

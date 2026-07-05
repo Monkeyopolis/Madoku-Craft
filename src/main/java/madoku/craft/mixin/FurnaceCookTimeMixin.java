@@ -26,8 +26,8 @@ public abstract class FurnaceCookTimeMixin {
 
 		int original = cir.getReturnValue();
 		int configured = MadokuSmeltingManager.getCookTimeTicks(furnace, original);
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.cook_time")) {
-			MadokuDebug.event("smelting.cook_time", MadokuDebug.Domain.SMELTING)
+		if (MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
+			MadokuDebug.event("smelting.cook_time", "smelting", "furnace", "furnace")
 				.side(MadokuDebug.Side.SERVER)
 				.subject("furnace:" + MadokuSmeltingManager.describeRecipeType(furnace.getRecipeUsed() == null ? null : furnace.getRecipeUsed().value().getType()))
 				.field("furnace", furnace.getClass().getSimpleName())
@@ -54,8 +54,8 @@ public abstract class FurnaceCookTimeMixin {
 		int itemConfigured = MadokuItem.adjustFuelTicks(stack, original);
 		AbstractFurnaceBlockEntity furnace = (AbstractFurnaceBlockEntity) (Object) this;
 		int adjusted = MadokuSmeltingManager.getAdjustedFuelTicks(furnace, stack, itemConfigured);
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.fuel_adjusted")) {
-			MadokuDebug.event("smelting.fuel_adjusted", MadokuDebug.Domain.SMELTING)
+		if (MadokuDebug.shouldEmit("smelting", "furnace", "furnace")) {
+			MadokuDebug.event("smelting.fuel_adjusted", "smelting", "furnace", "furnace")
 				.side(MadokuDebug.Side.SERVER)
 				.subject("furnace:" + furnace.getClass().getSimpleName())
 				.field("fuel_item", stack.getItem().toString())

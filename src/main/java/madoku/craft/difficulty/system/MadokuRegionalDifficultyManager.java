@@ -1213,11 +1213,11 @@ public final class MadokuRegionalDifficultyManager {
 
 	private static void emitConfigLoaded() {
 		String metricId = "difficulty.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+		if (!MadokuDebug.shouldEmit("difficulty", "regional-difficulty", "regional-difficulty")) {
 			return;
 		}
 		Snapshot config = snapshot;
-			MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+			MadokuDebug.event(metricId, "difficulty", "regional-difficulty", "regional-difficulty")
 				.side(MadokuDebug.Side.SERVER)
 				.subject("difficulty:global")
 				.field("enabled", config.enabled())
@@ -1254,11 +1254,11 @@ public final class MadokuRegionalDifficultyManager {
 		int experienceDropAddition
 	) {
 		String metricId = "difficulty.spawn_scaled";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId) || mob == null || increments == null) {
+		if (!MadokuDebug.shouldEmit("difficulty", "regional-difficulty", "regional-difficulty") || mob == null || increments == null) {
 			return;
 		}
 
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "difficulty", "regional-difficulty", "regional-difficulty")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("mob:" + mob.getType().toShortString())
 			.field("base_adj", baseAdjustment)

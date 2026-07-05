@@ -847,11 +847,11 @@ public final class MadokuLuckManager {
 	}
 
 	static void emitLuckDebug(String metricId, ServerLevel world, BlockPos pos, String subject, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.LUCK, metricId)) {
+		if (!MadokuDebug.shouldEmit("attributes", "luck", "luck")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.LUCK)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "luck")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -871,11 +871,11 @@ public final class MadokuLuckManager {
 	}
 
 	private static void emitMobLuckDebug(String metricId, ServerLevel world, Mob mob, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.LUCK, metricId)) {
+		if (!MadokuDebug.shouldEmit("attributes", "luck", "luck")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.LUCK)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "luck")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())

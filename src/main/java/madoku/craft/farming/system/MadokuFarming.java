@@ -2215,11 +2215,11 @@ public final class MadokuFarming {
 		String subject,
 		Map<String, String> fields
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.FARMING, metricId)) {
+		if (!MadokuDebug.shouldEmit("farming", "farming", "farming")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, MadokuDebug.Domain.FARMING)
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "farming", "farming", "farming")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())

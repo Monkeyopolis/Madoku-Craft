@@ -991,11 +991,11 @@ public final class MadokuItem {
 
 	private static void emitConfigLoaded() {
 		String metricId = "item.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
+		if (!MadokuDebug.shouldEmit("item", "item", "item")) {
 			return;
 		}
 
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
+		MadokuDebug.event(metricId, "item", "item", "item")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("item:global")
 			.field("enabled", enabled)

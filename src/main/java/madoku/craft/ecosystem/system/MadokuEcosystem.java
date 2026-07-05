@@ -2217,11 +2217,11 @@ public final class MadokuEcosystem {
 		EcosystemTaskSlot taskSlot,
 		String phase
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.scheduler_tick")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
-		MadokuDebug.event("ecosystem.scheduler_tick", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.scheduler_tick", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(server != null && server.overworld() != null ? server.overworld().dimension().toString() : "")
@@ -2244,11 +2244,11 @@ public final class MadokuEcosystem {
 		boolean queuedBefore,
 		String outcome
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.scheduler_enqueue")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
-		MadokuDebug.event("ecosystem.scheduler_enqueue", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.scheduler_enqueue", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.subject("ecosystem_scheduler")
@@ -3189,12 +3189,12 @@ public final class MadokuEcosystem {
 		TreeCandidateState candidate,
 		int optionCount
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_candidate_picked")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
 		BlockPos pos = candidate == null ? null : BlockPos.of(candidate.groundPos);
-		MadokuDebug.event("ecosystem.tree_candidate_picked", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_candidate_picked", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -3213,11 +3213,11 @@ public final class MadokuEcosystem {
 		int treeGroundCandidateCount,
 		int wetSeedCount
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_chunk_discovery")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
-		MadokuDebug.event("ecosystem.tree_chunk_discovery", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_chunk_discovery", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -3235,11 +3235,11 @@ public final class MadokuEcosystem {
 		int optionCount,
 		String action
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_candidate_scan")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
-		MadokuDebug.event("ecosystem.tree_candidate_scan", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_candidate_scan", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -3257,12 +3257,12 @@ public final class MadokuEcosystem {
 		TreeCandidateState candidate,
 		long elapsedTicks
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_candidate_progress")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
 		BlockPos pos = candidate == null ? null : BlockPos.of(candidate.groundPos);
-		MadokuDebug.event("ecosystem.tree_candidate_progress", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_candidate_progress", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -3281,12 +3281,12 @@ public final class MadokuEcosystem {
 		TreeCandidateState candidate,
 		String reason
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_candidate_invalidated")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
 		BlockPos pos = candidate == null ? null : BlockPos.of(candidate.groundPos);
-		MadokuDebug.event("ecosystem.tree_candidate_invalidated", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_candidate_invalidated", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -3303,12 +3303,12 @@ public final class MadokuEcosystem {
 		TreeCandidateState candidate,
 		boolean grown
 	) {
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ECOSYSTEM, "ecosystem.tree_growth_result")) {
+		if (!MadokuDebug.shouldEmit("ecosystem", "ecosystem", "ecosystem")) {
 			return;
 		}
 
 		BlockPos pos = candidate == null ? null : BlockPos.of(candidate.groundPos);
-		MadokuDebug.event("ecosystem.tree_growth_result", MadokuDebug.Domain.ECOSYSTEM)
+		MadokuDebug.event("ecosystem.tree_growth_result", "ecosystem", "ecosystem", "ecosystem")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())

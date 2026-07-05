@@ -23,8 +23,8 @@ public abstract class ServerPlayerSleepTimeMixin {
 	private boolean madoku$applyConfiguredSleepTime(BedRule bedRule, Level level, BlockPos sleepingPos) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
 		boolean allowed = MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, player);
-		if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SLEEP, "sleep.bed_attempt")) {
-			MadokuDebug.event("sleep.bed_attempt", MadokuDebug.Domain.SLEEP)
+		if (MadokuDebug.shouldEmit("sleep", "sleep", "sleep")) {
+			MadokuDebug.event("sleep.bed_attempt", "sleep", "sleep", "sleep")
 				.side(level.isClientSide() ? MadokuDebug.Side.CLIENT : MadokuDebug.Side.SERVER)
 				.tick(MadokuTicks.getGameplayTicks())
 				.world(level.dimension().toString())

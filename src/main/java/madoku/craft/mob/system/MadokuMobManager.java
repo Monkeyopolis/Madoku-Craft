@@ -2402,11 +2402,11 @@ public final class MadokuMobManager {
 
 	private static void emitConfigLoaded() {
 		String metricId = "mob.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager")) {
 			return;
 		}
 		Snapshot config = snapshot;
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "manager", "manager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("mob:global")
 			.field("enabled", config.enabled())
@@ -2416,11 +2416,11 @@ public final class MadokuMobManager {
 
 	private static void emitManagedArrowTracked(AbstractArrow arrow) {
 		String metricId = "mob.arrow_tracked";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId) || arrow == null) {
+		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || arrow == null) {
 			return;
 		}
 		Entity owner = arrow.getOwner();
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "manager", "manager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("arrow:" + arrow.getUUID())
 			.field("owner", owner == null ? "unknown" : owner.getType().toShortString())
@@ -2430,11 +2430,11 @@ public final class MadokuMobManager {
 
 	private static void emitManagedArrowExpired(AbstractArrow arrow) {
 		String metricId = "mob.arrow_expired";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId) || arrow == null) {
+		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || arrow == null) {
 			return;
 		}
 		Entity owner = arrow.getOwner();
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "manager", "manager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject("arrow:" + arrow.getUUID())
 			.field("owner", owner == null ? "unknown" : owner.getType().toShortString())
@@ -2451,10 +2451,10 @@ public final class MadokuMobManager {
 		String detail
 	) {
 		String metricId = "mob.runtime_spawn";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId)) {
+		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager")) {
 			return;
 		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "manager", "manager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject((sourceType == null ? "entity" : sourceType.toShortString()) + ":" + (sourceId == null ? "unknown" : sourceId))
 			.field("phase", phase)
@@ -2474,11 +2474,11 @@ public final class MadokuMobManager {
 		String detail
 	) {
 		String metricId = "mob.spawn_override_trace";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.MOB, metricId) || mob == null) {
+		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || mob == null) {
 			return;
 		}
 		String mainHand = resolveItemIdForRuntime(mob.getMainHandItem());
-		MadokuDebug.event(metricId, MadokuDebug.Domain.MOB)
+		MadokuDebug.event(metricId, "mobs", "manager", "manager")
 			.side(MadokuDebug.Side.SERVER)
 			.subject(mob.getType().toShortString() + ":" + mob.getUUID())
 			.field("phase", phase)
