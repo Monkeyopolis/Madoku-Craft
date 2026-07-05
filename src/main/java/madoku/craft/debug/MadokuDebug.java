@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.config.JsonStaticSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class MadokuDebug {
 	private static final Logger LOGGER = LoggerFactory.getLogger("Debug");
 	private static final String DEBUG_CONFIG_FOLDER_NAME = "madoku-craft-debug";
+	private static final String MAIN_GROUP_NAME = "main";
 	private static final String GROUP_ENABLED_KEY = "enabled";
 	private static final int MAX_RECENT_EVENTS = 512;
 	private static final Object BUFFER_LOCK = new Object();
@@ -49,11 +51,73 @@ public final class MadokuDebug {
 	}
 
 	public static boolean shouldEmit(String mainSystem, String subSystem, String group) {
-		return getGroupConfig(mainSystem, subSystem, group).enabled();
+		return getEffectiveGroupConfig(mainSystem, subSystem, group).enabled();
+	}
+
+	public static String mainSystemFolderName(String mainSystem) {
+		String normalized = normalizePathPart(mainSystem, "main system");
+		return normalized.startsWith("madoku-") ? normalized : "madoku-" + normalized;
+	}
+
+	public static String subSystemFolderName(String subSystem) {
+		return normalizePathPart(subSystem, "sub system");
+	}
+
+	public static String groupFileName(String group) {
+		return normalizePathPart(group, "group");
+	}
+
+	public static void bootstrapHierarchy(String mainSystem, Map<String, List<String>> subSystemGroups) {
+		String normalizedMain = mainSystemFolderName(mainSystem);
+		if (subSystemGroups == null || subSystemGroups.isEmpty()) {
+			return;
+		}
+
+		Path root = resolveRootDirectory().resolve(normalizedMain);
+		try {
+			Files.createDirectories(root);
+		} catch (IOException exception) {
+			LOGGER.error("Failed to create debug config hierarchy for {}.", normalizedMain, exception);
+			return;
+		}
+
+		for (Map.Entry<String, List<String>> entry : subSystemGroups.entrySet()) {
+			if (entry == null) {
+				continue;
+			}
+
+			String normalizedSub = subSystemFolderName(entry.getKey());
+			Path subDirectory = root.resolve(normalizedSub);
+			try {
+				Files.createDirectories(subDirectory);
+			} catch (IOException exception) {
+				LOGGER.error("Failed to create debug config hierarchy for {}/{}.", normalizedMain, normalizedSub, exception);
+				continue;
+			}
+
+			List<String> groups = entry.getValue();
+			List<String> normalizedGroups = new ArrayList<>();
+			normalizedGroups.add(MAIN_GROUP_NAME);
+			if (groups != null) {
+				for (String group : groups) {
+					if (group == null || group.isBlank()) {
+						continue;
+					}
+					String normalizedGroup = groupFileName(group);
+					if (!normalizedGroups.contains(normalizedGroup)) {
+						normalizedGroups.add(normalizedGroup);
+					}
+				}
+			}
+
+			for (String group : normalizedGroups) {
+				readOrCreateGroupFile(subDirectory.resolve(group + ".json"));
+			}
+		}
 	}
 
 	public static EventBuilder event(String metricId, String mainSystem, String subSystem, String group) {
-		GroupConfig config = getGroupConfig(mainSystem, subSystem, group);
+		GroupConfig config = getEffectiveGroupConfig(mainSystem, subSystem, group);
 		return new EventBuilder(metricId, config);
 	}
 
@@ -130,15 +194,28 @@ public final class MadokuDebug {
 		return builder.toString();
 	}
 
-	private static GroupConfig getGroupConfig(String mainSystem, String subSystem, String group) {
-		String normalizedMain = normalizePathPart(mainSystem, "main system");
-		String normalizedSub = normalizePathPart(subSystem, "sub system");
-		String normalizedGroup = normalizePathPart(group, "group");
+	private static GroupConfig getEffectiveGroupConfig(String mainSystem, String subSystem, String group) {
+		String normalizedMain = mainSystemFolderName(mainSystem);
+		String normalizedSub = subSystemFolderName(subSystem);
+		String normalizedGroup = groupFileName(group);
 		String cacheKey = normalizedMain + "/" + normalizedSub + "/" + normalizedGroup;
 		return GROUP_CONFIG_CACHE.computeIfAbsent(
 			cacheKey,
-			ignored -> loadGroupConfig(normalizedMain, normalizedSub, normalizedGroup)
+			ignored -> loadEffectiveGroupConfig(normalizedMain, normalizedSub, normalizedGroup)
 		);
+	}
+
+	private static GroupConfig loadEffectiveGroupConfig(String mainSystem, String subSystem, String group) {
+		GroupConfig groupConfig = loadGroupConfig(mainSystem, subSystem, group);
+		if (MAIN_GROUP_NAME.equals(group)) {
+			return groupConfig;
+		}
+
+		GroupConfig mainConfig = loadGroupConfig(mainSystem, subSystem, MAIN_GROUP_NAME);
+		if (mainConfig.enabled()) {
+			return new GroupConfig(mainSystem, subSystem, group, true);
+		}
+		return groupConfig;
 	}
 
 	private static GroupConfig loadGroupConfig(String mainSystem, String subSystem, String group) {
@@ -153,20 +230,10 @@ public final class MadokuDebug {
 			return defaultGroupConfig();
 		}
 
-		if (!Files.isRegularFile(file)) {
-			JsonObject defaults = defaultGroupConfig();
-			try {
-				JsonManagerSystem.writeJsonFile(file, defaults);
-			} catch (IOException exception) {
-				LOGGER.error("Failed to create debug config file at {}.", file, exception);
-			}
-			return defaults;
-		}
-
 		try {
-			return JsonManagerSystem.readJsonFile(file);
+			return JsonStaticSystem.ensureManagedFile(file, defaultGroupConfig());
 		} catch (IOException exception) {
-			LOGGER.error("Failed to read debug config file at {}.", file, exception);
+			LOGGER.error("Failed to create or read debug config file at {}.", file, exception);
 			return defaultGroupConfig();
 		}
 	}
@@ -183,9 +250,9 @@ public final class MadokuDebug {
 
 	private static Path resolveGroupFile(String mainSystem, String subSystem, String group) {
 		Path file = resolveRootDirectory()
-			.resolve(mainSystem)
-			.resolve(subSystem)
-			.resolve(group + ".json");
+			.resolve(mainSystemFolderName(mainSystem))
+			.resolve(subSystemFolderName(subSystem))
+			.resolve(groupFileName(group) + ".json");
 		try {
 			Files.createDirectories(file.getParent());
 		} catch (IOException exception) {

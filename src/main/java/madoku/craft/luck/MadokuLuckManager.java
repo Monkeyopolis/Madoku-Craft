@@ -136,6 +136,16 @@ public final class MadokuLuckManager {
 					AttributeModifier.Operation.ADD_VALUE
 				)
 			);
+			emitLuckDebug(
+				"luck.base_applied",
+				player.level() instanceof ServerLevel serverLevel ? serverLevel : null,
+				player.blockPosition(),
+				"player:" + player.getScoreboardName(),
+				Map.of(
+					"starting_points", Double.toString(settings.luck.startingPoints),
+					"max_points", Double.toString(settings.luck.maxPoints)
+				)
+			);
 		}
 	}
 
@@ -158,6 +168,17 @@ public final class MadokuLuckManager {
 		if (bonus > 0.0d) {
 			luckAttribute.addOrUpdateTransientModifier(
 				new AttributeModifier(EFFECT_LUCK_MODIFIER_ID, bonus, AttributeModifier.Operation.ADD_VALUE)
+			);
+			emitLuckDebug(
+				"luck.effect_applied",
+				player.level() instanceof ServerLevel serverLevel ? serverLevel : null,
+				player.blockPosition(),
+				"player:" + player.getScoreboardName(),
+				Map.of(
+					"effect_level", Integer.toString(effectLevel),
+					"bonus", Double.toString(bonus),
+					"max_bonus", Double.toString(maxBonus)
+				)
 			);
 		}
 	}
@@ -847,11 +868,11 @@ public final class MadokuLuckManager {
 	}
 
 	static void emitLuckDebug(String metricId, ServerLevel world, BlockPos pos, String subject, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit("attributes", "luck", "luck")) {
+		if (!MadokuDebug.shouldEmit("attributes", "luck", resolveLuckDebugGroup(metricId))) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "luck")
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", resolveLuckDebugGroup(metricId))
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -871,11 +892,11 @@ public final class MadokuLuckManager {
 	}
 
 	private static void emitMobLuckDebug(String metricId, ServerLevel world, Mob mob, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit("attributes", "luck", "luck")) {
+		if (!MadokuDebug.shouldEmit("attributes", "luck", "mob-drops")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "luck")
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "mob-drops")
 			.side(MadokuDebug.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -892,6 +913,34 @@ public final class MadokuLuckManager {
 			}
 		}
 		builder.log();
+	}
+
+	private static String resolveLuckDebugGroup(String metricId) {
+		if (metricId == null || metricId.isBlank()) {
+			return "luck";
+		}
+		if (metricId.startsWith("luck.mob_drop_")) {
+			return "mob-drops";
+		}
+		if (metricId.startsWith("luck.drop_") || metricId.startsWith("luck.place_")) {
+			return "block-drops";
+		}
+		if (metricId.startsWith("luck.creeper_grief_")) {
+			return "creeper-grief-reduction";
+		}
+		if (metricId.startsWith("luck.ranged_accuracy_")) {
+			return "skeleton-accuracy-reduction";
+		}
+		if (metricId.startsWith("luck.player_crit_")) {
+			return "player-critical-damage";
+		}
+		if (metricId.startsWith("luck.effect_")) {
+			return "luck-effect";
+		}
+		if (metricId.startsWith("luck.base_")) {
+			return "luck";
+		}
+		return "luck";
 	}
 
 	private static ServerPlayer resolveMobLootPlayer(LootContext lootContext) {

@@ -7,6 +7,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
+import madoku.craft.debug.MadokuDebug;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.Holder;
@@ -177,14 +178,33 @@ public final class MadokuOxygenManager {
 		}
 
 		long totalOxygenTicks = baseMaximumOxygenTicks;
-		totalOxygenTicks += getOxygenContributionTicks(entity, settings.waterBreathing.enabled, settings.waterBreathing.oxygen, MobEffects.WATER_BREATHING);
-		totalOxygenTicks += getOxygenContributionTicks(entity, settings.conduitPower.enabled, settings.conduitPower.oxygen, MobEffects.CONDUIT_POWER);
-		totalOxygenTicks += getOxygenContributionTicks(entity, settings.dolphinsGrace.enabled, settings.dolphinsGrace.oxygen, MobEffects.DOLPHINS_GRACE);
+		totalOxygenTicks += getOxygenContributionTicks(
+			entity,
+			settings.waterBreathing.enabled,
+			settings.waterBreathing.oxygen,
+			MobEffects.WATER_BREATHING,
+			"water-breathing"
+		);
+		totalOxygenTicks += getOxygenContributionTicks(
+			entity,
+			settings.conduitPower.enabled,
+			settings.conduitPower.oxygen,
+			MobEffects.CONDUIT_POWER,
+			"conduit-power"
+		);
+		totalOxygenTicks += getOxygenContributionTicks(
+			entity,
+			settings.dolphinsGrace.enabled,
+			settings.dolphinsGrace.oxygen,
+			MobEffects.DOLPHINS_GRACE,
+			"dolphins-grace"
+		);
 		totalOxygenTicks += getOxygenContributionTicks(
 			entity,
 			settings.breathOfTheNautilus.enabled,
 			settings.breathOfTheNautilus.oxygen,
-			MobEffects.BREATH_OF_THE_NAUTILUS
+			MobEffects.BREATH_OF_THE_NAUTILUS,
+			"breath-of-the-nautilus"
 		);
 
 		if (totalOxygenTicks >= Integer.MAX_VALUE) {
@@ -306,6 +326,17 @@ public final class MadokuOxygenManager {
 			state.lastDrowningDamageTick = Long.MIN_VALUE;
 			refreshEffectModifiers(player);
 			applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
+			emitOxygenDebug(
+				"oxygen",
+				"oxygen.restored",
+				player,
+				gameplayTick,
+				Map.of(
+					"oxygen_ticks", Integer.toString(state.oxygenTicks),
+					"oxygen_cap_ticks", Integer.toString(oxygenCapTicks),
+					"mode", player.isSpectator() ? "spectator" : "invulnerable"
+				)
+			);
 			return;
 		}
 
@@ -316,9 +347,31 @@ public final class MadokuOxygenManager {
 			} else {
 				state.lastDrowningDamageTick = Long.MIN_VALUE;
 			}
+			emitOxygenDebug(
+				"oxygen",
+				"oxygen.tick_drain",
+				player,
+				gameplayTick,
+				Map.of(
+					"oxygen_ticks", Integer.toString(state.oxygenTicks),
+					"oxygen_cap_ticks", Integer.toString(oxygenCapTicks),
+					"action", "drain"
+				)
+			);
 		} else {
 			state.oxygenTicks = clampInt(state.oxygenTicks + OXYGEN_RECOVERY_PER_TICK, 0, oxygenCapTicks);
 			state.lastDrowningDamageTick = Long.MIN_VALUE;
+			emitOxygenDebug(
+				"oxygen",
+				"oxygen.tick_recover",
+				player,
+				gameplayTick,
+				Map.of(
+					"oxygen_ticks", Integer.toString(state.oxygenTicks),
+					"oxygen_cap_ticks", Integer.toString(oxygenCapTicks),
+					"action", "recover"
+				)
+			);
 		}
 
 		state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
@@ -351,13 +404,23 @@ public final class MadokuOxygenManager {
 			return;
 		}
 
+		double conduitPowerBonus = resolveConduitPowerMiningSpeedBonus(player);
 		applyPercentageAttributeModifier(
 			player,
 			Attributes.SUBMERGED_MINING_SPEED,
 			CONDUIT_POWER_MINING_SPEED_MODIFIER_ID,
-			resolveConduitPowerMiningSpeedBonus(player),
+			conduitPowerBonus,
 			AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL
 		);
+		if (conduitPowerBonus > 0.0d) {
+			emitOxygenDebug(
+				"conduit-power",
+				"oxygen.conduit_power_applied",
+				player,
+				MadokuTicks.getGameplayTicks(),
+				Map.of("mining_speed_bonus", Double.toString(conduitPowerBonus))
+			);
+		}
 	}
 
 	private static double resolveConduitPowerMiningSpeedBonus(ServerPlayer player) {
@@ -414,7 +477,8 @@ public final class MadokuOxygenManager {
 		LivingEntity entity,
 		boolean enabled,
 		OxygenConfigManager.TicksSettings oxygen,
-		Holder<MobEffect> effect
+		Holder<MobEffect> effect,
+		String group
 	) {
 		if (entity == null || !enabled || oxygen == null || effect == null) {
 			return 0;
@@ -428,6 +492,19 @@ public final class MadokuOxygenManager {
 		long contribution = oxygen.value * (long) level;
 		if (contribution <= 0L) {
 			return 0;
+		}
+		if (group != null && !group.isBlank() && entity instanceof ServerPlayer player) {
+			emitOxygenDebug(
+				group,
+				"oxygen.contribution",
+				player,
+				MadokuTicks.getGameplayTicks(),
+				Map.of(
+					"effect_level", Integer.toString(level),
+					"contribution_ticks", Long.toString(contribution),
+					"oxygen_value", Long.toString(oxygen.value)
+				)
+			);
 		}
 		if (contribution >= Integer.MAX_VALUE) {
 			return Integer.MAX_VALUE;
@@ -462,6 +539,16 @@ public final class MadokuOxygenManager {
 		synchronizeOxygenState(player, state, oxygenCapTicks);
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
+		emitOxygenDebug(
+			"oxygen",
+			"oxygen.join_synced",
+			player,
+			MadokuTicks.getGameplayTicks(),
+			Map.of(
+				"oxygen_ticks", Integer.toString(state.oxygenTicks),
+				"oxygen_cap_ticks", Integer.toString(oxygenCapTicks)
+			)
+		);
 	}
 
 	private static void handlePlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -476,6 +563,16 @@ public final class MadokuOxygenManager {
 		state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
 		refreshEffectModifiers(newPlayer);
 		applyVanillaCompatibleAirSupply(newPlayer, state.oxygenTicks, oxygenCapTicks);
+		emitOxygenDebug(
+			"oxygen",
+			"oxygen.respawn_synced",
+			newPlayer,
+			MadokuTicks.getGameplayTicks(),
+			Map.of(
+				"oxygen_ticks", Integer.toString(state.oxygenTicks),
+				"oxygen_cap_ticks", Integer.toString(oxygenCapTicks)
+			)
+		);
 	}
 
 	private static void applyCustomDrowningDamage(ServerPlayer player, PlayerState state, long gameplayTick) {
@@ -503,6 +600,16 @@ public final class MadokuOxygenManager {
 
 		state.lastDrowningDamageTick = gameplayTick;
 		player.hurtServer(player.level(), player.damageSources().drown(), adjustedDamage);
+		emitOxygenDebug(
+			"suffocating-penalty",
+			"oxygen.suffocating_penalty_applied",
+			player,
+			gameplayTick,
+			Map.of(
+				"damage", Float.toString(adjustedDamage),
+				"oxygen_ticks", Integer.toString(state.oxygenTicks)
+			)
+		);
 	}
 
 	private static boolean shouldDrainOxygen(ServerPlayer player) {
@@ -655,6 +762,31 @@ public final class MadokuOxygenManager {
 		} catch (IllegalArgumentException exception) {
 			return null;
 		}
+	}
+
+	private static void emitOxygenDebug(String group, String metricId, ServerPlayer player, long gameplayTick, Map<String, String> fields) {
+		if (player == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
+			return;
+		}
+		if (!MadokuDebug.shouldEmit("attributes", "oxygen", group)) {
+			return;
+		}
+
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "oxygen", group)
+			.side(MadokuDebug.Side.SERVER)
+			.tick(gameplayTick)
+			.subject("player:" + player.getUUID());
+		if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+			builder.world(serverLevel.dimension().toString());
+		}
+		if (fields != null) {
+			for (Map.Entry<String, String> entry : fields.entrySet()) {
+				if (entry != null) {
+					builder.field(entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		builder.log();
 	}
 
 	private static int clampInt(int value, int min, int max) {

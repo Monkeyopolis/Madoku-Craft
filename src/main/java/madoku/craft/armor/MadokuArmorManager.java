@@ -1,12 +1,15 @@
 package madoku.craft.armor;
 
 import madoku.craft.attributes.MadokuAttributesManager;
+import madoku.craft.debug.MadokuDebug;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+
+import java.util.Map;
 
 public final class MadokuArmorManager {
 	private static final double DAMAGE_ROUND_INCREMENT = 0.05d;
@@ -59,6 +62,20 @@ public final class MadokuArmorManager {
 		double damageAfterArmor = settings.armorPoints.enabled
 			? applyDamageReduction(amount, armorPoints, settings.armorPoints.damageReduction)
 			: amount;
+		if (settings.armorPoints.enabled && Math.abs(damageAfterArmor - amount) > 1.0e-6d) {
+			emitArmorDebug(
+				"armor-points",
+				"armor.armor_points_applied",
+				entity,
+				source,
+				Map.of(
+					"amount", Double.toString(amount),
+					"after", Double.toString(damageAfterArmor),
+					"armor_points", Double.toString(armorPoints),
+					"reduction_type", settings.armorPoints.damageReduction.type.name()
+				)
+			);
+		}
 		double damageAfterToughness = settings.armorToughnessPoints.enabled
 			? applyDamageReduction(
 				damageAfterArmor,
@@ -66,12 +83,53 @@ public final class MadokuArmorManager {
 				settings.armorToughnessPoints.damageReduction
 			)
 			: damageAfterArmor;
+		if (settings.armorToughnessPoints.enabled && Math.abs(damageAfterToughness - damageAfterArmor) > 1.0e-6d) {
+			emitArmorDebug(
+				"armor-toughness-points",
+				"armor.armor_toughness_points_applied",
+				entity,
+				source,
+				Map.of(
+					"amount", Double.toString(damageAfterArmor),
+					"after", Double.toString(damageAfterToughness),
+					"armor_toughness_points", Double.toString(armorToughnessPoints),
+					"reduction_type", settings.armorToughnessPoints.damageReduction.type.name()
+				)
+			);
+		}
 		double damageAfterResistance = applyResistanceReduction(entity, source, damageAfterToughness);
+		if (damageAfterResistance != damageAfterToughness) {
+			emitArmorDebug(
+				"resistance",
+				"armor.resistance_applied",
+				entity,
+				source,
+				Map.of(
+					"amount", Double.toString(damageAfterToughness),
+					"after", Double.toString(damageAfterResistance),
+					"resistance_value", Double.toString(settings.main.resistance.value),
+					"reduction_type", settings.main.resistance.type.name()
+				)
+			);
+		}
 
 		double finalDamage = damageAfterResistance;
 		if (source.is(DamageTypeTags.IS_FALL)) {
 			double mitigatedDamage = Math.max(0.0d, amount - finalDamage);
 			finalDamage = amount - (mitigatedDamage * settings.main.fallDamageReduction);
+			if (Math.abs(finalDamage - damageAfterResistance) > 1.0e-6d) {
+				emitArmorDebug(
+					"main",
+					"armor.fall_damage_reduced",
+					entity,
+					source,
+					Map.of(
+						"amount", Double.toString(damageAfterResistance),
+						"after", Double.toString(finalDamage),
+						"fall_damage_reduction", Double.toString(settings.main.fallDamageReduction)
+					)
+				);
+			}
 		}
 
 		return (float) Math.max(0.0d, roundToDamageIncrement(finalDamage));
@@ -79,6 +137,37 @@ public final class MadokuArmorManager {
 
 	private static void loadStaticConfig() {
 		settings = ArmorConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
+	}
+
+	private static void emitArmorDebug(String group, String metricId, LivingEntity entity, DamageSource source, Map<String, String> fields) {
+		if (entity == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
+			return;
+		}
+		if (!MadokuDebug.shouldEmit("attributes", "armor", group)) {
+			return;
+		}
+
+		String subject = entity instanceof net.minecraft.server.level.ServerPlayer player
+			? "player:" + player.getScoreboardName()
+			: "entity:" + entity.getType().toShortString();
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "armor", group)
+			.side(MadokuDebug.Side.SERVER)
+			.tick(madoku.craft.clock.MadokuTicks.getGameplayTicks())
+			.subject(subject);
+		if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+			builder.world(serverLevel.dimension().toString());
+		}
+		if (source != null) {
+			builder.field("damage_source", source.toString());
+		}
+		if (fields != null) {
+			for (Map.Entry<String, String> entry : fields.entrySet()) {
+				if (entry != null) {
+					builder.field(entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		builder.log();
 	}
 
 	private static double applyDamageReduction(double amount, double points, ArmorConfigManager.DamageReduction reduction) {

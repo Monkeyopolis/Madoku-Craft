@@ -306,8 +306,8 @@ public final class MadokuHealthManager {
 		}
 
 		player.setHealth(target);
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.effect_poison_tick", "attributes", "health", "health")
+		if (MadokuDebug.shouldEmit("attributes", "health", "poison")) {
+			MadokuDebug.event("health.effect_poison_tick", "attributes", "health", "poison")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
@@ -324,8 +324,8 @@ public final class MadokuHealthManager {
 			return;
 		}
 		player.hurtServer(player.level(), player.damageSources().wither(), damage);
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.effect_wither_tick", "attributes", "health", "health")
+		if (MadokuDebug.shouldEmit("attributes", "health", "wither")) {
+			MadokuDebug.event("health.effect_wither_tick", "attributes", "health", "wither")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
@@ -356,8 +356,8 @@ public final class MadokuHealthManager {
 		player.setHealth(target);
 		state.lastPendingActivityTick = gameplayTick;
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.effect_regeneration_tick", "attributes", "health", "health")
+		if (MadokuDebug.shouldEmit("attributes", "health", "regeneration")) {
+			MadokuDebug.event("health.effect_regeneration_tick", "attributes", "health", "regeneration")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
@@ -496,8 +496,8 @@ public final class MadokuHealthManager {
 			}
 
 			state.appliedMaxHealthMultiplier = targetMultiplier;
-			if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-				MadokuDebug.event("health.max_health_scaled", "attributes", "health", "health")
+			if (MadokuDebug.shouldEmit("attributes", "health", "health-penalty")) {
+				MadokuDebug.event("health.max_health_scaled", "attributes", "health", "health-penalty")
 					.side(MadokuDebug.Side.SERVER)
 					.tick(gameplayTick)
 					.subject("player:" + player.getUUID())
@@ -559,8 +559,8 @@ public final class MadokuHealthManager {
 			player.setHealth(Math.min(player.getMaxHealth(), quantizeHealth(player.getMaxHealth())));
 		}
 
-		if (modifierChanged && MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.effect_health_boost_scaled", "attributes", "health", "health")
+		if (modifierChanged && MadokuDebug.shouldEmit("attributes", "health", "health-boost")) {
+			MadokuDebug.event("health.effect_health_boost_scaled", "attributes", "health", "health-boost")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
@@ -588,8 +588,8 @@ public final class MadokuHealthManager {
 
 		player.setAbsorptionAmount(targetAbsorption);
 		state.appliedAbsorptionAmount = targetAbsorption;
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.effect_absorption_scaled", "attributes", "health", "health")
+		if (MadokuDebug.shouldEmit("attributes", "health", "absorption")) {
+			MadokuDebug.event("health.effect_absorption_scaled", "attributes", "health", "absorption")
 				.side(MadokuDebug.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
