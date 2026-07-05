@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
@@ -184,98 +183,76 @@ public final class MadokuMobManager {
 		if (mob == null || world == null || difficulty == null || spawnReason == null || !snapshot.enabled) {
 			return false;
 		}
-		emitSpawnOverrideDebug("head_enter", mob, world, difficulty, spawnReason, "before_vanilla");
 		if (mob instanceof ZombieVillager zombieVillager) {
 			if (MadokuMobZombie.shouldOverrideSpawnRules(zombieVillager)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "zombie_villager");
 				applyZombieSpawnOverrides(zombieVillager, world, difficulty, spawnReason);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "zombie_villager_no_override");
 			return false;
 		}
 		if (mob instanceof Drowned drowned) {
 			if (MadokuMobDrowned.shouldOverrideSpawnRules(drowned)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "drowned");
 				applyDrownedSpawnOverrides(drowned, world, difficulty, spawnReason);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "drowned_no_override");
 			return false;
 		}
 		if (mob instanceof Husk husk) {
 			if (MadokuMobHusk.shouldOverrideSpawnRules(husk)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "husk");
 				MadokuMobHusk.applySpawnOverrides(husk, world, difficulty, spawnReason);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "husk_no_override");
 			return false;
 		}
 		if (mob instanceof Creeper creeper) {
 			if (MadokuMobCreeper.shouldOverrideSpawnRules(creeper)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "creeper");
 				MadokuMobCreeper.applySpawnOverrides(creeper, world, difficulty);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "creeper_no_override");
 			return false;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
 			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				if (MadokuMobWitherSkeleton.shouldOverrideSpawnRules(skeleton)) {
-					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "wither_skeleton");
 					MadokuMobWitherSkeleton.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 					return true;
 				}
-				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "wither_skeleton_no_override");
 				return false;
 			}
 			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
 				if (MadokuMobBogged.shouldOverrideSpawnRules(skeleton)) {
-					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "bogged");
 					MadokuMobBogged.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 					return true;
 				}
-				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "bogged_no_override");
 				return false;
 			}
 			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
 				if (MadokuMobParched.shouldOverrideSpawnRules(skeleton)) {
-					emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "parched");
 					MadokuMobParched.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
 					return true;
 				}
-				emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "parched_no_override");
 				return false;
 			}
 			boolean shouldOverride = shouldOverrideSkeletonSpawnRules(skeleton);
 			if (shouldOverride) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "skeleton");
 				applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "skeleton_no_override");
 			return false;
 		}
 		if (mob instanceof Spider spider) {
 			if (MadokuMobSpider.shouldOverrideSpawnRules(spider)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "spider");
 				return applySpiderSpawnOverrides(spider, world, difficulty, spawnReason);
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "spider_no_override");
 			return false;
 		}
 		if (mob instanceof Zombie zombie) {
 			if (MadokuMobZombie.shouldOverrideSpawnRules(zombie)) {
-				emitSpawnOverrideDebug("head_override", mob, world, difficulty, spawnReason, "zombie");
 				applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
 				return true;
 			}
-			emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "zombie_no_override");
 			return false;
 		}
-		emitSpawnOverrideDebug("head_passthrough", mob, world, difficulty, spawnReason, "unsupported_mob");
 		return false;
 	}
 
@@ -288,45 +265,36 @@ public final class MadokuMobManager {
 		if (mob == null || world == null || difficulty == null || spawnReason == null || !snapshot.enabled) {
 			return;
 		}
-		emitSpawnOverrideDebug("tail_enter", mob, world, difficulty, spawnReason, "after_vanilla");
 		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			MadokuMobBee.applySpawnOverrides(mob, world);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "bee");
 			return;
 		}
 		if (mob.getType() == MadokuEntities.HAG) {
 			MadokuMobHag.applySpawnOverrides(mob);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "hag");
 			return;
 		}
 		if (mob instanceof Spider spider) {
-			boolean applied = applySpiderSpawnOverrides(spider, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug(applied ? "tail_applied" : "tail_passthrough", mob, world, difficulty, spawnReason, "spider");
+			applySpiderSpawnOverrides(spider, world, difficulty, spawnReason);
 			return;
 		}
 		if (mob instanceof ZombieVillager zombieVillager) {
 			applyZombieSpawnOverrides(zombieVillager, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "zombie_villager");
 			return;
 		}
 		if (mob instanceof Drowned drowned) {
 			applyDrownedSpawnOverrides(drowned, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "drowned");
 			return;
 		}
 		if (mob instanceof Husk husk) {
 			MadokuMobHusk.applySpawnOverrides(husk, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "husk");
 			return;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
 			applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "skeleton");
 			return;
 		}
 		if (mob instanceof Zombie zombie) {
 			applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
-			emitSpawnOverrideDebug("tail_applied", mob, world, difficulty, spawnReason, "zombie");
 		}
 	}
 
@@ -1886,7 +1854,6 @@ public final class MadokuMobManager {
 				continue;
 			}
 			if (remainingTicks <= 0) {
-				emitManagedArrowExpired(arrow);
 				arrow.discard();
 				removeArrowRuntimeState(arrowId);
 				continue;
@@ -1900,14 +1867,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_CAVE_SPIDER_REPLACEMENTS.entrySet()) {
-			emitRuntimeSpawnDebug(
-				"process_begin",
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.SPIDER,
-				madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER,
-				entry.getValue(),
-				"deferred_cave_spider"
-			);
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
@@ -1929,14 +1888,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_SPIDER_JOCKEY_REPLACEMENTS.entrySet()) {
-			emitRuntimeSpawnDebug(
-				"process_begin",
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.SPIDER,
-				madoku.craft.entity.MadokuEntityTypes.SKELETON,
-				entry.getValue(),
-				"deferred_spider_jockey"
-			);
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
@@ -1963,14 +1914,6 @@ public final class MadokuMobManager {
 				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
 				continue;
 			}
-			emitRuntimeSpawnDebug(
-				"process_begin",
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.ZOMBIE,
-				replacement.replacementType(),
-				replacement.reason(),
-				"deferred_zombie_replacement"
-			);
 			processQueuedRuntimeReplacement(
 				server,
 				entry.getKey(),
@@ -2004,22 +1947,17 @@ public final class MadokuMobManager {
 		}
 		Entity source = findEntity(server, sourceId);
 		if (source == null || !source.isAlive() || (expectedSourceType != null && source.getType() != expectedSourceType)) {
-			emitRuntimeSpawnDebug(missingPhase, sourceId, expectedSourceType, spawnedType, spawnReason, "missing_or_invalid");
 			return;
 		}
-		emitRuntimeSpawnDebug("source_found", sourceId, source.getType(), spawnedType, spawnReason, "source_alive");
 		if (!(source.level() instanceof ServerLevel level)) {
-			emitRuntimeSpawnDebug(missingPhase, sourceId, source.getType(), spawnedType, spawnReason, "not_server_level");
 			return;
 		}
 
 		EntitySpawnReason reason = spawnReason == null ? EntitySpawnReason.NATURAL : spawnReason;
 		Entity spawnedEntity = spawnedType.create(level, reason);
 		if (spawnedEntity == null) {
-			emitRuntimeSpawnDebug(createFailedPhase, sourceId, source.getType(), spawnedType, reason, "create_returned_null");
 			return;
 		}
-		emitRuntimeSpawnDebug("entity_created", sourceId, source.getType(), spawnedType, reason, "spawned_entity_created");
 
 		spawnedEntity.setPos(source.getX(), source.getY(), source.getZ());
 		spawnedEntity.setYRot(source.getYRot());
@@ -2036,17 +1974,13 @@ public final class MadokuMobManager {
 		}
 		level.tryAddFreshEntityWithPassengers(spawnedEntity);
 		if (attachToSource) {
-			emitRuntimeSpawnDebug("attach_begin", sourceId, source.getType(), spawnedType, reason, "attaching_spawned_entity");
 			if (!spawnedEntity.startRiding(source) && spawnedEntity.isAlive()) {
 				spawnedEntity.discard();
-				emitRuntimeSpawnDebug("attach_failed", sourceId, source.getType(), spawnedType, reason, "start_riding_failed");
 				return;
 			}
 		} else {
-			emitRuntimeSpawnDebug("replace_begin", sourceId, source.getType(), spawnedType, reason, "discarding_source_after_spawn");
 			source.discard();
 		}
-		emitRuntimeSpawnDebug(completedPhase, sourceId, source.getType(), spawnedType, reason, completedDetail);
 	}
 
 	private static Entity findEntity(MinecraftServer server, UUID entityId) {
@@ -2080,7 +2014,6 @@ public final class MadokuMobManager {
 			return;
 		}
 		MANAGED_MOB_ARROWS.put(arrow.getUUID(), MOB_ARROW_LIFETIME_TICKS);
-		emitManagedArrowTracked(arrow);
 		requestRuntimeProcessing(server, 1L);
 	}
 
@@ -2397,98 +2330,12 @@ public final class MadokuMobManager {
 			snapshot = Snapshot.disabled();
 		}
 		EquipmentConfigManager.reloadConfig();
-		emitConfigLoaded();
 	}
 
-	private static void emitConfigLoaded() {
-		String metricId = "mob.config_loaded";
-		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager")) {
-			return;
-		}
-		Snapshot config = snapshot;
-		MadokuDebug.event(metricId, "mobs", "manager", "manager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("mob:global")
-			.field("enabled", config.enabled())
-			.field("mob_files", config.files().size())
-			.log();
-	}
 
-	private static void emitManagedArrowTracked(AbstractArrow arrow) {
-		String metricId = "mob.arrow_tracked";
-		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || arrow == null) {
-			return;
-		}
-		Entity owner = arrow.getOwner();
-		MadokuDebug.event(metricId, "mobs", "manager", "manager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("arrow:" + arrow.getUUID())
-			.field("owner", owner == null ? "unknown" : owner.getType().toShortString())
-			.field("ttl_ticks", MOB_ARROW_LIFETIME_TICKS)
-			.log();
-	}
 
-	private static void emitManagedArrowExpired(AbstractArrow arrow) {
-		String metricId = "mob.arrow_expired";
-		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || arrow == null) {
-			return;
-		}
-		Entity owner = arrow.getOwner();
-		MadokuDebug.event(metricId, "mobs", "manager", "manager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("arrow:" + arrow.getUUID())
-			.field("owner", owner == null ? "unknown" : owner.getType().toShortString())
-			.field("reason", "lifetime_reached")
-			.log();
-	}
 
-	private static void emitRuntimeSpawnDebug(
-		String phase,
-		UUID sourceId,
-		EntityType<?> sourceType,
-		EntityType<?> spawnedType,
-		EntitySpawnReason spawnReason,
-		String detail
-	) {
-		String metricId = "mob.runtime_spawn";
-		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager")) {
-			return;
-		}
-		MadokuDebug.event(metricId, "mobs", "manager", "manager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject((sourceType == null ? "entity" : sourceType.toShortString()) + ":" + (sourceId == null ? "unknown" : sourceId))
-			.field("phase", phase)
-			.field("source_type", sourceType == null ? "unknown" : sourceType.toShortString())
-			.field("spawned_type", spawnedType == null ? "unknown" : spawnedType.toShortString())
-			.field("spawn_reason", spawnReason == null ? "unknown" : spawnReason.toString())
-			.field("detail", detail == null ? "" : detail)
-			.log();
-	}
 
-	static void emitSpawnOverrideDebug(
-		String phase,
-		Mob mob,
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		EntitySpawnReason spawnReason,
-		String detail
-	) {
-		String metricId = "mob.spawn_override_trace";
-		if (!MadokuDebug.shouldEmit("mobs", "manager", "manager") || mob == null) {
-			return;
-		}
-		String mainHand = resolveItemIdForRuntime(mob.getMainHandItem());
-		MadokuDebug.event(metricId, "mobs", "manager", "manager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject(mob.getType().toShortString() + ":" + mob.getUUID())
-			.field("phase", phase)
-			.field("mob_type", mob.getType().toShortString())
-			.field("spawn_reason", spawnReason == null ? "unknown" : spawnReason.toString())
-			.field("difficulty", difficulty == null ? "unknown" : difficulty.getDifficulty().toString())
-			.field("main_hand", mainHand)
-			.field("detail", detail == null ? "" : detail)
-			.log();
-	}
 
 	private static JsonObject root(String key) {
 		return snapshot.files.getOrDefault(normalizeKey(key), new JsonObject());
@@ -3341,6 +3188,7 @@ public final class MadokuMobManager {
 		}
 	}
 }
+
 
 
 

@@ -1,7 +1,6 @@
 package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
@@ -66,20 +65,6 @@ public final class MadokuMobSkeleton {
 			return;
 		}
 		JsonObject resolvedRoot = mergeSkeletonFileSettings(fileConfigRoot, variantGroup);
-		String selectedVariant = readStoredSkeletonVariantKey(skeleton);
-		String configuredWeapon = readConfiguredMobWeaponItemId(resolvedRoot);
-		String mainHandBefore = MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem());
-		emitSkeletonSpawnDebug(
-			"resolved",
-			skeleton,
-			world,
-			difficulty,
-			spawnReason,
-			selectedVariant,
-			configuredWeapon,
-			mainHandBefore,
-			"variant_selected"
-		);
 
 		boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 		boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_STATS, true);
@@ -91,29 +76,7 @@ public final class MadokuMobSkeleton {
 			MadokuMobManager.applyUniversalStatsForRuntime(skeleton, resolvedRoot);
 		}
 		boolean bowAttackEnabled = isBowAttackEnabled(skeleton);
-		emitSkeletonSpawnDebug(
-			"post_apply",
-			skeleton,
-			world,
-			difficulty,
-			spawnReason,
-			selectedVariant,
-			configuredWeapon,
-			MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem()),
-			bowAttackEnabled ? "bow_attack_enabled" : "bow_attack_disabled"
-		);
 		if (bowAttackEnabled) {
-			emitSkeletonSpawnDebug(
-				"ensure_bow",
-				skeleton,
-				world,
-				difficulty,
-				spawnReason,
-				selectedVariant,
-				configuredWeapon,
-				MadokuMobManager.resolveItemIdForRuntime(skeleton.getMainHandItem()),
-				"forcing_bow_equipped"
-			);
 			MadokuMobManager.ensureBowEquipped(skeleton);
 		}
 	}
@@ -634,34 +597,6 @@ public final class MadokuMobSkeleton {
 		return merged;
 	}
 
-	private static void emitSkeletonSpawnDebug(
-		String phase,
-		AbstractSkeleton skeleton,
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		EntitySpawnReason spawnReason,
-		String variantKey,
-		String configuredWeapon,
-		String mainHand,
-		String detail
-	) {
-		String metricId = "mob.skeleton_spawn_trace";
-		if (skeleton == null || !MadokuDebug.shouldEmit("mobs", "skeleton", "skeleton")) {
-			return;
-		}
-		MadokuDebug.event(metricId, "mobs", "skeleton", "skeleton")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("skeleton:" + skeleton.getUUID())
-			.world(world == null || world.getLevel() == null ? "" : world.getLevel().dimension().toString())
-			.field("phase", phase)
-			.field("variant", variantKey == null || variantKey.isBlank() ? "default" : variantKey)
-			.field("spawn_reason", spawnReason == null ? "unknown" : spawnReason.toString())
-			.field("difficulty", difficulty == null ? "unknown" : difficulty.getDifficulty().toString())
-			.field("configured_weapon", configuredWeapon == null || configuredWeapon.isBlank() ? "none" : configuredWeapon)
-			.field("main_hand", mainHand == null || mainHand.isBlank() ? "unknown" : mainHand)
-			.field("detail", detail == null ? "" : detail)
-			.log();
-	}
 
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
 		if (target == null || source == null || key == null || key.isBlank()) {
@@ -686,12 +621,6 @@ public final class MadokuMobSkeleton {
 			}
 		}
 		return "";
-	}
-
-	private static String readConfiguredMobWeaponItemId(JsonObject resolvedRoot) {
-		JsonObject statsRoot = readMobStatsRoot(resolvedRoot);
-		JsonObject weaponRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_WEAPON);
-		return readString(weaponRoot, MobConfigManager.FIELD_ITEM, "");
 	}
 
 	private static void writeSkeletonVariantTag(AbstractSkeleton skeleton, String variantKey) {
@@ -903,4 +832,5 @@ public final class MadokuMobSkeleton {
 		}
 	}
 }
+
 

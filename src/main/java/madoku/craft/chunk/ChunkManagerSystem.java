@@ -62,6 +62,7 @@ public final class ChunkManagerSystem {
 	private static final Set<ProcessorChunkKey> DIRTY_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Map<ProcessorChunkKey, Long> DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS = new LinkedHashMap<>();
 	private static final Map<ProcessorChunkKey, CachedChunkColumns> DISCOVERY_COLUMNS_CACHE = new LinkedHashMap<>();
+	private static final Map<ProcessorChunkKey, ChunkDiscoveryProgress> DISCOVERY_PROGRESS_BY_CHUNK = new LinkedHashMap<>();
 	private static final ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = ChunkDiscoverySnapshot.reusable(CHUNK_COLUMN_COUNT);
 	private static final ThreadLocal<Integer> INTERNAL_PROCESSOR_MUTATION_DEPTH = ThreadLocal.withInitial(() -> 0);
 
@@ -95,6 +96,12 @@ public final class ChunkManagerSystem {
 			return false;
 		}
 
+		default void beginLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
+		}
+
+		default void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
+		}
+
 		// Snapshot data is callback-scoped and backed by reusable storage.
 		// Processors must not retain references to snapshot/column instances outside this call.
 		void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkDiscoverySnapshot snapshot);
@@ -110,6 +117,7 @@ public final class ChunkManagerSystem {
 		private final List<ColumnSample> surfaceColumns;
 		private boolean hasMotionColumns;
 		private boolean hasSurfaceColumns;
+		private int activeColumnIndex;
 
 		private ChunkDiscoverySnapshot(int capacity) {
 			int safeCapacity = Math.max(1, capacity);
@@ -122,6 +130,7 @@ public final class ChunkManagerSystem {
 			this.motionColumns = motion;
 			this.surfaceColumns = surface;
 			this.levelId = "";
+			this.activeColumnIndex = -1;
 		}
 
 		private static ChunkDiscoverySnapshot reusable(int capacity) {
@@ -134,6 +143,12 @@ public final class ChunkManagerSystem {
 			this.chunkZ = chunkZ;
 			this.hasMotionColumns = needsMotionColumns;
 			this.hasSurfaceColumns = needsSurfaceColumns;
+			this.activeColumnIndex = -1;
+		}
+
+		private void beginColumn(String levelId, int chunkX, int chunkZ, int columnIndex, boolean needsMotionColumns, boolean needsSurfaceColumns) {
+			begin(levelId, chunkX, chunkZ, needsMotionColumns, needsSurfaceColumns);
+			this.activeColumnIndex = columnIndex;
 		}
 
 		public String levelId() {
@@ -152,6 +167,9 @@ public final class ChunkManagerSystem {
 			if (!hasMotionColumns) {
 				return List.of();
 			}
+			if (activeColumnIndex >= 0) {
+				return List.of(motionColumnAt(activeColumnIndex));
+			}
 			return motionColumns;
 		}
 
@@ -167,7 +185,14 @@ public final class ChunkManagerSystem {
 			if (!hasSurfaceColumns) {
 				return List.of();
 			}
+			if (activeColumnIndex >= 0) {
+				return List.of(surfaceColumnAt(activeColumnIndex));
+			}
 			return surfaceColumns;
+		}
+
+		public int activeColumnIndex() {
+			return activeColumnIndex;
 		}
 
 		private ColumnSample motionColumnAt(int index) {
@@ -240,6 +265,24 @@ public final class ChunkManagerSystem {
 		}
 	}
 
+	private static final class ChunkDiscoveryProgress {
+		private int nextColumnIndex;
+		private boolean started;
+
+		private ChunkDiscoveryProgress(int nextColumnIndex, boolean started) {
+			this.nextColumnIndex = Math.max(0, Math.min(CHUNK_COLUMN_COUNT - 1, nextColumnIndex));
+			this.started = started;
+		}
+
+		private static ChunkDiscoveryProgress fresh() {
+			return new ChunkDiscoveryProgress(0, false);
+		}
+
+		private void reset(int nextColumnIndex) {
+			this.nextColumnIndex = Math.max(0, Math.min(CHUNK_COLUMN_COUNT - 1, nextColumnIndex));
+		}
+	}
+
 	public static void initialize() {
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkManagerSystem::runChunkRefreshTask);
 		ServerChunkEvents.CHUNK_LOAD.register(ChunkManagerSystem::onChunkLoad);
@@ -254,6 +297,7 @@ public final class ChunkManagerSystem {
 		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
 		DISCOVERY_COLUMNS_CACHE.clear();
+		DISCOVERY_PROGRESS_BY_CHUNK.clear();
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime != null) {
 				runtime.resetState();
@@ -383,7 +427,7 @@ public final class ChunkManagerSystem {
 
 		refreshCachedColumn(level, chunkX, chunkZ, pos.getX(), pos.getZ());
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId(level), chunkX, chunkZ);
-		markChunkDiscoveryDirty(chunkKey);
+		markChunkDiscoveryDirty(chunkKey, chunkColumnIndex(pos.getX(), pos.getZ()));
 		markTrackedChunkDirtyForAllProcessors(chunkKey);
 	}
 
@@ -401,6 +445,7 @@ public final class ChunkManagerSystem {
 		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
 		DISCOVERY_COLUMNS_CACHE.clear();
+		DISCOVERY_PROGRESS_BY_CHUNK.clear();
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
 		serverStopping = false;
@@ -552,7 +597,8 @@ public final class ChunkManagerSystem {
 		putChunkStatus(loadedLevelId, chunkPos.pack(), FullChunkStatus.FULL);
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(loadedLevelId, chunkPos.x(), chunkPos.z());
 		addSharedDiscoveryLoadedChunk(chunkKey);
-		markChunkDiscoveryDirty(chunkKey);
+		resetDiscoveryProgress(chunkKey, 0);
+		markChunkDiscoveryDirty(chunkKey, 0);
 		markTrackedChunkDirtyForAllProcessors(chunkKey);
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
@@ -577,6 +623,7 @@ public final class ChunkManagerSystem {
 		removeChunk(unloadedLevelId, chunkPos.pack());
 		ProcessorChunkKey chunkKey = new ProcessorChunkKey(unloadedLevelId, chunkPos.x(), chunkPos.z());
 		removeCachedChunkColumns(chunkKey);
+		removeDiscoveryProgress(chunkKey);
 		removeSharedDiscoveryLoadedChunk(chunkKey);
 		removeDirtyDiscoveryChunk(chunkKey);
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
@@ -614,6 +661,7 @@ public final class ChunkManagerSystem {
 		DIRTY_DISCOVERY_CHUNKS.clear();
 		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
 		DISCOVERY_COLUMNS_CACHE.clear();
+		DISCOVERY_PROGRESS_BY_CHUNK.clear();
 		discoveryChunkScanCursor = 0;
 		for (ServerLevel level : server.getAllLevels()) {
 			if (level == null) {
@@ -631,7 +679,8 @@ public final class ChunkManagerSystem {
 					putChunkStatus(levelId, chunk.getPos().pack(), status);
 					ProcessorChunkKey chunkKey = new ProcessorChunkKey(levelId, chunk.getPos().x(), chunk.getPos().z());
 					addSharedDiscoveryLoadedChunk(chunkKey);
-					markChunkDiscoveryDirty(chunkKey);
+					resetDiscoveryProgress(chunkKey, 0);
+					markChunkDiscoveryDirty(chunkKey, 0);
 				}
 			});
 		}
@@ -899,7 +948,7 @@ public final class ChunkManagerSystem {
 		seedSharedDiscoveryChunksIfNeeded(server);
 		ProcessorChunkKey dirtyChunk = pollNextDirtyDiscoveryChunk(server);
 		if (dirtyChunk != null) {
-			runChunkDiscoveryCallbacks(server, dirtyChunk, false);
+			runChunkDiscoveryCallbacks(server, dirtyChunk);
 			return;
 		}
 
@@ -923,7 +972,7 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		runChunkDiscoveryCallbacks(server, selectedChunk, true);
+		runChunkDiscoveryCallbacks(server, selectedChunk);
 
 		boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
 		discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
@@ -947,7 +996,7 @@ public final class ChunkManagerSystem {
 		}
 	}
 
-	private static void runChunkDiscoveryCallbacks(MinecraftServer server, ProcessorChunkKey chunkKey, boolean forceRescan) {
+	private static void runChunkDiscoveryCallbacks(MinecraftServer server, ProcessorChunkKey chunkKey) {
 		if (server == null || chunkKey == null || chunkKey.levelId().isBlank()) {
 			return;
 		}
@@ -959,7 +1008,6 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		ChunkDiscoverySnapshot discoverySnapshot;
 		List<ChunkProcessorRuntime> activeRuntimes = new ArrayList<>();
 		boolean needsMotionColumns = false;
 		boolean needsSurfaceColumns = false;
@@ -978,17 +1026,40 @@ public final class ChunkManagerSystem {
 			return;
 		}
 
-		discoverySnapshot = buildDiscoverySnapshot(
+		ChunkDiscoveryProgress progress = getOrCreateDiscoveryProgress(chunkKey);
+		if (progress == null) {
+			return;
+		}
+		if (!progress.started) {
+			for (ChunkProcessorRuntime runtime : activeRuntimes) {
+				runtime.processor.beginLoadedChunkDiscovery(world, chunkKey.chunkX(), chunkKey.chunkZ());
+			}
+			progress.started = true;
+		}
+
+		int columnIndex = progress.nextColumnIndex;
+		ChunkDiscoverySnapshot discoverySnapshot = buildDiscoverySnapshot(
 			world,
 			chunkKey.chunkX(),
 			chunkKey.chunkZ(),
+			columnIndex,
 			needsMotionColumns,
-			needsSurfaceColumns,
-			forceRescan
+			needsSurfaceColumns
 		);
 		for (ChunkProcessorRuntime runtime : activeRuntimes) {
 			runtime.processor.discoverLoadedChunk(world, chunkKey.chunkX(), chunkKey.chunkZ(), discoverySnapshot);
 		}
+
+		boolean completedCycle = columnIndex + 1 >= CHUNK_COLUMN_COUNT;
+		if (completedCycle) {
+			for (ChunkProcessorRuntime runtime : activeRuntimes) {
+				runtime.processor.finishLoadedChunkDiscovery(world, chunkKey.chunkX(), chunkKey.chunkZ());
+			}
+			progress.started = false;
+			progress.reset(0);
+			return;
+		}
+		progress.reset(columnIndex + 1);
 	}
 
 	private static ProcessorChunkKey pollNextDirtyDiscoveryChunk(MinecraftServer server) {
@@ -1012,10 +1083,11 @@ public final class ChunkManagerSystem {
 		return null;
 	}
 
-	private static void markChunkDiscoveryDirty(ProcessorChunkKey chunkKey) {
+	private static void markChunkDiscoveryDirty(ProcessorChunkKey chunkKey, int columnIndex) {
 		if (chunkKey == null || chunkKey.levelId().isBlank()) {
 			return;
 		}
+		resetDiscoveryProgress(chunkKey, columnIndex);
 		if (!canRequeueDirtyChunk(chunkKey, DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS)) {
 			return;
 		}
@@ -1024,6 +1096,34 @@ public final class ChunkManagerSystem {
 		}
 		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.put(chunkKey, MadokuTicks.getGameplayTicks());
 		DIRTY_DISCOVERY_CHUNKS.addLast(chunkKey);
+	}
+
+	private static ChunkDiscoveryProgress getOrCreateDiscoveryProgress(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null || chunkKey.levelId().isBlank()) {
+			return null;
+		}
+		return DISCOVERY_PROGRESS_BY_CHUNK.computeIfAbsent(chunkKey, ignored -> ChunkDiscoveryProgress.fresh());
+	}
+
+	private static void resetDiscoveryProgress(ProcessorChunkKey chunkKey, int columnIndex) {
+		ChunkDiscoveryProgress progress = getOrCreateDiscoveryProgress(chunkKey);
+		if (progress == null) {
+			return;
+		}
+		progress.reset(columnIndex);
+	}
+
+	private static void removeDiscoveryProgress(ProcessorChunkKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		DISCOVERY_PROGRESS_BY_CHUNK.remove(chunkKey);
+	}
+
+	private static int chunkColumnIndex(int worldX, int worldZ) {
+		int localX = worldX & 15;
+		int localZ = worldZ & 15;
+		return (localX << 4) + localZ;
 	}
 
 	private static void removeDirtyDiscoveryChunk(ProcessorChunkKey chunkKey) {
@@ -1118,44 +1218,45 @@ public final class ChunkManagerSystem {
 		ServerLevel world,
 		int chunkX,
 		int chunkZ,
+		int columnIndex,
 		boolean needsMotionColumns,
-		boolean needsSurfaceColumns,
-		boolean forceRescan
+		boolean needsSurfaceColumns
 	) {
-		REUSABLE_DISCOVERY_SNAPSHOT.begin(levelId(world), chunkX, chunkZ, needsMotionColumns, needsSurfaceColumns);
+		REUSABLE_DISCOVERY_SNAPSHOT.beginColumn(levelId(world), chunkX, chunkZ, columnIndex, needsMotionColumns, needsSurfaceColumns);
 		if (world == null || (!needsMotionColumns && !needsSurfaceColumns)) {
 			return REUSABLE_DISCOVERY_SNAPSHOT;
 		}
 
-		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ, forceRescan);
+		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ);
 		if (cached == null) {
 			return REUSABLE_DISCOVERY_SNAPSHOT;
 		}
-		copyCachedColumnsToReusableSnapshot(cached, needsMotionColumns, needsSurfaceColumns);
+		int localX = Math.floorDiv(columnIndex, 16);
+		int localZ = Math.floorMod(columnIndex, 16);
+		updateCachedColumnSamples(cached, world, chunkX, chunkZ, localX, localZ);
+		copyCachedColumnToReusableSnapshot(cached, columnIndex, needsMotionColumns, needsSurfaceColumns);
 
 		return REUSABLE_DISCOVERY_SNAPSHOT;
 	}
 
-	private static void copyCachedColumnsToReusableSnapshot(
+	private static void copyCachedColumnToReusableSnapshot(
 		CachedChunkColumns cached,
+		int columnIndex,
 		boolean needsMotionColumns,
 		boolean needsSurfaceColumns
 	) {
-		if (cached == null) {
+		if (cached == null || columnIndex < 0 || columnIndex >= CHUNK_COLUMN_COUNT) {
 			return;
 		}
-		int size = Math.min(CHUNK_COLUMN_COUNT, Math.min(cached.motionColumns.size(), cached.surfaceColumns.size()));
-		for (int index = 0; index < size; index++) {
-			if (needsMotionColumns) {
-				REUSABLE_DISCOVERY_SNAPSHOT.motionColumnAt(index).copyFrom(cached.motionColumns.get(index));
-			}
-			if (needsSurfaceColumns) {
-				REUSABLE_DISCOVERY_SNAPSHOT.surfaceColumnAt(index).copyFrom(cached.surfaceColumns.get(index));
-			}
+		if (needsMotionColumns) {
+			REUSABLE_DISCOVERY_SNAPSHOT.motionColumnAt(columnIndex).copyFrom(cached.motionColumns.get(columnIndex));
+		}
+		if (needsSurfaceColumns) {
+			REUSABLE_DISCOVERY_SNAPSHOT.surfaceColumnAt(columnIndex).copyFrom(cached.surfaceColumns.get(columnIndex));
 		}
 	}
 
-	private static CachedChunkColumns getOrCreateCachedChunkColumns(ServerLevel world, int chunkX, int chunkZ, boolean forceRescan) {
+	private static CachedChunkColumns getOrCreateCachedChunkColumns(ServerLevel world, int chunkX, int chunkZ) {
 		if (world == null || !isChunkLoaded(world, chunkX, chunkZ)) {
 			return null;
 		}
@@ -1164,10 +1265,6 @@ public final class ChunkManagerSystem {
 		if (cached == null) {
 			cached = new CachedChunkColumns(CHUNK_COLUMN_COUNT);
 			DISCOVERY_COLUMNS_CACHE.put(chunkKey, cached);
-			forceRescan = true;
-		}
-		if (forceRescan) {
-			rescanChunkColumnsIntoCache(world, chunkX, chunkZ, cached);
 		}
 		return cached;
 	}
@@ -1176,7 +1273,7 @@ public final class ChunkManagerSystem {
 		if (world == null || !isChunkLoaded(world, chunkX, chunkZ)) {
 			return;
 		}
-		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ, false);
+		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ);
 		if (cached == null) {
 			return;
 		}
@@ -1193,17 +1290,6 @@ public final class ChunkManagerSystem {
 			return;
 		}
 		DISCOVERY_COLUMNS_CACHE.remove(chunkKey);
-	}
-
-	private static void rescanChunkColumnsIntoCache(ServerLevel world, int chunkX, int chunkZ, CachedChunkColumns cached) {
-		if (world == null || cached == null) {
-			return;
-		}
-		for (int localX = 0; localX < 16; localX++) {
-			for (int localZ = 0; localZ < 16; localZ++) {
-				updateCachedColumnSamples(cached, world, chunkX, chunkZ, localX, localZ);
-			}
-		}
 	}
 
 	private static void updateCachedColumnSamples(
@@ -1257,6 +1343,7 @@ public final class ChunkManagerSystem {
 		}
 		removeDirtyDiscoveryChunk(chunkKey);
 		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.remove(chunkKey);
+		removeDiscoveryProgress(chunkKey);
 		if (!DISCOVERY_LOADED_CHUNK_KEYS.remove(chunkKey)) {
 			return;
 		}
@@ -1544,4 +1631,3 @@ public final class ChunkManagerSystem {
 		return (int) packedChunk;
 	}
 }
-

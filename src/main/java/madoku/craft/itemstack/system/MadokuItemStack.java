@@ -10,12 +10,10 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -210,7 +208,6 @@ public final class MadokuItemStack {
 
 		inventory.setChanged();
 		savePersistedData(player.level().getServer());
-		emitDeathDropHandled(player, dropCount, keptStacks.size());
 		return true;
 	}
 
@@ -330,27 +327,10 @@ public final class MadokuItemStack {
 			if (changed || !root.equals(document.main()) || !general.equals(document.general())) {
 				JsonStaticSystem.writeManagedDocument(configFile, root, general);
 			}
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			configuration.resetToDefaults();
 			LOGGER.error("Failed to load MadokuItemStack config; using defaults.", exception);
 		}
-	}
-
-	private static void emitConfigLoaded() {
-		String metricId = "itemstack.config_loaded";
-		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
-			return;
-		}
-
-		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("itemstack:global")
-			.field("enabled", configuration.enabled)
-			.field("stack_limit", configuration.customStackAmount)
-			.field("death_drop_enabled", configuration.deathDropEnabled)
-			.field("death_drop_percent", configuration.deathDropStackPercent)
-			.log();
 	}
 
 	private static void onAfterRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -364,10 +344,6 @@ public final class MadokuItemStack {
 		}
 
 		Inventory inventory = newPlayer.getInventory();
-		int restored = 0;
-		int inserted = 0;
-		int dropped = 0;
-
 		for (KeptStack entry : keptStacks) {
 			ItemStack stack = entry.stack();
 			if (stack.isEmpty()) {
@@ -377,23 +353,16 @@ public final class MadokuItemStack {
 			int slot = entry.slot();
 			if (slot >= 0 && slot < inventory.getContainerSize() && inventory.getItem(slot).isEmpty()) {
 				inventory.setItem(slot, stack);
-				restored++;
 				continue;
 			}
 
-			if (inventory.add(stack)) {
-				inserted++;
-			} else {
-				ItemEntity droppedEntity = newPlayer.drop(stack, true, false);
-				if (droppedEntity != null) {
-					dropped++;
-				}
+			if (!inventory.add(stack)) {
+				newPlayer.drop(stack, true, false);
 			}
 		}
 
 		inventory.setChanged();
 		savePersistedData(newPlayer.level().getServer());
-		emitRespawnRestore(newPlayer, restored, inserted, dropped);
 	}
 
 	private static ServerPlayer resolveServerPlayer(Inventory inventory) {
@@ -441,35 +410,7 @@ public final class MadokuItemStack {
 		}
 	}
 
-	private static void emitDeathDropHandled(ServerPlayer player, int droppedStacks, int keptStacks) {
-		String metricId = "itemstack.death_drop_handled";
-		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
-			return;
-		}
-		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("player:" + player.getUUID())
-			.world(player.level().dimension().toString())
-			.field("dropped_stacks", droppedStacks)
-			.field("kept_stacks", keptStacks)
-			.field("drop_percent", configuration.deathDropStackPercent)
-			.log();
-	}
 
-	private static void emitRespawnRestore(ServerPlayer player, int restored, int inserted, int dropped) {
-		String metricId = "itemstack.death_restore";
-		if (!MadokuDebug.shouldEmit("itemstack", "itemstack", "itemstack")) {
-			return;
-		}
-		MadokuDebug.event(metricId, "itemstack", "itemstack", "itemstack")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("player:" + player.getUUID())
-			.world(player.level().dimension().toString())
-			.field("restored_to_slot", restored)
-			.field("restored_by_insert", inserted)
-			.field("forced_drop", dropped)
-			.log();
-	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
@@ -500,4 +441,5 @@ public final class MadokuItemStack {
 	private record KeptStack(int slot, ItemStack stack) {
 	}
 }
+
 

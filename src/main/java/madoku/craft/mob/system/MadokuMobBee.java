@@ -2,7 +2,6 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
@@ -25,10 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MadokuMobBee {
-	private static final String METRIC_BEE_CROP_MODE = "mob.bee_crop_mode";
-	private static final String METRIC_BEE_CROP_GROWTH = "mob.bee_crop_growth";
-	private static final String METRIC_BEE_CROP_TARGET = "mob.bee_crop_target";
-	private static final String METRIC_BEE_CROP_STATE = "mob.bee_crop_state";
 	private static final int DEFAULT_NECTAR_TOTAL_CHARGES = 10;
 	private static final int DEFAULT_SEARCH_DURATION_TICKS = 1200;
 	private static final int DEFAULT_SEARCH_RADIUS_HORIZONTAL = 12;
@@ -120,13 +115,11 @@ public final class MadokuMobBee {
 			}
 			if (!MadokuMobManager.isBeeBehaviorOverrideEnabled()) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(level, bee, "override_behavior_disabled");
 				resetBeeNectarCycle(bee.getUUID());
 				continue;
 			}
 			if (!MadokuMobManager.isBeeGoalsOverrideEnabled()) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(level, bee, "override_goals_disabled");
 				resetBeeNectarCycle(bee.getUUID());
 				continue;
 			}
@@ -135,7 +128,6 @@ public final class MadokuMobBee {
 			boolean pollinateCropsEnabled = getBoolean(pollinateCropsRoot, MobConfigManager.FIELD_ENABLED, false);
 			if (!pollinateCropsEnabled) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(level, bee, "pollinate-crops disabled");
 				resetBeeNectarCycle(bee.getUUID());
 				continue;
 			}
@@ -190,13 +182,11 @@ public final class MadokuMobBee {
 			UUID beeId = bee.getUUID();
 			if (!bee.hasNectar()) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(level, bee, "hasNectar=false");
 				resetBeeNectarCycle(beeId);
 				continue;
 			}
 			if (BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE.contains(beeId)) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(level, bee, "minimum_locked_until_nectar_reset");
 				clearBeeNectarState(beeId);
 				continue;
 			}
@@ -207,30 +197,12 @@ public final class MadokuMobBee {
 			);
 			if (state.chargesRemaining <= 0 || state.searchExpiresAtTick <= nowTick) {
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(
-					level,
-					bee,
-					"state_expired",
-					"charges_remaining",
-					state.chargesRemaining,
-					"search_expires",
-					state.searchExpiresAtTick
-				);
 				clearBeeNectarState(beeId);
 				continue;
 			}
 			if (state.chargesRemaining <= state.minimumChargesRemaining) {
 				BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE.add(beeId);
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(
-					level,
-					bee,
-					"minimum_charges_reached",
-					"charges_remaining",
-					state.chargesRemaining,
-					"minimum_charges_remaining",
-					state.minimumChargesRemaining
-				);
 				clearBeeNectarState(beeId);
 				continue;
 			}
@@ -256,7 +228,6 @@ public final class MadokuMobBee {
 					continue;
 				}
 				state.assignTarget(target.cropKey(), target.pos(), target.levelId());
-				emitBeeTargetDebug(level, bee, "acquired", target.pos(), target.cropKey());
 			}
 
 			BlockPos targetPos = BlockPos.of(state.reservedCropPos);
@@ -281,7 +252,6 @@ public final class MadokuMobBee {
 
 			BlockState targetState = level.getBlockState(targetPos);
 			if (!isBeeSupportedCrop(targetState) || isBeeCropFullyGrown(targetState) || !isFarmlandBelow(level, targetPos)) {
-				emitBeeTargetDebug(level, bee, "invalid_target", targetPos.asLong(), state.reservedCropKey);
 				releaseBeeCropReservation(beeId, state.reservedCropKey);
 				state.clearTarget();
 				continue;
@@ -293,26 +263,12 @@ public final class MadokuMobBee {
 			int chargesToSpend = 1;
 			boolean farmingEnabled = MadokuFarming.isEnabled();
 			boolean appliedGrowth;
-			String growthMode;
 			double percentGrowth = chargesToSpend * growthPercentPerCharge;
 			if (farmingEnabled) {
 				appliedGrowth = MadokuFarming.applyExternalGrowthPercent(level, targetPos, percentGrowth, "bee_nectar");
-				growthMode = "madoku_farming_percent";
 			} else {
 				appliedGrowth = growCropBySingleStage(level, targetPos, targetState);
-				growthMode = "vanilla_stage_fallback";
 			}
-			emitBeeGrowthDebug(
-				level,
-				bee,
-				targetPos,
-				growthMode,
-				farmingEnabled,
-				chargesToSpend,
-				state.chargesRemaining,
-				percentGrowth,
-				appliedGrowth
-			);
 			if (!appliedGrowth) {
 				releaseBeeCropReservation(beeId, state.reservedCropKey);
 				state.clearTarget();
@@ -326,15 +282,6 @@ public final class MadokuMobBee {
 			if (state.chargesRemaining <= state.minimumChargesRemaining) {
 				BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE.add(beeId);
 				allowBeeHiveReturn(bee);
-				emitBeeStateDebug(
-					level,
-					bee,
-					"minimum_charges_reached",
-					"charges_remaining",
-					state.chargesRemaining,
-					"minimum_charges_remaining",
-					state.minimumChargesRemaining
-				);
 				clearBeeNectarState(beeId);
 			}
 		}
@@ -484,98 +431,9 @@ public final class MadokuMobBee {
 		bee.setStayOutOfHiveCountdown(0);
 	}
 
-	private static void emitBeeStateDebug(ServerLevel level, Bee bee, String outcome) {
-		emitBeeStateDebug(level, bee, outcome, "", "", "", "");
-	}
 
-	private static void emitBeeStateDebug(
-		ServerLevel level,
-		Bee bee,
-		String outcome,
-		String fieldOneName,
-		Object fieldOneValue,
-		String fieldTwoName,
-		Object fieldTwoValue
-	) {
-		if (level == null || bee == null || !MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_BEE_CROP_STATE, "mobs", "bee", "bee")
-			.side(MadokuDebug.Side.SERVER)
-			.tick(level.getGameTime())
-			.world(level.dimension().toString())
-			.subject("bee:" + bee.getUUID())
-			.field("outcome", outcome)
-			.field("is_baby", bee.isBaby())
-			.field("has_nectar", bee.hasNectar());
-		if (fieldOneName != null && !fieldOneName.isBlank()) {
-			event.field(fieldOneName, fieldOneValue);
-		}
-		if (fieldTwoName != null && !fieldTwoName.isBlank()) {
-			event.field(fieldTwoName, fieldTwoValue);
-		}
-		event.log();
-	}
 
-	private static void emitBeeTargetDebug(ServerLevel level, Bee bee, String outcome, long cropPos, String cropKey) {
-		if (level == null || bee == null || !MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
-			return;
-		}
-		MadokuDebug.event(METRIC_BEE_CROP_TARGET, "mobs", "bee", "bee")
-			.side(MadokuDebug.Side.SERVER)
-			.tick(level.getGameTime())
-			.world(level.dimension().toString())
-			.subject("bee:" + bee.getUUID())
-			.field("outcome", outcome)
-			.field("crop_pos", cropPos)
-			.field("crop_key", cropKey == null ? "" : cropKey)
-			.field("is_baby", bee.isBaby())
-			.log();
-	}
 
-	private static void emitBeeGrowthDebug(
-		ServerLevel level,
-		Bee bee,
-		BlockPos cropPos,
-		String growthMode,
-		boolean farmingEnabled,
-		int chargesSpent,
-		int chargesBefore,
-		double percentGrowth,
-		boolean appliedGrowth
-	) {
-		if (level == null || bee == null) {
-			return;
-		}
-		if (MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
-			MadokuDebug.event(METRIC_BEE_CROP_MODE, "mobs", "bee", "bee")
-				.side(MadokuDebug.Side.SERVER)
-				.tick(level.getGameTime())
-				.world(level.dimension().toString())
-				.subject("bee:" + bee.getUUID())
-				.field("farming_enabled", farmingEnabled)
-				.field("growth_mode", growthMode)
-				.field("has_nectar", bee.hasNectar())
-				.field("is_baby", bee.isBaby())
-				.log();
-		}
-		if (!MadokuDebug.shouldEmit("mobs", "bee", "bee")) {
-			return;
-		}
-		MadokuDebug.event(METRIC_BEE_CROP_GROWTH, "mobs", "bee", "bee")
-			.side(MadokuDebug.Side.SERVER)
-			.tick(level.getGameTime())
-			.world(level.dimension().toString())
-			.subject("bee:" + bee.getUUID())
-			.field("growth_mode", growthMode)
-			.field("farming_enabled", farmingEnabled)
-			.field("applied", appliedGrowth)
-			.field("charges_spent", chargesSpent)
-			.field("charges_before", chargesBefore)
-			.field("percent_growth_requested", percentGrowth)
-			.field("crop_pos", cropPos == null ? "unknown" : cropPos.asLong())
-			.log();
-	}
 
 	private static boolean isFarmlandBelow(ServerLevel level, BlockPos cropPos) {
 		if (level == null || cropPos == null) {
@@ -809,5 +667,6 @@ public final class MadokuMobBee {
 		}
 	}
 }
+
 
 

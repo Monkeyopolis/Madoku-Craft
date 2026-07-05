@@ -11,7 +11,6 @@ import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMobManager;
@@ -792,103 +791,6 @@ public final class PlayerEntitiesSystem {
 		return count;
 	}
 
-	private static MadokuDebug.EventBuilder debugPlayerEvent(String metricId, ServerPlayer player) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "pet", "pet", "pet")
-			.side(MadokuDebug.Side.SERVER);
-		if (player == null) {
-			return builder;
-		}
-		return builder
-			.tick(player.level().getGameTime())
-			.world(player.level().dimension().toString())
-			.subject("player:" + player.getScoreboardName())
-			.field("player_uuid", player.getUUID());
-	}
-
-	private static MadokuDebug.EventBuilder debugPlayerIdEvent(String metricId, UUID playerId) {
-		return MadokuDebug.event(metricId, "pet", "pet", "pet")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("player:" + (playerId == null ? "unknown" : playerId))
-			.field("player_uuid", playerId);
-	}
-
-	private static MadokuDebug.EventBuilder debugPetEvent(String metricId, Mob pet) {
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "pet", "pet", "pet")
-			.side(MadokuDebug.Side.SERVER);
-		if (pet == null) {
-			return builder;
-		}
-		return builder
-			.tick(pet.level().getGameTime())
-			.world(pet.level().dimension().toString())
-			.subject("pet:" + pet.getUUID())
-			.field("pet_uuid", pet.getUUID())
-			.field("pet_type", entityTypeId(pet.getType()));
-	}
-
-	public static void debugCreativePetSlotPacket(
-		ServerPlayer player,
-		int slotNum,
-		int petSlot,
-		ItemStack packetStack,
-		ItemStack carriedStack,
-		ItemStack beforeSlotStack,
-		ItemStack resolvedStack,
-		boolean validPacketStack,
-		boolean canPlaceFromCarried,
-		boolean canPlaceFromInventory,
-		String action
-	) {
-		if ("noop_same_stack".equals(action) || "noop_empty_packet".equals(action)) {
-			return;
-		}
-		debugPlayerEvent("pet.creative_slot_packet", player)
-			.field("slot_num", slotNum)
-			.field("pet_slot", petSlot)
-			.field("packet_stack", stackSummary(packetStack))
-			.field("packet_count", packetStack == null ? 0 : packetStack.getCount())
-			.field("carried_stack", stackSummary(carriedStack))
-			.field("carried_count", carriedStack == null ? 0 : carriedStack.getCount())
-			.field("before_slot_stack", stackSummary(beforeSlotStack))
-			.field("resolved_stack", stackSummary(resolvedStack))
-			.field("resolved_count", resolvedStack == null ? 0 : resolvedStack.getCount())
-			.field("valid_packet_stack", validPacketStack)
-			.field("can_place_from_carried", canPlaceFromCarried)
-			.field("can_place_from_inventory", canPlaceFromInventory)
-			.field("action", action == null ? "" : action)
-			.log();
-	}
-
-	private static String inventorySummary(PlayerEntitiesInventory inventory) {
-		if (inventory == null) {
-			return "null";
-		}
-		StringBuilder builder = new StringBuilder(64);
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			if (slot > 0) {
-				builder.append(", ");
-			}
-			builder.append(slot).append('=').append(stackSummary(inventory.getItem(slot)));
-		}
-		return builder.toString();
-	}
-
-	private static String stackSummary(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return "empty";
-		}
-		Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-		return itemId == null ? "<unregistered>" : itemId.toString();
-	}
-
-	private static String entityTypeId(EntityType<?> entityType) {
-		if (entityType == null) {
-			return "null";
-		}
-		Identifier typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
-		return typeId == null ? "<unregistered>" : typeId.toString();
-	}
-
 	private static void loadConfig() {
 		loadStaticConfig();
 		loadPetRules();
@@ -1533,23 +1435,14 @@ public final class PlayerEntitiesSystem {
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 
 		if (!settings.enabled) {
-			debugPlayerIdEvent("pet.tick_stopped", playerId)
-				.field("reason", "system_disabled")
-				.log();
 			removeAllPets(server, playerId);
 			return;
 		}
 		if (!player.isAlive() || player.isDeadOrDying() || player.isSpectator()) {
-			debugPlayerEvent("pet.tick_stopped", player)
-				.field("reason", player.isSpectator() ? "spectator" : "dead")
-				.log();
 			removeAllPets(server, playerId);
 			return;
 		}
 
-		debugPlayerEvent("pet.tick_started", player)
-			.field("inventory", inventorySummary(playerEntitiesInventory(player)))
-			.log();
 
 		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
 		long nextDelay;
@@ -1568,15 +1461,8 @@ public final class PlayerEntitiesSystem {
 		}
 		triggerAutomaticPetAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
-			debugPlayerEvent("pet.tick_completed", player)
-				.field("next_delay", nextDelay)
-				.log();
 			requestPetProcessing(server, playerId, nextDelay);
 		} else {
-			debugPlayerEvent("pet.tick_completed", player)
-				.field("next_delay", -1)
-				.field("reason", "no_active_pets")
-				.log();
 		}
 	}
 
@@ -1656,12 +1542,6 @@ public final class PlayerEntitiesSystem {
 
 			if (desiredType == null || rule == null) {
 				if (!stack.isEmpty()) {
-					debugPlayerEvent("pet.slot_rejected", player)
-						.field("slot", slot)
-						.field("stack", stackSummary(stack))
-						.field("desired_type", entityTypeId(desiredType))
-						.field("rule_found", rule != null)
-						.log();
 				}
 				removePet(server, petIds[slot]);
 				petIds[slot] = null;
@@ -1669,12 +1549,6 @@ public final class PlayerEntitiesSystem {
 			}
 
 			if (pet == null || pet.getType() != desiredType || pet.level() != player.level()) {
-				debugPlayerEvent("pet.spawn_required", player)
-					.field("slot", slot)
-					.field("stack", stackSummary(stack))
-					.field("desired_type", entityTypeId(desiredType))
-					.field("existing_pet", pet == null ? "null" : pet.getUUID())
-					.log();
 				removePet(server, petIds[slot]);
 				pet = spawnPet(player, desiredType, slot, rule);
 				petIds[slot] = pet == null ? null : pet.getUUID();
@@ -1723,18 +1597,9 @@ public final class PlayerEntitiesSystem {
 			return null;
 		}
 
-		debugPlayerEvent("pet.spawn_attempt", owner)
-			.field("slot", slot)
-			.field("entity_type", entityTypeId(entityType))
-			.log();
 
 		Entity entity = entityType.create(level, EntitySpawnReason.EVENT);
 		if (!(entity instanceof Mob pet)) {
-			debugPlayerEvent("pet.spawn_failed", owner)
-				.field("slot", slot)
-				.field("entity_type", entityTypeId(entityType))
-				.field("reason", "entity_not_mob")
-				.log();
 			return null;
 		}
 
@@ -1744,21 +1609,11 @@ public final class PlayerEntitiesSystem {
 		configurePet(pet, rule);
 		tagManagedPet(pet, owner.getUUID());
 		if (!level.addFreshEntity(pet)) {
-			debugPlayerEvent("pet.spawn_failed", owner)
-				.field("slot", slot)
-				.field("entity_type", entityTypeId(entityType))
-				.field("reason", "add_fresh_entity_rejected")
-				.log();
 			return null;
 		}
 
 		ACTIVE_PET_IDS.add(pet.getUUID());
 		broadcastManagedPetSoundState(owner.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
-		debugPetEvent("pet.spawned", pet)
-			.field("owner_uuid", owner.getUUID())
-			.field("slot", slot)
-			.field("item-id", rule == null ? "" : rule.itemId)
-			.log();
 		return pet;
 	}
 
@@ -2495,10 +2350,6 @@ public final class PlayerEntitiesSystem {
 		if (existingTick == null || targetTick < existingTick) {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
 		}
-		debugPlayerIdEvent("pet.tick_requested", playerId)
-			.field("delay", Math.max(0L, delayTicks))
-			.field("target_tick", targetTick)
-			.log();
 	}
 
 	private static String ensureSchedulerExists(UUID playerId) {
@@ -2706,7 +2557,6 @@ public final class PlayerEntitiesSystem {
 	private static void removePet(MinecraftServer server, UUID petId) {
 		Mob pet = findMob(server, petId);
 		if (pet != null) {
-			debugPetEvent("pet.removed", pet).log();
 			pet.discard();
 		}
 		if (petId != null) {
@@ -3287,5 +3137,6 @@ public final class PlayerEntitiesSystem {
 	}
 
 }
+
 
 

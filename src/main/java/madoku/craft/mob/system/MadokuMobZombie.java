@@ -2,10 +2,8 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.Entity;
@@ -26,8 +24,6 @@ import java.util.Map;
 public final class MadokuMobZombie {
 	private static final String ZOMBIE_VARIANT_TAG_PREFIX = "madoku-craft.zombie.variant:";
 	private static final String ZOMBIE_VARIANT_DEFAULT_KEY = "default";
-	private static final String METRIC_ZOMBIE_EQUIPMENT = "mob.zombie_equipment_runtime";
-	private static final String METRIC_ZOMBIE_DROPS = "mob.zombie_drop_runtime";
 
 	private MadokuMobZombie() {
 	}
@@ -47,8 +43,7 @@ public final class MadokuMobZombie {
 			return;
 		}
 		if (!mobSystemEnabled) {
-			EquipmentLoadoutResult result = applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombie, world.getRandom());
-			emitZombieEquipmentDebug(zombie, "spawn_mob_system_disabled", fileKey, result);
+			applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombie, world.getRandom());
 			return;
 		}
 		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -85,8 +80,7 @@ public final class MadokuMobZombie {
 		}
 		if (overrideSpawnRules) {
 			MadokuMobManager.applyConfiguredMobJockey(zombie, world, difficulty, variant, spawnReason, true, zombie.isBaby());
-			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(zombie, variant, world.getRandom());
-			emitZombieEquipmentDebug(zombie, "spawn_mob_system_enabled", fileKey, result);
+			applySpawnEquipmentSetLoadout(zombie, variant, world.getRandom());
 		}
 		applyWeaponDamagePolicy(zombie, variant);
 		applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
@@ -160,7 +154,6 @@ public final class MadokuMobZombie {
 			MobConfigManager.FIELD_CUSTOM_MOB_DROPS,
 			true
 		);
-		emitZombieDropsDebug(zombie, "custom_drop_gate", fileKey, enabled, "");
 		return enabled;
 	}
 
@@ -176,7 +169,6 @@ public final class MadokuMobZombie {
 		JsonObject resolved = resolveActiveZombieRoot(zombie, fileConfigRoot);
 		JsonObject statsRoot = readObject(resolved, MobConfigManager.FIELD_MOB_STATS);
 		String reference = readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
-		emitZombieDropsDebug(zombie, "custom_drop_reference", fileKey, true, reference);
 		return reference;
 	}
 
@@ -314,48 +306,7 @@ public final class MadokuMobZombie {
 		);
 	}
 
-	private static void emitZombieEquipmentDebug(Zombie zombie, String phase, String fileKey, EquipmentLoadoutResult result) {
-		if (zombie == null || result == null || !MadokuDebug.shouldEmit("mobs", "zombie", "zombie")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_EQUIPMENT, "mobs", "zombie", "zombie")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("zombie:" + zombie.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", zombie.getType().toShortString())
-			.field("is_baby", zombie.isBaby())
-			.field("applied", result.applied())
-			.field("reason", result.reason())
-			.field("equipment_ref", result.equipmentReference())
-			.field("chance_percent", result.chancePercent())
-			.field("armor_set", result.armorSet())
-			.field("equipped_pieces", result.equippedPieces())
-			.field("required_pieces", result.requiredPieces());
-		if (zombie.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 
-	private static void emitZombieDropsDebug(Zombie zombie, String phase, String fileKey, boolean customDropsEnabled, String configuredReference) {
-		if (zombie == null || !MadokuDebug.shouldEmit("mobs", "zombie", "zombie")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_DROPS, "mobs", "zombie", "zombie")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("zombie:" + zombie.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", zombie.getType().toShortString())
-			.field("is_baby", zombie.isBaby())
-			.field("custom_drops_enabled", customDropsEnabled)
-			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference);
-		if (zombie.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 
 	private static ItemStack rollArmorItemForSlot(
 		EquipmentConfigManager.EquipmentProfile profile,
@@ -700,4 +651,5 @@ public final class MadokuMobZombie {
 		}
 	}
 }
+
 

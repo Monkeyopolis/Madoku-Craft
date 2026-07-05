@@ -8,7 +8,6 @@ import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
@@ -501,7 +500,6 @@ public final class MadokuItem {
 				categoriesByItem = Map.of();
 				toolCategoryItems = Set.of();
 				armorCategoryItems = Set.of();
-				emitConfigLoaded();
 				return;
 			}
 
@@ -519,7 +517,6 @@ public final class MadokuItem {
 				toolCategoryEnabled,
 				armorCategoryEnabled
 			);
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
 			fuelTicksByItem = Map.of();
@@ -989,24 +986,6 @@ public final class MadokuItem {
 		return Math.max(1, readInt(root, MadokuItemConfig.FIELD_COMPOSTER_ADJUSTMENT, 1));
 	}
 
-	private static void emitConfigLoaded() {
-		String metricId = "item.config_loaded";
-		if (!MadokuDebug.shouldEmit("item", "item", "item")) {
-			return;
-		}
-
-		MadokuDebug.event(metricId, "item", "item", "item")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("item:global")
-			.field("enabled", enabled)
-			.field("fuel_items", fuelTicksByItem.size())
-			.field("single_stack_items", countSingleStackItems())
-			.field("category_items", countCategoryItems())
-			.field("tool_items", toolProfilesByItem.size())
-			.field("armor_items", armorProfilesByItem.size())
-			.log();
-	}
-
 	private static MadokuToolProfile parseToolProfile(JsonObject root) {
 		Integer durability = readOptionalInt(root, MadokuItemConfig.FIELD_DURABILITY, MadokuItemConfig.TOOL_INT_UNSET);
 		if (durability != null && durability <= 0) {
@@ -1235,16 +1214,6 @@ public final class MadokuItem {
 			return StackMode.MULTI;
 		}
 		return fallback;
-	}
-
-	private static long countSingleStackItems() {
-		return stackModesByItem.values().stream().filter(mode -> mode == StackMode.SINGLE).count();
-	}
-
-	private static long countCategoryItems() {
-		return categoriesByItem.values().stream()
-			.filter(categories -> categories != null && !categories.isEmpty())
-			.count();
 	}
 
 	private static boolean isSpearItemId(String itemId) {

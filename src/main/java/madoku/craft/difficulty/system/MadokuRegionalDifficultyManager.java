@@ -7,7 +7,6 @@ import madoku.craft.chunk.ChunkManagerSystem;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
@@ -194,30 +193,6 @@ public final class MadokuRegionalDifficultyManager {
 		if (applied == null) {
 			return;
 		}
-
-		emitSpawnScaled(
-			mob,
-			biomeId,
-			structureContext,
-			baseAdjustment,
-			biomeAdjustment,
-			structureAdjustment,
-			timeAdjustment,
-			totalAdjustment,
-			resolvedIncrements.sourceKey(),
-			applied.increments(),
-			applied.healthAddition(),
-			applied.movementSpeedAddition(),
-			applied.scaleAddition(),
-			applied.armorAddition(),
-			applied.armorBaseBefore(),
-			applied.armorBaseAfter(),
-			applied.damageAddition(),
-			applied.knockbackResistanceAddition(),
-			applied.experienceBaseBefore(),
-			applied.experienceBaseAfter(),
-			applied.experienceDropAddition()
-		);
 	}
 
 	public static void applySpawnScalingIfUnscaled(Mob mob, ServerLevelAccessor worldAccess) {
@@ -414,7 +389,6 @@ public final class MadokuRegionalDifficultyManager {
 				);
 
 			snapshot = buildSnapshot(settingsRoot, normalizedBiomes, normalizedStructures, normalizedTime, normalizedMobScaling);
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			snapshot = Snapshot.disabled();
 			LOGGER.error("Failed to load MadokuRegionalDifficultyManager config; disabling difficulty scaling.", exception);
@@ -1209,88 +1183,6 @@ public final class MadokuRegionalDifficultyManager {
 			normalized = normalized + ".json";
 		}
 		return directory.resolve(normalized);
-	}
-
-	private static void emitConfigLoaded() {
-		String metricId = "difficulty.config_loaded";
-		if (!MadokuDebug.shouldEmit("difficulty", "regional-difficulty", "regional-difficulty")) {
-			return;
-		}
-		Snapshot config = snapshot;
-			MadokuDebug.event(metricId, "difficulty", "regional-difficulty", "regional-difficulty")
-				.side(MadokuDebug.Side.SERVER)
-				.subject("difficulty:global")
-				.field("enabled", config.enabled())
-				.field("biomes_enabled", config.biomeRuntime().enabled())
-				.field("structures_enabled", config.structureRuntime().enabled())
-				.field("time_enabled", config.timeRuntime().enabled())
-				.field("biome_rules", config.biomeRuntime().adjustments().size())
-				.field("structure_rules", config.structureRuntime().adjustments().size())
-				.field("mob_scaling_profiles", config.mobScalingIncrements().size())
-				.log();
-		}
-
-	private static void emitSpawnScaled(
-		Mob mob,
-		Identifier biomeId,
-		StructureContext structureContext,
-		int baseAdjustment,
-		int biomeAdjustment,
-		int structureAdjustment,
-		int timeAdjustment,
-		int totalAdjustment,
-		String scalingSource,
-		StatIncrements increments,
-		double healthAddition,
-		double movementSpeedAddition,
-		double scaleAddition,
-		double armorAddition,
-		double armorBaseBefore,
-		double armorBaseAfter,
-		double damageAddition,
-		double knockbackResistanceAddition,
-		int experienceBaseBefore,
-		int experienceBaseAfter,
-		int experienceDropAddition
-	) {
-		String metricId = "difficulty.spawn_scaled";
-		if (!MadokuDebug.shouldEmit("difficulty", "regional-difficulty", "regional-difficulty") || mob == null || increments == null) {
-			return;
-		}
-
-		MadokuDebug.event(metricId, "difficulty", "regional-difficulty", "regional-difficulty")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("mob:" + mob.getType().toShortString())
-			.field("base_adj", baseAdjustment)
-			.field("biome", biomeId == null ? "unknown" : biomeId)
-			.field("biome_adj", biomeAdjustment)
-			.field("structure", structureContext.structureId() == null ? "none" : structureContext.structureId())
-			.field("structure_adj", structureAdjustment)
-			.field("time_adj", timeAdjustment)
-			.field("total_adj", totalAdjustment)
-			.field("scaling_source", scalingSource == null || scalingSource.isBlank() ? "global" : scalingSource)
-				.field("health_cfg", increments.health())
-				.field("movement_speed_cfg", increments.movementSpeed())
-				.field("scale_cfg", increments.scale())
-				.field("armor_cfg", increments.armor())
-			.field("damage_cfg", increments.damage())
-				.field("knockback_resistance_cfg", increments.knockbackResistance())
-				.field("experience_drop_cfg", increments.experienceDrop())
-				.field("ranged_damage_cfg", increments.rangedDamage())
-				.field("attack_accuracy_cfg", increments.attackAccuracy())
-				.field("explosion_power_cfg", increments.explosionPower())
-				.field("health_add", healthAddition)
-				.field("movement_speed_add", movementSpeedAddition)
-				.field("scale_add", scaleAddition)
-				.field("armor_add", armorAddition)
-			.field("armor_base_before", armorBaseBefore)
-			.field("armor_base_after", armorBaseAfter)
-			.field("damage_add", damageAddition)
-			.field("knockback_resistance_add", knockbackResistanceAddition)
-			.field("experience_drop_base_before", experienceBaseBefore)
-			.field("experience_drop_base_after", experienceBaseAfter)
-			.field("experience_drop_add", experienceDropAddition)
-			.log();
 	}
 
 	private record Snapshot(

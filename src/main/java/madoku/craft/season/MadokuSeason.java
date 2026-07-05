@@ -6,7 +6,6 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -367,34 +366,10 @@ public final class MadokuSeason {
 	private static SeasonState refreshSeasonState(ServerLevel world) {
 		SeasonState previousState = lastProcessedState;
 		SeasonState currentState = resolveCurrentState(world);
-		boolean seasonTransition = previousState.absoluteDay() >= 0L && previousState.season() != currentState.season();
-		if (seasonTransition) {
-			emitSeasonTransitionDebug(previousState, currentState);
-		}
 		if (!currentState.equals(previousState)) {
 			lastProcessedState = currentState;
 		}
 		return currentState;
-	}
-
-	private static void emitSeasonTransitionDebug(SeasonState previousState, SeasonState currentState) {
-		if (!MadokuDebug.shouldEmit("season", "season", "season")) {
-			return;
-		}
-
-		MadokuDebug.event("season.transition", "season", "season", "season")
-			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
-			.subject("season")
-			.field("from", previousState.season().id)
-			.field("to", currentState.season().id)
-			.field("absolute_day", currentState.absoluteDay())
-			.field("season_day", currentState.seasonDay())
-			.field("week", currentState.week())
-			.field("day_in_week", currentState.dayInWeek())
-			.field("cycle_day", currentState.cycleDay())
-			.field("progress", formatProgress(currentState.progress()))
-			.log();
 	}
 
 	private static ServerLevel resolveSeasonWorld(MinecraftServer server) {
@@ -436,10 +411,6 @@ public final class MadokuSeason {
 		}
 		int clamped = Math.max(0, Math.min(seasonLengthDays - 1, seasonDay));
 		return (double) clamped / (double) (seasonLengthDays - 1);
-	}
-
-	private static String formatProgress(double value) {
-		return String.format(java.util.Locale.ROOT, "%.3f", Math.max(0.0d, Math.min(1.0d, value)));
 	}
 
 	private static int clampSeasonDay(int seasonDay) {

@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.item.system.MadokuItemConfig;
 import net.minecraft.world.item.Item;
@@ -61,7 +60,6 @@ public final class MadokuComposter {
 		try {
 			if (!MadokuItem.isEnabled()) {
 				enabled = false;
-				emitConfigLoaded();
 				return;
 			}
 
@@ -78,7 +76,6 @@ public final class MadokuComposter {
 			);
 
 			enabled = composterEnabled;
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
 			LOGGER.error("Failed to load MadokuComposter folder config; disabling custom composter rules.", exception);
@@ -94,18 +91,6 @@ public final class MadokuComposter {
 			return fallback;
 		}
 		return element.getAsBoolean();
-	}
-
-	private static void emitConfigLoaded() {
-		String metricId = "composter.config_loaded";
-		if (!MadokuDebug.shouldEmit("composter", "composter", "composter")) {
-			return;
-		}
-		MadokuDebug.event(metricId, "composter", "composter", "composter")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("composter:global")
-			.field("enabled", enabled)
-			.log();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {

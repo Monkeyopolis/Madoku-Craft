@@ -2,10 +2,8 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -22,9 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class MadokuMobZombieVillager {
-	private static final String METRIC_ZOMBIE_VILLAGER_EQUIPMENT = "mob.zombie_villager_equipment_runtime";
-	private static final String METRIC_ZOMBIE_VILLAGER_DROPS = "mob.zombie_villager_drop_runtime";
-
 	private MadokuMobZombieVillager() {
 	}
 
@@ -39,8 +34,7 @@ public final class MadokuMobZombieVillager {
 		}
 		String fileKey = MobConfigManager.FILE_ZOMBIE_VILLAGER;
 		if (!MadokuMobManager.isEnabled()) {
-			EquipmentLoadoutResult result = applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombieVillager, world.getRandom());
-			emitZombieVillagerEquipmentDebug(zombieVillager, "spawn_mob_system_disabled", fileKey, result);
+			applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombieVillager, world.getRandom());
 			return;
 		}
 		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -77,8 +71,7 @@ public final class MadokuMobZombieVillager {
 		JsonObject variant = zombieVillager.isBaby() ? baby : adult;
 		variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 		if (overrideSpawnRules) {
-			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(zombieVillager, variant, world.getRandom());
-			emitZombieVillagerEquipmentDebug(zombieVillager, "spawn_mob_system_enabled", fileKey, result);
+			applySpawnEquipmentSetLoadout(zombieVillager, variant, world.getRandom());
 		}
 		applyWeaponDamagePolicy(zombieVillager, variant);
 		applyZombieVillagerBehaviorToggles(zombieVillager, fileConfigRoot, variant);
@@ -141,7 +134,6 @@ public final class MadokuMobZombieVillager {
 		}
 		JsonObject resolved = resolveActiveZombieVillagerRoot(zombieVillager);
 		boolean enabled = readBoolean(resolved, MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true);
-		emitZombieVillagerDropsDebug(zombieVillager, "custom_drop_gate", fileKey, enabled, "");
 		return enabled;
 	}
 
@@ -156,7 +148,6 @@ public final class MadokuMobZombieVillager {
 		JsonObject resolved = resolveActiveZombieVillagerRoot(zombieVillager);
 		JsonObject statsRoot = readObject(resolved, MobConfigManager.FIELD_MOB_STATS);
 		String reference = readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
-		emitZombieVillagerDropsDebug(zombieVillager, "custom_drop_reference", fileKey, true, reference);
 		return reference;
 	}
 
@@ -382,59 +373,7 @@ public final class MadokuMobZombieVillager {
 		return ArmorSetSelection.FULL_SET;
 	}
 
-	private static void emitZombieVillagerEquipmentDebug(
-		ZombieVillager zombieVillager,
-		String phase,
-		String fileKey,
-		EquipmentLoadoutResult result
-	) {
-		if (zombieVillager == null || result == null || !MadokuDebug.shouldEmit("mobs", "zombie-villager", "zombie-villager")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_EQUIPMENT, "mobs", "zombie-villager", "zombie-villager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("zombie_villager:" + zombieVillager.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", zombieVillager.getType().toShortString())
-			.field("is_baby", zombieVillager.isBaby())
-			.field("applied", result.applied())
-			.field("reason", result.reason())
-			.field("equipment_ref", result.equipmentReference())
-			.field("chance_percent", result.chancePercent())
-			.field("armor_set", result.armorSet())
-			.field("equipped_pieces", result.equippedPieces())
-			.field("required_pieces", result.requiredPieces());
-		if (zombieVillager.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 
-	private static void emitZombieVillagerDropsDebug(
-		ZombieVillager zombieVillager,
-		String phase,
-		String fileKey,
-		boolean customDropsEnabled,
-		String configuredReference
-	) {
-		if (zombieVillager == null || !MadokuDebug.shouldEmit("mobs", "zombie-villager", "zombie-villager")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_ZOMBIE_VILLAGER_DROPS, "mobs", "zombie-villager", "zombie-villager")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("zombie_villager:" + zombieVillager.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", zombieVillager.getType().toShortString())
-			.field("is_baby", zombieVillager.isBaby())
-			.field("custom_drops_enabled", customDropsEnabled)
-			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference);
-		if (zombieVillager.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 
 
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
@@ -523,4 +462,5 @@ public final class MadokuMobZombieVillager {
 		}
 	}
 }
+
 

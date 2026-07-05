@@ -1,7 +1,5 @@
 package madoku.craft.mixin;
 
-import madoku.craft.clock.MadokuTicks;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.time.MadokuSleep;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,21 +20,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private boolean madoku$applyConfiguredSleepTime(BedRule bedRule, Level level, BlockPos sleepingPos) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
-		boolean allowed = MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, player);
-		if (MadokuDebug.shouldEmit("sleep", "sleep", "sleep")) {
-			MadokuDebug.event("sleep.bed_attempt", "sleep", "sleep", "sleep")
-				.side(level.isClientSide() ? MadokuDebug.Side.CLIENT : MadokuDebug.Side.SERVER)
-				.tick(MadokuTicks.getGameplayTicks())
-				.world(level.dimension().toString())
-				.subject("player:" + player.getUUID())
-				.field("allowed", allowed)
-				.field("sleep_window", MadokuSleep.canStartSleeping(player))
-				.field("can_set_spawn", bedRule.canSetSpawn(level))
-				.field("vanilla_can_sleep", bedRule.canSleep(level))
-				.field("bed_pos", sleepingPos)
-				.log();
-		}
-		return allowed;
+		return MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, player);
 	}
 }
 

@@ -8,7 +8,6 @@ import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.ecosystem.system.MadokuEcosystem;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
@@ -283,19 +282,6 @@ public final class MadokuFarming {
 		dirty = true;
 		updateCropBlockAge(world, cropPos, world.getBlockState(cropPos), rule, crop);
 
-		emitFarmingDebug(
-			"farming.external_growth",
-			world,
-			"crop:" + cropPos.toShortString(),
-			Map.of(
-				"source", source == null ? "" : source,
-				"percent", Double.toString(growthPercent),
-				"ticks_added", Double.toString(deltaTicks),
-				"before", Double.toString(before),
-				"after", Double.toString(updated),
-				"required", Double.toString(requiredTicks)
-			)
-		);
 		return true;
 	}
 
@@ -774,16 +760,6 @@ public final class MadokuFarming {
 		if (server == null || !settings.enabled) {
 			return;
 		}
-		emitFarmingDebug(
-			"farming.scheduler_tick",
-			server.overworld(),
-			"farming_scheduler",
-			Map.of(
-				"plots", Integer.toString(plotsByKey.size()),
-				"crops", Integer.toString(cropsByKey.size()),
-				"cursor", Integer.toString(chunkScanCursor)
-			)
-		);
 		purgeExpiredPendingHarvestRules();
 		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		requestFarmingProcessTask(server, resolveFarmingSchedulerInterval(server));
@@ -861,8 +837,6 @@ public final class MadokuFarming {
 			return;
 		}
 
-		int discoveredFarmland = 0;
-		int discoveredCrops = 0;
 		if (snapshot == null || snapshot.motionColumns().isEmpty()) {
 			return;
 		}
@@ -878,25 +852,14 @@ public final class MadokuFarming {
 				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
 				BlockState state = column.stateAtDepth(depth);
 				if (isFarmland(state)) {
-					discoveredFarmland++;
 					getOrCreatePlot(world, pos);
 				}
 				if (isManagedCrop(state)) {
-					discoveredCrops++;
 					trackCrop(world, pos, state);
 				}
 			}
 		}
 		if (shouldEmitChunkDebug("farming.chunk_discover", false)) {
-			emitFarmingDebug(
-				"farming.chunk_discover",
-				world,
-				"chunk:" + chunkX + "," + chunkZ,
-				Map.of(
-					"farmland_hits", Integer.toString(discoveredFarmland),
-					"crop_hits", Integer.toString(discoveredCrops)
-				)
-			);
 		}
 	}
 
@@ -975,15 +938,6 @@ public final class MadokuFarming {
 			CropRule rule = resolveCropRuleByPlantingItemId(crop.cropId);
 			if (rule == null) {
 				removeKeys.add(cropEntryKey);
-				emitFarmingDebug(
-					"farming.crop_stall",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"reason", "rule_missing",
-						"crop_id", crop.cropId == null ? "" : crop.cropId
-					)
-				);
 				continue;
 			}
 
@@ -997,16 +951,6 @@ public final class MadokuFarming {
 						removePlotStateByKey(plot.key());
 					}
 				}
-				emitFarmingDebug(
-					"farming.crop_stall",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"reason", "block_mismatch",
-						"expected_crop", rule.cropBlockId(),
-						"expected_mature", rule.matureBlockId()
-					)
-				);
 				continue;
 			}
 
@@ -1041,20 +985,6 @@ public final class MadokuFarming {
 				crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, refreshedObservedProgress));
 				crop.lastProcessedAbsoluteDayTime = Math.max(0L, currentAbsoluteDayTime);
 				dirty = true;
-				emitFarmingDebug(
-					"farming.crop_progress",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"result", "replanted_reset",
-						"progress_before", Double.toString(cappedTrackedProgress),
-						"progress_after", Double.toString(crop.progressGrowthTicks),
-						"required_before", Double.toString(Math.max(1.0d, previousRequiredTicks)),
-						"required_after", Double.toString(requiredTicks),
-						"observed_age", Integer.toString(observedAge),
-						"observed_age_limit", Integer.toString(observedAgeLimit)
-					)
-				);
 			}
 
 			PlotState plot = findPlot(world, BlockPos.of(crop.soilPos));
@@ -1078,66 +1008,17 @@ public final class MadokuFarming {
 			if (previousAbsolute != rawPreviousAbsolute) {
 				crop.lastProcessedAbsoluteDayTime = previousAbsolute;
 				dirty = true;
-				emitFarmingDebug(
-					"farming.crop_progress",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"result", "clock_reset",
-						"raw_now_abs", Long.toString(currentAbsoluteDayTime),
-						"last_abs", Long.toString(rawPreviousAbsolute),
-						"reset_to_abs", Long.toString(previousAbsolute)
-					)
-				);
 			}
 			long safeCurrentAbsolute = Math.max(previousAbsolute, currentAbsoluteDayTime);
 			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
-			boolean usedElapsedFallback = false;
 			double effectiveTicks = elapsedTicks * speedMultiplier;
 			if (elapsedTicks <= 0L) {
 				// Time mapping can quantize multiple gameplay ticks to the same absolute tick.
 				// Keep crops progressing smoothly instead of stalling until the next absolute tick boundary.
 				elapsedTicks = 1L;
 				effectiveTicks = speedMultiplier;
-				usedElapsedFallback = true;
-				emitFarmingDebug(
-					"farming.crop_progress",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"result", "no_elapsed_time_fallback",
-						"now_abs", Long.toString(safeCurrentAbsolute),
-						"raw_now_abs", Long.toString(currentAbsoluteDayTime),
-						"last_abs", Long.toString(previousAbsolute),
-						"speed", Double.toString(speedMultiplier)
-					)
-				);
-				emitFarmingDebug(
-					"farming.crop_stall",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"reason", "no_elapsed_time_fallback",
-						"now_abs", Long.toString(safeCurrentAbsolute),
-						"last_abs", Long.toString(previousAbsolute),
-						"applied_elapsed_abs_ticks", Long.toString(elapsedTicks)
-					)
-				);
 			}
 			if (elapsedTicks > 0L && speedMultiplier <= 0.0d) {
-				emitFarmingDebug(
-					"farming.crop_stall",
-					world,
-					"crop:" + cropPos.toShortString(),
-					Map.of(
-						"reason", "zero_speed",
-						"elapsed_abs_ticks", Long.toString(elapsedTicks),
-						"speed", Double.toString(speedMultiplier),
-						"fertilized", Boolean.toString(fertilized),
-						"raining", Boolean.toString(raining),
-						"dry_farmland", Boolean.toString(dryFarmland)
-					)
-				);
 			}
 			if (effectiveTicks > 0.0d) {
 				double before = crop.progressGrowthTicks;
@@ -1145,36 +1026,8 @@ public final class MadokuFarming {
 				if (updatedProgress > crop.progressGrowthTicks) {
 					crop.progressGrowthTicks = updatedProgress;
 					dirty = true;
-					emitFarmingDebug(
-						"farming.crop_progress",
-						world,
-						"crop:" + cropPos.toShortString(),
-						Map.of(
-							"result", "progressed",
-							"elapsed_abs_ticks", Long.toString(elapsedTicks),
-							"effective_ticks", Double.toString(effectiveTicks),
-							"speed", Double.toString(speedMultiplier),
-							"before", Double.toString(before),
-							"after", Double.toString(updatedProgress),
-							"required", Double.toString(requiredTicks),
-							"now_abs", Long.toString(safeCurrentAbsolute),
-							"last_abs", Long.toString(previousAbsolute),
-							"elapsed_fallback", Boolean.toString(usedElapsedFallback)
-						)
-					);
 				}
 				if (updatedProgress <= before + 1e-6d) {
-					emitFarmingDebug(
-						"farming.crop_stall",
-						world,
-						"crop:" + cropPos.toShortString(),
-						Map.of(
-							"reason", "already_complete",
-							"progress", Double.toString(before),
-							"required", Double.toString(requiredTicks),
-							"effective_ticks", Double.toString(effectiveTicks)
-						)
-					);
 				}
 			}
 			crop.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -2209,30 +2062,6 @@ public final class MadokuFarming {
 		return value;
 	}
 
-	private static void emitFarmingDebug(
-		String metricId,
-		ServerLevel world,
-		String subject,
-		Map<String, String> fields
-	) {
-		if (!MadokuDebug.shouldEmit("farming", "farming", "farming")) {
-			return;
-		}
-
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "farming", "farming", "farming")
-			.side(MadokuDebug.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
-			.world(world == null ? "" : world.dimension().toString())
-			.subject(subject == null || subject.isBlank() ? "farming" : subject);
-		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
-				}
-			}
-		}
-		builder.log();
-	}
 
 	private record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
 	}
@@ -2909,4 +2738,5 @@ public final class MadokuFarming {
 		}
 	}
 }
+
 

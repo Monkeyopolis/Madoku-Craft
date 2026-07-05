@@ -3,7 +3,6 @@ package madoku.craft.rarity;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.item.system.MadokuItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
@@ -61,7 +60,6 @@ public final class MadokuRarity {
 			if (changed) {
 				JsonStaticSystem.writeManagedFile(configFile, normalized, defaults);
 			}
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			config.enabled = false;
 			LOGGER.error("Failed to load MadokuRarity config; disabling rarity.", exception);
@@ -504,24 +502,5 @@ public final class MadokuRarity {
 		return directory.resolve(withExtension);
 	}
 
-	private static void emitConfigLoaded() {
-		String metricId = "rarity.config_loaded";
-		if (!MadokuDebug.shouldEmit("rarity", "rarity", "rarity")) {
-			return;
-		}
-
-		MadokuDebug.event(metricId, "rarity", "rarity", "rarity")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("rarity:global")
-			.field("enabled", config.enabled)
-			.field("common_weight", config.commonChanceWeight)
-			.field("rare_weight", config.rareChanceWeight)
-			.field("epic_weight", config.epicChanceWeight)
-			.field("mythic_weight", config.mythicChanceWeight)
-			.field("rare_buff_percent", config.rareStatBuffPercent)
-			.field("epic_buff_percent", config.epicStatBuffPercent)
-			.field("mythic_buff_percent", config.mythicStatBuffPercent)
-			.log();
-	}
 }
 

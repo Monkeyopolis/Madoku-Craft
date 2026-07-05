@@ -2,10 +2,8 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
@@ -27,8 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class MadokuMobHusk {
-	private static final String METRIC_HUSK_EQUIPMENT = "mob.husk_equipment_runtime";
-	private static final String METRIC_HUSK_DROPS = "mob.husk_drop_runtime";
 	private static final String HUSK_VARIANT_DEFAULT_KEY = "default";
 	private static final double SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP = 2.0D;
 
@@ -49,8 +45,7 @@ public final class MadokuMobHusk {
 			return;
 		}
 		if (!MadokuMobManager.isEnabled()) {
-			EquipmentLoadoutResult result = applySpawnEquipmentLoadoutWhenMobSystemDisabled(husk, world.getRandom());
-			emitHuskEquipmentDebug(husk, "spawn_mob_system_disabled", fileKey, result);
+			applySpawnEquipmentLoadoutWhenMobSystemDisabled(husk, world.getRandom());
 			return;
 		}
 		if (!MadokuMobManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -88,8 +83,7 @@ public final class MadokuMobHusk {
 		JsonObject variant = husk.isBaby() ? baby : adult;
 		variant = mergeHuskFileSettings(fileRoot, variant);
 		if (overrideSpawnRules) {
-			EquipmentLoadoutResult result = applySpawnEquipmentSetLoadout(husk, variant, world.getRandom());
-			emitHuskEquipmentDebug(husk, "spawn_mob_system_enabled", fileKey, result);
+			applySpawnEquipmentSetLoadout(husk, variant, world.getRandom());
 		}
 		applyWeaponDamagePolicy(husk, variant);
 		applyHuskBehaviorToggles(husk, fileConfigRoot, variant);
@@ -165,7 +159,6 @@ public final class MadokuMobHusk {
 			MobConfigManager.FIELD_CUSTOM_MOB_DROPS,
 			true
 		);
-		emitHuskDropsDebug(husk, "custom_drop_gate", fileKey, enabled, "");
 		return enabled;
 	}
 
@@ -180,7 +173,6 @@ public final class MadokuMobHusk {
 		JsonObject resolved = resolveActiveHuskRoot(husk);
 		JsonObject statsRoot = readObject(resolved, MobConfigManager.FIELD_MOB_STATS);
 		String reference = readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
-		emitHuskDropsDebug(husk, "custom_drop_reference", fileKey, true, reference);
 		return reference;
 	}
 
@@ -587,48 +579,7 @@ public final class MadokuMobHusk {
 		return ArmorSetSelection.FULL_SET;
 	}
 
-	private static void emitHuskEquipmentDebug(Husk husk, String phase, String fileKey, EquipmentLoadoutResult result) {
-		if (husk == null || result == null || !MadokuDebug.shouldEmit("mobs", "husk", "husk")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_EQUIPMENT, "mobs", "husk", "husk")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("husk:" + husk.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", husk.getType().toShortString())
-			.field("is_baby", husk.isBaby())
-			.field("applied", result.applied())
-			.field("reason", result.reason())
-			.field("equipment_ref", result.equipmentReference())
-			.field("chance_percent", result.chancePercent())
-			.field("armor_set", result.armorSet())
-			.field("equipped_pieces", result.equippedPieces())
-			.field("required_pieces", result.requiredPieces());
-		if (husk.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 
-	private static void emitHuskDropsDebug(Husk husk, String phase, String fileKey, boolean customDropsEnabled, String configuredReference) {
-		if (husk == null || !MadokuDebug.shouldEmit("mobs", "husk", "husk")) {
-			return;
-		}
-		MadokuDebug.EventBuilder event = MadokuDebug.event(METRIC_HUSK_DROPS, "mobs", "husk", "husk")
-			.side(MadokuDebug.Side.SERVER)
-			.subject("husk:" + husk.getUUID())
-			.field("phase", phase)
-			.field("file_key", fileKey)
-			.field("mob_type", husk.getType().toShortString())
-			.field("is_baby", husk.isBaby())
-			.field("custom_drops_enabled", customDropsEnabled)
-			.field("configured_reference", configuredReference == null || configuredReference.isBlank() ? "unset" : configuredReference);
-		if (husk.level() instanceof ServerLevel level) {
-			event.tick(level.getGameTime()).world(level.dimension().toString());
-		}
-		event.log();
-	}
 	private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
 		if (target == null || source == null || key == null || key.isBlank()) {
 			return;
@@ -726,4 +677,5 @@ public final class MadokuMobHusk {
 		}
 	}
 }
+
 
