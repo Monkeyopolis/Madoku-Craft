@@ -1,4 +1,4 @@
-package madoku.craft.hunger;
+package madoku.craft.attributes.hunger;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebugManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -39,7 +39,6 @@ public final class MadokuHungerManager {
 	private static final long HUNGER_PLAYER_TICK_MIN_INTERVAL = 1L;
 	private static final long HUNGER_PLAYER_TICK_MAX_INTERVAL = 5L;
 	private static final int ACTION_INTERVAL_TICKS = 10;
-
 	private static final String DATA_FOLDER_NAME = "madoku-craft-hunger";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
 	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
@@ -1021,14 +1020,15 @@ public final class MadokuHungerManager {
 	}
 
 	private static void emitHungerDebug(String group, String metricId, ServerPlayer player, long gameplayTick, Map<String, String> fields) {
-		if (player == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
+		if (player == null || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", group)) {
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", entry)) {
 			return;
 		}
 
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", group)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(gameplayTick)
 			.subject("player:" + player.getUUID());
@@ -1036,9 +1036,9 @@ public final class MadokuHungerManager {
 			builder.world(serverLevel.dimension().toString());
 		}
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}
@@ -1049,18 +1049,19 @@ public final class MadokuHungerManager {
 		if (metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", "main")) {
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", entry)) {
 			return;
 		}
 
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", "main")
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.subject("server");
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}

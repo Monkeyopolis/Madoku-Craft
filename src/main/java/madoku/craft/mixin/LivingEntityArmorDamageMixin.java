@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.armor.MadokuArmorManager;
+import madoku.craft.attributes.armor.MadokuArmorManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.Holder;

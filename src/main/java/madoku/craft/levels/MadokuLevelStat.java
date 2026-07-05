@@ -1,9 +1,9 @@
 package madoku.craft.levels;
 
-import madoku.craft.armor.MadokuArmorManager;
-import madoku.craft.health.MadokuHealthManager;
-import madoku.craft.hunger.MadokuHungerManager;
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.armor.MadokuArmorManager;
+import madoku.craft.attributes.health.MadokuHealthManager;
+import madoku.craft.attributes.hunger.MadokuHungerManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.resources.Identifier;
 
 import java.math.BigDecimal;

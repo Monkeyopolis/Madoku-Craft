@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.oxygen.MadokuOxygenManager;
+import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import net.minecraft.core.Holder;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffects;

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.oxygen.MadokuOxygenManager;
+import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;

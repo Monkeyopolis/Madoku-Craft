@@ -2,7 +2,7 @@ package madoku.craft.farming.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
@@ -116,7 +116,7 @@ public final class MadokuFarming {
 	private static final Map<ChunkRefKey, Set<String>> cropKeysByChunk = new LinkedHashMap<>();
 	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new LinkedHashMap<>();
 
-	private static final ChunkManagerSystem.ChunkLifecycleListener FARMING_CHUNK_LISTENER = new ChunkManagerSystem.ChunkLifecycleListener() {
+	private static final MadokuChunkManager.ChunkLifecycleListener FARMING_CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
 			MadokuFarming.onTrackedChunkLoaded(level, chunkX, chunkZ);
@@ -127,7 +127,7 @@ public final class MadokuFarming {
 			MadokuFarming.onTrackedChunkUnloaded(level, chunkX, chunkZ);
 		}
 	};
-	private static final ChunkManagerSystem.ChunkProcessor FARMING_CHUNK_PROCESSOR = new ChunkManagerSystem.ChunkProcessor() {
+	private static final MadokuChunkManager.ChunkProcessor FARMING_CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
 		public boolean acceptsWorld(ServerLevel level) {
 			return settings.enabled && level != null;
@@ -139,13 +139,13 @@ public final class MadokuFarming {
 		}
 
 		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkManagerSystem.ChunkDiscoverySnapshot snapshot) {
+		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
 			discoverTrackableBlocksInChunk(level, chunkX, chunkZ, snapshot);
 		}
 
 		@Override
 		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
+			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
 			processTrackedBlocksInChunk(level, chunkX, chunkZ);
@@ -158,8 +158,8 @@ public final class MadokuFarming {
 	public static void initialize() {
 		loadStaticConfig();
 		loadCropConfigs();
-		ChunkManagerSystem.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
-		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
+		MadokuChunkManager.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
+		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
@@ -175,7 +175,7 @@ public final class MadokuFarming {
 		plotKeysByChunk.clear();
 		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		farmingProcessSchedulerId = "";
 		farmingProcessTaskScheduled = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
@@ -191,7 +191,7 @@ public final class MadokuFarming {
 		syncChunkProcessorActivation();
 		SchedulerManagerSystem.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 		applyCropItemMetadata();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		resetChunkProcessingCycle();
 		rebuildTrackedChunkStateFromIndexes();
 		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
@@ -286,7 +286,7 @@ public final class MadokuFarming {
 	}
 
 	private static void syncChunkProcessorActivation() {
-		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, settings.enabled);
+		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, settings.enabled);
 	}
 
 	public static boolean isCropPlantItem(ItemStack stack) {
@@ -761,7 +761,7 @@ public final class MadokuFarming {
 			return;
 		}
 		purgeExpiredPendingHarvestRules();
-		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
+		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		requestFarmingProcessTask(server, resolveFarmingSchedulerInterval(server));
 	}
 
@@ -773,7 +773,7 @@ public final class MadokuFarming {
 		if (chunkKey == null || chunkKey.levelId().isBlank()) {
 			return;
 		}
-		ChunkManagerSystem.trackChunkForProcessor(
+		MadokuChunkManager.trackChunkForProcessor(
 			CHUNK_PROCESSOR_FARMING_DISCOVERY_ID,
 			chunkKey.levelId(),
 			chunkKey.chunkX(),
@@ -785,7 +785,7 @@ public final class MadokuFarming {
 		if (chunkKey == null || hasTrackedEntries(chunkKey)) {
 			return;
 		}
-		ChunkManagerSystem.untrackChunkForProcessor(
+		MadokuChunkManager.untrackChunkForProcessor(
 			CHUNK_PROCESSOR_FARMING_DISCOVERY_ID,
 			chunkKey.levelId(),
 			chunkKey.chunkX(),
@@ -819,7 +819,7 @@ public final class MadokuFarming {
 	}
 
 	private static void processTrackedBlocksInChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !ChunkManagerSystem.isChunkLoaded(world, chunkX, chunkZ)) {
+		if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ)) {
 			return;
 		}
 		long currentAbsoluteDayTime = resolveAbsoluteDayTime(world);
@@ -831,7 +831,7 @@ public final class MadokuFarming {
 		ServerLevel world,
 		int chunkX,
 		int chunkZ,
-		ChunkManagerSystem.ChunkDiscoverySnapshot snapshot
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
 	) {
 		if (world == null) {
 			return;
@@ -840,7 +840,7 @@ public final class MadokuFarming {
 		if (snapshot == null || snapshot.motionColumns().isEmpty()) {
 			return;
 		}
-		for (ChunkManagerSystem.ColumnSample column : snapshot.motionColumns()) {
+		for (MadokuChunkManager.ColumnSample column : snapshot.motionColumns()) {
 			if (column == null) {
 				continue;
 			}
@@ -1157,7 +1157,7 @@ public final class MadokuFarming {
 	}
 
 	private static void onTrackedChunkUnloaded(ServerLevel world, int chunkX, int chunkZ) {
-		// No local loaded-chunk mirrors; ChunkManagerSystem owns tracked loaded state.
+		// No local loaded-chunk mirrors; MadokuChunkManager owns tracked loaded state.
 	}
 
 	private static String levelId(ServerLevel world) {
@@ -1346,7 +1346,7 @@ public final class MadokuFarming {
 		plotKeysByChunk.clear();
 		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		resetChunkProcessingCycle();
 
 		if (source == null) {
@@ -2738,5 +2738,6 @@ public final class MadokuFarming {
 		}
 	}
 }
+
 
 

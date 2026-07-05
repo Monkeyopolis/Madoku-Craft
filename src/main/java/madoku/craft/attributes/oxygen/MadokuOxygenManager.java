@@ -1,4 +1,4 @@
-package madoku.craft.oxygen;
+package madoku.craft.attributes.oxygen;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -7,7 +7,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebugManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.Holder;
@@ -804,14 +804,15 @@ public final class MadokuOxygenManager {
 	}
 
 	private static void emitOxygenDebug(String group, String metricId, ServerPlayer player, long gameplayTick, Map<String, String> fields) {
-		if (player == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
+		if (player == null || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebugManager.shouldEmit("attributes", "oxygen", group)) {
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "oxygen", entry)) {
 			return;
 		}
 
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "oxygen", group)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "oxygen", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(gameplayTick)
 			.subject("player:" + player.getUUID());
@@ -819,9 +820,9 @@ public final class MadokuOxygenManager {
 			builder.world(serverLevel.dimension().toString());
 		}
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}

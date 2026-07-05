@@ -1,4 +1,4 @@
-package madoku.craft.luck;
+package madoku.craft.attributes.luck;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

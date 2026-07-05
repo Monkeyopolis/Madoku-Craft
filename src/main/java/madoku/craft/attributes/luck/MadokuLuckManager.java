@@ -1,10 +1,10 @@
-package madoku.craft.luck;
+package madoku.craft.attributes.luck;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.debug.MadokuDebugManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.farming.system.MadokuFarming;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
@@ -38,7 +38,6 @@ public final class MadokuLuckManager {
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck");
 	private static final Identifier EFFECT_LUCK_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck_effect");
-
 	private static volatile LuckConfigManager.Settings settings = LuckConfigManager.Settings.defaults();
 	private static final ThreadLocal<ActiveDropContext> ACTIVE_DROP_CONTEXT = new ThreadLocal<>();
 
@@ -868,11 +867,15 @@ public final class MadokuLuckManager {
 	}
 
 	static void emitLuckDebug(String metricId, ServerLevel world, BlockPos pos, String subject, Map<String, String> fields) {
-		if (!MadokuDebugManager.shouldEmit("attributes", "luck", resolveLuckDebugGroup(metricId))) {
+		if (metricId == null || metricId.isBlank()) {
+			return;
+		}
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "luck", entry)) {
 			return;
 		}
 
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", resolveLuckDebugGroup(metricId))
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -882,9 +885,9 @@ public final class MadokuLuckManager {
 			builder.field("pos", pos.toShortString());
 		}
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}
@@ -892,11 +895,15 @@ public final class MadokuLuckManager {
 	}
 
 	private static void emitMobLuckDebug(String metricId, ServerLevel world, Mob mob, Map<String, String> fields) {
-		if (!MadokuDebugManager.shouldEmit("attributes", "luck", "mob-drops")) {
+		if (metricId == null || metricId.isBlank()) {
+			return;
+		}
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "luck", entry)) {
 			return;
 		}
 
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", "mob-drops")
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
@@ -906,41 +913,13 @@ public final class MadokuLuckManager {
 			builder.field("pos", mob.blockPosition().toShortString());
 		}
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}
 		builder.log();
-	}
-
-	private static String resolveLuckDebugGroup(String metricId) {
-		if (metricId == null || metricId.isBlank()) {
-			return "luck";
-		}
-		if (metricId.startsWith("luck.mob_drop_")) {
-			return "mob-drops";
-		}
-		if (metricId.startsWith("luck.drop_") || metricId.startsWith("luck.place_")) {
-			return "block-drops";
-		}
-		if (metricId.startsWith("luck.creeper_grief_")) {
-			return "creeper-grief-reduction";
-		}
-		if (metricId.startsWith("luck.ranged_accuracy_")) {
-			return "skeleton-accuracy-reduction";
-		}
-		if (metricId.startsWith("luck.player_crit_")) {
-			return "player-critical-damage";
-		}
-		if (metricId.startsWith("luck.effect_")) {
-			return "luck-effect";
-		}
-		if (metricId.startsWith("luck.base_")) {
-			return "luck";
-		}
-		return "luck";
 	}
 
 	private static ServerPlayer resolveMobLootPlayer(LootContext lootContext) {

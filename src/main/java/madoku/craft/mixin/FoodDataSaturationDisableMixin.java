@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.world.food.FoodData;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;

@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonFormatBuilder;
@@ -1120,7 +1120,7 @@ public final class PlayerEntitiesSystem {
 		int centerChunkZ = player.getBlockZ() >> 4;
 		for (int chunkX = centerChunkX - chunkRadius; chunkX <= centerChunkX + chunkRadius; chunkX++) {
 			for (int chunkZ = centerChunkZ - chunkRadius; chunkZ <= centerChunkZ + chunkRadius; chunkZ++) {
-				if (!ChunkManagerSystem.isChunkAccessible(level, chunkX, chunkZ)) {
+				if (!MadokuChunkManager.isChunkAccessible(level, chunkX, chunkZ)) {
 					continue;
 				}
 
@@ -3137,6 +3137,7 @@ public final class PlayerEntitiesSystem {
 	}
 
 }
+
 
 
 

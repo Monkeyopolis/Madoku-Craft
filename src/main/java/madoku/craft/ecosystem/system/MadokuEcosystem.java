@@ -2,7 +2,7 @@ package madoku.craft.ecosystem.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
@@ -198,7 +198,7 @@ public final class MadokuEcosystem {
 	private static final Map<ChunkRefKey, List<TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
 	private static final Map<ChunkRefKey, ChunkDiscoveryAccumulator> discoveryAccumulatorsByChunk = new LinkedHashMap<>();
 
-	private static final ChunkManagerSystem.ChunkLifecycleListener CHUNK_LISTENER = new ChunkManagerSystem.ChunkLifecycleListener() {
+	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
 		}
@@ -209,7 +209,7 @@ public final class MadokuEcosystem {
 		}
 	};
 
-	private static final ChunkManagerSystem.ChunkProcessor NATURAL_GROWTH_CHUNK_PROCESSOR = new ChunkManagerSystem.ChunkProcessor() {
+	private static final MadokuChunkManager.ChunkProcessor NATURAL_GROWTH_CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
 		public boolean requiresSurfaceColumns() {
 			return false;
@@ -221,7 +221,7 @@ public final class MadokuEcosystem {
 		}
 
 		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkManagerSystem.ChunkDiscoverySnapshot snapshot) {
+		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
 			runUnifiedDiscoveryForChunk(level, chunkX, chunkZ, snapshot);
 		}
 
@@ -232,7 +232,7 @@ public final class MadokuEcosystem {
 
 		@Override
 		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
+			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
 			long currentAbsoluteDayTime = resolveAbsoluteDayTime(level);
@@ -240,7 +240,7 @@ public final class MadokuEcosystem {
 		}
 	};
 
-	private static final ChunkManagerSystem.ChunkProcessor NATURAL_EROSION_CHUNK_PROCESSOR = new ChunkManagerSystem.ChunkProcessor() {
+	private static final MadokuChunkManager.ChunkProcessor NATURAL_EROSION_CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
 		public boolean requiresSurfaceColumns() {
 			return true;
@@ -252,7 +252,7 @@ public final class MadokuEcosystem {
 		}
 
 		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkManagerSystem.ChunkDiscoverySnapshot snapshot) {
+		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
 			runUnifiedDiscoveryForChunk(level, chunkX, chunkZ, snapshot);
 		}
 
@@ -263,7 +263,7 @@ public final class MadokuEcosystem {
 
 		@Override
 		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
+			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
 			long currentAbsoluteDayTime = resolveAbsoluteDayTime(level);
@@ -289,9 +289,9 @@ public final class MadokuEcosystem {
 
 	public static void initialize() {
 		loadConfig();
-		ChunkManagerSystem.registerChunkLifecycleListener(CHUNK_LISTENER);
-		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID, NATURAL_GROWTH_CHUNK_PROCESSOR);
-		ChunkManagerSystem.registerChunkProcessor(CHUNK_PROCESSOR_EROSION_ID, NATURAL_EROSION_CHUNK_PROCESSOR);
+		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
+		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID, NATURAL_GROWTH_CHUNK_PROCESSOR);
+		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_EROSION_ID, NATURAL_EROSION_CHUNK_PROCESSOR);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ECOSYSTEM_GROWTH_PROCESS_TICK, MadokuEcosystem::runNaturalGrowthProcessTask);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ECOSYSTEM_EROSION_PROCESS_TICK, MadokuEcosystem::runNaturalErosionProcessTask);
 	}
@@ -306,8 +306,8 @@ public final class MadokuEcosystem {
 		foliageCandidatesByChunk.clear();
 		treeDecayCandidatesByChunk.clear();
 		discoveryAccumulatorsByChunk.clear();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
 		resetEcosystemSchedulerState();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
@@ -329,8 +329,8 @@ public final class MadokuEcosystem {
 	}
 
 	private static void syncChunkProcessorActivation() {
-		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_GROWTH_ID, isNaturalGrowthEnabled());
-		ChunkManagerSystem.setChunkProcessorActive(CHUNK_PROCESSOR_EROSION_ID, isNaturalErosionEnabled());
+		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_GROWTH_ID, isNaturalGrowthEnabled());
+		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_EROSION_ID, isNaturalErosionEnabled());
 	}
 
 	private static void loadConfig() {
@@ -402,8 +402,8 @@ public final class MadokuEcosystem {
 		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_GROWTH_PROCESS_SCHEDULER_OWNER_ID);
 		SchedulerManagerSystem.clearAdaptiveDelayState(ECOSYSTEM_EROSION_PROCESS_SCHEDULER_OWNER_ID);
 		resetUnifiedDiscoveryState();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
 		if (!isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			resetEcosystemSchedulerState();
 			return;
@@ -440,8 +440,8 @@ public final class MadokuEcosystem {
 			foliageCandidatesByChunk.clear();
 			treeDecayCandidatesByChunk.clear();
 			discoveryAccumulatorsByChunk.clear();
-			ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
-			ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
+			MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
+			MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
 			dirty = false;
 			resetUnifiedDiscoveryState();
 			return;
@@ -537,7 +537,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 		requestEcosystemTask(server, resolveEcosystemSchedulerInterval(server), EcosystemTaskSlot.GROWTH_PROCESS);
-		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_GROWTH_ID);
+		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_GROWTH_ID);
 	}
 
 	private static void runNaturalErosionProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -549,7 +549,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 		requestEcosystemTask(server, resolveEcosystemSchedulerInterval(server), EcosystemTaskSlot.EROSION_PROCESS);
-		ChunkManagerSystem.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_EROSION_ID);
+		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_EROSION_ID);
 	}
 
 	private static void beginUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
@@ -564,7 +564,7 @@ public final class MadokuEcosystem {
 		ServerLevel world,
 		int chunkX,
 		int chunkZ,
-		ChunkManagerSystem.ChunkDiscoverySnapshot snapshot
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
 	) {
 		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled())) {
 			return;
@@ -624,7 +624,7 @@ public final class MadokuEcosystem {
 		ServerLevel world,
 		int chunkX,
 		int chunkZ,
-		ChunkManagerSystem.ChunkDiscoverySnapshot snapshot,
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
 		ChunkDiscoveryAccumulator accumulator
 	) {
 		if (world == null || snapshot == null || accumulator == null) {
@@ -634,7 +634,7 @@ public final class MadokuEcosystem {
 			return;
 		}
 
-		for (ChunkManagerSystem.ColumnSample column : snapshot.motionColumns()) {
+		for (MadokuChunkManager.ColumnSample column : snapshot.motionColumns()) {
 			if (column == null) {
 				continue;
 			}
@@ -654,7 +654,7 @@ public final class MadokuEcosystem {
 				collectFoliageGroundCandidate(world, pos, state, FOLIAGE_TYPE_PINK_PETALS, accumulator.pinkPetalGroundCandidates);
 			}
 		}
-		for (ChunkManagerSystem.ColumnSample column : snapshot.surfaceColumns()) {
+		for (MadokuChunkManager.ColumnSample column : snapshot.surfaceColumns()) {
 			if (column == null || !isNaturalErosionEnabled()) {
 				continue;
 			}
@@ -2505,15 +2505,15 @@ public final class MadokuEcosystem {
 			|| (treeDecayCandidatesByChunk.containsKey(chunkKey) && !treeDecayCandidatesByChunk.getOrDefault(chunkKey, List.of()).isEmpty());
 
 		if (growthTracked) {
-			ChunkManagerSystem.trackChunkForProcessor(CHUNK_PROCESSOR_GROWTH_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_GROWTH_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		} else {
-			ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_GROWTH_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_GROWTH_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
 
 		if (erosionTracked) {
-			ChunkManagerSystem.trackChunkForProcessor(CHUNK_PROCESSOR_EROSION_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_EROSION_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		} else {
-			ChunkManagerSystem.untrackChunkForProcessor(CHUNK_PROCESSOR_EROSION_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_EROSION_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
 	}
 
@@ -2564,7 +2564,7 @@ public final class MadokuEcosystem {
 	}
 
 	private static String levelId(ServerLevel world) {
-		return ChunkManagerSystem.normalizeLevelId(world);
+		return MadokuChunkManager.normalizeLevelId(world);
 	}
 
 	private static ChunkRefKey chunkRefForPos(String levelId, long packedBlockPos) {
@@ -3424,8 +3424,8 @@ public final class MadokuEcosystem {
 		foliageCandidatesByChunk.clear();
 		treeDecayCandidatesByChunk.clear();
 		resetUnifiedDiscoveryState();
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
-		ChunkManagerSystem.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_GROWTH_ID);
+		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_EROSION_ID);
 
 		if (source == null) {
 			return;
@@ -4270,5 +4270,6 @@ public final class MadokuEcosystem {
 		}
 	}
 }
+
 
 

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.luck.MadokuPlacedBlocks;
+import madoku.craft.attributes.luck.MadokuPlacedBlocks;
 import madoku.craft.ecosystem.system.MadokuEcosystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.health.MadokuHealthManager;
-import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.attributes.health.MadokuHealthManager;
+import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;

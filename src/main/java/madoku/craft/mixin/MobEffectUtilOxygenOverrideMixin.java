@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.oxygen.MadokuOxygenManager;
+import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

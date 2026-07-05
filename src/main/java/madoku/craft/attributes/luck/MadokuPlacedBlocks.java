@@ -1,4 +1,4 @@
-package madoku.craft.luck;
+package madoku.craft.attributes.luck;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;

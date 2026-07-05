@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.loot.system.MadokuLootTableEntities;
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;

@@ -8,7 +8,7 @@ import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;

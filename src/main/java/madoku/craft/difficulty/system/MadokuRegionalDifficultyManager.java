@@ -3,7 +3,7 @@ package madoku.craft.difficulty.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -793,7 +793,7 @@ public final class MadokuRegionalDifficultyManager {
 		}
 		int chunkX = pos.getX() >> 4;
 		int chunkZ = pos.getZ() >> 4;
-		return ChunkManagerSystem.isChunkLoaded(world, chunkX, chunkZ);
+		return MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ);
 	}
 
 	private static boolean isValidStructureStart(StructureStart start) {
@@ -1327,6 +1327,7 @@ public final class MadokuRegionalDifficultyManager {
 			private static final StructureContext NONE = new StructureContext(null, 0);
 		}
 	}
+
 
 
 

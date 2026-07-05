@@ -1,4 +1,4 @@
-package madoku.craft.health;
+package madoku.craft.attributes.health;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.hunger.MadokuHungerManager;
+import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.server.commands.EffectCommands;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffects;

@@ -1,4 +1,4 @@
-package madoku.craft.oxygen;
+package madoku.craft.attributes.oxygen;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

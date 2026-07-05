@@ -2,7 +2,7 @@ package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;

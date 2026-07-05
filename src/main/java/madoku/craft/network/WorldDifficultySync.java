@@ -1,6 +1,6 @@
 package madoku.craft.network;
 
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import net.minecraft.core.BlockPos;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -95,7 +95,7 @@ public final class WorldDifficultySync {
 		BlockPos pos = player.blockPosition();
 		int chunkX = pos.getX() >> 4;
 		int chunkZ = pos.getZ() >> 4;
-		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ)) {
+		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 			return null;
 		}
 		int timeAdjustment = MadokuRegionalDifficultyManager.resolveCurrentTimeAdjustment(level);
@@ -128,5 +128,6 @@ public final class WorldDifficultySync {
 		}
 	}
 }
+
 
 

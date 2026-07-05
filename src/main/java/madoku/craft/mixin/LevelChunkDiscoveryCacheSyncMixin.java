@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -30,11 +30,12 @@ public abstract class LevelChunkDiscoveryCacheSyncMixin {
 		if (cir != null && !cir.getReturnValue()) {
 			return;
 		}
-		if (ChunkManagerSystem.isInternalProcessorMutationActive()) {
+		if (MadokuChunkManager.isInternalProcessorMutationActive()) {
 			return;
 		}
 		ServerLevel serverLevel = (ServerLevel) (Object) this;
-		ChunkManagerSystem.onWorldPositionChanged(serverLevel, pos, null, nextState);
+		MadokuChunkManager.onWorldPositionChanged(serverLevel, pos, null, nextState);
 	}
 }
+
 

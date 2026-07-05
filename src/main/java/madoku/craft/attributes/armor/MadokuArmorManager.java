@@ -1,7 +1,7 @@
-package madoku.craft.armor;
+package madoku.craft.attributes.armor;
 
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.debug.MadokuDebugManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -14,7 +14,6 @@ import java.util.Map;
 public final class MadokuArmorManager {
 	private static final double DAMAGE_ROUND_INCREMENT = 0.05d;
 	private static final double POINT_STEP = 0.25d;
-
 	private static volatile ArmorConfigManager.Settings settings = ArmorConfigManager.Settings.defaults();
 
 	private MadokuArmorManager() {
@@ -140,17 +139,18 @@ public final class MadokuArmorManager {
 	}
 
 	private static void emitArmorDebug(String group, String metricId, LivingEntity entity, DamageSource source, Map<String, String> fields) {
-		if (entity == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
+		if (entity == null || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebugManager.shouldEmit("attributes", "armor", group)) {
+		String entry = MadokuDebugManager.resolveCallerMethodName();
+		if (!MadokuDebugManager.shouldEmit("attributes", "armor", entry)) {
 			return;
 		}
 
 		String subject = entity instanceof net.minecraft.server.level.ServerPlayer player
 			? "player:" + player.getScoreboardName()
 			: "entity:" + entity.getType().toShortString();
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "armor", group)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "armor", entry)
 			.side(MadokuDebugManager.Side.SERVER)
 			.tick(madoku.craft.clock.MadokuTicks.getGameplayTicks())
 			.subject(subject);
@@ -161,9 +161,9 @@ public final class MadokuArmorManager {
 			builder.field("damage_source", source.toString());
 		}
 		if (fields != null) {
-			for (Map.Entry<String, String> entry : fields.entrySet()) {
-				if (entry != null) {
-					builder.field(entry.getKey(), entry.getValue());
+			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {
+				if (fieldEntry != null) {
+					builder.field(fieldEntry.getKey(), fieldEntry.getValue());
 				}
 			}
 		}

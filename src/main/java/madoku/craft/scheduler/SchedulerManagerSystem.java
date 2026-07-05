@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.chunk.ChunkManagerSystem;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -361,8 +361,8 @@ public final class SchedulerManagerSystem {
 	private static boolean isChunkRunnable(MinecraftServer server, SchedulerBinding binding) {
 		ServerLevel level = resolveLevel(server, binding.levelId);
 		return level != null
-			&& ChunkManagerSystem.isChunkLoaded(level, binding.chunkX, binding.chunkZ)
-			&& ChunkManagerSystem.isChunkBlockTicking(level, binding.chunkX, binding.chunkZ);
+			&& MadokuChunkManager.isChunkLoaded(level, binding.chunkX, binding.chunkZ)
+			&& MadokuChunkManager.isChunkBlockTicking(level, binding.chunkX, binding.chunkZ);
 	}
 
 	private static boolean isEventRunnable(MinecraftServer server, SchedulerBinding binding) {
@@ -387,7 +387,7 @@ public final class SchedulerManagerSystem {
 		BlockPos blockPos = BlockPos.of(packedPos);
 		int chunkX = blockPos.getX() >> 4;
 		int chunkZ = blockPos.getZ() >> 4;
-		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ) || !ChunkManagerSystem.isChunkBlockTicking(level, chunkX, chunkZ)) {
+		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ) || !MadokuChunkManager.isChunkBlockTicking(level, chunkX, chunkZ)) {
 			return false;
 		}
 		return !level.isEmptyBlock(blockPos);
@@ -403,7 +403,7 @@ public final class SchedulerManagerSystem {
 		BlockPos blockPos = BlockPos.of(packedPos);
 		int chunkX = blockPos.getX() >> 4;
 		int chunkZ = blockPos.getZ() >> 4;
-		if (!ChunkManagerSystem.isChunkLoaded(level, chunkX, chunkZ) || !ChunkManagerSystem.isChunkBlockTicking(level, chunkX, chunkZ)) {
+		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ) || !MadokuChunkManager.isChunkBlockTicking(level, chunkX, chunkZ)) {
 			return false;
 		}
 		return level.getBlockEntity(blockPos) != null;
@@ -1233,5 +1233,6 @@ public final class SchedulerManagerSystem {
 		}
 	}
 }
+
 
 

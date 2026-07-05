@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
-import madoku.craft.luck.MadokuLuckManager;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import net.minecraft.sounds.SoundEvents;

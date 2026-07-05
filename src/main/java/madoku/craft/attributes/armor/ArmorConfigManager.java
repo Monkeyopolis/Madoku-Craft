@@ -1,4 +1,4 @@
-package madoku.craft.armor;
+package madoku.craft.attributes.armor;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

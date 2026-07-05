@@ -1,4 +1,4 @@
-package madoku.craft.hunger;
+package madoku.craft.attributes.hunger;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
