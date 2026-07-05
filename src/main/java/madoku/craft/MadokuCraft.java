@@ -7,7 +7,7 @@ import madoku.craft.clock.MadokuClock;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.ecosystem.system.MadokuEcosystem;
 import madoku.craft.entity.MadokuEntities;
@@ -52,7 +52,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuSmeltingManager.initialize();
 		MadokuRecipe.initialize();
 		MadokuLootTableManager.initialize();
-		MadokuDebug.initialize();
+		MadokuDebugManager.initialize();
 		MadokuRegionalDifficultyManager.initialize();
 		MadokuTime.initialize();
 		MadokuSeason.initialize();
@@ -80,7 +80,7 @@ public class MadokuCraft implements ModInitializer {
 		PetSoundStateSync.initialize();
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			MadokuDebug.resetSession();
+			MadokuDebugManager.resetSession();
 			MadokuTicks.reset();
 			MadokuClock.reset();
 			MadokuSleep.reset();

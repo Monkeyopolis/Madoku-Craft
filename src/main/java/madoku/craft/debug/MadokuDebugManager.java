@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class MadokuDebug {
+public final class MadokuDebugManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger("Debug");
 	private static final String DEBUG_CONFIG_FOLDER_NAME = "madoku-craft-debug";
 	private static final String MAIN_GROUP_NAME = "main";
@@ -29,18 +29,20 @@ public final class MadokuDebug {
 	private static final Object BUFFER_LOCK = new Object();
 
 	private static final Deque<String> RECENT_EVENTS = new ArrayDeque<>(MAX_RECENT_EVENTS);
+	private static final Map<String, MadokuDebugRegistry.DebugHierarchy> REGISTERED_HIERARCHIES = new ConcurrentHashMap<>();
 	private static final Map<String, GroupConfig> GROUP_CONFIG_CACHE = new ConcurrentHashMap<>();
 
-	private MadokuDebug() {
+	private MadokuDebugManager() {
 	}
 
 	public static void initialize() {
+		REGISTERED_HIERARCHIES.clear();
 		GROUP_CONFIG_CACHE.clear();
 		resetSession();
 		try {
 			Files.createDirectories(resolveRootDirectory());
 		} catch (IOException exception) {
-			LOGGER.error("Failed to initialize MadokuDebug config root.", exception);
+			LOGGER.error("Failed to initialize MadokuDebugManager config root.", exception);
 		}
 	}
 
@@ -51,7 +53,7 @@ public final class MadokuDebug {
 	}
 
 	public static boolean shouldEmit(String mainSystem, String subSystem, String group) {
-		return getEffectiveGroupConfig(mainSystem, subSystem, group).enabled();
+		return resolveGroupConfig(mainSystem, subSystem, group).enabled();
 	}
 
 	public static String mainSystemFolderName(String mainSystem) {
@@ -116,8 +118,24 @@ public final class MadokuDebug {
 		}
 	}
 
+	public static void bootstrapHierarchy(MadokuDebugRegistry.DebugHierarchy hierarchy) {
+		if (hierarchy == null) {
+			return;
+		}
+		registerHierarchy(hierarchy);
+		bootstrapHierarchy(hierarchy.mainSystem(), hierarchy.subSystemGroups());
+	}
+
+	public static void registerHierarchy(MadokuDebugRegistry.DebugHierarchy hierarchy) {
+		if (hierarchy == null) {
+			return;
+		}
+		String normalizedMain = mainSystemFolderName(hierarchy.mainSystem());
+		REGISTERED_HIERARCHIES.put(normalizedMain, hierarchy);
+	}
+
 	public static EventBuilder event(String metricId, String mainSystem, String subSystem, String group) {
-		GroupConfig config = getEffectiveGroupConfig(mainSystem, subSystem, group);
+		GroupConfig config = resolveGroupConfig(mainSystem, subSystem, group);
 		return new EventBuilder(metricId, config);
 	}
 
@@ -203,6 +221,17 @@ public final class MadokuDebug {
 			cacheKey,
 			ignored -> loadEffectiveGroupConfig(normalizedMain, normalizedSub, normalizedGroup)
 		);
+	}
+
+	private static GroupConfig resolveGroupConfig(String mainSystem, String subSystem, String group) {
+		String normalizedMain = mainSystemFolderName(mainSystem);
+		String normalizedSub = subSystemFolderName(subSystem);
+		String normalizedGroup = groupFileName(group);
+		MadokuDebugRegistry.DebugHierarchy hierarchy = REGISTERED_HIERARCHIES.get(normalizedMain);
+		if (hierarchy == null || !hierarchy.containsSubSystem(normalizedSub) || !hierarchy.containsGroup(normalizedSub, normalizedGroup)) {
+			return GroupConfig.disabled(normalizedMain, normalizedSub, normalizedGroup);
+		}
+		return getEffectiveGroupConfig(normalizedMain, normalizedSub, normalizedGroup);
 	}
 
 	private static GroupConfig loadEffectiveGroupConfig(String mainSystem, String subSystem, String group) {

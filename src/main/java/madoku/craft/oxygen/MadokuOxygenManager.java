@@ -7,7 +7,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.Holder;
@@ -807,12 +807,12 @@ public final class MadokuOxygenManager {
 		if (player == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebug.shouldEmit("attributes", "oxygen", group)) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "oxygen", group)) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "oxygen", group)
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "oxygen", group)
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(gameplayTick)
 			.subject("player:" + player.getUUID());
 		if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {

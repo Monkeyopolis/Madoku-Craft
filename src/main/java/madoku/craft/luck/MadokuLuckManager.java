@@ -4,7 +4,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import madoku.craft.farming.system.MadokuFarming;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
@@ -868,12 +868,12 @@ public final class MadokuLuckManager {
 	}
 
 	static void emitLuckDebug(String metricId, ServerLevel world, BlockPos pos, String subject, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit("attributes", "luck", resolveLuckDebugGroup(metricId))) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "luck", resolveLuckDebugGroup(metricId))) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", resolveLuckDebugGroup(metricId))
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", resolveLuckDebugGroup(metricId))
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject(subject == null || subject.isBlank() ? "global" : subject);
@@ -892,12 +892,12 @@ public final class MadokuLuckManager {
 	}
 
 	private static void emitMobLuckDebug(String metricId, ServerLevel world, Mob mob, Map<String, String> fields) {
-		if (!MadokuDebug.shouldEmit("attributes", "luck", "mob-drops")) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "luck", "mob-drops")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "luck", "mob-drops")
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", "mob-drops")
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject(mob == null ? "mob:unknown" : "mob:" + mob.getType().toShortString());

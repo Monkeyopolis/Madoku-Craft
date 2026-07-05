@@ -1,7 +1,7 @@
 package madoku.craft.armor;
 
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -143,15 +143,15 @@ public final class MadokuArmorManager {
 		if (entity == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebug.shouldEmit("attributes", "armor", group)) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "armor", group)) {
 			return;
 		}
 
 		String subject = entity instanceof net.minecraft.server.level.ServerPlayer player
 			? "player:" + player.getScoreboardName()
 			: "entity:" + entity.getType().toShortString();
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "armor", group)
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "armor", group)
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(madoku.craft.clock.MadokuTicks.getGameplayTicks())
 			.subject(subject);
 		if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {

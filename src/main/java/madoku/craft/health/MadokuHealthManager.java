@@ -11,7 +11,7 @@ import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import madoku.craft.hunger.MadokuHungerManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.resources.Identifier;
@@ -333,9 +333,9 @@ public final class MadokuHealthManager {
 		}
 
 		player.setHealth(target);
-		if (MadokuDebug.shouldEmit("attributes", "health", "poison")) {
-			MadokuDebug.event("health.effect_poison_tick", "attributes", "health", "poison")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "poison")) {
+			MadokuDebugManager.event("health.effect_poison_tick", "attributes", "health", "poison")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("health_before", formatFloat(current))
@@ -356,9 +356,9 @@ public final class MadokuHealthManager {
 			return;
 		}
 		player.hurtServer(player.level(), player.damageSources().wither(), damage);
-		if (MadokuDebug.shouldEmit("attributes", "health", "wither")) {
-			MadokuDebug.event("health.effect_wither_tick", "attributes", "health", "wither")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "wither")) {
+			MadokuDebugManager.event("health.effect_wither_tick", "attributes", "health", "wither")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("health_before", formatFloat(healthBefore))
@@ -390,9 +390,9 @@ public final class MadokuHealthManager {
 		player.setHealth(target);
 		state.lastPendingActivityTick = gameplayTick;
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "regeneration")) {
-			MadokuDebug.event("health.effect_regeneration_tick", "attributes", "health", "regeneration")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "regeneration")) {
+			MadokuDebugManager.event("health.effect_regeneration_tick", "attributes", "health", "regeneration")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("health_before", formatFloat(current))
@@ -431,9 +431,9 @@ public final class MadokuHealthManager {
 			state.highHungerDrainActive = false;
 		}
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.pending_collected", "attributes", "health", "health")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "health")) {
+			MadokuDebugManager.event("health.pending_collected", "attributes", "health", "health")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("health_before", formatFloat(player.getHealth()))
@@ -481,9 +481,9 @@ public final class MadokuHealthManager {
 		}
 		state.lastPendingActivityTick = gameplayTick;
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.pending_applied", "attributes", "health", "health")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "health")) {
+			MadokuDebugManager.event("health.pending_applied", "attributes", "health", "health")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("health_before", formatFloat(healthBefore))
@@ -511,9 +511,9 @@ public final class MadokuHealthManager {
 		state.highHungerDrainActive = false;
 		state.lastPendingActivityTick = gameplayTick;
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.pending_idle_cleared", "attributes", "health", "health")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "health")) {
+			MadokuDebugManager.event("health.pending_idle_cleared", "attributes", "health", "health")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + playerId)
 				.field("idle_ticks", Long.toString(idleTicks))
@@ -551,9 +551,9 @@ public final class MadokuHealthManager {
 			}
 
 			state.appliedMaxHealthMultiplier = targetMultiplier;
-			if (MadokuDebug.shouldEmit("attributes", "health", "health-penalty")) {
-				MadokuDebug.event("health.max_health_scaled", "attributes", "health", "health-penalty")
-					.side(MadokuDebug.Side.SERVER)
+			if (MadokuDebugManager.shouldEmit("attributes", "health", "health-penalty")) {
+				MadokuDebugManager.event("health.max_health_scaled", "attributes", "health", "health-penalty")
+					.side(MadokuDebugManager.Side.SERVER)
 					.tick(gameplayTick)
 					.subject("player:" + player.getUUID())
 					.field("base_max_health", Double.toString(targetBaseMaxHealth))
@@ -620,9 +620,9 @@ public final class MadokuHealthManager {
 			player.setHealth(Math.min(player.getMaxHealth(), quantizeHealth(player.getMaxHealth())));
 		}
 
-		if (modifierChanged && MadokuDebug.shouldEmit("attributes", "health", "health-boost")) {
-			MadokuDebug.event("health.effect_health_boost_scaled", "attributes", "health", "health-boost")
-				.side(MadokuDebug.Side.SERVER)
+		if (modifierChanged && MadokuDebugManager.shouldEmit("attributes", "health", "health-boost")) {
+			MadokuDebugManager.event("health.effect_health_boost_scaled", "attributes", "health", "health-boost")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("effect_level", healthBoostLevel)
@@ -653,9 +653,9 @@ public final class MadokuHealthManager {
 
 		player.setAbsorptionAmount(targetAbsorption);
 		state.appliedAbsorptionAmount = targetAbsorption;
-		if (MadokuDebug.shouldEmit("attributes", "health", "absorption")) {
-			MadokuDebug.event("health.effect_absorption_scaled", "attributes", "health", "absorption")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "absorption")) {
+			MadokuDebugManager.event("health.effect_absorption_scaled", "attributes", "health", "absorption")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(gameplayTick)
 				.subject("player:" + player.getUUID())
 				.field("effect_level", absorptionLevel)
@@ -755,9 +755,9 @@ public final class MadokuHealthManager {
 			)
 		);
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.respawn_half_health", "attributes", "health", "health")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "health")) {
+			MadokuDebugManager.event("health.respawn_half_health", "attributes", "health", "health")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(MadokuTicks.getGameplayTicks())
 				.subject("player:" + newPlayer.getUUID())
 				.field("respawn_percentage", Float.toString(settings.health.respawnHealthPercentage))
@@ -786,9 +786,9 @@ public final class MadokuHealthManager {
 		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		state.highHungerDrainActive = player.getHealth() + EPSILON < player.getMaxHealth();
 
-		if (MadokuDebug.shouldEmit("attributes", "health", "health")) {
-			MadokuDebug.event("health.damage_detected", "attributes", "health", "health")
-				.side(MadokuDebug.Side.SERVER)
+		if (MadokuDebugManager.shouldEmit("attributes", "health", "health")) {
+			MadokuDebugManager.event("health.damage_detected", "attributes", "health", "health")
+				.side(MadokuDebugManager.Side.SERVER)
 				.tick(MadokuTicks.getGameplayTicks())
 				.subject("player:" + player.getUUID())
 				.field("damage_source", source == null ? "unknown" : source.toString())
@@ -1027,12 +1027,12 @@ public final class MadokuHealthManager {
 		if (metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebug.shouldEmit("attributes", "health", "main")) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "health", "main")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "health", "main")
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "health", "main")
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.subject("server");
 		if (fields != null) {

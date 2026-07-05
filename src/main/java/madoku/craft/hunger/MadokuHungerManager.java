@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.debug.MadokuDebugManager;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -1024,12 +1024,12 @@ public final class MadokuHungerManager {
 		if (player == null || group == null || group.isBlank() || metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebug.shouldEmit("attributes", "hunger", group)) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", group)) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "hunger", group)
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", group)
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(gameplayTick)
 			.subject("player:" + player.getUUID());
 		if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
@@ -1049,12 +1049,12 @@ public final class MadokuHungerManager {
 		if (metricId == null || metricId.isBlank()) {
 			return;
 		}
-		if (!MadokuDebug.shouldEmit("attributes", "hunger", "main")) {
+		if (!MadokuDebugManager.shouldEmit("attributes", "hunger", "main")) {
 			return;
 		}
 
-		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "hunger", "main")
-			.side(MadokuDebug.Side.SERVER)
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", "main")
+			.side(MadokuDebugManager.Side.SERVER)
 			.tick(MadokuTicks.getGameplayTicks())
 			.subject("server");
 		if (fields != null) {
