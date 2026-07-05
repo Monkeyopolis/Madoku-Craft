@@ -50,7 +50,6 @@ public final class MadokuOxygenManager {
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static volatile OxygenConfigManager.Settings settings = OxygenConfigManager.Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static long lastProcessedGameplayTick = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
@@ -67,7 +66,6 @@ public final class MadokuOxygenManager {
 	public static void reset() {
 		PLAYER_STATES.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
-		lastProcessedGameplayTick = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
 		SchedulerManagerSystem.clearAdaptiveDelayState(OXYGEN_PLAYER_TICK_SCHEDULER_KEY);
@@ -220,6 +218,7 @@ public final class MadokuOxygenManager {
 
 		int oxygenCapTicks = getMaximumOxygenTicksForEntity(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		synchronizeOxygenState(player, state, oxygenCapTicks);
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
@@ -233,13 +232,7 @@ public final class MadokuOxygenManager {
 
 		schedulerId = context.getSchedulerId();
 		long gameplayTick = Math.max(0L, context.getNowTick());
-		long startTick = lastProcessedGameplayTick == Long.MIN_VALUE || gameplayTick < lastProcessedGameplayTick
-			? gameplayTick
-			: lastProcessedGameplayTick + 1L;
-		for (long tick = startTick; tick <= gameplayTick; tick++) {
-			onGameplayTick(server, tick);
-		}
-		lastProcessedGameplayTick = gameplayTick;
+		onGameplayTick(server, gameplayTick);
 		ensureQueued(server);
 	}
 
@@ -319,11 +312,13 @@ public final class MadokuOxygenManager {
 		int oxygenCapTicks = getMaximumOxygenTicksForEntity(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		initializeOxygenFromPlayer(player, state, oxygenCapTicks);
+		long elapsedTicks = consumeElapsedTicks(state, gameplayTick);
 
 		if (player.isSpectator() || player.getAbilities().invulnerable) {
 			state.oxygenTicks = oxygenCapTicks;
 			state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
 			state.lastDrowningDamageTick = Long.MIN_VALUE;
+			state.lastProcessedGameplayTick = gameplayTick;
 			refreshEffectModifiers(player);
 			applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 			emitOxygenDebug(
@@ -341,9 +336,17 @@ public final class MadokuOxygenManager {
 		}
 
 		if (shouldDrainOxygen(player)) {
-			state.oxygenTicks = clampInt(state.oxygenTicks - OXYGEN_DRAIN_PER_TICK, 0, oxygenCapTicks);
+			int oxygenBefore = state.oxygenTicks;
+			int drained = clampInt((int) Math.min(Integer.MAX_VALUE, elapsedTicks * (long) OXYGEN_DRAIN_PER_TICK), 0, oxygenBefore);
+			state.oxygenTicks = clampInt(oxygenBefore - drained, 0, oxygenCapTicks);
 			if (state.oxygenTicks <= 0) {
-				applyCustomDrowningDamage(player, state, gameplayTick);
+				long zeroCrossTick = gameplayTick;
+				if (oxygenBefore > 0 && drained > 0) {
+					long ticksToZero = (oxygenBefore + OXYGEN_DRAIN_PER_TICK - 1L) / OXYGEN_DRAIN_PER_TICK;
+					long ticksAfterZero = Math.max(0L, elapsedTicks - ticksToZero);
+					zeroCrossTick = Math.max(0L, gameplayTick - ticksAfterZero);
+				}
+				applyCustomDrowningDamage(player, state, gameplayTick, zeroCrossTick);
 			} else {
 				state.lastDrowningDamageTick = Long.MIN_VALUE;
 			}
@@ -353,13 +356,18 @@ public final class MadokuOxygenManager {
 				player,
 				gameplayTick,
 				Map.of(
+					"oxygen_before", Integer.toString(oxygenBefore),
+					"drained", Integer.toString(drained),
 					"oxygen_ticks", Integer.toString(state.oxygenTicks),
 					"oxygen_cap_ticks", Integer.toString(oxygenCapTicks),
+					"elapsed_ticks", Long.toString(elapsedTicks),
 					"action", "drain"
 				)
 			);
 		} else {
-			state.oxygenTicks = clampInt(state.oxygenTicks + OXYGEN_RECOVERY_PER_TICK, 0, oxygenCapTicks);
+			int oxygenBefore = state.oxygenTicks;
+			int recovered = clampInt((int) Math.min(Integer.MAX_VALUE, elapsedTicks * (long) OXYGEN_RECOVERY_PER_TICK), 0, oxygenCapTicks - oxygenBefore);
+			state.oxygenTicks = clampInt(oxygenBefore + recovered, 0, oxygenCapTicks);
 			state.lastDrowningDamageTick = Long.MIN_VALUE;
 			emitOxygenDebug(
 				"oxygen",
@@ -367,14 +375,18 @@ public final class MadokuOxygenManager {
 				player,
 				gameplayTick,
 				Map.of(
+					"oxygen_before", Integer.toString(oxygenBefore),
+					"recovered", Integer.toString(recovered),
 					"oxygen_ticks", Integer.toString(state.oxygenTicks),
 					"oxygen_cap_ticks", Integer.toString(oxygenCapTicks),
+					"elapsed_ticks", Long.toString(elapsedTicks),
 					"action", "recover"
 				)
 			);
 		}
 
 		state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
+		state.lastProcessedGameplayTick = gameplayTick;
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
 	}
@@ -536,6 +548,7 @@ public final class MadokuOxygenManager {
 		int oxygenCapTicks = getMaximumOxygenTicksForEntity(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		initializeOxygenFromPlayer(player, state, oxygenCapTicks);
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		synchronizeOxygenState(player, state, oxygenCapTicks);
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
@@ -561,6 +574,7 @@ public final class MadokuOxygenManager {
 		state.oxygenTicks = oxygenCapTicks;
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
 		state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		refreshEffectModifiers(newPlayer);
 		applyVanillaCompatibleAirSupply(newPlayer, state.oxygenTicks, oxygenCapTicks);
 		emitOxygenDebug(
@@ -575,7 +589,7 @@ public final class MadokuOxygenManager {
 		);
 	}
 
-	private static void applyCustomDrowningDamage(ServerPlayer player, PlayerState state, long gameplayTick) {
+	private static void applyCustomDrowningDamage(ServerPlayer player, PlayerState state, long gameplayTick, long zeroCrossTick) {
 		if (player == null || state == null || state.oxygenTicks > 0) {
 			return;
 		}
@@ -588,28 +602,40 @@ public final class MadokuOxygenManager {
 		if (!settings.oxygen.enabled || !settings.oxygen.suffocatingPenalty.enabled) {
 			return;
 		}
-		if (state.lastDrowningDamageTick != Long.MIN_VALUE
-			&& gameplayTick - state.lastDrowningDamageTick < SUFFOCATING_PENALTY_INTERVAL_TICKS) {
-			return;
-		}
 
 		float adjustedDamage = resolveSuffocatingPenaltyDamage(player);
 		if (adjustedDamage <= 0.0f) {
 			return;
 		}
 
-		state.lastDrowningDamageTick = gameplayTick;
-		player.hurtServer(player.level(), player.damageSources().drown(), adjustedDamage);
-		emitOxygenDebug(
-			"suffocating-penalty",
-			"oxygen.suffocating_penalty_applied",
-			player,
-			gameplayTick,
-			Map.of(
-				"damage", Float.toString(adjustedDamage),
-				"oxygen_ticks", Integer.toString(state.oxygenTicks)
-			)
-		);
+		long nextDamageTick = state.lastDrowningDamageTick == Long.MIN_VALUE
+			? zeroCrossTick
+			: Math.max(state.lastDrowningDamageTick + SUFFOCATING_PENALTY_INTERVAL_TICKS, zeroCrossTick);
+		long damageApplications = 0L;
+		while (nextDamageTick <= gameplayTick
+			&& player.isAlive()
+			&& !player.isDeadOrDying()
+			&& player.isEyeInFluid(FluidTags.WATER)
+			&& state.oxygenTicks <= 0) {
+			state.lastDrowningDamageTick = nextDamageTick;
+			player.hurtServer(player.level(), player.damageSources().drown(), adjustedDamage);
+			damageApplications++;
+			nextDamageTick += SUFFOCATING_PENALTY_INTERVAL_TICKS;
+		}
+		if (damageApplications > 0L) {
+			emitOxygenDebug(
+				"suffocating-penalty",
+				"oxygen.suffocating_penalty_applied",
+				player,
+				gameplayTick,
+				Map.of(
+					"damage", Float.toString(adjustedDamage),
+					"oxygen_ticks", Integer.toString(state.oxygenTicks),
+					"damage_applications", Long.toString(damageApplications),
+					"zero_cross_tick", Long.toString(zeroCrossTick)
+				)
+			);
+		}
 	}
 
 	private static boolean shouldDrainOxygen(ServerPlayer player) {
@@ -715,6 +741,19 @@ public final class MadokuOxygenManager {
 		}
 	}
 
+	private static long consumeElapsedTicks(PlayerState state, long gameplayTick) {
+		if (state == null) {
+			return 0L;
+		}
+
+		long previousTick = state.lastProcessedGameplayTick;
+		state.lastProcessedGameplayTick = gameplayTick;
+		if (previousTick == Long.MIN_VALUE || gameplayTick <= previousTick) {
+			return 0L;
+		}
+		return gameplayTick - previousTick;
+	}
+
 	private static JsonArray getArray(JsonObject object, String key) {
 		if (object == null || key == null || key.isBlank()) {
 			return null;
@@ -817,6 +856,7 @@ public final class MadokuOxygenManager {
 		private int oxygenTicks = -1;
 		private long lastDrowningDamageTick = Long.MIN_VALUE;
 		private int lastKnownMaximumOxygenTicks = -1;
+		private long lastProcessedGameplayTick = Long.MIN_VALUE;
 
 		private boolean hasPersistableState(int oxygenCapTicks) {
 			return oxygenTicks >= 0 && oxygenTicks != oxygenCapTicks;

@@ -48,7 +48,6 @@ public final class MadokuHungerManager {
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static volatile HungerConfigManager.Settings settings = HungerConfigManager.Settings.defaults();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static long lastProcessedGameplayTick = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
@@ -66,7 +65,6 @@ public final class MadokuHungerManager {
 	public static void reset() {
 		PLAYER_STATES.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
-		lastProcessedGameplayTick = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
 		SchedulerManagerSystem.clearAdaptiveDelayState(HUNGER_PLAYER_TICK_SCHEDULER_KEY);
@@ -82,6 +80,23 @@ public final class MadokuHungerManager {
 		applyPersistedData(data);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long totalPendingHunger = 0L;
+		for (PlayerState state : PLAYER_STATES.values()) {
+			if (state != null) {
+				totalPendingHunger += Math.max(0L, (long) state.pendingHunger);
+			}
+		}
+		emitHungerSystemDebug(
+			"hunger.persisted_state_loaded",
+			Map.of(
+				"player_states", Integer.toString(PLAYER_STATES.size()),
+				"online_players", Integer.toString(server.getPlayerList().getPlayers().size()),
+				"total_pending_hunger", Long.toString(totalPendingHunger),
+				"hunger_enabled", Boolean.toString(settings.hunger.enabled),
+				"depletion_enabled", Boolean.toString(settings.hungerDepletion.enabled),
+				"starvation_penalty_enabled", Boolean.toString(settings.hunger.starvationPenalty.enabled)
+			)
+		);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -227,22 +242,29 @@ public final class MadokuHungerManager {
 		initializeHungerFromPlayer(player, state, maxHungerPoints);
 
 		int before = state.pendingHunger;
+		int hungerBefore = state.hungerPoints;
 		state.pendingHunger = safeAdd(before, nutrition);
 		if (state.pendingHunger == before) {
 			return;
 		}
 
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
+		state.pendingAllocationProgressTicks = 0L;
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
-		scheduleNextPendingAllocation(state, MadokuTicks.getGameplayTicks());
 		emitHungerDebug(
 			"hunger",
 			"hunger.pending_added",
 			player,
 			MadokuTicks.getGameplayTicks(),
 			Map.of(
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"hunger_points", Integer.toString(hungerBefore),
+				"pending_before", Integer.toString(before),
+				"pending_after", Integer.toString(state.pendingHunger),
 				"nutrition", Integer.toString(nutrition),
-				"pending_hunger", Integer.toString(state.pendingHunger)
+				"food_level", Integer.toString(player.getFoodData().getFoodLevel()),
+				"saturation", Float.toString(player.getFoodData().getSaturationLevel())
 			)
 		);
 		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
@@ -266,6 +288,7 @@ public final class MadokuHungerManager {
 		int maxHungerPoints = resolveMaximumHungerPoints(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		initializeHungerFromPlayer(player, state, maxHungerPoints);
+		int hungerBefore = state.hungerPoints;
 		int drained = Math.min(amount, state.hungerPoints);
 		if (drained <= 0) {
 			return 0;
@@ -280,8 +303,12 @@ public final class MadokuHungerManager {
 			player,
 			MadokuTicks.getGameplayTicks(),
 			Map.of(
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"hunger_before", Integer.toString(hungerBefore),
+				"hunger_after", Integer.toString(state.hungerPoints),
 				"drained", Integer.toString(drained),
-				"remaining_hunger", Integer.toString(state.hungerPoints)
+				"food_level", Integer.toString(player.getFoodData().getFoodLevel()),
+				"saturation", Float.toString(player.getFoodData().getSaturationLevel())
 			)
 		);
 		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
@@ -298,11 +325,8 @@ public final class MadokuHungerManager {
 		}
 
 		schedulerId = context.getSchedulerId();
-		long gameplayTick = context.getNowTick();
-		for (long tick = lastProcessedGameplayTick == Long.MIN_VALUE ? gameplayTick : lastProcessedGameplayTick + 1L; tick <= gameplayTick; tick++) {
-			onGameplayTick(server, tick);
-		}
-		lastProcessedGameplayTick = gameplayTick;
+		long gameplayTick = Math.max(0L, context.getNowTick());
+		onGameplayTick(server, gameplayTick);
 		ensureQueued(server);
 	}
 
@@ -368,9 +392,6 @@ public final class MadokuHungerManager {
 		if (server == null || !settings.hunger.enabled) {
 			return;
 		}
-		if (Math.floorMod(gameplayTick, ACTION_INTERVAL_TICKS) != 0L) {
-			return;
-		}
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			processPlayer(player, gameplayTick);
@@ -389,11 +410,15 @@ public final class MadokuHungerManager {
 		int maxHungerPoints = resolveMaximumHungerPoints(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		initializeHungerFromPlayer(player, state, maxHungerPoints);
+		long elapsedTicks = consumeElapsedTicks(state, gameplayTick);
 
 		if (isExemptFromHungerDrain(player)) {
 			state.blockBreakProgress = 0L;
 			state.movementProgress = 0.0d;
 			state.timeProgressTicks = 0L;
+			state.pendingAllocationProgressTicks = 0L;
+			state.hungerEffectProgressTicks = 0L;
+			state.saturationEffectProgressTicks = 0L;
 			state.markPosition(player.getX(), player.getZ());
 			applyFoodState(player, state.hungerPoints, maxHungerPoints);
 			enforceStarvationPenalty(player, state, maxHungerPoints);
@@ -413,12 +438,12 @@ public final class MadokuHungerManager {
 				state.blockBreakProgress = 0L;
 			}
 			processMovementGoal(player, state, gameplayTick, maxHungerPoints);
-			processTimeGoal(player, state, gameplayTick, maxHungerPoints);
+			processTimeGoal(player, state, gameplayTick, elapsedTicks, maxHungerPoints);
 		}
 
-		processHungerEffect(player, state, gameplayTick, maxHungerPoints);
-		processSaturationEffect(player, state, gameplayTick, maxHungerPoints);
-		processPendingHunger(player, state, gameplayTick, maxHungerPoints);
+		processHungerEffect(player, state, gameplayTick, elapsedTicks, maxHungerPoints);
+		processSaturationEffect(player, state, gameplayTick, elapsedTicks, maxHungerPoints);
+		processPendingHunger(player, state, gameplayTick, elapsedTicks, maxHungerPoints);
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		enforceStarvationPenalty(player, state, maxHungerPoints);
 		syncHudState(player, state, maxHungerPoints);
@@ -446,6 +471,8 @@ public final class MadokuHungerManager {
 			return;
 		}
 
+		long beforeProgress = Math.max(0L, (long) Math.round(state.movementProgress));
+		int hungerBefore = state.hungerPoints;
 		state.movementProgress += horizontalDistance;
 		boolean drainedAny = false;
 		while (state.movementProgress >= settings.hungerDepletion.movementGoal.value
@@ -468,8 +495,13 @@ public final class MadokuHungerManager {
 				player,
 				gameplayTick,
 				Map.of(
+					"max_hunger", Integer.toString(maxHungerPoints),
+					"hunger_before", Integer.toString(hungerBefore),
+					"hunger_after", Integer.toString(state.hungerPoints),
+					"movement_progress_before", Long.toString(beforeProgress),
+					"movement_progress_after", Double.toString(state.movementProgress),
 					"distance", Double.toString(horizontalDistance),
-					"remaining_hunger", Integer.toString(state.hungerPoints)
+					"movement_goal", Double.toString(settings.hungerDepletion.movementGoal.value)
 				)
 			);
 		}
@@ -478,33 +510,52 @@ public final class MadokuHungerManager {
 		}
 	}
 
-	private static void processTimeGoal(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {
+	private static void processTimeGoal(ServerPlayer player, PlayerState state, long gameplayTick, long elapsedTicks, int maxHungerPoints) {
 		if (!settings.hungerDepletion.timeGoal.enabled) {
 			state.timeProgressTicks = 0L;
 			return;
 		}
 
-		state.timeProgressTicks = Math.min(Long.MAX_VALUE, state.timeProgressTicks + ACTION_INTERVAL_TICKS);
-		boolean drainedAny = false;
+		state.timeProgressTicks = accumulateProgressTicks(state.timeProgressTicks, elapsedTicks);
+		long timeProgressBefore = state.timeProgressTicks;
+		int hungerBefore = state.hungerPoints;
+		long drainedCount = 0L;
 		while (state.timeProgressTicks >= settings.hungerDepletion.timeGoal.value
 			&& settings.hungerDepletion.timeGoal.value > 0L) {
 			state.timeProgressTicks -= settings.hungerDepletion.timeGoal.value;
+			drainedCount++;
+		}
+
+		if (drainedCount <= 0L) {
+			return;
+		}
+
+		int drainedAny = 0;
+		for (long i = 0L; i < drainedCount; i++) {
 			int drained = drainStateHunger(state, 1);
 			if (drained <= 0) {
 				break;
 			}
-			drainedAny = true;
+			drainedAny += drained;
 		}
 
-		if (drainedAny) {
+		if (drainedAny > 0) {
 			emitHungerDebug(
 				"hunger-depletion",
 				"hunger.depletion_time",
 				player,
 				gameplayTick,
 				Map.of(
+					"max_hunger", Integer.toString(maxHungerPoints),
+					"hunger_before", Integer.toString(hungerBefore),
+					"hunger_after", Integer.toString(state.hungerPoints),
+					"time_progress_before", Long.toString(timeProgressBefore),
+					"time_progress_after", Long.toString(state.timeProgressTicks),
+					"time_goal", Long.toString(settings.hungerDepletion.timeGoal.value),
 					"remaining_hunger", Integer.toString(state.hungerPoints),
-					"time_progress_ticks", Long.toString(state.timeProgressTicks)
+					"time_progress_ticks", Long.toString(state.timeProgressTicks),
+					"elapsed_ticks", Long.toString(elapsedTicks),
+					"intervals_processed", Long.toString(drainedCount)
 				)
 			);
 		}
@@ -514,87 +565,114 @@ public final class MadokuHungerManager {
 		}
 	}
 
-	private static void processHungerEffect(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {
+	private static void processHungerEffect(ServerPlayer player, PlayerState state, long gameplayTick, long elapsedTicks, int maxHungerPoints) {
 		if (!settings.hungerEffect.enabled || player.isCreative() || player.isSpectator()) {
+			state.hungerEffectProgressTicks = 0L;
 			return;
 		}
-		if (Math.floorMod(gameplayTick, HUNGER_EFFECT_INTERVAL_TICKS) != 0L) {
+		int hungerEffectLevel = getEffectLevel(player, MobEffects.HUNGER);
+		if (hungerEffectLevel <= 0) {
+			state.hungerEffectProgressTicks = 0L;
 			return;
 		}
 
-		int hungerEffectLevel = getEffectLevel(player, MobEffects.HUNGER);
-		if (hungerEffectLevel <= 0) {
+		state.hungerEffectProgressTicks = accumulateProgressTicks(state.hungerEffectProgressTicks, elapsedTicks);
+		long effectApplications = state.hungerEffectProgressTicks / HUNGER_EFFECT_INTERVAL_TICKS;
+		if (effectApplications <= 0L) {
 			return;
 		}
+		state.hungerEffectProgressTicks %= HUNGER_EFFECT_INTERVAL_TICKS;
 
 		int drainAmount = resolveEffectAmount(player, settings.hungerEffect, hungerEffectLevel, maxHungerPoints);
 		if (drainAmount <= 0) {
 			return;
 		}
 
-		int drained = drainStateHunger(state, drainAmount);
-		if (drained <= 0) {
-			return;
-		}
+		for (long i = 0L; i < effectApplications; i++) {
+			int drained = drainStateHunger(state, drainAmount);
+			if (drained <= 0) {
+				break;
+			}
 
-		applyFoodState(player, state.hungerPoints, maxHungerPoints);
-		enforceStarvationPenalty(player, state, maxHungerPoints);
-		emitHungerDebug(
-			"hunger-effect",
-			"hunger.effect_drain",
-			player,
-			gameplayTick,
-			Map.of(
-				"level", Integer.toString(hungerEffectLevel),
-				"drained", Integer.toString(drained),
-				"remaining_hunger", Integer.toString(state.hungerPoints)
-			)
-		);
-		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
-		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
-		syncHudState(player, state, maxHungerPoints);
+			int hungerBefore = state.hungerPoints + drained;
+			applyFoodState(player, state.hungerPoints, maxHungerPoints);
+			enforceStarvationPenalty(player, state, maxHungerPoints);
+			emitHungerDebug(
+				"hunger-effect",
+				"hunger.effect_drain",
+				player,
+				gameplayTick,
+				Map.of(
+					"max_hunger", Integer.toString(maxHungerPoints),
+					"level", Integer.toString(hungerEffectLevel),
+					"drained", Integer.toString(drained),
+					"hunger_before", Integer.toString(hungerBefore),
+					"hunger_after", Integer.toString(state.hungerPoints),
+					"food_level", Integer.toString(player.getFoodData().getFoodLevel()),
+					"saturation", Float.toString(player.getFoodData().getSaturationLevel()),
+					"elapsed_ticks", Long.toString(elapsedTicks),
+					"intervals_processed", Long.toString(effectApplications)
+				)
+			);
+			state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
+			state.lastSyncedMaxHunger = Integer.MIN_VALUE;
+			syncHudState(player, state, maxHungerPoints);
+		}
 	}
 
-	private static void processSaturationEffect(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {
+	private static void processSaturationEffect(ServerPlayer player, PlayerState state, long gameplayTick, long elapsedTicks, int maxHungerPoints) {
 		if (!settings.saturation.enabled || player.isCreative() || player.isSpectator()) {
+			state.saturationEffectProgressTicks = 0L;
 			return;
 		}
-		if (Math.floorMod(gameplayTick, SATURATION_EFFECT_INTERVAL_TICKS) != 0L) {
+		int saturationEffectLevel = getEffectLevel(player, MobEffects.SATURATION);
+		if (saturationEffectLevel <= 0) {
+			state.saturationEffectProgressTicks = 0L;
 			return;
 		}
 
-		int saturationEffectLevel = getEffectLevel(player, MobEffects.SATURATION);
-		if (saturationEffectLevel <= 0) {
+		state.saturationEffectProgressTicks = accumulateProgressTicks(state.saturationEffectProgressTicks, elapsedTicks);
+		long effectApplications = state.saturationEffectProgressTicks / SATURATION_EFFECT_INTERVAL_TICKS;
+		if (effectApplications <= 0L) {
 			return;
 		}
+		state.saturationEffectProgressTicks %= SATURATION_EFFECT_INTERVAL_TICKS;
 
 		int gainAmount = resolveEffectAmount(player, settings.saturation, saturationEffectLevel, maxHungerPoints);
 		if (gainAmount <= 0) {
 			return;
 		}
 
-		int before = state.hungerPoints;
-		state.hungerPoints = clampInternalHunger(safeAdd(before, gainAmount), maxHungerPoints);
-		if (state.hungerPoints == before) {
-			return;
-		}
+		for (long i = 0L; i < effectApplications; i++) {
+			int before = state.hungerPoints;
+			state.hungerPoints = clampInternalHunger(safeAdd(before, gainAmount), maxHungerPoints);
+			if (state.hungerPoints == before) {
+				continue;
+			}
 
-		applyFoodState(player, state.hungerPoints, maxHungerPoints);
-		enforceStarvationPenalty(player, state, maxHungerPoints);
-		emitHungerDebug(
-			"saturation",
-			"hunger.effect_gain",
-			player,
-			gameplayTick,
-			Map.of(
-				"level", Integer.toString(saturationEffectLevel),
-				"gained", Integer.toString(state.hungerPoints - before),
-				"remaining_hunger", Integer.toString(state.hungerPoints)
-			)
-		);
-		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
-		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
-		syncHudState(player, state, maxHungerPoints);
+			applyFoodState(player, state.hungerPoints, maxHungerPoints);
+			enforceStarvationPenalty(player, state, maxHungerPoints);
+			emitHungerDebug(
+				"saturation",
+				"hunger.effect_gain",
+				player,
+				gameplayTick,
+				Map.of(
+					"max_hunger", Integer.toString(maxHungerPoints),
+					"level", Integer.toString(saturationEffectLevel),
+					"hunger_before", Integer.toString(before),
+					"hunger_after", Integer.toString(state.hungerPoints),
+					"gained", Integer.toString(state.hungerPoints - before),
+					"food_level", Integer.toString(player.getFoodData().getFoodLevel()),
+					"saturation", Float.toString(player.getFoodData().getSaturationLevel()),
+					"elapsed_ticks", Long.toString(elapsedTicks),
+					"intervals_processed", Long.toString(effectApplications)
+				)
+			);
+			state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
+			state.lastSyncedMaxHunger = Integer.MIN_VALUE;
+			syncHudState(player, state, maxHungerPoints);
+		}
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -605,6 +683,7 @@ public final class MadokuHungerManager {
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		int maxHungerPoints = resolveMaximumHungerPoints(player);
 		initializeHungerFromPlayer(player, state, maxHungerPoints);
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		state.markPosition(player.getX(), player.getZ());
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		enforceStarvationPenalty(player, state, maxHungerPoints);
@@ -612,6 +691,17 @@ public final class MadokuHungerManager {
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
 		syncHudState(player, state, maxHungerPoints);
+		emitHungerSystemDebug(
+			"hunger.player_join_snapshot",
+			Map.of(
+				"player", player.getScoreboardName(),
+				"hunger_points", Integer.toString(state.hungerPoints),
+				"pending_hunger", Integer.toString(state.pendingHunger),
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"food_level", Integer.toString(player.getFoodData().getFoodLevel()),
+				"saturation", Float.toString(player.getFoodData().getSaturationLevel())
+			)
+		);
 	}
 
 	private static void handlePlayerRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -621,13 +711,17 @@ public final class MadokuHungerManager {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(newPlayer.getUUID(), ignored -> new PlayerState());
 		int maxHungerPoints = resolveMaximumHungerPoints(newPlayer);
+		int hungerBefore = state.hungerPoints;
 		state.hungerPoints = clampInternalHunger((int) Math.round(maxHungerPoints * settings.hunger.respawnHungerPercentage), maxHungerPoints);
 		state.pendingHunger = 0;
 		state.blockBreakProgress = 0L;
 		state.movementProgress = 0.0d;
 		state.timeProgressTicks = 0L;
+		state.pendingAllocationProgressTicks = 0L;
+		state.hungerEffectProgressTicks = 0L;
+		state.saturationEffectProgressTicks = 0L;
 		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
-		state.nextPendingAllocationTick = 0L;
+		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
 		state.clearPosition();
 		state.markPosition(newPlayer.getX(), newPlayer.getZ());
 		applyFoodState(newPlayer, state.hungerPoints, maxHungerPoints);
@@ -641,8 +735,25 @@ public final class MadokuHungerManager {
 			newPlayer,
 			MadokuTicks.getGameplayTicks(),
 			Map.of(
+				"respawn_percentage", Double.toString(settings.hunger.respawnHungerPercentage),
+				"hunger_before", Integer.toString(hungerBefore),
 				"respawn_hunger", Integer.toString(state.hungerPoints),
-				"max_hunger", Integer.toString(maxHungerPoints)
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"pending_hunger", Integer.toString(state.pendingHunger),
+				"food_level", Integer.toString(newPlayer.getFoodData().getFoodLevel()),
+				"saturation", Float.toString(newPlayer.getFoodData().getSaturationLevel())
+			)
+		);
+		emitHungerSystemDebug(
+			"hunger.player_respawn_snapshot",
+			Map.of(
+				"player", newPlayer.getScoreboardName(),
+				"hunger_before", Integer.toString(hungerBefore),
+				"hunger_points", Integer.toString(state.hungerPoints),
+				"pending_hunger", Integer.toString(state.pendingHunger),
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"food_level", Integer.toString(newPlayer.getFoodData().getFoodLevel()),
+				"saturation", Float.toString(newPlayer.getFoodData().getSaturationLevel())
 			)
 		);
 		syncHudState(newPlayer, state, maxHungerPoints);
@@ -666,6 +777,7 @@ public final class MadokuHungerManager {
 		PlayerState state = PLAYER_STATES.computeIfAbsent(serverPlayer.getUUID(), ignored -> new PlayerState());
 		int maxHungerPoints = resolveMaximumHungerPoints(serverPlayer);
 		initializeHungerFromPlayer(serverPlayer, state, maxHungerPoints);
+		long blockBreakBefore = state.blockBreakProgress;
 		state.blockBreakProgress++;
 		boolean drainedAny = false;
 		while (state.blockBreakProgress >= settings.hungerDepletion.blockGoal.value
@@ -685,8 +797,13 @@ public final class MadokuHungerManager {
 				serverPlayer,
 				MadokuTicks.getGameplayTicks(),
 				Map.of(
+					"max_hunger", Integer.toString(maxHungerPoints),
+					"block_goal", Long.toString(settings.hungerDepletion.blockGoal.value),
+					"block_break_before", Long.toString(blockBreakBefore),
+					"block_break_progress", Long.toString(state.blockBreakProgress),
 					"remaining_hunger", Integer.toString(state.hungerPoints),
-					"block_break_progress", Long.toString(state.blockBreakProgress)
+					"food_level", Integer.toString(serverPlayer.getFoodData().getFoodLevel()),
+					"saturation", Float.toString(serverPlayer.getFoodData().getSaturationLevel())
 				)
 			);
 		}
@@ -706,6 +823,7 @@ public final class MadokuHungerManager {
 			return;
 		}
 
+		boolean sprintingBefore = player.isSprinting();
 		player.setSprinting(false);
 		emitHungerDebug(
 			"starvation-penalty",
@@ -713,8 +831,13 @@ public final class MadokuHungerManager {
 			player,
 			MadokuTicks.getGameplayTicks(),
 			Map.of(
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"hunger_ratio", Float.toString((float) Math.max(0, state.hungerPoints) / (float) Math.max(1, maxHungerPoints)),
+				"threshold", Double.toString(settings.hunger.starvationPenalty.starvationPenaltyPercentage),
+				"sprinting_before", Boolean.toString(sprintingBefore),
+				"sprinting_after", Boolean.toString(player.isSprinting()),
 				"hunger_points", Integer.toString(state.hungerPoints),
-				"max_hunger", Integer.toString(maxHungerPoints)
+				"food_level", Integer.toString(player.getFoodData().getFoodLevel())
 			)
 		);
 	}
@@ -794,52 +917,72 @@ public final class MadokuHungerManager {
 		return drained;
 	}
 
-	private static void processPendingHunger(ServerPlayer player, PlayerState state, long gameplayTick, int maxHungerPoints) {
+	private static void processPendingHunger(ServerPlayer player, PlayerState state, long gameplayTick, long elapsedTicks, int maxHungerPoints) {
 		if (player == null || state == null) {
 			return;
 		}
 		if (state.pendingHunger <= 0) {
-			state.nextPendingAllocationTick = 0L;
+			state.pendingAllocationProgressTicks = 0L;
 			return;
 		}
 
 		clearIdlePendingHunger(player, state, gameplayTick);
 		if (state.pendingHunger <= 0) {
-			state.nextPendingAllocationTick = 0L;
+			state.pendingAllocationProgressTicks = 0L;
 			return;
 		}
 
-		scheduleNextPendingAllocation(state, gameplayTick);
-		if (state.hungerPoints >= maxHungerPoints || gameplayTick < state.nextPendingAllocationTick) {
+		state.pendingAllocationProgressTicks = accumulateProgressTicks(state.pendingAllocationProgressTicks, elapsedTicks);
+		if (state.hungerPoints >= maxHungerPoints) {
 			return;
 		}
 
-		int moved = Math.min(1, Math.min(state.pendingHunger, maxHungerPoints - state.hungerPoints));
-		if (moved <= 0) {
+		long allocationCycles = state.pendingAllocationProgressTicks / ACTION_INTERVAL_TICKS;
+		if (allocationCycles <= 0L) {
+			return;
+		}
+		state.pendingAllocationProgressTicks %= ACTION_INTERVAL_TICKS;
+
+		int pendingBefore = state.pendingHunger;
+		int hungerBefore = state.hungerPoints;
+		int movedTotal = 0;
+		for (long i = 0L; i < allocationCycles; i++) {
+			if (state.pendingHunger <= 0 || state.hungerPoints >= maxHungerPoints) {
+				break;
+			}
+			int moved = Math.min(1, Math.min(state.pendingHunger, maxHungerPoints - state.hungerPoints));
+			if (moved <= 0) {
+				break;
+			}
+			state.pendingHunger -= moved;
+			state.hungerPoints += moved;
+			movedTotal += moved;
+		}
+		if (movedTotal <= 0) {
 			return;
 		}
 
-		state.pendingHunger -= moved;
-		state.hungerPoints += moved;
 		state.lastPendingActivityTick = gameplayTick;
-		scheduleNextPendingAllocation(state, gameplayTick);
+		emitHungerDebug(
+			"hunger",
+			"hunger.pending_allocated",
+			player,
+			gameplayTick,
+			Map.of(
+				"pending_before", Integer.toString(pendingBefore),
+				"pending_after", Integer.toString(state.pendingHunger),
+				"moved", Integer.toString(movedTotal),
+				"pending_hunger", Integer.toString(state.pendingHunger),
+				"hunger_points", Integer.toString(state.hungerPoints),
+				"max_hunger", Integer.toString(maxHungerPoints),
+				"hunger_before", Integer.toString(hungerBefore),
+				"elapsed_ticks", Long.toString(elapsedTicks),
+				"intervals_processed", Long.toString(allocationCycles)
+			)
+		);
 		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
-	}
-
-	private static void scheduleNextPendingAllocation(PlayerState state, long gameplayTick) {
-		if (state == null) {
-			return;
-		}
-		if (state.pendingHunger <= 0) {
-			state.nextPendingAllocationTick = 0L;
-			return;
-		}
-		if (state.nextPendingAllocationTick > gameplayTick) {
-			return;
-		}
-		state.nextPendingAllocationTick = gameplayTick + ACTION_INTERVAL_TICKS;
 	}
 
 	private static void clearIdlePendingHunger(ServerPlayer player, PlayerState state, long gameplayTick) {
@@ -851,12 +994,26 @@ public final class MadokuHungerManager {
 			return;
 		}
 
+		int pendingBefore = state.pendingHunger;
 		state.pendingHunger = 0;
-		state.nextPendingAllocationTick = 0L;
+		state.pendingAllocationProgressTicks = 0L;
 		state.lastPendingActivityTick = gameplayTick;
 		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
 		state.lastSyncedPendingHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
+		emitHungerDebug(
+			"hunger",
+			"hunger.pending_idle_cleared",
+			player,
+			gameplayTick,
+			Map.of(
+				"idle_ticks", Long.toString(idleTicks),
+				"timeout_ticks", Long.toString(PENDING_HUNGER_IDLE_TIMEOUT_TICKS),
+				"pending_before", Integer.toString(pendingBefore),
+				"pending_after", Integer.toString(state.pendingHunger),
+				"pending_hunger", Integer.toString(state.pendingHunger)
+			)
+		);
 	}
 
 	private static boolean isExemptFromHungerDrain(ServerPlayer player) {
@@ -878,6 +1035,28 @@ public final class MadokuHungerManager {
 		if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
 			builder.world(serverLevel.dimension().toString());
 		}
+		if (fields != null) {
+			for (Map.Entry<String, String> entry : fields.entrySet()) {
+				if (entry != null) {
+					builder.field(entry.getKey(), entry.getValue());
+				}
+			}
+		}
+		builder.log();
+	}
+
+	private static void emitHungerSystemDebug(String metricId, Map<String, String> fields) {
+		if (metricId == null || metricId.isBlank()) {
+			return;
+		}
+		if (!MadokuDebug.shouldEmit("attributes", "hunger", "main")) {
+			return;
+		}
+
+		MadokuDebug.EventBuilder builder = MadokuDebug.event(metricId, "attributes", "hunger", "main")
+			.side(MadokuDebug.Side.SERVER)
+			.tick(MadokuTicks.getGameplayTicks())
+			.subject("server");
 		if (fields != null) {
 			for (Map.Entry<String, String> entry : fields.entrySet()) {
 				if (entry != null) {
@@ -981,7 +1160,9 @@ public final class MadokuHungerManager {
 				.put("movement-progress", state.movementProgress)
 				.put("time-progress-ticks", state.timeProgressTicks)
 				.put("last-pending-activity-tick", Math.max(0L, state.lastPendingActivityTick))
-				.put("next-pending-allocation-tick", Math.max(0L, state.nextPendingAllocationTick)));
+				.put("pending-allocation-progress-ticks", Math.max(0L, state.pendingAllocationProgressTicks))
+				.put("hunger-effect-progress-ticks", Math.max(0L, state.hungerEffectProgressTicks))
+				.put("saturation-effect-progress-ticks", Math.max(0L, state.saturationEffectProgressTicks)));
 		}
 		return madoku.craft.config.JsonFormatBuilder.object()
 			.put("players", players.build())
@@ -1019,9 +1200,35 @@ public final class MadokuHungerManager {
 			state.movementProgress = Math.max(0.0d, getDouble(playerData, "movement-progress", 0.0d));
 			state.timeProgressTicks = Math.max(0L, getLong(playerData, "time-progress-ticks", 0L));
 			state.lastPendingActivityTick = Math.max(0L, getLong(playerData, "last-pending-activity-tick", 0L));
-			state.nextPendingAllocationTick = Math.max(0L, getLong(playerData, "next-pending-allocation-tick", 0L));
+			state.pendingAllocationProgressTicks = Math.max(0L, getLong(playerData, "pending-allocation-progress-ticks", 0L));
+			state.hungerEffectProgressTicks = Math.max(0L, getLong(playerData, "hunger-effect-progress-ticks", 0L));
+			state.saturationEffectProgressTicks = Math.max(0L, getLong(playerData, "saturation-effect-progress-ticks", 0L));
 			PLAYER_STATES.put(playerId, state);
 		}
+	}
+
+	private static long consumeElapsedTicks(PlayerState state, long gameplayTick) {
+		if (state == null) {
+			return 0L;
+		}
+
+		long previousTick = state.lastProcessedGameplayTick;
+		state.lastProcessedGameplayTick = gameplayTick;
+		if (previousTick == Long.MIN_VALUE || gameplayTick <= previousTick) {
+			return 0L;
+		}
+		return gameplayTick - previousTick;
+	}
+
+	private static long accumulateProgressTicks(long currentProgressTicks, long elapsedTicks) {
+		if (elapsedTicks <= 0L) {
+			return Math.max(0L, currentProgressTicks);
+		}
+		long safeCurrent = Math.max(0L, currentProgressTicks);
+		if (safeCurrent >= Long.MAX_VALUE - elapsedTicks) {
+			return Long.MAX_VALUE;
+		}
+		return safeCurrent + elapsedTicks;
 	}
 
 	private static void loadStaticConfig() {
@@ -1099,7 +1306,10 @@ public final class MadokuHungerManager {
 		private double movementProgress;
 		private long timeProgressTicks;
 		private long lastPendingActivityTick;
-		private long nextPendingAllocationTick;
+		private long lastProcessedGameplayTick = Long.MIN_VALUE;
+		private long pendingAllocationProgressTicks;
+		private long hungerEffectProgressTicks;
+		private long saturationEffectProgressTicks;
 		private int lastSyncedCurrentHunger = Integer.MIN_VALUE;
 		private int lastSyncedPendingHunger = Integer.MIN_VALUE;
 		private int lastSyncedMaxHunger = Integer.MIN_VALUE;
