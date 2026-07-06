@@ -480,54 +480,6 @@ public final class MadokuEcosystem {
 		dirty = false;
 	}
 
-	public static void trackPlacedDirtBlock(ServerLevel world, BlockPos dirtPos) {
-		if (world == null || dirtPos == null || !isEnabled()) {
-			return;
-		}
-		if (trackAndSpreadAtPosition(world, dirtPos)) {
-			requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
-		}
-	}
-
-	public static void syncDirtTrackingAroundBlock(ServerLevel world, BlockPos pos) {
-		if (world == null || pos == null || !isEnabled()) {
-			return;
-		}
-
-		boolean changed = false;
-		String atKey = dirtKey(world, pos);
-		DirtState trackedAt = dirtBlocksByKey.get(atKey);
-		if (trackedAt != null
-			&& isModeEnabled(trackedAt.mode)
-			&& !isCandidateForMode(world, pos, world.getBlockState(pos), trackedAt.mode)) {
-			removeDirtStateByKey(atKey);
-			changed = true;
-			dirty = true;
-		}
-
-		BlockPos belowPos = pos.below();
-		String belowKey = dirtKey(world, belowPos);
-		DirtState trackedBelow = dirtBlocksByKey.get(belowKey);
-		if (trackedBelow != null
-			&& isModeEnabled(trackedBelow.mode)
-			&& !isCandidateForMode(world, belowPos, world.getBlockState(belowPos), trackedBelow.mode)) {
-			removeDirtStateByKey(belowKey);
-			changed = true;
-			dirty = true;
-		}
-
-		if (trackAndSpreadAtPosition(world, pos)) {
-			changed = true;
-		}
-		if (trackAndSpreadAtPosition(world, belowPos)) {
-			changed = true;
-		}
-
-		if (changed) {
-			requestEcosystemProcessing(world.getServer(), resolveEcosystemSchedulerInterval(world.getServer()));
-		}
-	}
-
 	private static void runNaturalGrowthProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			ecosystemGrowthProcessSchedulerId = context.getSchedulerId();
@@ -1158,15 +1110,6 @@ public final class MadokuEcosystem {
 		}
 	}
 
-	private static boolean trackExposedDirtCandidate(ServerLevel world, BlockPos dirtPos) {
-		if (world == null || dirtPos == null) {
-			return false;
-		}
-		BlockState state = world.getBlockState(dirtPos);
-		String mode = resolveCandidateMode(world, dirtPos, state);
-		return trackDirtCandidateForMode(world, dirtPos, state, mode);
-	}
-
 	private static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
 		if (world == null || dirtPos == null || state == null || mode == null || mode.isBlank()) {
 			return false;
@@ -1209,19 +1152,6 @@ public final class MadokuEcosystem {
 		));
 		dirty = true;
 		return true;
-	}
-
-	private static boolean trackAndSpreadAtPosition(ServerLevel world, BlockPos pos) {
-		if (world == null || pos == null) {
-			return false;
-		}
-
-		BlockState state = world.getBlockState(pos);
-		boolean changed = trackExposedDirtCandidate(world, pos);
-		if (isNaturalErosionEnabled() && isWetSeedCandidate(world, pos, state)) {
-			changed |= spreadWetTrackingFromSeed(world, pos);
-		}
-		return changed;
 	}
 
 	private static void discoverNaturalGrowthAtPosition(ServerLevel world, BlockPos pos, BlockState state) {
@@ -1662,19 +1592,6 @@ public final class MadokuEcosystem {
 		return state != null && TRACKABLE_TREE_GROUND_BLOCKS.contains(state.getBlock());
 	}
 
-	private static String resolveCandidateMode(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isTrackableGroundBlock(state)) {
-			return "";
-		}
-		if (isNaturalErosionEnabled() && (isWetSeedCandidate(world, blockPos, state) || isLavaMagmaSeedCandidate(world, blockPos, state))) {
-			return MODE_WET;
-		}
-		if (isNaturalGrowthEnabled() && isSurfaceDirtCandidate(world, blockPos, state)) {
-			return MODE_SURFACE_DIRT;
-		}
-		return "";
-	}
-
 	private static boolean isCandidateForMode(ServerLevel world, BlockPos blockPos, BlockState state, String mode) {
 		if (!isModeEnabled(mode)) {
 			return false;
@@ -2074,15 +1991,6 @@ public final class MadokuEcosystem {
 			}
 		}
 		return false;
-	}
-
-	private static boolean spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPos) {
-		if (world == null || seedPos == null) {
-			return false;
-		}
-		Set<Long> seedPositions = new LinkedHashSet<>();
-		seedPositions.add(seedPos.asLong());
-		return spreadWetTrackingFromSeeds(world, seedPositions);
 	}
 
 	private static boolean spreadWetTrackingFromSeeds(ServerLevel world, Set<Long> seedPositions) {

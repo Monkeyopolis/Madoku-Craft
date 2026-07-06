@@ -5,18 +5,14 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -27,22 +23,13 @@ final class ChunkDiscoveryManager {
 	private static final String DATA_FOLDER_NAME = "madoku-craft-chunks";
 	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
-	private static final String DIRTY_DISCOVERY_SCHEDULER_OWNER_ID = "madoku_chunks_dirty_discovery";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
-	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 4L * 60L * 20L;
-	private static final long CHUNK_REFRESH_MAX_INTERVAL_TICKS = 8L * 60L * 20L;
-	private static final long DIRTY_DISCOVERY_MIN_INTERVAL_TICKS = 1L;
-	private static final long DIRTY_DISCOVERY_MAX_INTERVAL_TICKS = 20L;
-	private static final long DIRTY_REQUEUE_COOLDOWN_TICKS = 20L;
-	private static final int DIRTY_DISCOVERY_STEPS_PER_REFRESH = 1;
-	private static final int DISCOVERY_STEPS_PER_REFRESH = 1;
+	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 1L;
+	private static final long CHUNK_REFRESH_MAX_INTERVAL_TICKS = 20L;
 	private static final int CHUNK_COLUMN_COUNT = 16 * 16;
 
 	private static final List<MadokuChunkManager.ProcessorChunkKey> DISCOVERY_LOADED_CHUNKS = new ArrayList<>();
 	private static final Set<MadokuChunkManager.ProcessorChunkKey> DISCOVERY_LOADED_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final Deque<MadokuChunkManager.ProcessorChunkKey> DIRTY_DISCOVERY_CHUNKS = new ArrayDeque<>();
-	private static final Set<MadokuChunkManager.ProcessorChunkKey> DIRTY_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final Map<MadokuChunkManager.ProcessorChunkKey, Long> DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS = new LinkedHashMap<>();
 	private static final Map<MadokuChunkManager.ProcessorChunkKey, CachedChunkColumns> DISCOVERY_COLUMNS_CACHE = new LinkedHashMap<>();
 	private static final Map<MadokuChunkManager.ProcessorChunkKey, ChunkDiscoveryProgress> DISCOVERY_PROGRESS_BY_CHUNK = new LinkedHashMap<>();
 	private static final MadokuChunkManager.ChunkDiscoverySnapshot REUSABLE_DISCOVERY_SNAPSHOT = MadokuChunkManager.ChunkDiscoverySnapshot.reusable(CHUNK_COLUMN_COUNT);
@@ -50,7 +37,6 @@ final class ChunkDiscoveryManager {
 	private static volatile String chunkSchedulerId = "";
 	private static volatile boolean refreshTaskScheduled = false;
 	private static volatile boolean serverStopping = false;
-	private static volatile boolean dirty = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile int discoveryChunkScanCursor = 0;
 	private static volatile boolean discoveryChunksSeeded = false;
@@ -69,10 +55,8 @@ final class ChunkDiscoveryManager {
 		chunkSchedulerId = "";
 		refreshTaskScheduled = false;
 		serverStopping = false;
-		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
-		SchedulerManagerSystem.clearAdaptiveDelayState(DIRTY_DISCOVERY_SCHEDULER_OWNER_ID);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -80,10 +64,14 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		clearRuntimeState();
+		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			serverStopping = false;
+			lastAutosaveBucket = Long.MIN_VALUE;
+			return;
+		}
 		serverStopping = false;
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
-		dirty = false;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -91,7 +79,14 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
-		SchedulerManagerSystem.clearAdaptiveDelayState(DIRTY_DISCOVERY_SCHEDULER_OWNER_ID);
+		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			chunkSchedulerId = "";
+			refreshTaskScheduled = false;
+			serverStopping = false;
+			discoveryChunkScanCursor = 0;
+			discoveryChunksSeeded = false;
+			return;
+		}
 		serverStopping = false;
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
@@ -106,12 +101,12 @@ final class ChunkDiscoveryManager {
 		);
 		refreshTaskScheduled = SchedulerManagerSystem.hasQueuedTask(chunkSchedulerId, TASK_TYPE_CHUNK_REFRESH);
 		if (!refreshTaskScheduled) {
-			requestChunkRefresh(server, 1L);
+			requestChunkRefresh(server, resolveChunkRefreshInterval(server));
 		}
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		if (server == null) {
+		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
@@ -120,13 +115,11 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		lastAutosaveBucket = bucket;
-		if (dirty) {
-			savePersistedData(server);
-		}
+		savePersistedData(server);
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
-		if (server == null) {
+		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
 		serverStopping = true;
@@ -134,38 +127,21 @@ final class ChunkDiscoveryManager {
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server == null) {
+		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
-		ChunkProcessorManager.refreshTrackedChunks(server);
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, MadokuChunkManager.toPersistedData());
-		dirty = false;
-	}
-
-	public static void onWorldPositionChanged(ServerLevel level, BlockPos pos, BlockState previousState, BlockState nextState) {
-		if (level == null || pos == null) {
-			return;
-		}
-		if (previousState != null && nextState != null && previousState == nextState) {
-			return;
-		}
-		int chunkX = pos.getX() >> 4;
-		int chunkZ = pos.getZ() >> 4;
-		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
-			return;
-		}
-		refreshCachedColumn(level, chunkX, chunkZ, pos.getX(), pos.getZ());
-		MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(MadokuChunkManager.levelId(level), chunkX, chunkZ);
-		markChunkDiscoveryDirty(chunkKey, chunkColumnIndex(pos.getX(), pos.getZ()));
-		ChunkProcessorManager.onWorldPositionChanged(level, chunkX, chunkZ);
 	}
 
 	public static void refreshTrackedChunks(MinecraftServer server) {
+		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			return;
+		}
 		ChunkProcessorManager.refreshTrackedChunks(server);
 	}
 
 	private static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
-		if (level == null || chunk == null) {
+		if (level == null || chunk == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
 		ChunkPos chunkPos = chunk.getPos();
@@ -174,13 +150,12 @@ final class ChunkDiscoveryManager {
 		MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(loadedLevelId, chunkPos.x(), chunkPos.z());
 		addSharedDiscoveryLoadedChunk(chunkKey);
 		resetDiscoveryProgress(chunkKey, 0);
-		markChunkDiscoveryDirty(chunkKey, 0);
 		ChunkProcessorManager.onChunkLoaded(level, chunkPos.x(), chunkPos.z());
 		MadokuChunkManager.notifyChunkLoaded(level, chunkPos.x(), chunkPos.z());
 	}
 
 	private static void onChunkUnload(ServerLevel level, LevelChunk chunk) {
-		if (level == null || chunk == null) {
+		if (level == null || chunk == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
 		if (serverStopping) {
@@ -193,7 +168,6 @@ final class ChunkDiscoveryManager {
 		removeCachedChunkColumns(chunkKey);
 		removeDiscoveryProgress(chunkKey);
 		removeSharedDiscoveryLoadedChunk(chunkKey);
-		removeDirtyDiscoveryChunk(chunkKey);
 		ChunkProcessorManager.onChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 		MadokuChunkManager.notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 	}
@@ -203,22 +177,23 @@ final class ChunkDiscoveryManager {
 			chunkSchedulerId = context.getSchedulerId();
 		}
 		refreshTaskScheduled = false;
-		if (server == null || !ChunkProcessorManager.hasActiveChunkProcessors()) {
+		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled() || !ChunkProcessorManager.hasActiveChunkProcessors()) {
 			return;
 		}
-		ChunkProcessorManager.refreshTrackedChunks(server);
-		int discoverySteps = hasPendingDirtyDiscoveryWork()
-			? DIRTY_DISCOVERY_STEPS_PER_REFRESH
-			: DISCOVERY_STEPS_PER_REFRESH;
-		runSharedChunkDiscoverySteps(server, discoverySteps);
-		long nextDelay = hasPendingDirtyDiscoveryWork()
-			? resolveDirtyDiscoveryInterval(server)
-			: resolveChunkRefreshInterval(server);
-		requestChunkRefresh(server, nextDelay);
+		long refreshIntervalTicks = resolveChunkRefreshInterval(server);
+		int columnsPerRefresh = ChunkConfigManager.resolveAdaptiveChunkWorkUnits(refreshIntervalTicks);
+		boolean completedRefreshCycle = runSharedChunkDiscoverySteps(server, columnsPerRefresh);
+		if (completedRefreshCycle) {
+			ChunkProcessorManager.refreshTrackedChunks(server);
+		}
+		requestChunkRefresh(server, refreshIntervalTicks);
 	}
 
 	private static void seedLoadedChunks(MinecraftServer server) {
-		clearDiscoveryQueues();
+		DISCOVERY_LOADED_CHUNKS.clear();
+		DISCOVERY_LOADED_CHUNK_KEYS.clear();
+		DISCOVERY_COLUMNS_CACHE.clear();
+		DISCOVERY_PROGRESS_BY_CHUNK.clear();
 		discoveryChunkScanCursor = 0;
 		for (ServerLevel level : server.getAllLevels()) {
 			if (level == null) {
@@ -235,33 +210,32 @@ final class ChunkDiscoveryManager {
 					MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(levelId, chunk.getPos().x(), chunk.getPos().z());
 					addSharedDiscoveryLoadedChunk(chunkKey);
 					resetDiscoveryProgress(chunkKey, 0);
-					markChunkDiscoveryDirty(chunkKey, 0);
 				}
 			});
 		}
 		discoveryChunksSeeded = true;
 	}
 
-	private static void runSharedChunkDiscoverySteps(MinecraftServer server, int steps) {
-		int safeSteps = Math.max(1, steps);
+	private static boolean runSharedChunkDiscoverySteps(MinecraftServer server, int columnsPerRefresh) {
+		int safeSteps = Math.max(1, columnsPerRefresh);
+		boolean completedRefreshCycle = false;
 		for (int i = 0; i < safeSteps; i++) {
-			runSharedChunkDiscoveryStep(server);
+			completedRefreshCycle |= runSharedChunkDiscoveryStep(server);
+			if (completedRefreshCycle) {
+				break;
+			}
 		}
+		return completedRefreshCycle;
 	}
 
-	private static void runSharedChunkDiscoveryStep(MinecraftServer server) {
-		if (server == null) {
-			return;
+	private static boolean runSharedChunkDiscoveryStep(MinecraftServer server) {
+		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			return false;
 		}
 		seedSharedDiscoveryChunksIfNeeded(server);
-		MadokuChunkManager.ProcessorChunkKey dirtyChunk = pollNextDirtyDiscoveryChunk(server);
-		if (dirtyChunk != null) {
-			runChunkDiscoveryCallbacks(server, dirtyChunk);
-			return;
-		}
 		if (DISCOVERY_LOADED_CHUNKS.isEmpty()) {
 			discoveryChunkScanCursor = 0;
-			return;
+			return false;
 		}
 		int selectedIndex = Math.floorMod(discoveryChunkScanCursor, DISCOVERY_LOADED_CHUNKS.size());
 		MadokuChunkManager.ProcessorChunkKey selectedChunk = DISCOVERY_LOADED_CHUNKS.get(selectedIndex);
@@ -275,15 +249,19 @@ final class ChunkDiscoveryManager {
 			} else {
 				discoveryChunkScanCursor = Math.min(discoveryChunkScanCursor, DISCOVERY_LOADED_CHUNKS.size() - 1);
 			}
-			return;
+			return false;
 		}
-		runChunkDiscoveryCallbacks(server, selectedChunk);
-		boolean completedCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
-		discoveryChunkScanCursor = completedCycle ? 0 : selectedIndex + 1;
+		boolean completedChunkCycle = runChunkDiscoveryCallbacks(server, selectedChunk);
+		if (!completedChunkCycle) {
+			return false;
+		}
+		boolean completedRefreshCycle = selectedIndex + 1 >= DISCOVERY_LOADED_CHUNKS.size();
+		discoveryChunkScanCursor = completedRefreshCycle ? 0 : selectedIndex + 1;
+		return completedRefreshCycle;
 	}
 
 	private static void seedSharedDiscoveryChunksIfNeeded(MinecraftServer server) {
-		if (server == null || discoveryChunksSeeded) {
+		if (server == null || discoveryChunksSeeded || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
 		discoveryChunksSeeded = true;
@@ -300,16 +278,15 @@ final class ChunkDiscoveryManager {
 		}
 	}
 
-	private static void runChunkDiscoveryCallbacks(MinecraftServer server, MadokuChunkManager.ProcessorChunkKey chunkKey) {
-		if (server == null || chunkKey == null || chunkKey.levelId().isBlank()) {
-			return;
+	private static boolean runChunkDiscoveryCallbacks(MinecraftServer server, MadokuChunkManager.ProcessorChunkKey chunkKey) {
+		if (server == null || chunkKey == null || chunkKey.levelId().isBlank() || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			return false;
 		}
 		ServerLevel world = MadokuChunkManager.resolveLevel(server, chunkKey.levelId());
 		if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
 			removeCachedChunkColumns(chunkKey);
 			removeSharedDiscoveryLoadedChunk(chunkKey);
-			removeDirtyDiscoveryChunk(chunkKey);
-			return;
+			return false;
 		}
 
 		List<MadokuChunkManager.ChunkProcessor> activeProcessors = new ArrayList<>();
@@ -325,12 +302,12 @@ final class ChunkDiscoveryManager {
 			needsSurfaceColumns |= processor.requiresSurfaceColumns();
 		}
 		if (activeProcessors.isEmpty()) {
-			return;
+			return false;
 		}
 
 		ChunkDiscoveryProgress progress = getOrCreateDiscoveryProgress(chunkKey);
 		if (progress == null) {
-			return;
+			return false;
 		}
 		if (!progress.started) {
 			for (MadokuChunkManager.ChunkProcessor processor : activeProcessors) {
@@ -359,45 +336,10 @@ final class ChunkDiscoveryManager {
 			}
 			progress.started = false;
 			progress.reset(0);
-			return;
+			return true;
 		}
 		progress.reset(columnIndex + 1);
-	}
-
-	private static MadokuChunkManager.ProcessorChunkKey pollNextDirtyDiscoveryChunk(MinecraftServer server) {
-		while (!DIRTY_DISCOVERY_CHUNKS.isEmpty()) {
-			MadokuChunkManager.ProcessorChunkKey chunkKey = DIRTY_DISCOVERY_CHUNKS.pollFirst();
-			if (chunkKey == null) {
-				continue;
-			}
-			DIRTY_DISCOVERY_CHUNK_KEYS.remove(chunkKey);
-			if (chunkKey.levelId().isBlank()) {
-				continue;
-			}
-			ServerLevel world = MadokuChunkManager.resolveLevel(server, chunkKey.levelId());
-			if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
-				removeCachedChunkColumns(chunkKey);
-				removeSharedDiscoveryLoadedChunk(chunkKey);
-				continue;
-			}
-			return chunkKey;
-		}
-		return null;
-	}
-
-	private static void markChunkDiscoveryDirty(MadokuChunkManager.ProcessorChunkKey chunkKey, int columnIndex) {
-		if (chunkKey == null || chunkKey.levelId().isBlank()) {
-			return;
-		}
-		resetDiscoveryProgress(chunkKey, columnIndex);
-		if (!canRequeueDirtyChunk(chunkKey, DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS)) {
-			return;
-		}
-		if (!DIRTY_DISCOVERY_CHUNK_KEYS.add(chunkKey)) {
-			return;
-		}
-		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.put(chunkKey, MadokuTicks.getGameplayTicks());
-		DIRTY_DISCOVERY_CHUNKS.addLast(chunkKey);
+		return false;
 	}
 
 	private static ChunkDiscoveryProgress getOrCreateDiscoveryProgress(MadokuChunkManager.ProcessorChunkKey chunkKey) {
@@ -420,22 +362,6 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		DISCOVERY_PROGRESS_BY_CHUNK.remove(chunkKey);
-	}
-
-	private static int chunkColumnIndex(int worldX, int worldZ) {
-		int localX = worldX & 15;
-		int localZ = worldZ & 15;
-		return (localX << 4) + localZ;
-	}
-
-	private static void removeDirtyDiscoveryChunk(MadokuChunkManager.ProcessorChunkKey chunkKey) {
-		if (chunkKey == null) {
-			return;
-		}
-		if (!DIRTY_DISCOVERY_CHUNK_KEYS.remove(chunkKey)) {
-			return;
-		}
-		DIRTY_DISCOVERY_CHUNKS.remove(chunkKey);
 	}
 
 	private static void addSharedDiscoveryLoadedChunk(MadokuChunkManager.ProcessorChunkKey chunkKey) {
@@ -503,22 +429,6 @@ final class ChunkDiscoveryManager {
 		return cached;
 	}
 
-	private static void refreshCachedColumn(ServerLevel world, int chunkX, int chunkZ, int worldX, int worldZ) {
-		if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ)) {
-			return;
-		}
-		CachedChunkColumns cached = getOrCreateCachedChunkColumns(world, chunkX, chunkZ);
-		if (cached == null) {
-			return;
-		}
-		int localX = worldX - (chunkX << 4);
-		int localZ = worldZ - (chunkZ << 4);
-		if (localX < 0 || localX >= 16 || localZ < 0 || localZ >= 16) {
-			return;
-		}
-		updateCachedColumnSamples(cached, world, chunkX, chunkZ, localX, localZ);
-	}
-
 	private static void removeCachedChunkColumns(MadokuChunkManager.ProcessorChunkKey chunkKey) {
 		if (chunkKey == null) {
 			return;
@@ -575,8 +485,6 @@ final class ChunkDiscoveryManager {
 		if (chunkKey == null) {
 			return;
 		}
-		removeDirtyDiscoveryChunk(chunkKey);
-		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.remove(chunkKey);
 		removeDiscoveryProgress(chunkKey);
 		if (!DISCOVERY_LOADED_CHUNK_KEYS.remove(chunkKey)) {
 			return;
@@ -590,27 +498,17 @@ final class ChunkDiscoveryManager {
 	private static void clearRuntimeState() {
 		DISCOVERY_LOADED_CHUNKS.clear();
 		DISCOVERY_LOADED_CHUNK_KEYS.clear();
-		DIRTY_DISCOVERY_CHUNKS.clear();
-		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
-		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
 		DISCOVERY_COLUMNS_CACHE.clear();
 		DISCOVERY_PROGRESS_BY_CHUNK.clear();
 		discoveryChunkScanCursor = 0;
 		discoveryChunksSeeded = false;
 	}
 
-	private static void clearDiscoveryQueues() {
-		DISCOVERY_LOADED_CHUNKS.clear();
-		DISCOVERY_LOADED_CHUNK_KEYS.clear();
-		DIRTY_DISCOVERY_CHUNKS.clear();
-		DIRTY_DISCOVERY_CHUNK_KEYS.clear();
-		DIRTY_DISCOVERY_LAST_ENQUEUE_TICKS.clear();
-		DISCOVERY_COLUMNS_CACHE.clear();
-		DISCOVERY_PROGRESS_BY_CHUNK.clear();
-	}
-
 	private static void requestChunkRefresh(MinecraftServer server, long delayTicks) {
-		if (server == null || refreshTaskScheduled || !ChunkProcessorManager.hasActiveChunkProcessors()) {
+		if (server == null
+			|| refreshTaskScheduled
+			|| !ChunkConfigManager.isChunkDiscoveryEnabled()
+			|| !ChunkProcessorManager.hasActiveChunkProcessors()) {
 			return;
 		}
 		String schedulerId = ensureChunkSchedulerExists();
@@ -626,25 +524,12 @@ final class ChunkDiscoveryManager {
 		}
 	}
 
-	private static boolean hasPendingDirtyDiscoveryWork() {
-		return !DIRTY_DISCOVERY_CHUNKS.isEmpty();
-	}
-
 	private static long resolveChunkRefreshInterval(MinecraftServer server) {
 		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
 			server,
 			CHUNK_SCHEDULER_OWNER_ID,
 			CHUNK_REFRESH_MIN_INTERVAL_TICKS,
 			CHUNK_REFRESH_MAX_INTERVAL_TICKS
-		);
-	}
-
-	private static long resolveDirtyDiscoveryInterval(MinecraftServer server) {
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
-			server,
-			DIRTY_DISCOVERY_SCHEDULER_OWNER_ID,
-			DIRTY_DISCOVERY_MIN_INTERVAL_TICKS,
-			DIRTY_DISCOVERY_MAX_INTERVAL_TICKS
 		);
 	}
 
@@ -670,19 +555,6 @@ final class ChunkDiscoveryManager {
 		);
 		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
 			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
-	}
-
-	private static boolean canRequeueDirtyChunk(MadokuChunkManager.ProcessorChunkKey chunkKey, Map<MadokuChunkManager.ProcessorChunkKey, Long> lastEnqueueTicks) {
-		if (chunkKey == null || lastEnqueueTicks == null) {
-			return false;
-		}
-		long currentTick = MadokuTicks.getGameplayTicks();
-		Long lastTick = lastEnqueueTicks.get(chunkKey);
-		if (lastTick == null) {
-			return true;
-		}
-		long elapsed = currentTick - lastTick;
-		return elapsed < 0L || elapsed >= DIRTY_REQUEUE_COOLDOWN_TICKS;
 	}
 
 	private static List<String> getActiveProcessorIds() {

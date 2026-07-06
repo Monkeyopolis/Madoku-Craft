@@ -8,7 +8,6 @@ import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.ecosystem.system.MadokuEcosystem;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
@@ -600,9 +599,6 @@ public final class MadokuFarming {
 			pendingHarvestRulesByKey.remove(cropEntryKey);
 			changed = true;
 		}
-
-		// When a block is removed, the block below may become exposed dirt.
-		MadokuEcosystem.syncDirtTrackingAroundBlock(serverLevel, pos);
 
 		if (changed) {
 			dirty = true;

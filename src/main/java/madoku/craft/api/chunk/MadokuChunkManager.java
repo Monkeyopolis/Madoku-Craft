@@ -2,15 +2,15 @@ package madoku.craft.api.chunk;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.data.DataManagerSystem;
-import madoku.craft.scheduler.SchedulerManagerSystem;
-import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
+
+import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.data.DataManagerSystem;
+import madoku.craft.scheduler.SchedulerManagerSystem;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -223,6 +223,7 @@ public final class MadokuChunkManager {
 	}
 
 	public static void initialize() {
+		ChunkConfigManager.initialize();
 		ChunkDiscoveryManager.initialize();
 	}
 
@@ -255,10 +256,6 @@ public final class MadokuChunkManager {
 		ChunkProcessorManager.runChunkProcessorProcessingStep(server, processorId);
 	}
 
-	public static boolean isInternalProcessorMutationActive() {
-		return ChunkProcessorManager.isInternalProcessorMutationActive();
-	}
-
 	public static void trackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
 		ChunkProcessorManager.trackChunkForProcessor(processorId, level, chunkX, chunkZ);
 	}
@@ -277,14 +274,6 @@ public final class MadokuChunkManager {
 
 	public static String normalizeLevelId(ServerLevel level) {
 		return levelId(level);
-	}
-
-	public static void onWorldPositionChanged(ServerLevel level, BlockPos pos) {
-		onWorldPositionChanged(level, pos, null, null);
-	}
-
-	public static void onWorldPositionChanged(ServerLevel level, BlockPos pos, BlockState previousState, BlockState nextState) {
-		ChunkDiscoveryManager.onWorldPositionChanged(level, pos, previousState, nextState);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
