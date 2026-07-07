@@ -2,6 +2,9 @@ package madoku.craft.api.chunk;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.api.metadata.MadokuMetaDataManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
@@ -18,11 +21,15 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.LinkedHashMap;
+import java.util.function.Consumer;
 
 public final class MadokuChunkManager {
-	private static final String DATA_FOLDER_NAME = "madoku-craft-chunks";
+	private static final String DATA_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-chunks";
 	private static final String DATA_FILE_NAME = "madoku-chunks";
+	private static final String DEBUG_MAIN_SYSTEM = "chunk";
+	private static final String DEBUG_SUB_SYSTEM = "chunk-manager";
 	private static final String FIELD_LEVELS = "levels";
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_CHUNKS = "chunks";
@@ -223,14 +230,26 @@ public final class MadokuChunkManager {
 	}
 
 	public static void initialize() {
+		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.CHUNK);
+		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.CHUNK);
 		ChunkConfigManager.initialize();
 		ChunkDiscoveryManager.initialize();
+		emitChunkDebug("chunk.lifecycle", builder -> builder
+			.subject("initialize")
+			.field("data-folder", DATA_FOLDER_NAME)
+			.field("data-file", DATA_FILE_NAME));
 	}
 
 	public static void reset() {
+		final int previousStatusLevels = CHUNK_STATUSES_BY_LEVEL.size();
+		final int previousListeners = CHUNK_LIFECYCLE_LISTENERS.size();
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		ChunkDiscoveryManager.reset();
 		ChunkProcessorManager.reset();
+		emitChunkDebug("chunk.lifecycle", builder -> builder
+			.subject("reset")
+			.field("status-levels", previousStatusLevels)
+			.field("listeners", previousListeners));
 	}
 
 	public static void registerChunkLifecycleListener(ChunkLifecycleListener listener) {
@@ -238,6 +257,9 @@ public final class MadokuChunkManager {
 			return;
 		}
 		CHUNK_LIFECYCLE_LISTENERS.add(listener);
+		emitChunkDebug("chunk.lifecycle", builder -> builder
+			.subject("register-listener")
+			.field("listeners", CHUNK_LIFECYCLE_LISTENERS.size()));
 	}
 
 	public static void registerChunkProcessor(String processorId, ChunkProcessor processor) {
@@ -283,21 +305,30 @@ public final class MadokuChunkManager {
 		DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		ChunkDiscoveryManager.loadPersistedData(server);
+		AtomicInteger loadedLevels = new AtomicInteger();
+		server.getAllLevels().forEach(level -> loadedLevels.incrementAndGet());
+		emitChunkDebug("chunk.lifecycle", builder -> builder
+			.subject("load-persisted-data")
+			.field("levels", loadedLevels.get()));
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		emitChunkDebug("chunk.lifecycle", builder -> builder.subject("server-started"));
 		ChunkDiscoveryManager.onServerStarted(server);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
+		emitChunkDebug("chunk.lifecycle", builder -> builder.subject("autosave"));
 		ChunkDiscoveryManager.autosavePersistedData(server);
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
+		emitChunkDebug("chunk.lifecycle", builder -> builder.subject("server-stopping"));
 		ChunkDiscoveryManager.onServerStopping(server);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
+		emitChunkDebug("chunk.lifecycle", builder -> builder.subject("save-persisted-data"));
 		ChunkDiscoveryManager.savePersistedData(server);
 	}
 
@@ -400,12 +431,22 @@ public final class MadokuChunkManager {
 	}
 
 	static void notifyChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+		emitChunkDebug("chunk.chunk-load", builder -> builder
+			.subject("loaded")
+			.field("level-id", levelId(level))
+			.field("chunk-x", chunkX)
+			.field("chunk-z", chunkZ));
 		for (ChunkLifecycleListener listener : CHUNK_LIFECYCLE_LISTENERS) {
 			listener.onChunkLoaded(level, chunkX, chunkZ);
 		}
 	}
 
 	static void notifyChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+		emitChunkDebug("chunk.chunk-load", builder -> builder
+			.subject("unloaded")
+			.field("level-id", levelId(level))
+			.field("chunk-x", chunkX)
+			.field("chunk-z", chunkZ));
 		for (ChunkLifecycleListener listener : CHUNK_LIFECYCLE_LISTENERS) {
 			listener.onChunkUnloaded(level, chunkX, chunkZ);
 		}
@@ -525,6 +566,19 @@ public final class MadokuChunkManager {
 			.array(FIELD_LEVELS, levels -> {
 			})
 			.build();
+	}
+
+	private static void emitChunkDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
+			.side(MadokuDebugManager.Side.SERVER);
+		if (customizer != null) {
+			customizer.accept(builder);
+		}
+		builder.log();
 	}
 
 	static record ProcessorChunkKey(String levelId, int chunkX, int chunkZ) {

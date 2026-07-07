@@ -34,7 +34,7 @@ import java.util.UUID;
 
 public final class MadokuOxygenManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuOxygenManager.class);
-	private static final String DATA_FOLDER_NAME = "madoku-craft-oxygen";
+	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
 	private static final String DATA_FILE_NAME = "madoku-oxygen";
 	private static final String TASK_TYPE_OXYGEN_PLAYER_TICK = "oxygen_player_tick";
 	private static final String OXYGEN_PLAYER_TICK_SCHEDULER_KEY = "oxygen_player_tick";

@@ -38,7 +38,7 @@ public final class MadokuHealthManager {
 	private static final float HEALTH_ROUND_STEP = 0.125f;
 	private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 
-	private static final String DATA_FOLDER_NAME = "madoku-craft-health";
+	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
 	private static final String DATA_FILE_NAME = "madoku-health";
 	private static final String TASK_TYPE_HEALTH_PLAYER_TICK = "health_player_tick";
 	private static final String HEALTH_PLAYER_TICK_SCHEDULER_KEY = "health_player_tick";

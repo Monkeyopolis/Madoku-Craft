@@ -30,7 +30,6 @@ public final class ArmorConfigManager {
 	private static final DamageReductionType DEFAULT_RESISTANCE_REDUCTION_TYPE = DamageReductionType.PERCENTAGE;
 	private static final double DEFAULT_RESISTANCE_REDUCTION_VALUE = 0.2d;
 
-	private static final String ARMOR_CONFIG_DIRECTORY_NAME = "madoku-armor";
 	private static final String ARMOR_CONFIG_FILE_NAME = "madoku-armor";
 
 	private ArmorConfigManager() {
@@ -41,10 +40,7 @@ public final class ArmorConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
-				ARMOR_CONFIG_DIRECTORY_NAME,
-				ARMOR_CONFIG_FILE_NAME
-			);
+			Path configFile = AttributesConfigManager.prepareRootConfigFile(ARMOR_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);

@@ -2,6 +2,7 @@ package madoku.craft.api.chunk;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -13,8 +14,8 @@ import java.nio.file.Path;
 
 public final class ChunkConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChunkConfigManager.class);
-	private static final String CHUNK_CONFIG_FOLDER_NAME = "madoku-craft-chunk-system";
-	private static final String CHUNK_CONFIG_FILE_NAME = "madoku-chunk-system";
+	private static final String CHUNK_CONFIG_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-chunk";
+	private static final String CHUNK_CONFIG_FILE_NAME = "madoku-chunk";
 	private static final String GROUP_CHUNK_DISCOVERY = "chunk-discovery";
 	private static final String GROUP_CHUNK_PROCESSOR = "chunk-processor";
 	private static final String FIELD_ENABLED = "enabled";

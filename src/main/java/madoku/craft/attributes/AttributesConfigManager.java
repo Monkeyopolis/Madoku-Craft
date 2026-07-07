@@ -25,8 +25,7 @@ public final class AttributesConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, ATTRIBUTES_CONFIG_FILE_NAME);
+			Path configFile = prepareRootConfigFile(ATTRIBUTES_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
@@ -40,6 +39,11 @@ public final class AttributesConfigManager {
 	public static Path prepareSystemConfigFile(String systemDirectoryName, String fileName) {
 		Path directory = getOrCreateSystemDirectory(systemDirectoryName);
 		return resolveJsonFile(directory, fileName);
+	}
+
+	public static Path prepareRootConfigFile(String fileName) {
+		Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
+		return resolveJsonFile(rootDirectory, fileName);
 	}
 
 	private static Path getOrCreateSystemDirectory(String systemDirectoryName) {

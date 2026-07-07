@@ -15,7 +15,6 @@ import java.util.Locale;
 public final class LuckConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LuckConfigManager.class);
 
-	private static final String LUCK_CONFIG_DIRECTORY_NAME = "madoku-luck";
 	private static final String LUCK_CONFIG_FILE_NAME = "madoku-luck";
 
 	private static final boolean DEFAULT_ENABLED = true;
@@ -38,10 +37,7 @@ public final class LuckConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
-				LUCK_CONFIG_DIRECTORY_NAME,
-				LUCK_CONFIG_FILE_NAME
-			);
+			Path configFile = AttributesConfigManager.prepareRootConfigFile(LUCK_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);

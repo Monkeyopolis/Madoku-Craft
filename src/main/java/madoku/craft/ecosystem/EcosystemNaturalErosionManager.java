@@ -2,6 +2,7 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 public final class EcosystemNaturalErosionManager {
 	public static final String SCHEDULER_OWNER_ID = "ecosystem_erosion_process_gameplay";
@@ -22,6 +24,8 @@ public final class EcosystemNaturalErosionManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalErosionManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String CONFIG_FILE_NAME = "natural-erosion";
+	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
+	private static final String DEBUG_SUB_SYSTEM = "ecosystem-natural-erosion-manager";
 	private static final long MIN_INTERVAL_TICKS = 1L;
 	private static final long MAX_INTERVAL_TICKS = 20L;
 
@@ -66,12 +70,23 @@ public final class EcosystemNaturalErosionManager {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE, EcosystemNaturalErosionManager::runTask);
+		emitErosionDebug("ecosystem.natural_erosion.lifecycle", builder -> builder
+			.subject("initialize")
+			.field("config-folder", CONFIG_FOLDER_NAME)
+			.field("config-file", CONFIG_FILE_NAME)
+			.field("scheduler-owner", SCHEDULER_OWNER_ID)
+			.field("enabled", isEnabled()));
 	}
 
 	public static void reset() {
+		String previousSchedulerId = schedulerId;
 		schedulerId = "";
 		taskScheduled = false;
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
+		emitErosionDebug("ecosystem.natural_erosion.lifecycle", builder -> builder
+			.subject("reset")
+			.field("scheduler-id", previousSchedulerId)
+			.field("task-scheduled", false));
 	}
 
 	public static NaturalErosionConfigManager.Settings getSettings() {
@@ -102,6 +117,11 @@ public final class EcosystemNaturalErosionManager {
 		);
 		SchedulerManagerSystem.clearQueuedRequests(schedulerId);
 		requestProcessing(server, 1L);
+		emitErosionDebug("ecosystem.natural_erosion.lifecycle", builder -> builder
+			.subject("server-started")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled)
+			.field("enabled", isEnabled()));
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
@@ -109,6 +129,10 @@ public final class EcosystemNaturalErosionManager {
 			return;
 		}
 		SchedulerManagerSystem.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
+		emitErosionDebug("ecosystem.natural_erosion.lifecycle", builder -> builder
+			.subject("server-stopping")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled));
 		clearSchedulerState();
 	}
 
@@ -117,6 +141,12 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	public static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
+		emitErosionDebug("ecosystem.natural_erosion.process_chunk", builder -> builder
+			.subject("process-chunk")
+			.field("level-id", MadokuEcosystemManager.levelId(level))
+			.field("chunk-x", chunkX)
+			.field("chunk-z", chunkZ)
+			.field("day-time", currentAbsoluteDayTime));
 		EcosystemNaturalGrowthManager.processDirtInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime, "wet");
 	}
 
@@ -128,6 +158,10 @@ public final class EcosystemNaturalErosionManager {
 		if (server == null || !isEnabled()) {
 			return;
 		}
+		emitErosionDebug("ecosystem.natural_erosion.scheduler", builder -> builder
+			.subject("run-task")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled));
 		requestProcessing(server, resolveSchedulerInterval(server));
 		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_ID);
 	}
@@ -151,6 +185,12 @@ public final class EcosystemNaturalErosionManager {
 		);
 		if (isAccepted(firstStatus)) {
 			taskScheduled = true;
+			emitErosionDebug("ecosystem.natural_erosion.scheduler", builder -> builder
+				.subject("request-processing")
+				.field("scheduler-id", currentSchedulerId)
+				.field("delay-ticks", delayTicks)
+				.field("queued-before", queuedBefore)
+				.field("accepted", true));
 			return;
 		}
 		String refreshedSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
@@ -167,6 +207,12 @@ public final class EcosystemNaturalErosionManager {
 		if (isAccepted(secondStatus)) {
 			taskScheduled = true;
 		}
+		emitErosionDebug("ecosystem.natural_erosion.scheduler", builder -> builder
+			.subject("request-processing")
+			.field("scheduler-id", schedulerId)
+			.field("delay-ticks", delayTicks)
+			.field("queued-before", queuedBefore)
+			.field("accepted", isAccepted(secondStatus)));
 	}
 
 	private static long resolveSchedulerInterval(MinecraftServer server) {
@@ -206,9 +252,32 @@ public final class EcosystemNaturalErosionManager {
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
 			settings = NaturalErosionConfigManager.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(file, NaturalErosionConfigManager.toJson(settings), defaults);
+			emitErosionDebug("ecosystem.natural_erosion.config", builder -> builder
+				.subject("load-config")
+				.field("config-folder", CONFIG_FOLDER_NAME)
+				.field("config-file", CONFIG_FILE_NAME)
+				.field("enabled", settings.isEnabled()));
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
 			LOGGER.error("Failed to load EcosystemNaturalErosionManager config; using defaults.", exception);
+			emitErosionDebug("ecosystem.natural_erosion.config", builder -> builder
+				.subject("load-config-failed")
+				.field("config-folder", CONFIG_FOLDER_NAME)
+				.field("config-file", CONFIG_FILE_NAME)
+				.field("enabled", fallback.isEnabled()));
 		}
+	}
+
+	private static void emitErosionDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
+			.side(MadokuDebugManager.Side.SERVER);
+		if (customizer != null) {
+			customizer.accept(builder);
+		}
+		builder.log();
 	}
 }

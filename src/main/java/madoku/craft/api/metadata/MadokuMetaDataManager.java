@@ -27,6 +27,31 @@ public final class MadokuMetaDataManager {
 		)
 	);
 
+	public static final MainSystemMetadata CHUNK = mainSystem(
+		"chunk",
+		subSystem("chunk-manager", entriesFromClass(madoku.craft.api.chunk.MadokuChunkManager.class)),
+		subSystem("chunk-discovery-manager", entriesFromClass("madoku.craft.api.chunk.ChunkDiscoveryManager")),
+		subSystem("chunk-processor-manager", entriesFromClass("madoku.craft.api.chunk.ChunkProcessorManager"))
+	);
+
+	public static final MainSystemMetadata ECOSYSTEM = mainSystem(
+		"ecosystem",
+		subSystem("ecosystem-manager", entriesFromClass(madoku.craft.ecosystem.MadokuEcosystemManager.class)),
+		subSystem("ecosystem-config-manager", entriesFromClass(madoku.craft.ecosystem.EcosystemConfigManager.class)),
+		subSystem(
+			"ecosystem-natural-growth-manager",
+			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalGrowthManager.class)
+		),
+		subSystem(
+			"ecosystem-natural-erosion-manager",
+			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalErosionManager.class)
+		),
+		subSystem(
+			"ecosystem-natural-decay-manager",
+			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalDecayManager.class)
+		)
+	);
+
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(
 		"attributes",
 		subSystem(

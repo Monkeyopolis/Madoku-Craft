@@ -14,7 +14,6 @@ import java.nio.file.Path;
 public final class OxygenConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(OxygenConfigManager.class);
 
-	private static final String OXYGEN_CONFIG_DIRECTORY_NAME = "madoku-oxygen";
 	private static final String OXYGEN_CONFIG_FILE_NAME = "madoku-oxygen";
 	private static final int DEFAULT_MAXIMUM_OXYGEN_TICKS = 600;
 	private static final int MAXIMUM_CONFIG_OXYGEN_TICKS = (int) (20L * 60L * 60L);
@@ -34,10 +33,7 @@ public final class OxygenConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
-				OXYGEN_CONFIG_DIRECTORY_NAME,
-				OXYGEN_CONFIG_FILE_NAME
-			);
+			Path configFile = AttributesConfigManager.prepareRootConfigFile(OXYGEN_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);

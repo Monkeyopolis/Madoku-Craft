@@ -21,7 +21,6 @@ public final class HungerConfigManager {
 	private static final long DEFAULT_BLOCK_GOAL_VALUE = 128L;
 	private static final double DEFAULT_MOVEMENT_GOAL_VALUE = 150.0d;
 	private static final long DEFAULT_TIME_GOAL_VALUE = 6000L;
-	private static final String HUNGER_CONFIG_DIRECTORY_NAME = "madoku-hunger";
 	private static final String HUNGER_CONFIG_FILE_NAME = "madoku-hunger";
 
 	private HungerConfigManager() {
@@ -32,10 +31,7 @@ public final class HungerConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
-				HUNGER_CONFIG_DIRECTORY_NAME,
-				HUNGER_CONFIG_FILE_NAME
-			);
+			Path configFile = AttributesConfigManager.prepareRootConfigFile(HUNGER_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);

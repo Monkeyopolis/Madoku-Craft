@@ -39,7 +39,7 @@ public final class MadokuHungerManager {
 	private static final long HUNGER_PLAYER_TICK_MIN_INTERVAL = 1L;
 	private static final long HUNGER_PLAYER_TICK_MAX_INTERVAL = 5L;
 	private static final int ACTION_INTERVAL_TICKS = 10;
-	private static final String DATA_FOLDER_NAME = "madoku-craft-hunger";
+	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
 	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
 	private static final String HUNGER_PLAYER_TICK_SCHEDULER_KEY = "hunger_player_tick";

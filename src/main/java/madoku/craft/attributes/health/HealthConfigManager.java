@@ -14,7 +14,6 @@ import java.nio.file.Path;
 public final class HealthConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(HealthConfigManager.class);
 
-	private static final String HEALTH_CONFIG_DIRECTORY_NAME = "madoku-health";
 	private static final String HEALTH_CONFIG_FILE_NAME = "madoku-health";
 	private static final double DEFAULT_MAXIMUM_HEALTH = 20.0d;
 	private static final float DEFAULT_HUNGER_DRAIN_PERCENTAGE = 0.75f;
@@ -37,10 +36,7 @@ public final class HealthConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path configFile = AttributesConfigManager.prepareSystemConfigFile(
-				HEALTH_CONFIG_DIRECTORY_NAME,
-				HEALTH_CONFIG_FILE_NAME
-			);
+			Path configFile = AttributesConfigManager.prepareRootConfigFile(HEALTH_CONFIG_FILE_NAME);
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);

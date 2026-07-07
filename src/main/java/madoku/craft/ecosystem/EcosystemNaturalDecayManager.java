@@ -2,6 +2,7 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class EcosystemNaturalDecayManager {
 	public static final String SCHEDULER_OWNER_ID = "ecosystem_decay_process_gameplay";
@@ -24,6 +26,8 @@ public final class EcosystemNaturalDecayManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalDecayManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String CONFIG_FILE_NAME = "natural-decay";
+	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
+	private static final String DEBUG_SUB_SYSTEM = "ecosystem-natural-decay-manager";
 	private static final long MIN_INTERVAL_TICKS = 1L;
 	private static final long MAX_INTERVAL_TICKS = 20L;
 
@@ -73,12 +77,23 @@ public final class EcosystemNaturalDecayManager {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE, EcosystemNaturalDecayManager::runTask);
+		emitDecayDebug("ecosystem.natural_decay.lifecycle", builder -> builder
+			.subject("initialize")
+			.field("config-folder", CONFIG_FOLDER_NAME)
+			.field("config-file", CONFIG_FILE_NAME)
+			.field("scheduler-owner", SCHEDULER_OWNER_ID)
+			.field("enabled", isEnabled()));
 	}
 
 	public static void reset() {
+		String previousSchedulerId = schedulerId;
 		schedulerId = "";
 		taskScheduled = false;
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
+		emitDecayDebug("ecosystem.natural_decay.lifecycle", builder -> builder
+			.subject("reset")
+			.field("scheduler-id", previousSchedulerId)
+			.field("task-scheduled", false));
 	}
 
 	public static NaturalDecayConfigManager.Settings getSettings() {
@@ -109,6 +124,11 @@ public final class EcosystemNaturalDecayManager {
 		);
 		SchedulerManagerSystem.clearQueuedRequests(schedulerId);
 		requestProcessing(server, 1L);
+		emitDecayDebug("ecosystem.natural_decay.lifecycle", builder -> builder
+			.subject("server-started")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled)
+			.field("enabled", isEnabled()));
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
@@ -116,6 +136,10 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 		SchedulerManagerSystem.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
+		emitDecayDebug("ecosystem.natural_decay.lifecycle", builder -> builder
+			.subject("server-stopping")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled));
 		clearSchedulerState();
 	}
 
@@ -124,6 +148,12 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	public static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
+		emitDecayDebug("ecosystem.natural_decay.process_chunk", builder -> builder
+			.subject("process-chunk")
+			.field("level-id", MadokuEcosystemManager.levelId(level))
+			.field("chunk-x", chunkX)
+			.field("chunk-z", chunkZ)
+			.field("day-time", currentAbsoluteDayTime));
 		processTreeDecayCandidateInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime);
 	}
 
@@ -138,6 +168,10 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 
+		int evaluated = 0;
+		int progressed = 0;
+		int removed = 0;
+		int appliedCount = 0;
 		boolean removedAny = false;
 		for (int index = candidates.size() - 1; index >= 0; index--) {
 			MadokuEcosystemManager.TreeDecayCandidateState candidate = candidates.get(index);
@@ -145,13 +179,16 @@ public final class EcosystemNaturalDecayManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
+				removed++;
 				continue;
 			}
+			evaluated++;
 
 			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
+				removed++;
 				continue;
 			}
 
@@ -160,6 +197,7 @@ public final class EcosystemNaturalDecayManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
+				removed++;
 				continue;
 			}
 
@@ -171,6 +209,7 @@ public final class EcosystemNaturalDecayManager {
 				if (updatedProgress > candidate.progressDecayTicks) {
 					candidate.progressDecayTicks = updatedProgress;
 					MadokuEcosystemManager.dirty = true;
+					progressed++;
 				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -181,6 +220,8 @@ public final class EcosystemNaturalDecayManager {
 					candidates.remove(index);
 					removedAny = true;
 					MadokuEcosystemManager.dirty = true;
+					removed++;
+					appliedCount++;
 				}
 			}
 		}
@@ -193,6 +234,20 @@ public final class EcosystemNaturalDecayManager {
 		if (removedAny) {
 			MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
 		}
+		final int finalEvaluated = evaluated;
+		final int finalProgressed = progressed;
+		final int finalRemoved = removed;
+		final int finalApplied = appliedCount;
+		emitDecayDebug("ecosystem.natural_decay.tree", builder -> builder
+			.subject("process-tree-decay")
+			.field("level-id", MadokuEcosystemManager.levelId(world))
+			.field("chunk-x", chunkX)
+			.field("chunk-z", chunkZ)
+			.field("evaluated", finalEvaluated)
+			.field("progressed", finalProgressed)
+			.field("removed", finalRemoved)
+			.field("applied", finalApplied)
+			.field("remaining", candidates.size()));
 	}
 
 	public static void runTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
@@ -203,6 +258,10 @@ public final class EcosystemNaturalDecayManager {
 		if (server == null || !isEnabled()) {
 			return;
 		}
+		emitDecayDebug("ecosystem.natural_decay.scheduler", builder -> builder
+			.subject("run-task")
+			.field("scheduler-id", schedulerId)
+			.field("task-scheduled", taskScheduled));
 		requestProcessing(server, resolveSchedulerInterval(server));
 		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_ID);
 	}
@@ -226,6 +285,12 @@ public final class EcosystemNaturalDecayManager {
 		);
 		if (isAccepted(firstStatus)) {
 			taskScheduled = true;
+			emitDecayDebug("ecosystem.natural_decay.scheduler", builder -> builder
+				.subject("request-processing")
+				.field("scheduler-id", currentSchedulerId)
+				.field("delay-ticks", delayTicks)
+				.field("queued-before", queuedBefore)
+				.field("accepted", true));
 			return;
 		}
 		String refreshedSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
@@ -242,6 +307,12 @@ public final class EcosystemNaturalDecayManager {
 		if (isAccepted(secondStatus)) {
 			taskScheduled = true;
 		}
+		emitDecayDebug("ecosystem.natural_decay.scheduler", builder -> builder
+			.subject("request-processing")
+			.field("scheduler-id", schedulerId)
+			.field("delay-ticks", delayTicks)
+			.field("queued-before", queuedBefore)
+			.field("accepted", isAccepted(secondStatus)));
 	}
 
 	private static long resolveSchedulerInterval(MinecraftServer server) {
@@ -281,9 +352,32 @@ public final class EcosystemNaturalDecayManager {
 			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
 			settings = NaturalDecayConfigManager.fromJson(normalized);
 			JsonStaticSystem.writeManagedFile(file, NaturalDecayConfigManager.toJson(settings), defaults);
+			emitDecayDebug("ecosystem.natural_decay.config", builder -> builder
+				.subject("load-config")
+				.field("config-folder", CONFIG_FOLDER_NAME)
+				.field("config-file", CONFIG_FILE_NAME)
+				.field("enabled", settings.isEnabled()));
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
 			LOGGER.error("Failed to load EcosystemNaturalDecayManager config; using defaults.", exception);
+			emitDecayDebug("ecosystem.natural_decay.config", builder -> builder
+				.subject("load-config-failed")
+				.field("config-folder", CONFIG_FOLDER_NAME)
+				.field("config-file", CONFIG_FILE_NAME)
+				.field("enabled", fallback.isEnabled()));
 		}
+	}
+
+	private static void emitDecayDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
+			.side(MadokuDebugManager.Side.SERVER);
+		if (customizer != null) {
+			customizer.accept(builder);
+		}
+		builder.log();
 	}
 }

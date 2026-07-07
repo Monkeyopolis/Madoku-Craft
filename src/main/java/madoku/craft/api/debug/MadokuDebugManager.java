@@ -2,6 +2,7 @@ package madoku.craft.api.debug;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -23,7 +24,7 @@ import java.lang.StackWalker;
 
 public final class MadokuDebugManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger("Debug");
-	private static final String DEBUG_CONFIG_FOLDER_NAME = "madoku-craft-debug";
+	private static final String DEBUG_CONFIG_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-debug";
 	private static final String ENTRY_ENABLED_KEY = "enabled";
 	private static final int MAX_RECENT_EVENTS = 512;
 	private static final Object BUFFER_LOCK = new Object();
