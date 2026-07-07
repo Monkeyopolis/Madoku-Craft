@@ -8,7 +8,7 @@ import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
-import madoku.craft.ecosystem.system.MadokuEcosystem;
+import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.attributes.health.MadokuHealthManager;
@@ -60,7 +60,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuItem.initialize();
 		MadokuComposter.initialize();
 		MadokuFarming.initialize();
-		MadokuEcosystem.initialize();
+		MadokuEcosystemManager.initialize();
 		MadokuMobManager.initialize();
 		MadokuRarity.initialize();
 		MadokuItemStack.initialize();
@@ -85,7 +85,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
-			MadokuEcosystem.reset();
+			MadokuEcosystemManager.reset();
 			MadokuItem.reset();
 			MadokuItemStack.reset();
 			MadokuPlacedBlocks.reset();
@@ -102,12 +102,12 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarming.loadPersistedData(server);
-			MadokuEcosystem.loadPersistedData(server);
+			MadokuEcosystemManager.loadPersistedData(server);
 			MadokuPlacedBlocks.loadPersistedData(server);
 			MadokuAPIManager.onServerStarted(server);
 			MadokuSeason.onServerStarted(server);
 			MadokuFarming.onServerStarted(server);
-			MadokuEcosystem.onServerStarted(server);
+			MadokuEcosystemManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
 			MadokuHealthManager.loadPersistedData(server);
 			MadokuHungerManager.loadPersistedData(server);
@@ -139,7 +139,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.savePersistedData(server);
 			MadokuEntities.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
-			MadokuEcosystem.savePersistedData(server);
+			MadokuEcosystemManager.savePersistedData(server);
 			MadokuAPIManager.savePersistedData(server);
 			SchedulerManagerSystem.savePersistedData(server);
 			MadokuPlacedBlocks.savePersistedData(server);
@@ -156,7 +156,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
-			MadokuEcosystem.reset();
+			MadokuEcosystemManager.reset();
 			MadokuItem.reset();
 			MadokuAPIManager.reset();
 			SchedulerManagerSystem.reset();
@@ -193,7 +193,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeason.autosavePersistedData(server);
 			MadokuEntities.autosavePersistedData(server);
 			MadokuFarming.autosavePersistedData(server);
-			MadokuEcosystem.autosavePersistedData(server);
+			MadokuEcosystemManager.autosavePersistedData(server);
 			MadokuPlacedBlocks.autosavePersistedData(server);
 			MadokuOxygenManager.autosavePersistedData(server);
 			MadokuLevels.autosavePersistedData(server);

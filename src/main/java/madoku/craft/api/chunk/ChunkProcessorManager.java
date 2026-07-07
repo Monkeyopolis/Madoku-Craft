@@ -20,11 +20,13 @@ final class ChunkProcessorManager {
 
 	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
 	private static final Set<String> ACTIVE_CHUNK_PROCESSOR_IDS = new LinkedHashSet<>();
+	private static final Set<MadokuChunkManager.ProcessorChunkKey> DISCOVERED_CHUNK_KEYS = new LinkedHashSet<>();
 
 	private ChunkProcessorManager() {
 	}
 
 	public static void reset() {
+		DISCOVERED_CHUNK_KEYS.clear();
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime != null) {
 				runtime.resetState();
@@ -58,6 +60,32 @@ final class ChunkProcessorManager {
 		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
 		if (runtime != null) {
 			runtime.resetState();
+		}
+	}
+
+	public static void onChunkDiscoveryFinished(ServerLevel level, int chunkX, int chunkZ) {
+		if (!ChunkConfigManager.isChunkProcessorEnabled()) {
+			return;
+		}
+		MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(
+			MadokuChunkManager.normalizeLevelId(level),
+			chunkX,
+			chunkZ
+		);
+		if (chunkKey.levelId().isBlank()) {
+			return;
+		}
+		DISCOVERED_CHUNK_KEYS.add(chunkKey);
+		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
+			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
+				continue;
+			}
+			if (!runtime.trackedChunksWithState.contains(chunkKey)) {
+				continue;
+			}
+			if (MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
+				addLoadedTrackedChunk(runtime, chunkKey);
+			}
 		}
 	}
 
@@ -119,7 +147,7 @@ final class ChunkProcessorManager {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
 			}
-			if (runtime.trackedChunksWithState.contains(chunkKey)) {
+			if (DISCOVERED_CHUNK_KEYS.contains(chunkKey) && runtime.trackedChunksWithState.contains(chunkKey)) {
 				addLoadedTrackedChunk(runtime, chunkKey);
 			}
 		}
@@ -138,34 +166,8 @@ final class ChunkProcessorManager {
 			if (runtime == null || runtime.processor == null || !runtime.processor.acceptsWorld(level)) {
 				continue;
 			}
+			DISCOVERED_CHUNK_KEYS.remove(chunkKey);
 			removeLoadedTrackedChunk(runtime, chunkKey);
-		}
-	}
-
-	public static void refreshTrackedChunks(MinecraftServer server) {
-		if (server == null || !ChunkConfigManager.isChunkProcessorEnabled()) {
-			return;
-		}
-		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
-			if (runtime == null || runtime.processor == null) {
-				continue;
-			}
-			List<MadokuChunkManager.ProcessorChunkKey> trackedChunks = new ArrayList<>(runtime.trackedChunkCycle);
-			for (MadokuChunkManager.ProcessorChunkKey chunkKey : trackedChunks) {
-				if (chunkKey == null || chunkKey.levelId().isBlank()) {
-					continue;
-				}
-				ServerLevel world = MadokuChunkManager.resolveLevel(server, chunkKey.levelId());
-				if (world == null || !runtime.processor.acceptsWorld(world)) {
-					removeLoadedTrackedChunk(runtime, chunkKey);
-					continue;
-				}
-				if (MadokuChunkManager.isChunkLoaded(world, chunkKey.chunkX(), chunkKey.chunkZ())) {
-					addLoadedTrackedChunk(runtime, chunkKey);
-				} else {
-					removeLoadedTrackedChunk(runtime, chunkKey);
-				}
-			}
 		}
 	}
 
@@ -222,33 +224,22 @@ final class ChunkProcessorManager {
 		}
 
 		long intervalTicks = resolveRoundRobinProcessorIntervalTicks(server, runtime);
-		int workUnits = ChunkConfigManager.resolveAdaptiveChunkWorkUnits(intervalTicks);
-		int processedChunks = 0;
-		while (processedChunks < workUnits && !runtime.loadedTrackedChunkCycle.isEmpty()) {
-			int selectedIndex = Math.floorMod(runtime.activeChunkProcessCursor, runtime.loadedTrackedChunkCycle.size());
-			MadokuChunkManager.ProcessorChunkKey selectedChunk = runtime.loadedTrackedChunkCycle.get(selectedIndex);
-			ServerLevel world = MadokuChunkManager.resolveLevel(server, selectedChunk.levelId());
-			boolean loaded = world != null && MadokuChunkManager.isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
-			if (!loaded) {
-				removeLoadedTrackedChunk(runtime, selectedChunk);
-				if (runtime.loadedTrackedChunkCycle.isEmpty()) {
-					runtime.activeChunkProcessCursor = 0;
-					break;
-				}
-				continue;
+		int selectedIndex = Math.floorMod(runtime.activeChunkProcessCursor, runtime.loadedTrackedChunkCycle.size());
+		MadokuChunkManager.ProcessorChunkKey selectedChunk = runtime.loadedTrackedChunkCycle.get(selectedIndex);
+		ServerLevel world = MadokuChunkManager.resolveLevel(server, selectedChunk.levelId());
+		boolean loaded = world != null && MadokuChunkManager.isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		if (!loaded) {
+			removeLoadedTrackedChunk(runtime, selectedChunk);
+			if (!runtime.loadedTrackedChunkCycle.isEmpty()) {
+				scheduleNextRoundRobinProcessorStep(server, runtime, intervalTicks);
 			}
+			return;
+		}
 
-			runtime.processor.processTrackedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
-			processedChunks++;
-			boolean completedCycle = selectedIndex + 1 >= runtime.loadedTrackedChunkCycle.size();
-			runtime.activeChunkProcessCursor = completedCycle ? 0 : selectedIndex + 1;
-			if (completedCycle) {
-				break;
-			}
-		}
-		if (processedChunks > 0) {
-			scheduleNextRoundRobinProcessorStep(server, runtime, intervalTicks);
-		}
+		runtime.processor.processTrackedChunk(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
+		boolean completedCycle = selectedIndex + 1 >= runtime.loadedTrackedChunkCycle.size();
+		runtime.activeChunkProcessCursor = completedCycle ? 0 : selectedIndex + 1;
+		scheduleNextRoundRobinProcessorStep(server, runtime, intervalTicks);
 	}
 
 	private static void recoverLoadedTrackedChunks(MinecraftServer server, ChunkProcessorRuntime runtime) {
@@ -257,6 +248,9 @@ final class ChunkProcessorManager {
 		}
 		for (MadokuChunkManager.ProcessorChunkKey chunkKey : runtime.trackedChunkCycle) {
 			if (chunkKey == null || chunkKey.levelId().isBlank()) {
+				continue;
+			}
+			if (!DISCOVERED_CHUNK_KEYS.contains(chunkKey)) {
 				continue;
 			}
 			ServerLevel world = MadokuChunkManager.resolveLevel(server, chunkKey.levelId());
@@ -276,7 +270,8 @@ final class ChunkProcessorManager {
 		if (runtime.trackedChunksWithState.add(chunkKey)) {
 			runtime.trackedChunkCycle.add(chunkKey);
 		}
-		if (MadokuChunkManager.isKnownLoadedChunk(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ())) {
+		if (DISCOVERED_CHUNK_KEYS.contains(chunkKey)
+			&& MadokuChunkManager.isKnownLoadedChunk(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ())) {
 			addLoadedTrackedChunk(runtime, chunkKey);
 		}
 	}

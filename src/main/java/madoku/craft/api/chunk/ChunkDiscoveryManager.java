@@ -133,13 +133,6 @@ final class ChunkDiscoveryManager {
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, MadokuChunkManager.toPersistedData());
 	}
 
-	public static void refreshTrackedChunks(MinecraftServer server) {
-		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
-			return;
-		}
-		ChunkProcessorManager.refreshTrackedChunks(server);
-	}
-
 	private static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
 		if (level == null || chunk == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
@@ -182,10 +175,7 @@ final class ChunkDiscoveryManager {
 		}
 		long refreshIntervalTicks = resolveChunkRefreshInterval(server);
 		int columnsPerRefresh = ChunkConfigManager.resolveAdaptiveChunkWorkUnits(refreshIntervalTicks);
-		boolean completedRefreshCycle = runSharedChunkDiscoverySteps(server, columnsPerRefresh);
-		if (completedRefreshCycle) {
-			ChunkProcessorManager.refreshTrackedChunks(server);
-		}
+		runSharedChunkDiscoverySteps(server, columnsPerRefresh);
 		requestChunkRefresh(server, refreshIntervalTicks);
 	}
 
@@ -334,6 +324,7 @@ final class ChunkDiscoveryManager {
 			for (MadokuChunkManager.ChunkProcessor processor : activeProcessors) {
 				processor.finishLoadedChunkDiscovery(world, chunkKey.chunkX(), chunkKey.chunkZ());
 			}
+			ChunkProcessorManager.onChunkDiscoveryFinished(world, chunkKey.chunkX(), chunkKey.chunkZ());
 			progress.started = false;
 			progress.reset(0);
 			return true;
