@@ -6,6 +6,9 @@ import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.block.Block;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -174,6 +177,22 @@ public final class EcosystemConfigManager {
 			return "";
 		}
 		return value.trim().toLowerCase();
+	}
+
+	public static Block resolveBlock(String blockId) {
+		Identifier id = Identifier.tryParse(blockId == null ? "" : blockId.trim());
+		if (id == null) {
+			return null;
+		}
+		return BuiltInRegistries.BLOCK.getValue(id);
+	}
+
+	public static String blockId(Block block) {
+		if (block == null) {
+			return "";
+		}
+		Identifier id = BuiltInRegistries.BLOCK.getKey(block);
+		return id == null ? "" : id.toString();
 	}
 
 	public static DayRange readDayRange(

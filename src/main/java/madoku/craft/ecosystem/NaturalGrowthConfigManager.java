@@ -102,6 +102,22 @@ public final class NaturalGrowthConfigManager {
 		);
 	}
 
+	static String normalizeFoliageType(String foliageType) {
+		String normalized = foliageType == null ? "" : foliageType.trim().toLowerCase();
+		if (FIELD_PINK_PETALS.equals(normalized)) {
+			return FIELD_PINK_PETALS;
+		}
+		if (FIELD_WILDFLOWERS.equals(normalized)) {
+			return FIELD_WILDFLOWERS;
+		}
+		return "";
+	}
+
+	static boolean propertyNameLooksLikeAmount(String propertyName) {
+		String normalized = EcosystemConfigManager.normalize(propertyName);
+		return normalized.contains("amount") || normalized.contains("segments");
+	}
+
 	public static JsonObject buildDefaultsJson() {
 		return toJson(defaults());
 	}

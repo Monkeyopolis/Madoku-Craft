@@ -7,13 +7,19 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.time.MadokuTime;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public final class EcosystemNaturalErosionManager {
@@ -28,6 +34,12 @@ public final class EcosystemNaturalErosionManager {
 	private static final String DEBUG_SUB_SYSTEM = "ecosystem-natural-erosion-manager";
 	private static final long MIN_INTERVAL_TICKS = 1L;
 	private static final long MAX_INTERVAL_TICKS = 20L;
+	private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
+		Direction.NORTH,
+		Direction.SOUTH,
+		Direction.EAST,
+		Direction.WEST
+	};
 
 	private static volatile NaturalErosionConfigManager.Settings settings = NaturalErosionConfigManager.defaults();
 	private static volatile String schedulerId = "";
@@ -150,6 +162,159 @@ public final class EcosystemNaturalErosionManager {
 		EcosystemNaturalGrowthManager.processDirtInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime, "wet");
 	}
 
+	static void discoverTrackablesInChunk(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || snapshot == null || accumulator == null || !MadokuEcosystemManager.isNaturalErosionEnabled()) {
+			return;
+		}
+
+		for (MadokuChunkManager.ColumnSample column : snapshot.motionColumns()) {
+			if (column == null) {
+				continue;
+			}
+			for (int depth = 0; depth <= 2; depth++) {
+				if (!column.hasDepth(depth)) {
+					continue;
+				}
+				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
+				BlockState state = column.stateAtDepth(depth);
+				if (isWetSeedCandidate(world, pos, state)) {
+					accumulator.wetSeedPositions.add(pos.asLong());
+				}
+				if (isLavaMagmaSeedCandidate(world, pos, state)) {
+					MadokuEcosystemManager.trackDirtCandidateForMode(world, pos, state, "wet");
+				}
+			}
+		}
+	}
+
+	static void finalizeTrackablesInChunkDiscovery(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || accumulator == null || !MadokuEcosystemManager.isNaturalErosionEnabled()) {
+			return;
+		}
+		if (!accumulator.wetSeedPositions.isEmpty()) {
+			spreadWetTrackingFromSeeds(world, accumulator.wetSeedPositions);
+		}
+	}
+
+	static boolean isWetSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
+		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !MadokuEcosystemManager.isTrackableGroundBlock(state)) {
+			return false;
+		}
+		if (isSubmerged(world, blockPos)) {
+			return false;
+		}
+		return isAdjacentToSurfaceWater(world, blockPos);
+	}
+
+	static boolean isLavaMagmaSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
+		if (world == null || blockPos == null || state == null || !isLavaErosionEnabled()) {
+			return false;
+		}
+		String sourceBlockId = EcosystemConfigManager.blockId(state.getBlock());
+		if (!MadokuEcosystemManager.isLavaMagmaSourceBlockId(sourceBlockId)) {
+			return false;
+		}
+		return isAdjacentToLava(world, blockPos, currentSettings().lavaErosionRadius());
+	}
+
+	static boolean isWetTrackedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
+		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !MadokuEcosystemManager.isTrackableGroundBlock(state)) {
+			return false;
+		}
+		if (MadokuEcosystemManager.resolveErosionRule(world, blockPos, state, "") == null) {
+			return false;
+		}
+		return !isSubmerged(world, blockPos);
+	}
+
+	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		boolean tracked = MadokuEcosystemManager.chunkHasDirtMode(chunkKey, "wet");
+		if (tracked) {
+			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		} else {
+			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		}
+		emitErosionDebug("ecosystem.tracking", builder -> builder
+			.subject("sync-erosion-chunk-tracking")
+			.field("level-id", chunkKey.levelId())
+			.field("chunk-x", chunkKey.chunkX())
+			.field("chunk-z", chunkKey.chunkZ())
+			.field("tracked", tracked));
+	}
+
+	static boolean isSubmerged(ServerLevel world, BlockPos pos) {
+		if (world == null || pos == null) {
+			return false;
+		}
+		return world.getFluidState(pos).is(net.minecraft.tags.FluidTags.WATER)
+			|| world.getFluidState(pos.above()).is(net.minecraft.tags.FluidTags.WATER);
+	}
+
+	static boolean isAdjacentToSurfaceWater(ServerLevel world, BlockPos blockPos) {
+		if (world == null || blockPos == null) {
+			return false;
+		}
+		for (Direction direction : Direction.values()) {
+			if (direction == null) {
+				continue;
+			}
+			if (isSurfaceLevelWater(world, blockPos.relative(direction))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static boolean isAdjacentToLava(ServerLevel world, BlockPos blockPos, int radius) {
+		if (world == null || blockPos == null || radius < 0) {
+			return false;
+		}
+		if (world.getFluidState(blockPos).is(net.minecraft.tags.FluidTags.LAVA)) {
+			return true;
+		}
+		if (radius == 0) {
+			return false;
+		}
+		for (Direction direction : Direction.values()) {
+			if (direction == null) {
+				continue;
+			}
+			BlockPos neighborPos = blockPos.relative(direction);
+			if (world.getFluidState(neighborPos).is(net.minecraft.tags.FluidTags.LAVA)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isSurfaceLevelWater(ServerLevel world, BlockPos waterPos) {
+		if (world == null || waterPos == null) {
+			return false;
+		}
+		if (!world.getFluidState(waterPos).is(net.minecraft.tags.FluidTags.WATER)) {
+			return false;
+		}
+		if (world.getFluidState(waterPos.above()).is(net.minecraft.tags.FluidTags.WATER)) {
+			return false;
+		}
+		int topY = world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, waterPos.getX(), waterPos.getZ()) - 1;
+		return waterPos.getY() >= topY;
+	}
+
 	public static void runTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			schedulerId = context.getSchedulerId();
@@ -215,8 +380,73 @@ public final class EcosystemNaturalErosionManager {
 			.field("accepted", isAccepted(secondStatus)));
 	}
 
+	static boolean spreadWetTrackingFromSeeds(ServerLevel world, Set<Long> seedPositions) {
+		if (world == null || seedPositions == null || seedPositions.isEmpty()) {
+			return false;
+		}
+
+		boolean changed = false;
+		Set<Long> visited = new LinkedHashSet<>();
+		ArrayDeque<MadokuEcosystemManager.SpreadNode> queue = new ArrayDeque<>();
+		for (Long packedPos : seedPositions) {
+			if (packedPos == null) {
+				continue;
+			}
+			if (!visited.add(packedPos)) {
+				continue;
+			}
+			queue.addLast(new MadokuEcosystemManager.SpreadNode(BlockPos.of(packedPos), 0));
+		}
+
+		while (!queue.isEmpty()) {
+			MadokuEcosystemManager.SpreadNode current = queue.removeFirst();
+			BlockPos currentPos = current.pos();
+			if (currentPos == null) {
+				continue;
+			}
+
+			BlockState currentState = world.getBlockState(currentPos);
+			if (isWetTrackedCandidate(world, currentPos, currentState)) {
+				changed |= MadokuEcosystemManager.trackDirtCandidateForMode(world, currentPos, currentState, "wet");
+			}
+			BlockPos abovePos = currentPos.above();
+			BlockState aboveState = world.getBlockState(abovePos);
+			if (isWetTrackedCandidate(world, abovePos, aboveState)) {
+				changed |= MadokuEcosystemManager.trackDirtCandidateForMode(world, abovePos, aboveState, "wet");
+			}
+
+			if (current.depth() >= currentSettings().waterErosionRadius()) {
+				continue;
+			}
+
+			for (Direction direction : HORIZONTAL_DIRECTIONS) {
+				BlockPos nextPos = currentPos.relative(direction);
+				long nextPackedPos = nextPos.asLong();
+				if (visited.add(nextPackedPos)) {
+					queue.addLast(new MadokuEcosystemManager.SpreadNode(nextPos, current.depth() + 1));
+				}
+			}
+		}
+
+		return changed;
+	}
+
 	private static long resolveSchedulerInterval(MinecraftServer server) {
 		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(server, SCHEDULER_OWNER_ID, MIN_INTERVAL_TICKS, MAX_INTERVAL_TICKS);
+	}
+
+	private static NaturalErosionConfigManager.Settings currentSettings() {
+		return settings == null ? NaturalErosionConfigManager.defaults() : settings;
+	}
+
+	static boolean isWaterErosionEnabled() {
+		NaturalErosionConfigManager.Settings current = currentSettings();
+		return isEnabled() && current.waterErosion() != null && current.waterErosion().enabled();
+	}
+
+	static boolean isLavaErosionEnabled() {
+		NaturalErosionConfigManager.Settings current = currentSettings();
+		return isEnabled() && current.lavaErosion() != null && current.lavaErosion().enabled();
 	}
 
 	private static String ensureSchedulerExists() {

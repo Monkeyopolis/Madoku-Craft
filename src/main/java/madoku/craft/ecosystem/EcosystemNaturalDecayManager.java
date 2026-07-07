@@ -6,16 +6,25 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.season.MadokuSeason;
 import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 public final class EcosystemNaturalDecayManager {
@@ -34,6 +43,7 @@ public final class EcosystemNaturalDecayManager {
 	private static volatile NaturalDecayConfigManager.Settings settings = NaturalDecayConfigManager.defaults();
 	private static volatile String schedulerId = "";
 	private static volatile boolean taskScheduled = false;
+	static final Map<MadokuEcosystemManager.ChunkRefKey, List<MadokuEcosystemManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
 
 	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
@@ -89,11 +99,56 @@ public final class EcosystemNaturalDecayManager {
 		String previousSchedulerId = schedulerId;
 		schedulerId = "";
 		taskScheduled = false;
+		clearTrackedCandidateState();
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
 		emitDecayDebug("ecosystem.natural_decay.lifecycle", builder -> builder
 			.subject("reset")
 			.field("scheduler-id", previousSchedulerId)
 			.field("task-scheduled", false));
+	}
+
+	static void clearTrackedCandidateState() {
+		treeDecayCandidatesByChunk.clear();
+	}
+
+	static Set<MadokuEcosystemManager.ChunkRefKey> collectTrackedChunkKeys() {
+		return new java.util.LinkedHashSet<>(treeDecayCandidatesByChunk.keySet());
+	}
+
+	static List<MadokuEcosystemManager.TreeDecayCandidateState> getTreeDecayCandidates(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		return chunkKey == null ? List.of() : treeDecayCandidatesByChunk.getOrDefault(chunkKey, List.of());
+	}
+
+	static void putTreeDecayCandidate(MadokuEcosystemManager.ChunkRefKey chunkKey, MadokuEcosystemManager.TreeDecayCandidateState candidate) {
+		if (chunkKey == null || candidate == null) {
+			return;
+		}
+		List<MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.computeIfAbsent(chunkKey, ignored -> new ArrayList<>());
+		for (MadokuEcosystemManager.TreeDecayCandidateState existing : candidates) {
+			if (existing != null && existing.leafPos == candidate.leafPos) {
+				return;
+			}
+		}
+		candidates.add(candidate);
+		syncChunkProcessorTracking(chunkKey);
+	}
+
+	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		boolean tracked = isEnabled() && !treeDecayCandidatesByChunk.getOrDefault(chunkKey, List.of()).isEmpty();
+		if (tracked) {
+			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		} else {
+			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		}
+		emitDecayDebug("ecosystem.tracking", builder -> builder
+			.subject("sync-decay-chunk-tracking")
+			.field("level-id", chunkKey.levelId())
+			.field("chunk-x", chunkKey.chunkX())
+			.field("chunk-z", chunkKey.chunkZ())
+			.field("tracked", tracked));
 	}
 
 	public static NaturalDecayConfigManager.Settings getSettings() {
@@ -157,13 +212,217 @@ public final class EcosystemNaturalDecayManager {
 		processTreeDecayCandidateInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime);
 	}
 
+	static void discoverTrackablesInChunk(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || snapshot == null || accumulator == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+			return;
+		}
+
+		for (MadokuChunkManager.ColumnSample column : snapshot.surfaceColumns()) {
+			if (column == null) {
+				continue;
+			}
+			for (int depth = 0; depth <= 2; depth++) {
+				if (!column.hasDepth(depth)) {
+					continue;
+				}
+				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
+				BlockState state = column.stateAtDepth(depth);
+				BlockPos targetPos = resolveTreeDecayTargetPos(world, pos, state);
+				if (targetPos != null) {
+					accumulator.treeDecayLeafCandidates.add(targetPos.asLong());
+				}
+			}
+		}
+	}
+
+	static void finalizeTrackablesInChunkDiscovery(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || accumulator == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+			return;
+		}
+		pickTreeDecayCandidateForChunk(world, chunkX, chunkZ, accumulator.treeDecayLeafCandidates);
+	}
+
+	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {
+		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
+		if (normalizedSeasonId.isBlank()) {
+			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		}
+		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalDecaySettings.treeDecayForSeason(normalizedSeasonId);
+		return randomDaysToTicks(range);
+	}
+
+	static BlockPos resolveTreeDecayTargetPos(ServerLevel world, BlockPos leafPos, BlockState leafState) {
+		if (world == null || leafPos == null || leafState == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+			return null;
+		}
+		if (!leafState.is(BlockTags.LEAVES) || !MadokuEcosystemManager.isNaturallyGeneratedLeaf(leafState)) {
+			return null;
+		}
+		return resolveLeafLitterTargetPos(world, leafPos);
+	}
+
+	static boolean isValidTreeDecayTargetCandidate(ServerLevel world, BlockPos targetPos) {
+		if (world == null || targetPos == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+			return false;
+		}
+		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		if (leafLitter == null) {
+			return false;
+		}
+
+		BlockState state = world.getBlockState(targetPos);
+		if (state == null) {
+			return false;
+		}
+		if (state.getBlock() == leafLitter) {
+			return hasLeafLitterSupportBlock(world, targetPos)
+				&& MadokuEcosystemManager.getLeafLitterAmount(state) < MadokuEcosystemManager.getLeafLitterMaxAmount(state);
+		}
+		if (state.isAir()) {
+			BlockState placed = MadokuEcosystemManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
+			return hasLeafLitterSupportBlock(world, targetPos)
+				&& placed.canSurvive(world, targetPos);
+		}
+		return false;
+	}
+
+	static void pickTreeDecayCandidateForChunk(ServerLevel world, int chunkX, int chunkZ, Set<Long> treeDecayLeafCandidates) {
+		if (world == null || treeDecayLeafCandidates == null || treeDecayLeafCandidates.isEmpty() || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+			return;
+		}
+
+		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
+		List<MadokuEcosystemManager.TreeDecayCandidateState> existingCandidates = treeDecayCandidatesByChunk.get(chunkKey);
+
+		List<Long> options = new ArrayList<>();
+		for (Long packedPos : treeDecayLeafCandidates) {
+			if (packedPos == null) {
+				continue;
+			}
+		BlockPos targetPos = BlockPos.of(packedPos);
+		if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
+				continue;
+			}
+			boolean alreadyTracked = false;
+			if (existingCandidates != null) {
+				for (MadokuEcosystemManager.TreeDecayCandidateState existing : existingCandidates) {
+					if (existing != null && existing.leafPos == packedPos.longValue()) {
+						alreadyTracked = true;
+						break;
+					}
+				}
+			}
+			if (alreadyTracked) {
+				continue;
+			}
+			options.add(packedPos);
+		}
+
+		if (options.isEmpty()) {
+			return;
+		}
+
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		double requiredDecayTicks = resolveTreeDecayRequiredTicks(world, seasonId);
+		if (requiredDecayTicks <= 0.0d) {
+			return;
+		}
+
+		int availableSlots = options.size();
+		for (int i = 0; i < availableSlots; i++) {
+			int selectedIndex = ThreadLocalRandom.current().nextInt(options.size());
+			long selectedLeafPos = options.remove(selectedIndex);
+			treeDecayCandidatesByChunk
+				.computeIfAbsent(chunkKey, ignored -> new ArrayList<>())
+				.add(new MadokuEcosystemManager.TreeDecayCandidateState(
+					MadokuEcosystemManager.levelId(world),
+					chunkX,
+					chunkZ,
+					selectedLeafPos,
+					seasonId,
+					requiredDecayTicks,
+					0.0d,
+					MadokuTime.getCurrentAbsoluteDayTime(world)
+				));
+			syncChunkProcessorTracking(chunkKey);
+			MadokuEcosystemManager.dirty = true;
+		}
+	}
+
+	private static double randomDaysToTicks(EcosystemConfigManager.DayRange range) {
+		if (range == null) {
+			return -1.0d;
+		}
+		return EcosystemNaturalGrowthManager.randomDaysToTicks(range);
+	}
+
+	private static BlockPos resolveLeafLitterTargetPos(ServerLevel world, BlockPos leafPos) {
+		if (world == null || leafPos == null) {
+			return null;
+		}
+
+		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		if (leafLitter == null) {
+			return null;
+		}
+		BlockState singleLitter = MadokuEcosystemManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
+		int minY = Math.max(world.getMinY() + 1, leafPos.getY() - MadokuEcosystemManager.TREE_DECAY_MAX_DROP_DISTANCE);
+
+		for (int y = leafPos.getY() - 1; y >= minY; y--) {
+			BlockPos pos = new BlockPos(leafPos.getX(), y, leafPos.getZ());
+			BlockState state = world.getBlockState(pos);
+			if (state == null) {
+				continue;
+			}
+
+			if (state.is(BlockTags.LEAVES)) {
+				continue;
+			}
+
+			if (state.getBlock() == leafLitter) {
+				return hasLeafLitterSupportBlock(world, pos)
+					&& MadokuEcosystemManager.getLeafLitterAmount(state) < MadokuEcosystemManager.getLeafLitterMaxAmount(state)
+					? pos
+					: null;
+			}
+
+			if (!state.isAir()) {
+				continue;
+			}
+
+			if (hasLeafLitterSupportBlock(world, pos) && singleLitter.canSurvive(world, pos)) {
+				return pos;
+			}
+		}
+		return null;
+	}
+
+	private static boolean hasLeafLitterSupportBlock(ServerLevel world, BlockPos litterPos) {
+		if (world == null || litterPos == null) {
+			return false;
+		}
+		BlockState belowState = world.getBlockState(litterPos.below());
+		return belowState != null && MadokuEcosystemManager.LEAF_LITTER_SUPPORT_BLOCKS.contains(belowState.getBlock());
+	}
+
 	static void processTreeDecayCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
 
 		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
-		List<MadokuEcosystemManager.TreeDecayCandidateState> candidates = MadokuEcosystemManager.treeDecayCandidatesByChunk.get(chunkKey);
+		List<MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.get(chunkKey);
 		if (candidates == null || candidates.isEmpty()) {
 			return;
 		}
@@ -193,7 +452,7 @@ public final class EcosystemNaturalDecayManager {
 			}
 
 			BlockPos targetPos = BlockPos.of(candidate.leafPos);
-			if (!MadokuEcosystemManager.isValidTreeDecayTargetCandidate(world, targetPos)) {
+			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
@@ -227,12 +486,12 @@ public final class EcosystemNaturalDecayManager {
 		}
 
 		if (candidates.isEmpty()) {
-			MadokuEcosystemManager.treeDecayCandidatesByChunk.remove(chunkKey);
-			MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
+			treeDecayCandidatesByChunk.remove(chunkKey);
+			syncChunkProcessorTracking(chunkKey);
 			return;
 		}
 		if (removedAny) {
-			MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
+			syncChunkProcessorTracking(chunkKey);
 		}
 		final int finalEvaluated = evaluated;
 		final int finalProgressed = progressed;
