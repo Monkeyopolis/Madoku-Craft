@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
@@ -240,7 +240,7 @@ public final class PlayerEntitiesSystem {
 		applyPersistedData(data);
 		removeTaggedPets(server);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -249,7 +249,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -268,7 +268,7 @@ public final class PlayerEntitiesSystem {
 		if (server == null) {
 			return;
 		}
-		long gameplayTick = MadokuTicks.getGameplayTicks();
+		long gameplayTick = MadokuTimeManager.getGameplayTicks();
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			onPlayerTick(server, player, gameplayTick);
 		}
@@ -381,7 +381,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 		requestPetProcessing(server, player.getUUID(), 0L);
-		onPlayerTick(server, player, MadokuTicks.getGameplayTicks());
+		onPlayerTick(server, player, MadokuTimeManager.getGameplayTicks());
 	}
 
 	public static boolean isValidPlayerEntity(ItemStack stack) {
@@ -610,7 +610,7 @@ public final class PlayerEntitiesSystem {
 			return amount;
 		}
 
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
 			PetRule rule = resolvePetRule(stack);
@@ -984,7 +984,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		int[] readySlots = new int[SLOT_COUNT];
 		PetRule[] readyRules = new PetRule[SLOT_COUNT];
 		int readyCount = 0;
@@ -1929,7 +1929,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		for (Map.Entry<String, BeeSwarmState> entry : ACTIVE_BEE_SWARMS.entrySet()) {
 			String swarmKey = entry.getKey();
 			BeeSwarmState state = entry.getValue();
@@ -2345,7 +2345,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long targetTick = MadokuTicks.getGameplayTicks() + Math.max(0L, delayTicks);
+		long targetTick = MadokuTimeManager.getGameplayTicks() + Math.max(0L, delayTicks);
 		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
 		if (existingTick == null || targetTick < existingTick) {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
@@ -2440,7 +2440,7 @@ public final class PlayerEntitiesSystem {
 		if (cooldowns == null) {
 			return;
 		}
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			if (cooldowns[slot] > 0L && cooldowns[slot] <= gameplayTicks) {
 				cooldowns[slot] = 0L;
@@ -2534,7 +2534,7 @@ public final class PlayerEntitiesSystem {
 			return remaining;
 		}
 
-		long now = MadokuTicks.getGameplayTicks();
+		long now = MadokuTimeManager.getGameplayTicks();
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, cooldowns.length); slot++) {
 			remaining[slot] = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldowns[slot] - now));
 		}

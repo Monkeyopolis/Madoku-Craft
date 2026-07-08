@@ -24,6 +24,38 @@ public final class MadokuMetaDataManager {
 			entriesFromClass(madoku.craft.api.chunk.MadokuChunkManager.class),
 			group("chunk-discovery-manager", entriesFromClass("madoku.craft.api.chunk.ChunkDiscoveryManager")),
 			group("chunk-processor-manager", entriesFromClass("madoku.craft.api.chunk.ChunkProcessorManager"))
+		),
+			subSystem(
+				"time-manager",
+				List.of(
+					entry("initialize"),
+					entry("reset"),
+					entry("load-persisted-data"),
+					entry("autosave-persisted-data"),
+					entry("save-persisted-data"),
+					entry("on-server-started"),
+					entry("on-server-stopping"),
+					entry("update"),
+					entry("advance"),
+					entry("set-gameplay-ticks"),
+					entry("set-world-time-ticks"),
+					entry("get-gameplay-ticks"),
+				entry("get-gameplay-tick-delta"),
+				entry("get-world-time-delta"),
+				entry("get-day"),
+					entry("get-total-minutes")
+			),
+			group(
+				"time-config-manager",
+				entry("initialize")
+			),
+			group(
+				"sleep-manager",
+				entry("reset"),
+				entry("should-allow-resetting-time"),
+				entry("get-tick-increment"),
+				entry("on-world-time-advanced")
+			)
 		)
 	);
 

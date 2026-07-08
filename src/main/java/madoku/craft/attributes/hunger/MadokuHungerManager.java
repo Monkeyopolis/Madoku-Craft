@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.levels.MadokuLevels;
@@ -78,7 +78,7 @@ public final class MadokuHungerManager {
 		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		long totalPendingHunger = 0L;
 		for (PlayerState state : PLAYER_STATES.values()) {
 			if (state != null) {
@@ -104,7 +104,7 @@ public final class MadokuHungerManager {
 		}
 
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -247,15 +247,15 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
+		state.lastPendingActivityTick = MadokuTimeManager.getGameplayTicks();
 		state.pendingAllocationProgressTicks = 0L;
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		emitHungerDebug(
 			"hunger",
 			"hunger.pending_added",
 			player,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"max_hunger", Integer.toString(maxHungerPoints),
 				"hunger_points", Integer.toString(hungerBefore),
@@ -300,7 +300,7 @@ public final class MadokuHungerManager {
 			"hunger",
 			"hunger.drained",
 			player,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"max_hunger", Integer.toString(maxHungerPoints),
 				"hunger_before", Integer.toString(hungerBefore),
@@ -682,7 +682,7 @@ public final class MadokuHungerManager {
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		int maxHungerPoints = resolveMaximumHungerPoints(player);
 		initializeHungerFromPlayer(player, state, maxHungerPoints);
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		state.markPosition(player.getX(), player.getZ());
 		applyFoodState(player, state.hungerPoints, maxHungerPoints);
 		enforceStarvationPenalty(player, state, maxHungerPoints);
@@ -719,8 +719,8 @@ public final class MadokuHungerManager {
 		state.pendingAllocationProgressTicks = 0L;
 		state.hungerEffectProgressTicks = 0L;
 		state.saturationEffectProgressTicks = 0L;
-		state.lastPendingActivityTick = MadokuTicks.getGameplayTicks();
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastPendingActivityTick = MadokuTimeManager.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		state.clearPosition();
 		state.markPosition(newPlayer.getX(), newPlayer.getZ());
 		applyFoodState(newPlayer, state.hungerPoints, maxHungerPoints);
@@ -732,7 +732,7 @@ public final class MadokuHungerManager {
 			"hunger",
 			"hunger.respawn_hunger",
 			newPlayer,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"respawn_percentage", Double.toString(settings.hunger.respawnHungerPercentage),
 				"hunger_before", Integer.toString(hungerBefore),
@@ -794,7 +794,7 @@ public final class MadokuHungerManager {
 				"hunger-depletion",
 				"hunger.depletion_block",
 				serverPlayer,
-				MadokuTicks.getGameplayTicks(),
+				MadokuTimeManager.getGameplayTicks(),
 				Map.of(
 					"max_hunger", Integer.toString(maxHungerPoints),
 					"block_goal", Long.toString(settings.hungerDepletion.blockGoal.value),
@@ -828,7 +828,7 @@ public final class MadokuHungerManager {
 			"starvation-penalty",
 			"hunger.starvation_penalty_applied",
 			player,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"max_hunger", Integer.toString(maxHungerPoints),
 				"hunger_ratio", Float.toString((float) Math.max(0, state.hungerPoints) / (float) Math.max(1, maxHungerPoints)),
@@ -1056,7 +1056,7 @@ public final class MadokuHungerManager {
 
 		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "hunger", entry)
 			.side(MadokuDebugManager.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTimeManager.getGameplayTicks())
 			.subject("server");
 		if (fields != null) {
 			for (Map.Entry<String, String> fieldEntry : fields.entrySet()) {

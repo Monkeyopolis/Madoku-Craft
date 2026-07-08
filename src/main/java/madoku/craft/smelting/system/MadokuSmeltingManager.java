@@ -3,7 +3,7 @@ package madoku.craft.smelting.system;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.clock.MadokuClock;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.DynamicStaticSystem;
 import madoku.craft.config.JsonManagerSystem;
@@ -215,7 +215,7 @@ public final class MadokuSmeltingManager {
 				long extraTicksFromScheduling = Math.max(0L, tickDelta - 1L);
 				// Ignore the normal 1-tick world-time drift; only jump-sized changes
 				// should fast-forward furnaces.
-				long extraTicksFromWorldTimeJump = Math.max(0L, MadokuClock.getLastWorldTimeDelta() - 1L);
+				long extraTicksFromWorldTimeJump = Math.max(0L, MadokuTimeManager.getWorldTimeDelta() - 1L);
 				long extraTicks = extraTicksFromScheduling + extraTicksFromWorldTimeJump;
 				if (extraTicks > 0L) {
 					advanceSingleFurnaceTicks(level, blockPos, extraTicks);

@@ -2,9 +2,9 @@ package madoku.craft;
 
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.time.SleepManager;
 import madoku.craft.block.MadokuBlocks;
-import madoku.craft.clock.MadokuClock;
-import madoku.craft.clock.MadokuTicks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
@@ -32,8 +32,6 @@ import madoku.craft.recipe.system.MadokuRecipe;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
-import madoku.craft.time.MadokuSleep;
-import madoku.craft.time.MadokuTime;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.worldgen.MadokuWorldgen;
 import net.fabricmc.api.ModInitializer;
@@ -52,7 +50,6 @@ public class MadokuCraft implements ModInitializer {
 		MadokuRecipe.initialize();
 		MadokuLootTableManager.initialize();
 		MadokuRegionalDifficultyManager.initialize();
-		MadokuTime.initialize();
 		MadokuSeason.initialize();
 		MadokuWorldgen.initialize();
 		MadokuEntities.initialize();
@@ -68,7 +65,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuPlacedBlocks.initialize();
 		MadokuLevels.initialize();
 		PlayerEntitiesSystem.initialize();
-		EntitySleepEvents.ALLOW_RESETTING_TIME.register(player -> !MadokuTime.isEnabled());
+		EntitySleepEvents.ALLOW_RESETTING_TIME.register(SleepManager::shouldAllowResettingTime);
 		WorldTimeSync.initialize();
 		WorldDifficultySync.initialize();
 		WorldSeasonSync.initialize();
@@ -78,10 +75,6 @@ public class MadokuCraft implements ModInitializer {
 		PetSoundStateSync.initialize();
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			MadokuTicks.reset();
-			MadokuClock.reset();
-			MadokuSleep.reset();
-			MadokuTime.reset();
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
@@ -98,7 +91,6 @@ public class MadokuCraft implements ModInitializer {
 			SchedulerManagerSystem.reset();
 			SchedulerManagerSystem.loadPersistedData(server);
 			MadokuAPIManager.loadPersistedData(server);
-			MadokuTime.loadPersistedData(server);
 			MadokuSeason.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarming.loadPersistedData(server);
@@ -123,7 +115,6 @@ public class MadokuCraft implements ModInitializer {
 			PlayerEntitiesSystem.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
 			MadokuRegionalDifficultyManager.onServerStarted(server);
-			MadokuTime.update(server);
 			WorldTimeSync.reset();
 			WorldDifficultySync.reset();
 			WorldSeasonSync.reset();
@@ -135,7 +126,6 @@ public class MadokuCraft implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPING.register(MadokuAPIManager::onServerStopping);
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			MadokuTime.savePersistedData(server);
 			MadokuSeason.savePersistedData(server);
 			MadokuEntities.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
@@ -149,10 +139,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuLevels.savePersistedData(server);
 			PlayerEntitiesSystem.savePersistedData(server);
 			MadokuItemStack.savePersistedData(server);
-			MadokuClock.reset();
-			MadokuTicks.reset();
-			MadokuSleep.reset();
-			MadokuTime.reset();
 			MadokuSeason.reset();
 			MadokuEntities.reset();
 			MadokuFarming.reset();
@@ -176,10 +162,10 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			long tickIncrement = MadokuSleep.getTickIncrement(server);
-			MadokuTicks.advance(server, tickIncrement);
-			MadokuTime.update(server);
-			if (MadokuTime.isEnabled()) {
+			long tickIncrement = SleepManager.getTickIncrement(server);
+			MadokuTimeManager.advance(server, tickIncrement);
+			MadokuTimeManager.update(server);
+			if (MadokuTimeManager.isEnabled()) {
 				SchedulerManagerSystem.onClockTick(server);
 			} else {
 				SchedulerManagerSystem.onServerTick(server);
@@ -187,7 +173,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuFarming.onServerTickIncrement(server, tickIncrement);
 			SchedulerManagerSystem.autosavePersistedData(server);
 			MadokuAPIManager.autosavePersistedData(server);
-			MadokuTime.autosavePersistedData(server);
 			MadokuHealthManager.autosavePersistedData(server);
 			MadokuHungerManager.autosavePersistedData(server);
 			MadokuSeason.autosavePersistedData(server);

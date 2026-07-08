@@ -1,6 +1,6 @@
 package madoku.craft.api.chunk;
 
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.server.MinecraftServer;
@@ -388,7 +388,7 @@ final class ChunkProcessorManager {
 		if (server == null || runtime == null) {
 			return false;
 		}
-		long currentTick = MadokuTicks.getGameplayTicks();
+		long currentTick = MadokuTimeManager.getGameplayTicks();
 		if (runtime.nextRoundRobinProcessGameplayTick == Long.MIN_VALUE) {
 			return true;
 		}
@@ -402,7 +402,7 @@ final class ChunkProcessorManager {
 		if (server == null || runtime == null) {
 			return;
 		}
-		long currentTick = MadokuTicks.getGameplayTicks();
+		long currentTick = MadokuTimeManager.getGameplayTicks();
 		runtime.nextRoundRobinProcessGameplayTick = currentTick + Math.max(1L, intervalTicks);
 	}
 

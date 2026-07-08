@@ -1,25 +1,34 @@
 package madoku.craft.ecosystem;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.tags.TagKey;
+import net.minecraft.data.worldgen.features.TreeFeatures;
+import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +67,12 @@ public final class EcosystemNaturalGrowthManager {
 	private static final int MAX_GRASS_CANDIDATES_PER_CHUNK = 4;
 	private static final int MAX_DESERT_FOLIAGE_GROWTH_CANDIDATES_PER_CHUNK = 4;
 	private static final int MAX_FOLIAGE_CANDIDATES_PER_CHUNK = 4;
+	private static final String BLOCK_ID_SHORT_GRASS = "minecraft:short_grass";
+	private static final String BLOCK_ID_TALL_GRASS = "minecraft:tall_grass";
+	private static final String BLOCK_ID_BUSH = "minecraft:bush";
+	private static final String BLOCK_ID_DEAD_BUSH = "minecraft:dead_bush";
+	private static final String BLOCK_ID_SHORT_DRY_GRASS = "minecraft:short_dry_grass";
+	private static final String BLOCK_ID_TALL_DRY_GRASS = "minecraft:tall_dry_grass";
 
 	private static volatile NaturalGrowthConfigManager.Settings settings = NaturalGrowthConfigManager.defaults();
 	private static volatile String schedulerId = "";
@@ -94,7 +109,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
-			processChunk(level, chunkX, chunkZ, MadokuTime.getCurrentAbsoluteDayTime(level));
+			processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 		}
 	};
 
@@ -288,6 +303,525 @@ public final class EcosystemNaturalGrowthManager {
 			.field("tracked", tracked));
 	}
 
+	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return null;
+		}
+
+		JsonFormatBuilder.ArrayBuilder treeCandidates = JsonFormatBuilder.array();
+		MadokuEcosystemManager.TreeCandidateState treeCandidate = getTreeCandidate(chunkKey);
+		if (treeCandidate != null) {
+			treeCandidates.add(treeCandidate.toJson());
+		}
+
+		JsonFormatBuilder.ArrayBuilder cactusCandidates = JsonFormatBuilder.array();
+		MadokuEcosystemManager.CactusCandidateState cactusCandidate = getCactusCandidate(chunkKey);
+		if (cactusCandidate != null) {
+			cactusCandidates.add(cactusCandidate.toJson());
+		}
+
+		JsonFormatBuilder.ArrayBuilder grassCandidates = JsonFormatBuilder.array();
+		List<MadokuEcosystemManager.GrassCandidateState> grassCandidateList = getGrassCandidates(chunkKey);
+		if (grassCandidateList != null) {
+			for (MadokuEcosystemManager.GrassCandidateState candidate : grassCandidateList) {
+				if (candidate != null) {
+					grassCandidates.add(candidate.toJson());
+				}
+			}
+		}
+
+		JsonFormatBuilder.ArrayBuilder desertFoliageGrowthCandidates = JsonFormatBuilder.array();
+		List<MadokuEcosystemManager.GrassCandidateState> desertFoliageGrowthCandidateList = getDesertFoliageGrowthCandidates(chunkKey);
+		if (desertFoliageGrowthCandidateList != null) {
+			for (MadokuEcosystemManager.GrassCandidateState candidate : desertFoliageGrowthCandidateList) {
+				if (candidate != null) {
+					desertFoliageGrowthCandidates.add(candidate.toJson());
+				}
+			}
+		}
+
+		JsonFormatBuilder.ArrayBuilder foliageCandidates = JsonFormatBuilder.array();
+		List<MadokuEcosystemManager.FoliageCandidateState> foliageCandidateList = getFoliageCandidates(chunkKey);
+		if (foliageCandidateList != null) {
+			for (MadokuEcosystemManager.FoliageCandidateState candidate : foliageCandidateList) {
+				if (candidate != null) {
+					foliageCandidates.add(candidate.toJson());
+				}
+			}
+		}
+
+		boolean hasData = treeCandidate != null
+			|| cactusCandidate != null
+			|| (grassCandidateList != null && !grassCandidateList.isEmpty())
+			|| (desertFoliageGrowthCandidateList != null && !desertFoliageGrowthCandidateList.isEmpty())
+			|| (foliageCandidateList != null && !foliageCandidateList.isEmpty());
+		if (!hasData) {
+			return null;
+		}
+
+		return MadokuEcosystemManager.buildChunkPersistedData(builder -> builder
+			.put("tree-candidates", treeCandidates.build())
+			.put("cactus-candidates", cactusCandidates.build())
+			.put("grass-candidates", grassCandidates.build())
+			.put("desert-foliage-growth-candidates", desertFoliageGrowthCandidates.build())
+			.put("foliage-candidates", foliageCandidates.build()));
+	}
+
+	static void applyPersistedData(JsonObject source) {
+		if (source == null || source.isJsonNull()) {
+			return;
+		}
+
+		JsonElement treeCandidatesElement = source.get("tree-candidates");
+		if (treeCandidatesElement != null && treeCandidatesElement.isJsonArray()) {
+			for (JsonElement element : treeCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.TreeCandidateState candidate = MadokuEcosystemManager.TreeCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putTreeCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+
+		JsonElement cactusCandidatesElement = source.get("cactus-candidates");
+		if (cactusCandidatesElement != null && cactusCandidatesElement.isJsonArray()) {
+			for (JsonElement element : cactusCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.CactusCandidateState candidate = MadokuEcosystemManager.CactusCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putCactusCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+
+		JsonElement grassCandidatesElement = source.get("grass-candidates");
+		if (grassCandidatesElement != null && grassCandidatesElement.isJsonArray()) {
+			for (JsonElement element : grassCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.GrassCandidateState candidate = MadokuEcosystemManager.GrassCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putGrassCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+
+		JsonElement desertFoliageGrowthCandidatesElement = source.get("desert-foliage-growth-candidates");
+		if (desertFoliageGrowthCandidatesElement != null && desertFoliageGrowthCandidatesElement.isJsonArray()) {
+			for (JsonElement element : desertFoliageGrowthCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.GrassCandidateState candidate = MadokuEcosystemManager.GrassCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putDesertFoliageGrowthCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+
+		JsonElement foliageCandidatesElement = source.get("foliage-candidates");
+		if (foliageCandidatesElement != null && foliageCandidatesElement.isJsonArray()) {
+			for (JsonElement element : foliageCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.FoliageCandidateState candidate = MadokuEcosystemManager.FoliageCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putFoliageCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+	}
+
+	static boolean isTreeGrowthEnabled(String treeType) {
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		return isEnabled() && growthSettings.treeGrowth() != null && growthSettings.treeGrowth().isEnabled(treeType);
+	}
+
+	static boolean isVegetationGrowthEnabled(String foliageType) {
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		return isEnabled() && growthSettings.vegetationGrowth() != null && growthSettings.vegetationGrowth().isEnabled(foliageType);
+	}
+
+	static boolean tryGrowTreeAtGround(ServerLevel world, BlockPos groundPos, String treeType) {
+		if (world == null || groundPos == null || treeType == null || treeType.isBlank() || !isTreeGrowthEnabled(treeType)) {
+			return false;
+		}
+		BlockPos treePos = groundPos.above();
+		BlockState aboveState = world.getBlockState(treePos);
+		if (!aboveState.isAir() && !aboveState.is(Blocks.SNOW)) {
+			return false;
+		}
+
+		BlockState replacedState = aboveState;
+		if (aboveState.is(Blocks.SNOW)) {
+			world.setBlockAndUpdate(treePos, Blocks.AIR.defaultBlockState());
+		}
+
+		ResourceKey<ConfiguredFeature<?, ?>> featureKey = treeFeatureKeyForType(treeType);
+		if (featureKey == null) {
+			if (replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
+				world.setBlockAndUpdate(treePos, replacedState);
+			}
+			return false;
+		}
+
+		HolderGetter<ConfiguredFeature<?, ?>> configuredFeatures = world.registryAccess().lookupOrThrow(Registries.CONFIGURED_FEATURE);
+		java.util.Optional<Holder.Reference<ConfiguredFeature<?, ?>>> featureHolder = configuredFeatures.get(featureKey);
+		if (featureHolder.isEmpty()) {
+			if (replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
+				world.setBlockAndUpdate(treePos, replacedState);
+			}
+			return false;
+		}
+
+		boolean placed = featureHolder.get().value().place(world, world.getChunkSource().getGenerator(), world.getRandom(), treePos);
+		if (!placed && replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
+			world.setBlockAndUpdate(treePos, replacedState);
+		}
+		return placed;
+	}
+
+	static boolean tryGrowGrassAtGround(ServerLevel world, BlockPos groundPos) {
+		if (world == null || groundPos == null) {
+			return false;
+		}
+		BlockPos growPos = groundPos.above();
+		if (!world.getBlockState(growPos).isAir()) {
+			return false;
+		}
+
+		return tryPlaceWeightedFoliageTarget(world, growPos, buildGrassFoliagePlacements());
+	}
+
+	static boolean tryGrowFoliageAtGround(ServerLevel world, BlockPos groundPos, String foliageType) {
+		if (world == null || groundPos == null || !isVegetationGrowthEnabled(foliageType)) {
+			return false;
+		}
+
+		String normalizedFoliageType = NaturalGrowthConfigManager.normalizeFoliageType(foliageType);
+		Block foliageBlock = resolveFoliageBlock(normalizedFoliageType);
+		if (foliageBlock == null) {
+			return false;
+		}
+
+		BlockPos foliagePos = groundPos.above();
+		BlockState current = world.getBlockState(foliagePos);
+		if (current == null) {
+			return false;
+		}
+		if (current.isAir()) {
+			BlockState placed = setFoliageAmount(foliageBlock.defaultBlockState(), 1);
+			world.setBlockAndUpdate(foliagePos, placed);
+			return true;
+		}
+		if (current.getBlock() != foliageBlock) {
+			return false;
+		}
+
+		int amount = getFoliageAmount(current);
+		int maxAmount = getFoliageMaxAmount(current);
+		if (amount >= maxAmount) {
+			return false;
+		}
+		BlockState updated = setFoliageAmount(current, amount + 1);
+		if (updated == current) {
+			return false;
+		}
+		world.setBlockAndUpdate(foliagePos, updated);
+		return true;
+	}
+
+	static boolean tryGrowDesertFoliageAtGround(ServerLevel world, BlockPos groundPos) {
+		if (world == null || groundPos == null || !MadokuEcosystemManager.isDesertFoliageGrowthEnabled()) {
+			return false;
+		}
+		BlockPos growPos = groundPos.above();
+		if (!world.getBlockState(growPos).isAir()) {
+			return false;
+		}
+		return placeSummerDesertTarget(world, growPos);
+	}
+
+	static boolean tryGrowCactusAtGround(ServerLevel world, BlockPos groundPos) {
+		if (world == null || groundPos == null || !MadokuEcosystemManager.isCactusGrowthEnabled()) {
+			return false;
+		}
+		BlockState groundState = world.getBlockState(groundPos);
+		if (!isValidCactusGroundCandidate(world, groundPos, groundState)) {
+			return false;
+		}
+		BlockPos growPos = groundPos.above();
+		BlockState next = Blocks.CACTUS.defaultBlockState();
+		if (!next.canSurvive(world, growPos)) {
+			return false;
+		}
+		world.setBlockAndUpdate(growPos, next);
+		return true;
+	}
+
+	static int getFoliageAmount(BlockState state) {
+		IntegerProperty amountProperty = findFoliageAmountProperty(state);
+		if (amountProperty == null || state == null || !state.hasProperty(amountProperty)) {
+			return 1;
+		}
+		Integer value = state.getValue(amountProperty);
+		return value == null ? 1 : Math.max(1, value);
+	}
+
+	static int getFoliageMaxAmount(BlockState state) {
+		IntegerProperty amountProperty = findFoliageAmountProperty(state);
+		if (amountProperty == null) {
+			return 4;
+		}
+		int max = 1;
+		for (Integer value : amountProperty.getPossibleValues()) {
+			if (value != null && value > max) {
+				max = value;
+			}
+		}
+		return Math.max(1, max);
+	}
+
+	static IntegerProperty findFoliageAmountProperty(BlockState state) {
+		if (state == null) {
+			return null;
+		}
+		IntegerProperty fallback = null;
+		for (net.minecraft.world.level.block.state.properties.Property<?> property : state.getProperties()) {
+			if (!(property instanceof IntegerProperty integerProperty)) {
+				continue;
+			}
+			if ("flower_amount".equals(integerProperty.getName())) {
+				return integerProperty;
+			}
+			if (fallback == null && propertyNameLooksLikeAmount(integerProperty.getName())) {
+				fallback = integerProperty;
+			}
+		}
+		return fallback;
+	}
+
+	private static boolean propertyNameLooksLikeAmount(String propertyName) {
+		return propertyName != null && propertyName.toLowerCase().contains("amount");
+	}
+
+	static BlockState setFoliageAmount(BlockState state, int targetAmount) {
+		IntegerProperty amountProperty = findFoliageAmountProperty(state);
+		if (amountProperty == null || state == null || !state.hasProperty(amountProperty)) {
+			return state;
+		}
+
+		int min = Integer.MAX_VALUE;
+		int max = Integer.MIN_VALUE;
+		for (Integer value : amountProperty.getPossibleValues()) {
+			if (value == null) {
+				continue;
+			}
+			min = Math.min(min, value);
+			max = Math.max(max, value);
+		}
+		if (min == Integer.MAX_VALUE || max == Integer.MIN_VALUE) {
+			return state;
+		}
+
+		int clamped = Math.max(min, Math.min(max, targetAmount));
+		return state.setValue(amountProperty, clamped);
+	}
+
+	static Block resolveSurfaceDirtGrowthBlock(ServerLevel world, BlockPos pos) {
+		if (world == null || pos == null) {
+			return Blocks.GRASS_BLOCK;
+		}
+
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		NaturalGrowthConfigManager.BlockGrowthSettings blockGrowth = growthSettings.blockGrowth();
+		NaturalGrowthConfigManager.DirtGrowthSettings dirtGrowth = blockGrowth == null ? null : blockGrowth.dirt();
+		List<String> targetBlocks = dirtGrowth == null ? List.of() : dirtGrowth.targetBlocks();
+		for (String targetBlockId : targetBlocks) {
+			Block targetBlock = EcosystemConfigManager.resolveBlock(targetBlockId);
+			if (targetBlock == null) {
+				continue;
+			}
+			BlockState placed = targetBlock.defaultBlockState();
+			if (placed.canSurvive(world, pos)) {
+				return targetBlock;
+			}
+		}
+		return Blocks.GRASS_BLOCK;
+	}
+
+	private static boolean tryPlaceTallGrass(ServerLevel world, BlockPos lowerPos, Block tallGrassBlock) {
+		if (world == null || lowerPos == null || tallGrassBlock == null) {
+			return false;
+		}
+		BlockPos upperPos = lowerPos.above();
+		if (!world.getBlockState(lowerPos).isAir()) {
+			return false;
+		}
+
+		BlockState lower = tallGrassBlock.defaultBlockState();
+		if (!lower.hasProperty(DoublePlantBlock.HALF)) {
+			if (!lower.canSurvive(world, lowerPos)) {
+				return false;
+			}
+			world.setBlockAndUpdate(lowerPos, lower);
+			return true;
+		}
+
+		if (!world.getBlockState(upperPos).isAir()) {
+			return false;
+		}
+
+		if (lower.hasProperty(DoublePlantBlock.HALF)) {
+			lower = lower.setValue(DoublePlantBlock.HALF, DoubleBlockHalf.LOWER);
+		}
+		BlockState upper = tallGrassBlock.defaultBlockState();
+		if (upper.hasProperty(DoublePlantBlock.HALF)) {
+			upper = upper.setValue(DoublePlantBlock.HALF, DoubleBlockHalf.UPPER);
+		}
+
+		world.setBlockAndUpdate(lowerPos, lower);
+		world.setBlockAndUpdate(upperPos, upper);
+		return true;
+	}
+
+	private static boolean tryPlaceWeightedFoliageTarget(ServerLevel world, BlockPos growPos, List<WeightedFoliagePlacement> placements) {
+		if (world == null || growPos == null || placements == null || placements.isEmpty()) {
+			return false;
+		}
+
+		List<WeightedFoliagePlacement> remaining = new ArrayList<>();
+		for (WeightedFoliagePlacement placement : placements) {
+			if (placement != null && placement.block() != null && placement.weight() > 0) {
+				remaining.add(placement);
+			}
+		}
+		if (remaining.isEmpty()) {
+			return false;
+		}
+
+		while (!remaining.isEmpty()) {
+			WeightedFoliagePlacement selected = pickWeightedFoliagePlacement(remaining);
+			if (selected == null) {
+				return false;
+			}
+
+			boolean placed = selected.tall()
+				? tryPlaceTallGrass(world, growPos, selected.block())
+				: tryPlaceSingleBlock(world, growPos, selected.block());
+			if (placed) {
+				return true;
+			}
+			remaining.remove(selected);
+		}
+		return false;
+	}
+
+	private static boolean tryPlaceSingleBlock(ServerLevel world, BlockPos pos, Block block) {
+		if (world == null || pos == null || block == null) {
+			return false;
+		}
+		BlockState next = block.defaultBlockState();
+		if (!next.canSurvive(world, pos)) {
+			return false;
+		}
+		world.setBlockAndUpdate(pos, next);
+		return true;
+	}
+
+	private static WeightedFoliagePlacement pickWeightedFoliagePlacement(List<WeightedFoliagePlacement> placements) {
+		if (placements == null || placements.isEmpty()) {
+			return null;
+		}
+
+		int totalWeight = 0;
+		for (WeightedFoliagePlacement placement : placements) {
+			if (placement == null) {
+				continue;
+			}
+			totalWeight += Math.max(0, placement.weight());
+		}
+		if (totalWeight <= 0) {
+			return null;
+		}
+
+		int roll = ThreadLocalRandom.current().nextInt(totalWeight);
+		int running = 0;
+		for (WeightedFoliagePlacement placement : placements) {
+			if (placement == null) {
+				continue;
+			}
+			running += Math.max(0, placement.weight());
+			if (roll < running) {
+				return placement;
+			}
+		}
+		return placements.get(placements.size() - 1);
+	}
+
+	private static List<WeightedFoliagePlacement> buildGrassFoliagePlacements() {
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		NaturalGrowthConfigManager.FoliageGrowthSettings foliageGrowth = growthSettings.foliageGrowth();
+		List<WeightedFoliagePlacement> placements = new ArrayList<>(3);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_SHORT_GRASS), foliageGrowth == null ? 0 : foliageGrowth.shortGrass().weight(), false);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_TALL_GRASS), foliageGrowth == null ? 0 : foliageGrowth.tallGrass().weight(), true);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_BUSH), foliageGrowth == null ? 0 : foliageGrowth.bush().weight(), false);
+		return placements;
+	}
+
+	private static List<WeightedFoliagePlacement> buildDesertFoliagePlacements() {
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		NaturalGrowthConfigManager.FoliageGrowthSettings desertGrowth = growthSettings.desertFoliageGrowth();
+		List<WeightedFoliagePlacement> placements = new ArrayList<>(3);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_SHORT_DRY_GRASS), desertGrowth == null ? 0 : desertGrowth.shortGrass().weight(), false);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_TALL_DRY_GRASS), desertGrowth == null ? 0 : desertGrowth.tallGrass().weight(), true);
+		addFoliagePlacement(placements, EcosystemConfigManager.resolveBlock(BLOCK_ID_DEAD_BUSH), desertGrowth == null ? 0 : desertGrowth.bush().weight(), false);
+		return placements;
+	}
+
+	private static void addFoliagePlacement(List<WeightedFoliagePlacement> placements, Block block, int weight, boolean tall) {
+		if (placements == null || block == null || weight <= 0) {
+			return;
+		}
+		placements.add(new WeightedFoliagePlacement(block, weight, tall));
+	}
+
+	private static boolean placeSummerDesertTarget(ServerLevel world, BlockPos growPos) {
+		return tryPlaceWeightedFoliageTarget(world, growPos, buildDesertFoliagePlacements());
+	}
+
+	private static ResourceKey<ConfiguredFeature<?, ?>> treeFeatureKeyForType(String treeType) {
+		if (TREE_TYPE_BIRCH.equals(treeType)) {
+			return TreeFeatures.BIRCH;
+		}
+		if (TREE_TYPE_JUNGLE.equals(treeType)) {
+			return TreeFeatures.JUNGLE_TREE;
+		}
+		if (TREE_TYPE_MANGROVE.equals(treeType)) {
+			return TreeFeatures.MANGROVE;
+		}
+		if (TREE_TYPE_ACACIA.equals(treeType)) {
+			return TreeFeatures.ACACIA;
+		}
+		if (TREE_TYPE_DARK_OAK.equals(treeType)) {
+			return TreeFeatures.DARK_OAK;
+		}
+		if (TREE_TYPE_PALE_OAK.equals(treeType)) {
+			return TreeFeatures.PALE_OAK;
+		}
+		if (TREE_TYPE_CHERRY.equals(treeType)) {
+			return TreeFeatures.CHERRY;
+		}
+		if (TREE_TYPE_SPRUCE.equals(treeType)) {
+			return TreeFeatures.SPRUCE;
+		}
+		return TreeFeatures.OAK;
+	}
+
+	static boolean isBlockGrowthEnabled() {
+		NaturalGrowthConfigManager.Settings growthSettings = settings;
+		return isEnabled() && growthSettings.blockGrowth() != null && growthSettings.blockGrowth().isEnabled();
+	}
+
+	record WeightedFoliagePlacement(Block block, int weight, boolean tall) {
+	}
+
 	public static NaturalGrowthConfigManager.Settings getSettings() {
 		return settings;
 	}
@@ -423,7 +957,7 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static boolean isSurfaceDirtCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !MadokuEcosystemManager.isBlockGrowthEnabled() || state.getBlock() != Blocks.DIRT) {
+		if (world == null || blockPos == null || state == null || !isBlockGrowthEnabled() || state.getBlock() != Blocks.DIRT) {
 			return false;
 		}
 		if (EcosystemNaturalErosionManager.isSubmerged(world, blockPos)) {
@@ -603,7 +1137,7 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static boolean isValidTreeGroundCandidate(ServerLevel world, BlockPos groundPos, BlockState groundState, String treeType) {
-		if (world == null || groundPos == null || groundState == null || treeType == null || treeType.isBlank() || !MadokuEcosystemManager.isTreeGrowthEnabled(treeType)) {
+		if (world == null || groundPos == null || groundState == null || treeType == null || treeType.isBlank() || !isTreeGrowthEnabled(treeType)) {
 			return false;
 		}
 		if (!isTrackableTreeGroundBlock(groundState)) {
@@ -677,7 +1211,7 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static boolean isValidFoliageGroundCandidate(ServerLevel world, BlockPos groundPos, BlockState groundState, String foliageType) {
-		if (world == null || groundPos == null || groundState == null || !MadokuEcosystemManager.isVegetationGrowthEnabled(foliageType)) {
+		if (world == null || groundPos == null || groundState == null || !isVegetationGrowthEnabled(foliageType)) {
 			return false;
 		}
 		if (EcosystemNaturalErosionManager.isSubmerged(world, groundPos)) {
@@ -854,7 +1388,7 @@ public final class EcosystemNaturalGrowthManager {
 				seasonId,
 				selected.requiredGrowthTicks(),
 				0.0d,
-				MadokuTime.getCurrentAbsoluteDayTime(world)
+				MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 			)
 		);
 		syncChunkProcessorTracking(chunkKey);
@@ -903,7 +1437,7 @@ public final class EcosystemNaturalGrowthManager {
 				seasonId,
 				requiredGrowthTicks,
 				0.0d,
-				MadokuTime.getCurrentAbsoluteDayTime(world)
+				MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 			)
 		);
 		syncChunkProcessorTracking(chunkKey);
@@ -970,7 +1504,7 @@ public final class EcosystemNaturalGrowthManager {
 					seasonId,
 					requiredGrowthTicks,
 					0.0d,
-					MadokuTime.getCurrentAbsoluteDayTime(world)
+					MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 				));
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -1037,7 +1571,7 @@ public final class EcosystemNaturalGrowthManager {
 					seasonId,
 					requiredGrowthTicks,
 					0.0d,
-					MadokuTime.getCurrentAbsoluteDayTime(world)
+					MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 				));
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -1118,7 +1652,7 @@ public final class EcosystemNaturalGrowthManager {
 					seasonId,
 					requiredGrowthTicks,
 					0.0d,
-					MadokuTime.getCurrentAbsoluteDayTime(world)
+					MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 				));
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -1160,7 +1694,7 @@ public final class EcosystemNaturalGrowthManager {
 			}
 
 			BlockState state = world.getBlockState(dirtPos);
-			if (!MadokuEcosystemManager.isTrackableGroundBlock(state)) {
+			if (!EcosystemNaturalErosionManager.isTrackableGroundBlock(state)) {
 				removeKeys.add(dirtEntryKey);
 				removed++;
 				continue;
@@ -1191,8 +1725,8 @@ public final class EcosystemNaturalGrowthManager {
 
 			if (dirt.progressGrowthTicks + 1e-6d >= requiredTicks) {
 				Block replacement = "surface_dirt".equals(dirt.mode)
-					? MadokuEcosystemManager.resolveSurfaceDirtGrowthBlock(world, dirtPos)
-					: MadokuEcosystemManager.resolveWetGroundReplacementBlock(world, dirtPos, state, dirt.erosionRuleId);
+					? resolveSurfaceDirtGrowthBlock(world, dirtPos)
+					: EcosystemNaturalErosionManager.resolveWetGroundReplacementBlock(world, dirtPos, state, dirt.erosionRuleId);
 				if (replacement != null && replacement != state.getBlock()) {
 					world.setBlockAndUpdate(dirtPos, replacement.defaultBlockState());
 				}
@@ -1282,7 +1816,7 @@ public final class EcosystemNaturalGrowthManager {
 		candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 		if (candidate.progressGrowthTicks + 1e-6d >= candidate.requiredGrowthTicks) {
-			boolean grownNow = MadokuEcosystemManager.tryGrowTreeAtGround(world, groundPos, candidate.treeType);
+			boolean grownNow = tryGrowTreeAtGround(world, groundPos, candidate.treeType);
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -1365,7 +1899,7 @@ public final class EcosystemNaturalGrowthManager {
 		candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 		if (candidate.progressGrowthTicks + 1e-6d >= candidate.requiredGrowthTicks) {
-			boolean grownNow = MadokuEcosystemManager.tryGrowCactusAtGround(world, groundPos);
+			boolean grownNow = tryGrowCactusAtGround(world, groundPos);
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -1449,7 +1983,7 @@ public final class EcosystemNaturalGrowthManager {
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 			if (candidate.progressGrowthTicks + 1e-6d >= candidate.requiredGrowthTicks) {
-				MadokuEcosystemManager.tryGrowGrassAtGround(world, groundPos);
+				tryGrowGrassAtGround(world, groundPos);
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
@@ -1537,7 +2071,7 @@ public final class EcosystemNaturalGrowthManager {
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 			if (candidate.progressGrowthTicks + 1e-6d >= candidate.requiredGrowthTicks) {
-				MadokuEcosystemManager.tryGrowDesertFoliageAtGround(world, groundPos);
+				tryGrowDesertFoliageAtGround(world, groundPos);
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
@@ -1625,7 +2159,7 @@ public final class EcosystemNaturalGrowthManager {
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 			if (candidate.progressGrowthTicks + 1e-6d >= candidate.requiredGrowthTicks) {
-				MadokuEcosystemManager.tryGrowFoliageAtGround(world, groundPos, candidate.foliageType);
+				tryGrowFoliageAtGround(world, groundPos, candidate.foliageType);
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.dirty = true;
@@ -1763,7 +2297,7 @@ public final class EcosystemNaturalGrowthManager {
 			return -1.0d;
 		}
 		double days = min + ThreadLocalRandom.current().nextDouble(max - min + 1.0d);
-		return Math.max(1.0d, days * MadokuTime.MINECRAFT_TICKS_PER_CYCLE);
+		return Math.max(1.0d, days * MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE);
 	}
 
 	private static void loadConfig() {

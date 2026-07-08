@@ -3,9 +3,8 @@ package madoku.craft.attributes.luck;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import madoku.craft.MadokuCraft;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -118,7 +117,7 @@ public final class MadokuPlacedBlocks {
 	}
 
 	private static long resolvePlacedBlockRetentionTicks() {
-		long dayTicks = Math.max(1L, MadokuTime.getGameplayTicksPerDay());
+		long dayTicks = Math.max(1L, MadokuTimeManager.getGameplayTicksPerDay());
 		try {
 			return Math.max(1L, Math.multiplyExact(PLACED_BLOCK_RETENTION_DAYS, dayTicks));
 		} catch (ArithmeticException exception) {
@@ -166,7 +165,7 @@ public final class MadokuPlacedBlocks {
 			}
 
 			if (!hasTrackedBlocks()) {
-				trackedSinceGameplayTick = MadokuTicks.getGameplayTicks();
+				trackedSinceGameplayTick = MadokuTimeManager.getGameplayTicks();
 			}
 
 			long packedChunk = packChunk(pos.getX() >> 4, pos.getZ() >> 4);
@@ -256,7 +255,7 @@ public final class MadokuPlacedBlocks {
 			}
 
 			long expiresAfterTicks = resolvePlacedBlockRetentionTicks();
-			long nowGameplayTick = MadokuTicks.getGameplayTicks();
+			long nowGameplayTick = MadokuTimeManager.getGameplayTicks();
 			if (nowGameplayTick - trackedSinceGameplayTick < expiresAfterTicks) {
 				return;
 			}
@@ -286,7 +285,7 @@ public final class MadokuPlacedBlocks {
 			}
 
 			if (trackedSinceGameplayTick < 0L) {
-				trackedSinceGameplayTick = MadokuTicks.getGameplayTicks();
+				trackedSinceGameplayTick = MadokuTimeManager.getGameplayTicks();
 				setDirty();
 			}
 		}

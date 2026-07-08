@@ -1,6 +1,6 @@
 package madoku.craft.network;
 
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -47,12 +47,12 @@ public final class WorldTimeSync {
 
 	private static void broadcast(MinecraftServer server, boolean force) {
 		WorldTimePayload payload = currentPayload(server);
-		if (payload == null) {
+		if (payload == null || server == null) {
 			return;
 		}
 
-		WorldTimeSnapshot snapshot = new WorldTimeSnapshot(payload.day(), payload.hour(), payload.minute(), payload.hour() * 60L + payload.minute());
-		if (!force && snapshot.day() == lastBroadcastDay && snapshot.totalMinutes() == lastBroadcastTotalMinutes) {
+		long totalMinutes = (long) payload.hour() * 60L + payload.minute();
+		if (!force && payload.day() == lastBroadcastDay && totalMinutes == lastBroadcastTotalMinutes) {
 			return;
 		}
 
@@ -62,29 +62,23 @@ public final class WorldTimeSync {
 			}
 		}
 
-		lastBroadcastDay = snapshot.day();
-		lastBroadcastTotalMinutes = snapshot.totalMinutes();
+		lastBroadcastDay = payload.day();
+		lastBroadcastTotalMinutes = totalMinutes;
 	}
 
 	private static WorldTimePayload currentPayload(MinecraftServer server) {
+		if (server == null) {
+			return null;
+		}
+
 		ServerLevel overworld = server.overworld();
 		if (overworld == null) {
 			return null;
 		}
 
-		WorldTimeSnapshot snapshot = fromDayTime(overworld.getOverworldClockTime());
-		return new WorldTimePayload(snapshot.day(), snapshot.hour(), snapshot.minute());
-	}
-
-	private static WorldTimeSnapshot fromDayTime(long dayTime) {
-		long day = MadokuTime.getDay(dayTime);
-		int totalMinutes = MadokuTime.getTotalMinutes(dayTime);
-		int hour = totalMinutes / 60;
-		int minute = totalMinutes % 60;
-		return new WorldTimeSnapshot(day, hour, minute, totalMinutes);
-	}
-
-	private record WorldTimeSnapshot(long day, int hour, int minute, long totalMinutes) {
+		long dayTime = overworld.getOverworldClockTime();
+		long day = MadokuTimeManager.getDay(dayTime);
+		int totalMinutes = MadokuTimeManager.getTotalMinutes(dayTime);
+		return new WorldTimePayload(day, totalMinutes / 60, totalMinutes % 60);
 	}
 }
-

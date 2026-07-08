@@ -3,7 +3,7 @@ package madoku.craft.attributes.luck;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.farming.system.MadokuFarming;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -877,7 +877,7 @@ public final class MadokuLuckManager {
 
 		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", entry)
 			.side(MadokuDebugManager.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTimeManager.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject(subject == null || subject.isBlank() ? "global" : subject);
 
@@ -905,7 +905,7 @@ public final class MadokuLuckManager {
 
 		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "luck", entry)
 			.side(MadokuDebugManager.Side.SERVER)
-			.tick(MadokuTicks.getGameplayTicks())
+			.tick(MadokuTimeManager.getGameplayTicks())
 			.world(world == null ? "" : world.dimension().toString())
 			.subject(mob == null ? "mob:unknown" : "mob:" + mob.getType().toShortString());
 

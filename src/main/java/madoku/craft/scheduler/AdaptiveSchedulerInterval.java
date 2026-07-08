@@ -1,6 +1,6 @@
 package madoku.craft.scheduler;
 
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.server.MinecraftServer;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -33,7 +33,7 @@ public final class AdaptiveSchedulerInterval {
 			return min;
 		}
 		String normalizedSystemId = normalizeSystemId(systemId);
-		long nowTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		long nowTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
 		IntervalState state = STATES.computeIfAbsent(normalizedSystemId, ignored -> IntervalState.initial(nowTick, min));
 		return state.resolve(server, nowTick, min, max);
 	}

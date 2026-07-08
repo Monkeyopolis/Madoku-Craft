@@ -6,11 +6,19 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -71,7 +80,7 @@ public final class EcosystemNaturalErosionManager {
 			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
-			processChunk(level, chunkX, chunkZ, MadokuTime.getCurrentAbsoluteDayTime(level));
+			processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 		}
 	};
 
@@ -107,6 +116,10 @@ public final class EcosystemNaturalErosionManager {
 
 	public static boolean isEnabled() {
 		return MadokuEcosystemManager.isEnabled() && settings.isEnabled();
+	}
+
+	private static boolean isNaturalErosionEnabled() {
+		return isEnabled();
 	}
 
 	public static void syncChunkProcessorActivation() {
@@ -208,7 +221,7 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	static boolean isWetSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !MadokuEcosystemManager.isTrackableGroundBlock(state)) {
+		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !isTrackableGroundBlock(state)) {
 			return false;
 		}
 		if (isSubmerged(world, blockPos)) {
@@ -229,7 +242,7 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	static boolean isWetTrackedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !MadokuEcosystemManager.isTrackableGroundBlock(state)) {
+		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !isTrackableGroundBlock(state)) {
 			return false;
 		}
 		if (MadokuEcosystemManager.resolveErosionRule(world, blockPos, state, "") == null) {
@@ -254,6 +267,193 @@ public final class EcosystemNaturalErosionManager {
 			.field("chunk-x", chunkKey.chunkX())
 			.field("chunk-z", chunkKey.chunkZ())
 			.field("tracked", tracked));
+	}
+
+	static boolean isLavaMagmaSourceBlockId(String blockId) {
+		if (blockId == null || blockId.isBlank()) {
+			return false;
+		}
+		NaturalErosionConfigManager.NamedErosionRule magmaRule = findErosionRuleById(NaturalErosionConfigManager.FIELD_MAGMA_BLOCK);
+		return magmaRule != null
+			&& magmaRule.rule() != null
+			&& magmaRule.rule().enabled()
+			&& magmaRule.rule().sourceBlocks().contains(blockId);
+	}
+
+	static NaturalErosionConfigManager.NamedErosionRule resolveErosionRule(
+		ServerLevel world,
+		BlockPos pos,
+		BlockState state,
+		String preferredRuleId
+	) {
+		if (world == null || pos == null || state == null || !isNaturalErosionEnabled()) {
+			return null;
+		}
+		String blockId = EcosystemConfigManager.blockId(state.getBlock());
+		if (blockId.isBlank()) {
+			return null;
+		}
+
+		NaturalErosionConfigManager.NamedErosionRule magmaRule = findErosionRuleById(NaturalErosionConfigManager.FIELD_MAGMA_BLOCK);
+		if (magmaRule != null && isLavaErosionEnabled() && matchesLavaMagmaRule(world, pos, blockId, magmaRule.ruleId(), magmaRule.rule())) {
+			return magmaRule;
+		}
+
+		if (preferredRuleId != null && !preferredRuleId.isBlank()) {
+			for (NaturalErosionConfigManager.NamedErosionRule candidate : MadokuEcosystemManager.cachedErosionRules) {
+				if (!preferredRuleId.equals(candidate.ruleId())) {
+					continue;
+				}
+				if (!isErosionRuleEnabled(candidate.ruleId())) {
+					break;
+				}
+				if (NaturalErosionConfigManager.FIELD_MAGMA_BLOCK.equals(candidate.ruleId())) {
+					break;
+				}
+				if (matchesErosionRule(world, pos, blockId, candidate.ruleId(), candidate.rule())) {
+					return candidate;
+				}
+				break;
+			}
+		}
+
+		for (NaturalErosionConfigManager.NamedErosionRule candidate : MadokuEcosystemManager.cachedErosionRules) {
+			if (!isErosionRuleEnabled(candidate.ruleId())) {
+				continue;
+			}
+			if (NaturalErosionConfigManager.FIELD_MAGMA_BLOCK.equals(candidate.ruleId())) {
+				continue;
+			}
+			if (matchesErosionRule(world, pos, blockId, candidate.ruleId(), candidate.rule())) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private static NaturalErosionConfigManager.NamedErosionRule findErosionRuleById(String ruleId) {
+		if (ruleId == null || ruleId.isBlank()) {
+			return null;
+		}
+		for (NaturalErosionConfigManager.NamedErosionRule candidate : MadokuEcosystemManager.cachedErosionRules) {
+			if (candidate == null || candidate.rule() == null) {
+				continue;
+			}
+			if (ruleId.equals(candidate.ruleId())) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private static boolean matchesErosionRule(
+		ServerLevel world,
+		BlockPos pos,
+		String sourceBlockId,
+		String ruleId,
+		NaturalErosionConfigManager.ErosionRuleSettings rule
+	) {
+		if (world == null || pos == null || sourceBlockId == null || sourceBlockId.isBlank() || rule == null || !rule.enabled()) {
+			return false;
+		}
+		if (!rule.sourceBlocks().contains(sourceBlockId)) {
+			return false;
+		}
+		Block targetBlock = resolveErosionTargetBlock(ruleId);
+		if (targetBlock == null) {
+			return false;
+		}
+
+		List<String> eligibleBiomes = rule.eligibleBiomes();
+		if (eligibleBiomes == null || eligibleBiomes.isEmpty()) {
+			return true;
+		}
+
+		Holder<Biome> biomeHolder = world.getBiome(pos);
+		for (String biomeEntry : eligibleBiomes) {
+			String normalized = biomeEntry == null ? "" : biomeEntry.trim();
+			if (normalized.isEmpty()) {
+				continue;
+			}
+			if (normalized.startsWith("#")) {
+				normalized = normalized.substring(1);
+			}
+			Identifier id = Identifier.tryParse(normalized);
+			if (id == null) {
+				continue;
+			}
+			if (biomeHolder.is(ResourceKey.create(Registries.BIOME, id))) {
+				return true;
+			}
+			if (biomeHolder.is(TagKey.create(Registries.BIOME, id))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean matchesLavaMagmaRule(
+		ServerLevel world,
+		BlockPos pos,
+		String sourceBlockId,
+		String ruleId,
+		NaturalErosionConfigManager.ErosionRuleSettings rule
+	) {
+		return isLavaErosionEnabled()
+			&& matchesErosionRule(world, pos, sourceBlockId, ruleId, rule)
+			&& isAdjacentToLava(world, pos, currentSettings().lavaErosionRadius());
+	}
+
+	private static Block resolveErosionTargetBlock(String ruleId) {
+		String normalizedRuleId = EcosystemConfigManager.normalize(ruleId);
+		String targetBlockId = switch (normalizedRuleId) {
+			case NaturalErosionConfigManager.FIELD_MUD -> "minecraft:mud";
+			case NaturalErosionConfigManager.FIELD_RED_SAND -> "minecraft:red_sand";
+			case NaturalErosionConfigManager.FIELD_SAND -> "minecraft:sand";
+			case NaturalErosionConfigManager.FIELD_MAGMA_BLOCK -> "minecraft:magma_block";
+			default -> "";
+		};
+		return EcosystemConfigManager.resolveBlock(targetBlockId);
+	}
+
+	static boolean isTrackableGroundBlock(BlockState state) {
+		if (state == null) {
+			return false;
+		}
+		Block block = state.getBlock();
+		if (block == Blocks.DIRT) {
+			return true;
+		}
+		if (MadokuEcosystemManager.TRACKABLE_WET_GROUND_BLOCKS.contains(block) && isWaterErosionEnabled()) {
+			return true;
+		}
+		String blockId = EcosystemConfigManager.blockId(block);
+		if (isLavaMagmaSourceBlockId(blockId) && isLavaErosionEnabled()) {
+			return true;
+		}
+		if (!isWaterErosionEnabled()) {
+			return false;
+		}
+		for (NaturalErosionConfigManager.NamedErosionRule rule : NaturalErosionConfigManager.erosionRulesInPriority(settings)) {
+			if (rule == null || rule.rule() == null || !rule.rule().enabled()) {
+				continue;
+			}
+			if (NaturalErosionConfigManager.FIELD_MAGMA_BLOCK.equals(rule.ruleId())) {
+				continue;
+			}
+			if (rule.rule().sourceBlocks().contains(blockId)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static Block resolveWetGroundReplacementBlock(ServerLevel world, BlockPos pos, BlockState state, String preferredRuleId) {
+		NaturalErosionConfigManager.NamedErosionRule rule = resolveErosionRule(world, pos, state, preferredRuleId);
+		if (rule == null || rule.rule() == null) {
+			return null;
+		}
+		return resolveErosionTargetBlock(rule.ruleId());
 	}
 
 	static boolean isSubmerged(ServerLevel world, BlockPos pos) {
@@ -447,6 +647,13 @@ public final class EcosystemNaturalErosionManager {
 	static boolean isLavaErosionEnabled() {
 		NaturalErosionConfigManager.Settings current = currentSettings();
 		return isEnabled() && current.lavaErosion() != null && current.lavaErosion().enabled();
+	}
+
+	private static boolean isErosionRuleEnabled(String ruleId) {
+		if (NaturalErosionConfigManager.FIELD_MAGMA_BLOCK.equals(EcosystemConfigManager.normalize(ruleId))) {
+			return isLavaErosionEnabled();
+		}
+		return isWaterErosionEnabled();
 	}
 
 	private static String ensureSchedulerExists() {

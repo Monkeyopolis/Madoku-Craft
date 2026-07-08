@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.time.MadokuSleep;
+import madoku.craft.api.time.SleepManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.attribute.BedRule;
@@ -20,7 +20,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private boolean madoku$applyConfiguredSleepTime(BedRule bedRule, Level level, BlockPos sleepingPos) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
-		return MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, player);
+		return SleepManager.shouldAllowBedSleepByTime(bedRule, level, player);
 	}
 }
 

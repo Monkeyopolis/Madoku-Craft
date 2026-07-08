@@ -1,19 +1,23 @@
 package madoku.craft.ecosystem;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +80,7 @@ public final class EcosystemNaturalDecayManager {
 			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				return;
 			}
-			processChunk(level, chunkX, chunkZ, MadokuTime.getCurrentAbsoluteDayTime(level));
+			processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 		}
 	};
 
@@ -149,6 +153,156 @@ public final class EcosystemNaturalDecayManager {
 			.field("chunk-x", chunkKey.chunkX())
 			.field("chunk-z", chunkKey.chunkZ())
 			.field("tracked", tracked));
+	}
+
+	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return null;
+		}
+		List<MadokuEcosystemManager.TreeDecayCandidateState> treeDecayCandidateList = getTreeDecayCandidates(chunkKey);
+		if (treeDecayCandidateList == null || treeDecayCandidateList.isEmpty()) {
+			return null;
+		}
+
+		JsonFormatBuilder.ArrayBuilder treeDecayCandidates = JsonFormatBuilder.array();
+		for (MadokuEcosystemManager.TreeDecayCandidateState candidate : treeDecayCandidateList) {
+			if (candidate != null) {
+				treeDecayCandidates.add(candidate.toJson());
+			}
+		}
+
+		return MadokuEcosystemManager.buildChunkPersistedData(builder -> builder
+			.put("tree-decay-candidates", treeDecayCandidates.build()));
+	}
+
+	static void applyPersistedData(JsonObject source) {
+		if (source == null || source.isJsonNull()) {
+			return;
+		}
+
+		JsonElement treeDecayCandidatesElement = source.get("tree-decay-candidates");
+		if (treeDecayCandidatesElement != null && treeDecayCandidatesElement.isJsonArray()) {
+			for (JsonElement element : treeDecayCandidatesElement.getAsJsonArray()) {
+				MadokuEcosystemManager.TreeDecayCandidateState candidate = MadokuEcosystemManager.TreeDecayCandidateState.fromJson(element);
+				if (candidate == null) {
+					continue;
+				}
+				putTreeDecayCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+			}
+		}
+	}
+
+	static boolean tryApplyTreeDecayAtTarget(ServerLevel world, BlockPos targetPos) {
+		if (world == null || targetPos == null) {
+			return false;
+		}
+
+		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		if (leafLitter == null) {
+			return false;
+		}
+
+		BlockState current = world.getBlockState(targetPos);
+		if (current == null) {
+			return false;
+		}
+
+		if (current.isAir()) {
+			BlockState placed = setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
+			if (!placed.canSurvive(world, targetPos)) {
+				return false;
+			}
+			world.setBlockAndUpdate(targetPos, placed);
+			return true;
+		}
+		if (current.getBlock() != leafLitter) {
+			return false;
+		}
+
+		int amount = getLeafLitterAmount(current);
+		int maxAmount = getLeafLitterMaxAmount(current);
+		if (amount >= maxAmount) {
+			return false;
+		}
+		BlockState updated = setLeafLitterAmount(current, amount + 1);
+		if (updated == current) {
+			return false;
+		}
+		world.setBlockAndUpdate(targetPos, updated);
+		return true;
+	}
+
+	static boolean isNaturallyGeneratedLeaf(BlockState state) {
+		if (state == null || !state.hasProperty(LeavesBlock.PERSISTENT)) {
+			return false;
+		}
+		Boolean persistent = state.getValue(LeavesBlock.PERSISTENT);
+		return persistent == null || !persistent;
+	}
+
+	static int getLeafLitterAmount(BlockState state) {
+		IntegerProperty amountProperty = findLeafLitterAmountProperty(state);
+		if (amountProperty == null || state == null || !state.hasProperty(amountProperty)) {
+			return 1;
+		}
+		Integer value = state.getValue(amountProperty);
+		return value == null ? 1 : Math.max(1, value);
+	}
+
+	static int getLeafLitterMaxAmount(BlockState state) {
+		IntegerProperty amountProperty = findLeafLitterAmountProperty(state);
+		if (amountProperty == null) {
+			return 4;
+		}
+		int max = 1;
+		for (Integer value : amountProperty.getPossibleValues()) {
+			if (value != null && value > max) {
+				max = value;
+			}
+		}
+		return Math.max(1, max);
+	}
+
+	static IntegerProperty findLeafLitterAmountProperty(BlockState state) {
+		if (state == null) {
+			return null;
+		}
+		IntegerProperty fallback = null;
+		for (net.minecraft.world.level.block.state.properties.Property<?> property : state.getProperties()) {
+			if (!(property instanceof IntegerProperty integerProperty)) {
+				continue;
+			}
+			if ("segment_amount".equals(integerProperty.getName())) {
+				return integerProperty;
+			}
+			if (fallback == null && NaturalGrowthConfigManager.propertyNameLooksLikeAmount(integerProperty.getName())) {
+				fallback = integerProperty;
+			}
+		}
+		return fallback;
+	}
+
+	static BlockState setLeafLitterAmount(BlockState state, int targetAmount) {
+		IntegerProperty amountProperty = findLeafLitterAmountProperty(state);
+		if (amountProperty == null || state == null || !state.hasProperty(amountProperty)) {
+			return state;
+		}
+
+		int min = Integer.MAX_VALUE;
+		int max = Integer.MIN_VALUE;
+		for (Integer value : amountProperty.getPossibleValues()) {
+			if (value == null) {
+				continue;
+			}
+			min = Math.min(min, value);
+			max = Math.max(max, value);
+		}
+		if (min == Integer.MAX_VALUE || max == Integer.MIN_VALUE) {
+			return state;
+		}
+
+		int clamped = Math.max(min, Math.min(max, targetAmount));
+		return state.setValue(amountProperty, clamped);
 	}
 
 	public static NaturalDecayConfigManager.Settings getSettings() {
@@ -353,7 +507,7 @@ public final class EcosystemNaturalDecayManager {
 					seasonId,
 					requiredDecayTicks,
 					0.0d,
-					MadokuTime.getCurrentAbsoluteDayTime(world)
+					MadokuTimeManager.getCurrentAbsoluteDayTime(world)
 				));
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.dirty = true;
@@ -474,7 +628,7 @@ public final class EcosystemNaturalDecayManager {
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
 			if (candidate.progressDecayTicks + 1e-6d >= candidate.requiredDecayTicks) {
-				boolean applied = MadokuEcosystemManager.tryApplyTreeDecayAtTarget(world, targetPos);
+				boolean applied = tryApplyTreeDecayAtTarget(world, targetPos);
 				if (applied) {
 					candidates.remove(index);
 					removedAny = true;

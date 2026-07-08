@@ -6,11 +6,10 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.data.DataManagerSystem;
-import madoku.craft.time.MadokuTime;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -47,7 +46,7 @@ public final class SchedulerManagerSystem {
 	private static final String FIELD_LAST_TOUCHED_DAY = "last-touched-day";
 	private static final int DEFAULT_EXPIRATION_DAYS = 14;
 	private static final long INACTIVE_EXPIRATION_TICKS =
-		5L * 60L * MadokuTicks.TICKS_PER_SECOND;
+		5L * 60L * MadokuTimeManager.TICKS_PER_SECOND;
 	private static final Comparator<ScheduledTask> TASK_COMPARATOR =
 		Comparator.comparingLong((ScheduledTask task) -> task.dueTick)
 			.thenComparingLong(task -> task.requestId);
@@ -79,7 +78,7 @@ public final class SchedulerManagerSystem {
 		JsonObject persistedData = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(server, persistedData);
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -90,7 +89,7 @@ public final class SchedulerManagerSystem {
 		saveSchedulerFiles(server);
 		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -98,7 +97,7 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		long currentBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		long currentBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 		if (currentBucket == lastAutosaveBucket) {
 			return;
 		}
@@ -114,7 +113,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	public static void onClockTick(MinecraftServer server) {
-		if (server == null || !MadokuTime.isEnabled()) {
+		if (server == null || !MadokuTimeManager.isEnabled()) {
 			return;
 		}
 
@@ -122,7 +121,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		if (server == null || MadokuTime.isEnabled()) {
+		if (server == null || MadokuTimeManager.isEnabled()) {
 			return;
 		}
 
@@ -234,7 +233,7 @@ public final class SchedulerManagerSystem {
 			return EnqueueStatus.INVALID_TASK_TYPE;
 		}
 
-		long nowTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		long nowTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
 		entry.touch(resolveCurrentSchedulerDay(null));
 		long dueTick = Math.max(0L, nowTick + Math.max(0L, delayTicks));
 		entry.tasks.add(new ScheduledTask(
@@ -270,7 +269,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static void processDue(MinecraftServer server) {
-		long nowTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+		long nowTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
 		long currentDay = resolveCurrentSchedulerDay(server);
 		List<SchedulerEntry> snapshot = new ArrayList<>(SCHEDULERS.values());
 		for (SchedulerEntry entry : snapshot) {
@@ -439,7 +438,7 @@ public final class SchedulerManagerSystem {
 
 	private static JsonObject toPersistedData() {
 		return JsonFormatBuilder.object()
-			.put("gameplay-ticks", Math.max(0L, MadokuTicks.getGameplayTicks()))
+			.put("gameplay-ticks", Math.max(0L, MadokuTimeManager.getGameplayTicks()))
 			.array("schedulers", schedulers -> {
 				for (SchedulerEntry entry : SCHEDULERS.values()) {
 					if (entry != null && !entry.tasks.isEmpty()) {
@@ -457,7 +456,7 @@ public final class SchedulerManagerSystem {
 			return;
 		}
 
-		MadokuTicks.setGameplayTicks(Math.max(0L, getLong(source, "gameplay-ticks", 0L)));
+		MadokuTimeManager.setGameplayTicks(Math.max(0L, getLong(source, "gameplay-ticks", 0L)));
 		JsonArray schedulers = getArray(source, "schedulers");
 		if (schedulers == null) {
 			return;
@@ -666,7 +665,7 @@ public final class SchedulerManagerSystem {
 	private static long resolveCurrentSchedulerDay(MinecraftServer server) {
 		// Use gameplay-tick days, not world absolute-day time, so `/time` commands
 		// do not instantly age and expire active schedulers.
-		return Math.max(0L, Math.floorDiv(MadokuTicks.getGameplayTicks(), MadokuTime.MINECRAFT_TICKS_PER_CYCLE));
+		return Math.max(0L, Math.floorDiv(MadokuTimeManager.getGameplayTicks(), MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE));
 	}
 
 	private static JsonArray getArray(JsonObject object, String key) {
@@ -1090,7 +1089,7 @@ public final class SchedulerManagerSystem {
 			this.binding = binding;
 			this.expirationDays = normalizeExpirationDays(expirationDays);
 			this.lastTouchedDay = Math.max(0L, lastTouchedDay);
-			this.lastRunnableGameplayTick = Math.max(0L, MadokuTicks.getGameplayTicks());
+			this.lastRunnableGameplayTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
 		}
 
 		private void setExpirationDays(int expirationDays) {

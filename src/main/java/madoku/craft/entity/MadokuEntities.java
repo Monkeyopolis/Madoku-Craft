@@ -2,11 +2,10 @@ package madoku.craft.entity;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
@@ -124,7 +123,7 @@ public final class MadokuEntities {
 			nextWanderingHagSpawnDay = currentDay + randomSpawnIntervalDays(server);
 		}
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -132,7 +131,7 @@ public final class MadokuEntities {
 			return;
 		}
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -408,8 +407,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTime.isEnabled()) {
-			return Math.max(0L, MadokuTime.getDay(MadokuTime.getCurrentAbsoluteDayTime(level)));
+		if (MadokuTimeManager.isEnabled()) {
+			return Math.max(0L, MadokuTimeManager.getDay(MadokuTimeManager.getCurrentAbsoluteDayTime(level)));
 		}
 		return Math.max(0L, Math.floorDiv(level.getOverworldClockTime(), 24000L));
 	}
@@ -418,8 +417,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTime.isEnabled()) {
-			return Math.max(0L, MadokuTime.getCurrentAbsoluteDayTime(level));
+		if (MadokuTimeManager.isEnabled()) {
+			return Math.max(0L, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 		}
 		return Math.max(0L, level.getOverworldClockTime());
 	}

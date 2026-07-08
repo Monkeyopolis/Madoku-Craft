@@ -3,7 +3,7 @@ package madoku.craft.farming.system;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
@@ -14,7 +14,6 @@ import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.season.MadokuSeason;
 import madoku.craft.season.MadokuSeasonConfig;
-import madoku.craft.time.MadokuTime;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -215,7 +214,7 @@ public final class MadokuFarming {
 		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
 	}
 
@@ -225,7 +224,7 @@ public final class MadokuFarming {
 		}
 
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
 		}
@@ -397,7 +396,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		long gameplayTick = MadokuTicks.getGameplayTicks();
+		long gameplayTick = MadokuTimeManager.getGameplayTicks();
 		if (plot.fertilized && plot.lastParticleEmissionTimeTicks == gameplayTick) {
 			return;
 		}
@@ -438,7 +437,7 @@ public final class MadokuFarming {
 		boolean changed = false;
 		if (fertilized && !plot.fertilized) {
 			plot.fertilized = true;
-			plot.fertilizedAtGameplayTick = MadokuTicks.getGameplayTicks();
+			plot.fertilizedAtGameplayTick = MadokuTimeManager.getGameplayTicks();
 			plot.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
 			changed = true;
 		}
@@ -1282,7 +1281,7 @@ public final class MadokuFarming {
 	}
 
 	private static boolean shouldEmitChunkDebug(String metricId, boolean force) {
-		long now = MadokuTicks.getGameplayTicks();
+		long now = MadokuTimeManager.getGameplayTicks();
 		if (!force) {
 			long last = lastChunkDebugTick(metricId);
 			if (last != Long.MIN_VALUE && now - last < CHUNK_DEBUG_INTERVAL_TICKS) {
@@ -1322,9 +1321,9 @@ public final class MadokuFarming {
 
 	private static long resolveAbsoluteDayTime(ServerLevel world) {
 		if (world == null) {
-			return MadokuTime.getCurrentAbsoluteDayTime();
+			return MadokuTimeManager.getCurrentAbsoluteDayTime();
 		}
-		return MadokuTime.getCurrentAbsoluteDayTime(world);
+		return MadokuTimeManager.getCurrentAbsoluteDayTime(world);
 	}
 
 	private static long normalizePreviousAbsoluteTick(long previousAbsoluteTick, long currentAbsoluteTick) {
@@ -1697,7 +1696,7 @@ public final class MadokuFarming {
 		if (pending == null) {
 			return null;
 		}
-		long now = MadokuTicks.getGameplayTicks();
+		long now = MadokuTimeManager.getGameplayTicks();
 		if (pending.expiresAtGameplayTick < now) {
 			pendingHarvestRulesByKey.remove(cropKey(world, cropPos));
 			return null;
@@ -1747,12 +1746,12 @@ public final class MadokuFarming {
 		String key = cropKey(world, cropPos);
 		PendingHarvestRule existing = pendingHarvestRulesByKey.get(key);
 		boolean retainedFertilized = fertilized || (existing != null && existing.fertilized());
-		long expiresAtGameplayTick = MadokuTicks.getGameplayTicks() + PENDING_HARVEST_TTL_TICKS;
+		long expiresAtGameplayTick = MadokuTimeManager.getGameplayTicks() + PENDING_HARVEST_TTL_TICKS;
 		pendingHarvestRulesByKey.put(key, new PendingHarvestRule(rule, expiresAtGameplayTick, retainedFertilized));
 	}
 
 	private static void purgeExpiredPendingHarvestRules() {
-		long now = MadokuTicks.getGameplayTicks();
+		long now = MadokuTimeManager.getGameplayTicks();
 		Iterator<Map.Entry<String, PendingHarvestRule>> iterator = pendingHarvestRulesByKey.entrySet().iterator();
 		while (iterator.hasNext()) {
 			Map.Entry<String, PendingHarvestRule> entry = iterator.next();
@@ -1805,7 +1804,7 @@ public final class MadokuFarming {
 			settings.particleSpread,
 			0.0d
 		);
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		plot.lastParticleEmissionTimeTicks = gameplayTicks;
 		plot.nextParticleEmissionTimeTicks = gameplayTicks + getRandomParticleCooldownTicks();
 	}
@@ -1815,7 +1814,7 @@ public final class MadokuFarming {
 			return false;
 		}
 
-		long gameplayTicks = MadokuTicks.getGameplayTicks();
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 		if (plot.nextParticleEmissionTimeTicks == Long.MIN_VALUE) {
 			long lastEmission = plot.lastParticleEmissionTimeTicks;
 			if (lastEmission == Long.MIN_VALUE) {
@@ -1880,7 +1879,7 @@ public final class MadokuFarming {
 	}
 
 	private static double resolveCropRequiredGrowthTicks(CropRule rule, String discoveredSeasonId) {
-		double baseTicks = Math.max(1.0d, rule.growthMinecraftDays() * MadokuTime.MINECRAFT_TICKS_PER_CYCLE);
+		double baseTicks = Math.max(1.0d, rule.growthMinecraftDays() * MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE);
 		String seasonId = normalizeSeasonId(discoveredSeasonId);
 		if (seasonId.isBlank() || !rule.blockedSeasonIds().contains(seasonId)) {
 			return baseTicks;

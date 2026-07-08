@@ -9,7 +9,7 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -640,8 +640,8 @@ public final class MadokuRegionalDifficultyManager {
 		if (server == null) {
 			return 0L;
 		}
-		if (MadokuTime.isEnabled()) {
-			return Math.floorDiv(MadokuTime.getCurrentAbsoluteDayTime(), TICKS_PER_DAY);
+		if (MadokuTimeManager.isEnabled()) {
+			return Math.floorDiv(MadokuTimeManager.getCurrentAbsoluteDayTime(), TICKS_PER_DAY);
 		}
 		ServerLevel overworld = server.overworld();
 		if (overworld != null) {

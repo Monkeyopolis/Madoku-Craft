@@ -3,7 +3,7 @@ package madoku.craft.data;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import net.minecraft.server.MinecraftServer;
@@ -117,9 +117,9 @@ public final class DataManagerSystem {
 	private static long minutesToTicks(long minutes) {
 		long safeMinutes = Math.max(1L, minutes);
 		try {
-			return Math.multiplyExact(safeMinutes, MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND);
+			return Math.multiplyExact(safeMinutes, MadokuTimeManager.SECONDS_PER_MINUTE * MadokuTimeManager.TICKS_PER_SECOND);
 		} catch (ArithmeticException exception) {
-			return DEFAULT_AUTO_SAVE_MINUTES * MadokuTicks.SECONDS_PER_MINUTE * MadokuTicks.TICKS_PER_SECOND;
+			return DEFAULT_AUTO_SAVE_MINUTES * MadokuTimeManager.SECONDS_PER_MINUTE * MadokuTimeManager.TICKS_PER_SECOND;
 		}
 	}
 

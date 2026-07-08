@@ -152,7 +152,7 @@ public final class MadokuArmorManager {
 			: "entity:" + entity.getType().toShortString();
 		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "attributes", "armor", entry)
 			.side(MadokuDebugManager.Side.SERVER)
-			.tick(madoku.craft.clock.MadokuTicks.getGameplayTicks())
+			.tick(madoku.craft.api.time.MadokuTimeManager.getGameplayTicks())
 			.subject(subject);
 		if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
 			builder.world(serverLevel.dimension().toString());

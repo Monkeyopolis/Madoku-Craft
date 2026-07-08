@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -80,7 +80,7 @@ public final class MadokuOxygenManager {
 		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -89,7 +89,7 @@ public final class MadokuOxygenManager {
 		}
 
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -218,7 +218,7 @@ public final class MadokuOxygenManager {
 
 		int oxygenCapTicks = getMaximumOxygenTicksForEntity(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		synchronizeOxygenState(player, state, oxygenCapTicks);
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
@@ -429,7 +429,7 @@ public final class MadokuOxygenManager {
 				"conduit-power",
 				"oxygen.conduit_power_applied",
 				player,
-				MadokuTicks.getGameplayTicks(),
+				MadokuTimeManager.getGameplayTicks(),
 				Map.of("mining_speed_bonus", Double.toString(conduitPowerBonus))
 			);
 		}
@@ -510,7 +510,7 @@ public final class MadokuOxygenManager {
 				group,
 				"oxygen.contribution",
 				player,
-				MadokuTicks.getGameplayTicks(),
+				MadokuTimeManager.getGameplayTicks(),
 				Map.of(
 					"effect_level", Integer.toString(level),
 					"contribution_ticks", Long.toString(contribution),
@@ -548,7 +548,7 @@ public final class MadokuOxygenManager {
 		int oxygenCapTicks = getMaximumOxygenTicksForEntity(player);
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		initializeOxygenFromPlayer(player, state, oxygenCapTicks);
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		synchronizeOxygenState(player, state, oxygenCapTicks);
 		refreshEffectModifiers(player);
 		applyVanillaCompatibleAirSupply(player, state.oxygenTicks, oxygenCapTicks);
@@ -556,7 +556,7 @@ public final class MadokuOxygenManager {
 			"oxygen",
 			"oxygen.join_synced",
 			player,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"oxygen_ticks", Integer.toString(state.oxygenTicks),
 				"oxygen_cap_ticks", Integer.toString(oxygenCapTicks)
@@ -574,14 +574,14 @@ public final class MadokuOxygenManager {
 		state.oxygenTicks = oxygenCapTicks;
 		state.lastDrowningDamageTick = Long.MIN_VALUE;
 		state.lastKnownMaximumOxygenTicks = oxygenCapTicks;
-		state.lastProcessedGameplayTick = MadokuTicks.getGameplayTicks();
+		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
 		refreshEffectModifiers(newPlayer);
 		applyVanillaCompatibleAirSupply(newPlayer, state.oxygenTicks, oxygenCapTicks);
 		emitOxygenDebug(
 			"oxygen",
 			"oxygen.respawn_synced",
 			newPlayer,
-			MadokuTicks.getGameplayTicks(),
+			MadokuTimeManager.getGameplayTicks(),
 			Map.of(
 				"oxygen_ticks", Integer.toString(state.oxygenTicks),
 				"oxygen_cap_ticks", Integer.toString(oxygenCapTicks)

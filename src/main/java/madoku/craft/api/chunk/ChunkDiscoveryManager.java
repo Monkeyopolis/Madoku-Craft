@@ -3,7 +3,7 @@ package madoku.craft.api.chunk;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.clock.MadokuTicks;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.data.DataManagerSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
@@ -87,7 +87,7 @@ final class ChunkDiscoveryManager {
 		}
 		serverStopping = false;
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		emitChunkDebug("chunk.discovery", builder -> builder
 			.subject("load-persisted-data")
 			.field("auto-save-ticks", autoSaveIntervalTicks)
@@ -140,7 +140,7 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), autoSaveIntervalTicks);
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
 		}

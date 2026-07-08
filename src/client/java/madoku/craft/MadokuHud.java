@@ -8,13 +8,13 @@ import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.pet.PlayerEntitiesHolder;
 import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.mixin.client.GuiAccessor;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import madoku.craft.season.MadokuSeason;
-import madoku.craft.time.MadokuTime;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudStatusBarHeightRegistry;
@@ -204,8 +204,8 @@ public final class MadokuHud {
 			minute = serverMinute;
 		} else {
 			long dayTime = level.getOverworldClockTime();
-			day = MadokuTime.getDay(dayTime);
-			int totalMinutes = MadokuTime.getTotalMinutes(dayTime);
+			day = MadokuTimeManager.getDay(dayTime);
+			int totalMinutes = MadokuTimeManager.getTotalMinutes(dayTime);
 			hour = totalMinutes / 60;
 			minute = totalMinutes % 60;
 		}
