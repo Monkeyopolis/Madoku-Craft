@@ -147,6 +147,7 @@ public final class EcosystemNaturalDecayManager {
 		} else {
 			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
+		MadokuEcosystemManager.markChunkDirty(chunkKey);
 		emitDecayDebug("ecosystem.tracking", builder -> builder
 			.subject("sync-decay-chunk-tracking")
 			.field("level-id", chunkKey.levelId())
@@ -591,7 +592,7 @@ public final class EcosystemNaturalDecayManager {
 			if (candidate == null) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -600,7 +601,7 @@ public final class EcosystemNaturalDecayManager {
 			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -609,7 +610,7 @@ public final class EcosystemNaturalDecayManager {
 			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -621,7 +622,7 @@ public final class EcosystemNaturalDecayManager {
 				double updatedProgress = Math.min(candidate.requiredDecayTicks, candidate.progressDecayTicks + elapsedTicks);
 				if (updatedProgress > candidate.progressDecayTicks) {
 					candidate.progressDecayTicks = updatedProgress;
-					MadokuEcosystemManager.dirty = true;
+					MadokuEcosystemManager.markChunkDirty(chunkKey);
 					progressed++;
 				}
 			}
@@ -632,7 +633,7 @@ public final class EcosystemNaturalDecayManager {
 				if (applied) {
 					candidates.remove(index);
 					removedAny = true;
-					MadokuEcosystemManager.dirty = true;
+					MadokuEcosystemManager.markChunkDirty(chunkKey);
 					removed++;
 					appliedCount++;
 				}

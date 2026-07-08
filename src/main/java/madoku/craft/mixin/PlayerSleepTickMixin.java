@@ -22,7 +22,7 @@ public abstract class PlayerSleepTickMixin {
 		if (level.isClientSide()) {
 			return bedRule.canSleep(level);
 		}
-		return SleepManager.shouldAllowBedSleepByTime(bedRule, level, (Player) (Object) this);
+		return SleepManager.shouldKeepSleepingWhileForwarding(bedRule, level, (Player) (Object) this);
 	}
 }
 

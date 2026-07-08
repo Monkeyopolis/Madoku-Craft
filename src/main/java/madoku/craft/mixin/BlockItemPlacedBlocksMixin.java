@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.attributes.luck.MadokuPlacedBlocks;
+import madoku.craft.attributes.luck.BlockTrackingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
@@ -47,7 +47,7 @@ public abstract class BlockItemPlacedBlocksMixin {
 			return;
 		}
 
-		MadokuPlacedBlocks.recordPlacedBlock(serverLevel, placedPos);
+		BlockTrackingManager.recordPlacedBlock(serverLevel, placedPos);
 	}
 
 	private static BlockPos resolvePlacedPos(BlockPlaceContext context) {

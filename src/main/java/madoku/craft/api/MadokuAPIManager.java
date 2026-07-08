@@ -35,7 +35,6 @@ public final class MadokuAPIManager {
 	}
 
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {
-		MadokuTimeManager.loadPersistedData(server);
 		MadokuChunkManager.loadPersistedData(server);
 	}
 
@@ -45,7 +44,6 @@ public final class MadokuAPIManager {
 	}
 
 	public static void autosavePersistedData(net.minecraft.server.MinecraftServer server) {
-		MadokuTimeManager.autosavePersistedData(server);
 		MadokuChunkManager.autosavePersistedData(server);
 	}
 
@@ -55,7 +53,6 @@ public final class MadokuAPIManager {
 	}
 
 	public static void savePersistedData(net.minecraft.server.MinecraftServer server) {
-		MadokuTimeManager.savePersistedData(server);
 		MadokuChunkManager.savePersistedData(server);
 	}
 }

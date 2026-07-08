@@ -295,6 +295,7 @@ public final class EcosystemNaturalGrowthManager {
 		} else {
 			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
+		MadokuEcosystemManager.markChunkDirty(chunkKey);
 		emitGrowthDebug("ecosystem.tracking", builder -> builder
 			.subject("sync-growth-chunk-tracking")
 			.field("level-id", chunkKey.levelId())
@@ -1717,7 +1718,7 @@ public final class EcosystemNaturalGrowthManager {
 				double updatedProgress = Math.min(requiredTicks, dirt.progressGrowthTicks + elapsedTicks);
 				if (updatedProgress > dirt.progressGrowthTicks) {
 					dirt.progressGrowthTicks = updatedProgress;
-					MadokuEcosystemManager.dirty = true;
+					MadokuEcosystemManager.markChunkDirty(targetChunkKey);
 					advanced++;
 				}
 			}
@@ -1738,7 +1739,7 @@ public final class EcosystemNaturalGrowthManager {
 
 		for (String key : removeKeys) {
 			if (MadokuEcosystemManager.removeDirtStateByKey(key) != null) {
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(targetChunkKey);
 			}
 		}
 		final int finalEvaluated = evaluated;
@@ -1775,7 +1776,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			emitGrowthDebug("ecosystem.natural_growth.tree", builder -> builder
 				.subject("remove-invalid-tree-candidate")
@@ -1791,7 +1792,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!isValidTreeGroundCandidate(world, groundPos, groundState, candidate.treeType)) {
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			emitGrowthDebug("ecosystem.natural_growth.tree", builder -> builder
 				.subject("remove-invalid-ground")
@@ -1809,7 +1810,7 @@ public final class EcosystemNaturalGrowthManager {
 			double updatedProgress = Math.min(candidate.requiredGrowthTicks, candidate.progressGrowthTicks + elapsedTicks);
 			if (updatedProgress > candidate.progressGrowthTicks) {
 				candidate.progressGrowthTicks = updatedProgress;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				progressed = true;
 			}
 		}
@@ -1819,7 +1820,7 @@ public final class EcosystemNaturalGrowthManager {
 			boolean grownNow = tryGrowTreeAtGround(world, groundPos, candidate.treeType);
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			grew = grownNow;
 			if (grownNow) {
@@ -1860,7 +1861,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			emitGrowthDebug("ecosystem.natural_growth.cactus", builder -> builder
 				.subject("remove-invalid-cactus-candidate")
@@ -1875,7 +1876,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!isValidCactusGroundCandidate(world, groundPos, groundState)) {
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			emitGrowthDebug("ecosystem.natural_growth.cactus", builder -> builder
 				.subject("remove-invalid-ground")
@@ -1892,7 +1893,7 @@ public final class EcosystemNaturalGrowthManager {
 			double updatedProgress = Math.min(candidate.requiredGrowthTicks, candidate.progressGrowthTicks + elapsedTicks);
 			if (updatedProgress > candidate.progressGrowthTicks) {
 				candidate.progressGrowthTicks = updatedProgress;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				progressed = true;
 			}
 		}
@@ -1902,7 +1903,7 @@ public final class EcosystemNaturalGrowthManager {
 			boolean grownNow = tryGrowCactusAtGround(world, groundPos);
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
+			MadokuEcosystemManager.markChunkDirty(chunkKey);
 			removed = true;
 			grew = grownNow;
 			if (grownNow) {
@@ -1946,7 +1947,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (candidate == null) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -1954,7 +1955,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -1964,7 +1965,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!isValidGrassGroundCandidate(world, groundPos, groundState)) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -1974,11 +1975,11 @@ public final class EcosystemNaturalGrowthManager {
 			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
 			if (elapsedTicks > 0L) {
 				double updatedProgress = Math.min(candidate.requiredGrowthTicks, candidate.progressGrowthTicks + elapsedTicks);
-			if (updatedProgress > candidate.progressGrowthTicks) {
-				candidate.progressGrowthTicks = updatedProgress;
-				MadokuEcosystemManager.dirty = true;
-				progressed++;
-			}
+				if (updatedProgress > candidate.progressGrowthTicks) {
+					candidate.progressGrowthTicks = updatedProgress;
+					MadokuEcosystemManager.markChunkDirty(chunkKey);
+					progressed++;
+				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
@@ -1986,7 +1987,7 @@ public final class EcosystemNaturalGrowthManager {
 				tryGrowGrassAtGround(world, groundPos);
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				grown++;
 				removed++;
 			}
@@ -2034,7 +2035,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (candidate == null) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2042,7 +2043,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2052,7 +2053,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!isValidDesertFoliageGrowthGroundCandidate(world, groundPos, groundState)) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2062,11 +2063,11 @@ public final class EcosystemNaturalGrowthManager {
 			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
 			if (elapsedTicks > 0L) {
 				double updatedProgress = Math.min(candidate.requiredGrowthTicks, candidate.progressGrowthTicks + elapsedTicks);
-			if (updatedProgress > candidate.progressGrowthTicks) {
-				candidate.progressGrowthTicks = updatedProgress;
-				MadokuEcosystemManager.dirty = true;
-				progressed++;
-			}
+				if (updatedProgress > candidate.progressGrowthTicks) {
+					candidate.progressGrowthTicks = updatedProgress;
+					MadokuEcosystemManager.markChunkDirty(chunkKey);
+					progressed++;
+				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
@@ -2074,7 +2075,7 @@ public final class EcosystemNaturalGrowthManager {
 				tryGrowDesertFoliageAtGround(world, groundPos);
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				grown++;
 				removed++;
 			}
@@ -2122,7 +2123,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (candidate == null) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2130,7 +2131,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2140,7 +2141,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!isValidFoliageGroundCandidate(world, groundPos, groundState, candidate.foliageType)) {
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				removed++;
 				continue;
 			}
@@ -2150,11 +2151,11 @@ public final class EcosystemNaturalGrowthManager {
 			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
 			if (elapsedTicks > 0L) {
 				double updatedProgress = Math.min(candidate.requiredGrowthTicks, candidate.progressGrowthTicks + elapsedTicks);
-			if (updatedProgress > candidate.progressGrowthTicks) {
-				candidate.progressGrowthTicks = updatedProgress;
-				MadokuEcosystemManager.dirty = true;
-				progressed++;
-			}
+				if (updatedProgress > candidate.progressGrowthTicks) {
+					candidate.progressGrowthTicks = updatedProgress;
+					MadokuEcosystemManager.markChunkDirty(chunkKey);
+					progressed++;
+				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
 
@@ -2162,7 +2163,7 @@ public final class EcosystemNaturalGrowthManager {
 				tryGrowFoliageAtGround(world, groundPos, candidate.foliageType);
 				candidates.remove(index);
 				removedAny = true;
-				MadokuEcosystemManager.dirty = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				grown++;
 				removed++;
 			}

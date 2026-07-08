@@ -1,16 +1,12 @@
 package madoku.craft.api.time;
 
-import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.season.MadokuSeason;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.clock.WorldClocks;
-import net.minecraft.world.level.gamerules.GameRules;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.minecraft.world.clock.ClockTimeMarker;
+import net.minecraft.world.clock.ClockTimeMarkers;
 
 import java.util.function.Consumer;
 
@@ -22,19 +18,15 @@ public final class MadokuTimeManager {
 	private static final long MINUTES_PER_DAY = 24L * 60L;
 	private static final int MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES = 6 * 60;
 	private static final String DEBUG_SUB_SYSTEM = "time-manager";
-	private static final String TIME_WORLD_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-time";
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuTimeManager.class);
 
-	private static volatile boolean managedGameRulesApplied = false;
 	private static volatile long gameplayTicks = 0L;
-	private static volatile long pendingSkippedTicks = 0L;
-	private static volatile double timeAdjustmentCarry = 0.0D;
 	private static volatile boolean hasObservedWorldTime = false;
 	private static volatile long lastObservedWorldDayTime = 0L;
 	private static volatile long lastObservedWorldTimeDelta = 0L;
 	private static volatile boolean hasObservedGameplayTicks = false;
 	private static volatile long lastObservedGameplayTicks = 0L;
 	private static volatile long lastGameplayTickDelta = 0L;
+
 	private MadokuTimeManager() {
 	}
 
@@ -61,39 +53,6 @@ public final class MadokuTimeManager {
 			.field("gameplay-ticks", previousGameplayTicks));
 	}
 
-	public static void loadPersistedData(MinecraftServer server) {
-		if (server != null) {
-			try {
-				JsonManagerSystem.getOrCreateWorldSystemDirectory(server, TIME_WORLD_FOLDER_NAME);
-			} catch (RuntimeException exception) {
-				LOGGER.warn("Failed to prepare Madoku time world root directory.", exception);
-			}
-		}
-		TimeConfigManager.initialize();
-		observeRuntimeState(server);
-		emitTimeDebug("loadPersistedData", builder -> builder
-			.subject("load-persisted-data")
-			.field("enabled", isEnabled())
-			.field("world-time", getCurrentAbsoluteDayTime())
-			.field("gameplay-ticks", getElapsedGameplayTicks()));
-	}
-
-	public static void autosavePersistedData(MinecraftServer server) {
-		emitTimeDebug("autosavePersistedData", builder -> builder
-			.subject("autosave")
-			.field("enabled", isEnabled())
-			.field("world-time", getCurrentAbsoluteDayTime())
-			.field("gameplay-ticks", getElapsedGameplayTicks()));
-	}
-
-	public static void savePersistedData(MinecraftServer server) {
-		emitTimeDebug("savePersistedData", builder -> builder
-			.subject("save-persisted-data")
-			.field("enabled", isEnabled())
-			.field("world-time", getCurrentAbsoluteDayTime())
-			.field("gameplay-ticks", getElapsedGameplayTicks()));
-	}
-
 	public static void onServerStarted(MinecraftServer server) {
 		observeRuntimeState(server);
 		emitTimeDebug("onServerStarted", builder -> builder
@@ -103,7 +62,6 @@ public final class MadokuTimeManager {
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
-		restoreVanillaGameRules(server);
 		emitTimeDebug("onServerStopping", builder -> builder
 			.subject("server-stopping")
 			.field("world-time", getCurrentAbsoluteDayTime())
@@ -120,57 +78,88 @@ public final class MadokuTimeManager {
 			return;
 		}
 
-		long gameplayTicks = getGameplayTicks();
-		observeGameplayTicks(gameplayTicks);
-
+		observeGameplayTicks(getGameplayTicks());
 		long observedDayTime = overworld.getOverworldClockTime();
 		observeWorldTime(observedDayTime);
+		SleepManager.onWorldTimeAdvanced(server, observedDayTime);
 
 		if (!isEnabled()) {
-			restoreVanillaGameRules(server);
-			clearRuntimeAdjustments();
 			return;
 		}
 
-		applyManagedGameRules(server);
 		String seasonId = MadokuSeason.getCurrentSeasonId();
-		int cycleMinute = getCycleMinutes(observedDayTime);
-		boolean daytime = isDaytime(cycleMinute);
+		int clockTotalMinutes = getTotalMinutes(observedDayTime);
+		int clockHour = getClockHour(observedDayTime);
+		int clockMinute = Math.floorMod(clockTotalMinutes, 60);
+		boolean daytime = isDaytime(clockHour);
 		double segmentMinutes = daytime
 			? TimeConfigManager.getDayMinutes() * TimeConfigManager.getSeasonalDayMultiplier(seasonId)
 			: TimeConfigManager.getNightMinutes() * TimeConfigManager.getSeasonalNightMultiplier(seasonId);
 		long segmentWorldTicks = daytime ? resolveDayWorldTickSpan() : resolveNightWorldTickSpan();
-		double desiredTicksPerServerTick = resolveDesiredTicksPerServerTick(daytime, segmentMinutes, segmentWorldTicks);
-		double carryBefore = timeAdjustmentCarry;
-		timeAdjustmentCarry += desiredTicksPerServerTick - 1.0D;
-
-		long correctionTicks = takeWholeTicksFromCarry();
-		long skippedTicks = consumePendingSkippedTicks();
-		long totalAdjustment = safeAdd(correctionTicks, skippedTicks);
-		double carryAfter = timeAdjustmentCarry;
-		long adjustedDayTime = observedDayTime;
-		if (totalAdjustment != 0L) {
-			adjustedDayTime = applyWorldTimeDelta(server, observedDayTime, totalAdjustment);
-			observeWorldTime(adjustedDayTime);
-		}
-		long finalDayTime = adjustedDayTime;
-		SleepManager.onWorldTimeAdvanced(server, finalDayTime);
+		double desiredTicksPerServerTick = resolveDesiredTicksPerServerTick(segmentMinutes, segmentWorldTicks);
 		emitTimeDebug("update", builder -> builder
-			.subject("advance")
+			.subject("observe")
 			.field("gameplay-delta", lastGameplayTickDelta)
-			.field("world-delta", MadokuTimeManager.getWorldTimeDelta())
-			.field("world-time", finalDayTime)
-			.field("adjustment", totalAdjustment)
+			.field("world-delta", getWorldTimeDelta())
+			.field("world-time", observedDayTime)
 			.field("season", seasonId)
-			.field("cycle-minute", cycleMinute)
+			.field("clock-hour", clockHour)
+			.field("clock-minute", clockMinute)
 			.field("daytime", daytime)
 			.field("segment-minutes", segmentMinutes)
 			.field("segment-world-ticks", segmentWorldTicks)
-			.field("desired-ticks-per-server-tick", desiredTicksPerServerTick)
-			.field("carry-before", carryBefore)
-			.field("carry-after", carryAfter)
-			.field("correction-ticks", correctionTicks)
-			.field("skipped-ticks", skippedTicks));
+			.field("desired-ticks-per-server-tick", desiredTicksPerServerTick));
+	}
+
+	public static float resolveWorldClockRate(MinecraftServer server) {
+		if (server == null || !isEnabled()) {
+			return 1.0F;
+		}
+
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return 1.0F;
+		}
+
+		long currentDayTime = overworld.getOverworldClockTime();
+		String seasonId = MadokuSeason.getCurrentSeasonId();
+		int clockTotalMinutes = getTotalMinutes(currentDayTime);
+		int clockHour = getClockHour(currentDayTime);
+		int clockMinute = Math.floorMod(clockTotalMinutes, 60);
+		boolean daytime = isDaytime(clockHour);
+		double segmentMinutes = daytime
+			? TimeConfigManager.getDayMinutes() * TimeConfigManager.getSeasonalDayMultiplier(seasonId)
+			: TimeConfigManager.getNightMinutes() * TimeConfigManager.getSeasonalNightMultiplier(seasonId);
+		long segmentWorldTicks = daytime ? resolveDayWorldTickSpan() : resolveNightWorldTickSpan();
+		double baseRate = resolveDesiredTicksPerServerTick(segmentMinutes, segmentWorldTicks);
+		double sleepMultiplier = Math.max(1L, SleepManager.getCachedTickIncrement());
+		double resolvedRate = baseRate * sleepMultiplier;
+		if (!Double.isFinite(resolvedRate) || resolvedRate <= 0.0D) {
+			emitTimeDebug("resolveWorldClockRate", builder -> builder
+				.subject("fallback")
+				.field("season", seasonId)
+				.field("clock-hour", clockHour)
+				.field("clock-minute", clockMinute)
+				.field("daytime", daytime)
+				.field("segment-minutes", segmentMinutes)
+				.field("segment-world-ticks", segmentWorldTicks)
+				.field("base-rate", baseRate)
+				.field("sleep-multiplier", sleepMultiplier)
+				.field("resolved-rate", 1.0D));
+			return 1.0F;
+		}
+		emitTimeDebug("resolveWorldClockRate", builder -> builder
+			.subject(daytime ? "day" : "night")
+			.field("season", seasonId)
+			.field("clock-hour", clockHour)
+			.field("clock-minute", clockMinute)
+			.field("daytime", daytime)
+			.field("segment-minutes", segmentMinutes)
+			.field("segment-world-ticks", segmentWorldTicks)
+			.field("base-rate", baseRate)
+			.field("sleep-multiplier", sleepMultiplier)
+			.field("resolved-rate", resolvedRate));
+		return (float) resolvedRate;
 	}
 
 	public static long getElapsedGameplayTicks() {
@@ -241,15 +230,6 @@ public final class MadokuTimeManager {
 		setClockFromAbsoluteDayTime(value);
 	}
 
-	public static void advanceSkippedTimeTicks(long amount) {
-		if (!isEnabled() || amount <= 1L) {
-			return;
-		}
-
-		long extraTicks = amount - 1L;
-		pendingSkippedTicks = safeAdd(pendingSkippedTicks, extraTicks);
-	}
-
 	public static void tickGameplay() {
 		gameplayTicks = safeAdd(gameplayTicks, 1L);
 	}
@@ -260,7 +240,6 @@ public final class MadokuTimeManager {
 		}
 
 		tickGameplay();
-		advanceSkippedTimeTicks(Math.max(1L, ignoredAmount));
 	}
 
 	public static long getGameplayTicks() {
@@ -268,17 +247,46 @@ public final class MadokuTimeManager {
 	}
 
 	public static boolean isDaytime(long absoluteDayTime) {
-		return isDaytime(getCycleMinutes(absoluteDayTime));
+		return isDaytime(getClockHour(absoluteDayTime));
 	}
 
 	public static boolean isSleepTime(long absoluteDayTime) {
-		return isSleepTime(getCycleMinutes(absoluteDayTime));
+		return isSleepTime(getClockHour(absoluteDayTime));
 	}
 
 	public static int getTotalMinutes(long absoluteDayTime) {
 		long timeOfDay = Math.floorMod(absoluteDayTime, MINECRAFT_TICKS_PER_CYCLE);
 		long minutesFromTick = (timeOfDay * MINUTES_PER_DAY) / MINECRAFT_TICKS_PER_CYCLE;
 		return (int) ((minutesFromTick + MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES) % MINUTES_PER_DAY);
+	}
+
+	public static int getClockHour(long absoluteDayTime) {
+		return Math.floorDiv(getTotalMinutes(absoluteDayTime), 60);
+	}
+
+	public static long resolveClockHourToMinecraftTimeTicks(int clockHour) {
+		int clockMinutes = Math.floorMod(clockHour, (int) CYCLE_MINUTES_PER_DAY) * 60;
+		int minecraftMinutes = Math.floorMod(clockMinutes - MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES, (int) MINUTES_PER_DAY);
+		return (minecraftMinutes * MINECRAFT_TICKS_PER_CYCLE) / MINUTES_PER_DAY;
+	}
+
+	public static long resolveConfiguredTimeMarkerTicks(ResourceKey<ClockTimeMarker> markerKey) {
+		if (!TimeConfigManager.isSleepTimeTransitionsEnabled() || markerKey == null) {
+			return -1L;
+		}
+		if (ClockTimeMarkers.DAY.equals(markerKey)) {
+			return resolveClockHourToMinecraftTimeTicks(TimeConfigManager.getMorningMinutes());
+		}
+		if (ClockTimeMarkers.NOON.equals(markerKey)) {
+			return resolveClockHourToMinecraftTimeTicks(TimeConfigManager.getNoonMinutes());
+		}
+		if (ClockTimeMarkers.NIGHT.equals(markerKey)) {
+			return resolveClockHourToMinecraftTimeTicks(TimeConfigManager.getNightMinutesTransition());
+		}
+		if (ClockTimeMarkers.MIDNIGHT.equals(markerKey)) {
+			return resolveClockHourToMinecraftTimeTicks(TimeConfigManager.getMidnightMinutes());
+		}
+		return -1L;
 	}
 
 	public static int getCycleMinutes(long absoluteDayTime) {
@@ -299,14 +307,14 @@ public final class MadokuTimeManager {
 		observeWorldTime(overworld.getOverworldClockTime());
 	}
 
-	private static void observeGameplayTicks(long gameplayTicks) {
+	private static void observeGameplayTicks(long value) {
 		if (hasObservedGameplayTicks) {
-			lastGameplayTickDelta = gameplayTicks - lastObservedGameplayTicks;
+			lastGameplayTickDelta = value - lastObservedGameplayTicks;
 		} else {
 			lastGameplayTickDelta = 0L;
 			hasObservedGameplayTicks = true;
 		}
-		lastObservedGameplayTicks = gameplayTicks;
+		lastObservedGameplayTicks = value;
 	}
 
 	private static void observeWorldTime(long absoluteDayTime) {
@@ -321,70 +329,12 @@ public final class MadokuTimeManager {
 
 	private static void resetRuntimeState() {
 		gameplayTicks = 0L;
-		managedGameRulesApplied = false;
-		pendingSkippedTicks = 0L;
-		timeAdjustmentCarry = 0.0D;
 		hasObservedWorldTime = false;
 		lastObservedWorldDayTime = 0L;
 		lastObservedWorldTimeDelta = 0L;
 		hasObservedGameplayTicks = false;
 		lastObservedGameplayTicks = 0L;
 		lastGameplayTickDelta = 0L;
-	}
-
-	private static void clearRuntimeAdjustments() {
-		pendingSkippedTicks = 0L;
-		timeAdjustmentCarry = 0.0D;
-	}
-
-	private static void applyManagedGameRules(MinecraftServer server) {
-		if (managedGameRulesApplied || server == null) {
-			return;
-		}
-		for (ServerLevel world : server.getAllLevels()) {
-			world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
-		}
-		managedGameRulesApplied = true;
-	}
-
-	private static void restoreVanillaGameRules(MinecraftServer server) {
-		if (server != null) {
-			for (ServerLevel world : server.getAllLevels()) {
-				world.getGameRules().set(GameRules.ADVANCE_TIME, true, server);
-			}
-		}
-		managedGameRulesApplied = false;
-	}
-
-	private static long applyWorldTimeDelta(MinecraftServer server, long observedDayTime, long delta) {
-		long targetDayTime = safeAdd(observedDayTime, delta);
-		for (ServerLevel world : server.getAllLevels()) {
-			var overworldClock = world.registryAccess()
-				.lookupOrThrow(Registries.WORLD_CLOCK)
-				.getOrThrow(WorldClocks.OVERWORLD);
-			world.clockManager().setTotalTicks(overworldClock, targetDayTime);
-		}
-		return targetDayTime;
-	}
-
-	private static long takeWholeTicksFromCarry() {
-		if (timeAdjustmentCarry >= 1.0D) {
-			long ticks = (long) Math.floor(timeAdjustmentCarry);
-			timeAdjustmentCarry -= ticks;
-			return ticks;
-		}
-		if (timeAdjustmentCarry <= -1.0D) {
-			long ticks = (long) Math.ceil(timeAdjustmentCarry);
-			timeAdjustmentCarry -= ticks;
-			return ticks;
-		}
-		return 0L;
-	}
-
-	private static long consumePendingSkippedTicks() {
-		long value = pendingSkippedTicks;
-		pendingSkippedTicks = 0L;
-		return value;
 	}
 
 	private static boolean isDaytime(int totalMinutes) {
@@ -397,34 +347,13 @@ public final class MadokuTimeManager {
 		return !isDaytime(totalMinutes);
 	}
 
-	private static long safeAdd(long base, long delta) {
-		try {
-			return Math.addExact(base, delta);
-		} catch (ArithmeticException exception) {
-			return delta >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
-		}
-	}
-
-	private static int wrappedClockMinutes(int startMinutes, int endMinutes) {
-		return Math.floorMod(endMinutes - startMinutes, (int) CYCLE_MINUTES_PER_DAY);
-	}
-
-	private static boolean isWithinWrappedRange(int value, int startInclusive, int endExclusive) {
-		int span = wrappedClockMinutes(startInclusive, endExclusive);
-		if (span <= 0 || span >= CYCLE_MINUTES_PER_DAY) {
-			return false;
-		}
-		int offset = Math.floorMod(value - startInclusive, (int) CYCLE_MINUTES_PER_DAY);
-		return offset < span;
-	}
-
 	private static long dayRolloverOffsetTicks() {
 		long midnightMinutes = Math.max(0L, Math.min(23L, TimeConfigManager.getMidnightMinutes()));
 		long minecraftMidnightTick = cycleMinutesToMinecraftTicks((int) midnightMinutes);
 		return MINECRAFT_TICKS_PER_CYCLE - minecraftMidnightTick;
 	}
 
-	private static double resolveDesiredTicksPerServerTick(boolean daytime, double segmentMinutes, long segmentWorldTicks) {
+	private static double resolveDesiredTicksPerServerTick(double segmentMinutes, long segmentWorldTicks) {
 		if (!Double.isFinite(segmentMinutes) || segmentMinutes <= 0.0D) {
 			return 1.0D;
 		}
@@ -451,6 +380,27 @@ public final class MadokuTimeManager {
 	private static long cycleMinutesToMinecraftTicks(int cycleMinutes) {
 		int minecraftMinutes = Math.floorMod(cycleMinutes, (int) CYCLE_MINUTES_PER_DAY);
 		return (minecraftMinutes * MINECRAFT_TICKS_PER_CYCLE) / CYCLE_MINUTES_PER_DAY;
+	}
+
+	private static boolean isWithinWrappedRange(int value, int startInclusive, int endExclusive) {
+		int span = wrappedClockMinutes(startInclusive, endExclusive);
+		if (span <= 0 || span >= CYCLE_MINUTES_PER_DAY) {
+			return false;
+		}
+		int offset = Math.floorMod(value - startInclusive, (int) CYCLE_MINUTES_PER_DAY);
+		return offset < span;
+	}
+
+	private static int wrappedClockMinutes(int startMinutes, int endMinutes) {
+		return Math.floorMod(endMinutes - startMinutes, (int) CYCLE_MINUTES_PER_DAY);
+	}
+
+	private static long safeAdd(long base, long delta) {
+		try {
+			return Math.addExact(base, delta);
+		} catch (ArithmeticException exception) {
+			return delta >= 0L ? Long.MAX_VALUE : Long.MIN_VALUE;
+		}
 	}
 
 	private static void emitTimeDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {

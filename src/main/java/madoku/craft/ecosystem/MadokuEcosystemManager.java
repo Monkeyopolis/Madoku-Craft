@@ -30,17 +30,13 @@ import java.util.Set;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 public final class MadokuEcosystemManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuEcosystemManager.class);
 	private static final String DATA_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String DATA_FILE_NAME = "madoku-ecosystem";
-	private static final String CHUNK_DATA_FOLDER_NAME = "madoku-ecosystem-chunks";
-	private static final String FIELD_CHUNK_FOLDER = "chunk-folder";
-	private static final String FIELD_CHUNK_COUNT = "chunk-count";
+	private static final String CHUNK_DATA_FOLDER_NAME = "ecosystem-chunks";
 	private static final String FIELD_CHUNKS = "chunks";
-	private static final String FIELD_DATA_FILE = "data-file";
 	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
 	private static final String DEBUG_SUB_SYSTEM = "ecosystem-manager";
 
@@ -120,6 +116,7 @@ public final class MadokuEcosystemManager {
 	private static final String TREE_TYPE_CHERRY = "cherry";
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	static volatile boolean dirty = false;
+	private static volatile boolean loadingPersistedData = false;
 	private static volatile boolean ecosystemEnabled = true;
 	static volatile NaturalGrowthConfigManager.Settings naturalGrowthSettings = NaturalGrowthConfigManager.defaults();
 	static volatile NaturalErosionConfigManager.Settings naturalErosionSettings = NaturalErosionConfigManager.defaults();
@@ -136,6 +133,7 @@ public final class MadokuEcosystemManager {
 	private static final ThreadLocal<Integer> CHUNK_TRACKING_SYNC_BATCH_DEPTH = ThreadLocal.withInitial(() -> 0);
 	private static final ThreadLocal<Set<ChunkRefKey>> CHUNK_TRACKING_SYNC_BATCH_KEYS = ThreadLocal.withInitial(LinkedHashSet::new);
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
 
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
@@ -184,12 +182,11 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
 		discoveryAccumulatorsByChunk.clear();
 		PERSISTED_CHUNK_KEYS.clear();
+		DIRTY_CHUNK_KEYS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
+		loadingPersistedData = false;
 		resetUnifiedDiscoveryState();
-		EcosystemNaturalGrowthManager.reset();
-		EcosystemNaturalErosionManager.reset();
-		EcosystemNaturalDecayManager.reset();
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
 			.subject("reset")
 			.field("tracked-dirt", previousTrackedDirt)
@@ -317,97 +314,71 @@ public final class MadokuEcosystemManager {
 		}
 		syncChunkProcessorActivation();
 		PERSISTED_CHUNK_KEYS.clear();
-		if (!isEnabled()) {
+		DIRTY_CHUNK_KEYS.clear();
+		loadingPersistedData = true;
+		try {
+			if (!isEnabled()) {
+				dirtBlocksByKey.clear();
+				dirtKeysByChunk.clear();
+				EcosystemNaturalGrowthManager.clearTrackedCandidateState();
+				EcosystemNaturalDecayManager.clearTrackedCandidateState();
+				discoveryAccumulatorsByChunk.clear();
+				EcosystemNaturalGrowthManager.reset();
+				EcosystemNaturalErosionManager.reset();
+				EcosystemNaturalDecayManager.reset();
+				dirty = false;
+				resetUnifiedDiscoveryState();
+				return;
+			}
+
 			dirtBlocksByKey.clear();
 			dirtKeysByChunk.clear();
 			EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 			EcosystemNaturalDecayManager.clearTrackedCandidateState();
 			discoveryAccumulatorsByChunk.clear();
+			resetUnifiedDiscoveryState();
 			EcosystemNaturalGrowthManager.reset();
 			EcosystemNaturalErosionManager.reset();
 			EcosystemNaturalDecayManager.reset();
-			dirty = false;
-			resetUnifiedDiscoveryState();
-			return;
-		}
 
-		dirtBlocksByKey.clear();
-		dirtKeysByChunk.clear();
-		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
-		EcosystemNaturalDecayManager.clearTrackedCandidateState();
-		discoveryAccumulatorsByChunk.clear();
-		resetUnifiedDiscoveryState();
-		EcosystemNaturalGrowthManager.reset();
-		EcosystemNaturalErosionManager.reset();
-		EcosystemNaturalDecayManager.reset();
-
-		Path indexFile = resolveEcosystemIndexFile(server);
-		int loadedChunkFiles = 0;
-		boolean loadedFromIndex = false;
-		if (Files.isRegularFile(indexFile)) {
-			try {
-				JsonObject indexData = JsonStaticSystem.readManagedDocument(indexFile).main();
-				if (indexData != null) {
-					JsonElement chunksElement = indexData.get(FIELD_CHUNKS);
-					if (chunksElement != null && chunksElement.isJsonArray()) {
-						loadedFromIndex = true;
-						for (JsonElement element : chunksElement.getAsJsonArray()) {
-							if (element == null || !element.isJsonObject()) {
-								continue;
+			int loadedChunkFiles = 0;
+			Path indexFile = resolveEcosystemIndexFile(server);
+			if (Files.isRegularFile(indexFile)) {
+				try {
+					JsonObject indexData = JsonStaticSystem.readManagedDocument(indexFile).main();
+					if (indexData != null) {
+						JsonElement chunksElement = indexData.get(FIELD_CHUNKS);
+						if (chunksElement != null && chunksElement.isJsonArray()) {
+							for (JsonElement element : chunksElement.getAsJsonArray()) {
+								ChunkRefKey chunkKey = readChunkDescriptor(element);
+								if (chunkKey == null) {
+									continue;
+								}
+								if (loadChunkPersistedData(server, chunkKey)) {
+									loadedChunkFiles++;
+								}
 							}
-							JsonObject chunkDescriptor = element.getAsJsonObject();
-							String levelId = getString(chunkDescriptor, FIELD_LEVEL_ID, "").trim();
-							int chunkX = (int) getLong(chunkDescriptor, FIELD_CHUNK_X, Integer.MIN_VALUE);
-							int chunkZ = (int) getLong(chunkDescriptor, FIELD_CHUNK_Z, Integer.MIN_VALUE);
-							if (levelId.isEmpty() || chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) {
-								continue;
-							}
-							Path chunkFile = resolveChunkPersistedDataPath(server, new ChunkRefKey(levelId, chunkX, chunkZ));
-							if (!Files.isRegularFile(chunkFile)) {
-								continue;
-							}
-							JsonObject source = JsonStaticSystem.readManagedDocument(chunkFile).main();
-							if (applyPersistedData(source) != null) {
-								loadedChunkFiles++;
-							}
-						}
-					}
-				}
-			} catch (IOException exception) {
-				LOGGER.error("Failed to load ecosystem index data from {}.", indexFile, exception);
-				loadedFromIndex = false;
-			}
-		}
-		if (!loadedFromIndex) {
-			Path chunkDataRoot = resolveChunkDataRootDirectory(server);
-			if (Files.isDirectory(chunkDataRoot)) {
-				try (Stream<Path> paths = Files.walk(chunkDataRoot)) {
-					for (Path file : (Iterable<Path>) paths
-						.filter(Files::isRegularFile)
-						.filter(path -> path.getFileName().toString().endsWith(".json"))
-						::iterator) {
-						JsonObject source = JsonStaticSystem.readManagedDocument(file).main();
-						if (applyPersistedData(source) != null) {
-							loadedChunkFiles++;
 						}
 					}
 				} catch (IOException exception) {
-					LOGGER.error("Failed to load ecosystem chunk data from {}.", chunkDataRoot, exception);
+					LOGGER.error("Failed to load ecosystem index data from {}.", indexFile, exception);
 				}
 			}
-		}
 
-		writeEcosystemIndex(server, loadedChunkFiles, collectChunkKeysForIndex());
-		final int loadedChunkFileCount = loadedChunkFiles;
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
-		dirty = false;
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("load-persisted-data")
-			.field("auto-save-ticks", autoSaveIntervalTicks)
-			.field("dirty", dirty)
-			.field("chunk-files", loadedChunkFileCount)
-			.field("persisted-chunks", PERSISTED_CHUNK_KEYS.size()));
+			final int loadedChunkFileCount = loadedChunkFiles;
+			long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+			lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+			dirty = false;
+			DIRTY_CHUNK_KEYS.clear();
+			emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
+				.subject("load-persisted-data")
+				.field("auto-save-ticks", autoSaveIntervalTicks)
+				.field("dirty", dirty)
+				.field("chunk-files", loadedChunkFileCount)
+				.field("persisted-chunks", PERSISTED_CHUNK_KEYS.size()));
+		} finally {
+			loadingPersistedData = false;
+		}
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -436,11 +407,16 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 
-		Set<ChunkRefKey> currentChunkKeys = collectChunkKeysForPersistence();
+		Set<ChunkRefKey> currentChunkKeys = collectCurrentChunkKeys();
+		Set<ChunkRefKey> dirtyChunkKeys = collectDirtyChunkKeys();
 		Set<ChunkRefKey> staleChunkKeys = new LinkedHashSet<>(PERSISTED_CHUNK_KEYS);
 		staleChunkKeys.removeAll(currentChunkKeys);
+		boolean indexChanged = !currentChunkKeys.equals(PERSISTED_CHUNK_KEYS);
 		int writtenChunkFiles = 0;
-		for (ChunkRefKey chunkKey : currentChunkKeys) {
+		for (ChunkRefKey chunkKey : dirtyChunkKeys) {
+			if (!currentChunkKeys.contains(chunkKey)) {
+				continue;
+			}
 			JsonObject chunkData = createChunkPersistedData(chunkKey);
 			if (chunkData == null) {
 				continue;
@@ -453,7 +429,10 @@ public final class MadokuEcosystemManager {
 		}
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
-		writeEcosystemIndex(server, writtenChunkFiles, currentChunkKeys);
+		DIRTY_CHUNK_KEYS.clear();
+		if (indexChanged) {
+			writeEcosystemIndex(server, currentChunkKeys);
+		}
 		final int writtenChunkFileCount = writtenChunkFiles;
 		dirty = false;
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
@@ -734,11 +713,13 @@ public final class MadokuEcosystemManager {
 		if (previous != null) {
 			previousChunkKey = chunkRefForPos(previous.levelId, previous.dirtPos);
 			removeChunkIndex(dirtKeysByChunk, previousChunkKey, key);
+			markChunkDirty(previousChunkKey);
 		}
 		ChunkRefKey nextChunkKey = null;
 		if (value != null) {
 			nextChunkKey = chunkRefForPos(value.levelId, value.dirtPos);
 			addChunkIndex(dirtKeysByChunk, nextChunkKey, key);
+			markChunkDirty(nextChunkKey);
 		}
 		if (previousChunkKey != null) {
 			syncChunkProcessorTracking(previousChunkKey);
@@ -754,6 +735,7 @@ public final class MadokuEcosystemManager {
 		if (removed != null) {
 			ChunkRefKey chunkKey = chunkRefForPos(removed.levelId, removed.dirtPos);
 			removeChunkIndex(dirtKeysByChunk, chunkKey, key);
+			markChunkDirty(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 		}
 		return removed;
@@ -792,6 +774,18 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.syncChunkProcessorTracking(chunkKey);
 		EcosystemNaturalErosionManager.syncChunkProcessorTracking(chunkKey);
 		EcosystemNaturalDecayManager.syncChunkProcessorTracking(chunkKey);
+	}
+
+	static void markChunkDirty(ChunkRefKey chunkKey) {
+		if (chunkKey == null || loadingPersistedData) {
+			return;
+		}
+		DIRTY_CHUNK_KEYS.add(chunkKey);
+		dirty = true;
+	}
+
+	private static Set<ChunkRefKey> collectDirtyChunkKeys() {
+		return new LinkedHashSet<>(DIRTY_CHUNK_KEYS);
 	}
 
 	private static void beginChunkTrackingSyncBatch() {
@@ -1021,12 +1015,36 @@ public final class MadokuEcosystemManager {
 		return builder.build();
 	}
 
-	private static Set<ChunkRefKey> collectChunkKeysForPersistence() {
-		return collectCurrentChunkKeys();
+	private static ChunkRefKey readChunkDescriptor(JsonElement element) {
+		if (!(element instanceof JsonObject source)) {
+			return null;
+		}
+		String levelId = getString(source, FIELD_LEVEL_ID, "").trim();
+		int chunkX = (int) getLong(source, FIELD_CHUNK_X, Integer.MIN_VALUE);
+		int chunkZ = (int) getLong(source, FIELD_CHUNK_Z, Integer.MIN_VALUE);
+		if (levelId.isEmpty() || chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) {
+			return null;
+		}
+		return new ChunkRefKey(normalizePathPart(levelId, "level id"), chunkX, chunkZ);
 	}
 
-	private static Set<ChunkRefKey> collectChunkKeysForIndex() {
-		return collectCurrentChunkKeys();
+	private static boolean loadChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey) {
+		if (server == null || chunkKey == null) {
+			return false;
+		}
+
+		Path file = resolveChunkPersistedDataPath(server, chunkKey);
+		if (!Files.isRegularFile(file)) {
+			return false;
+		}
+
+		try {
+			JsonObject source = JsonStaticSystem.readManagedDocument(file).main();
+			return applyPersistedData(source) != null;
+		} catch (IOException exception) {
+			LOGGER.error("Failed to load ecosystem chunk data from {}.", file, exception);
+			return false;
+		}
 	}
 
 	private static Set<ChunkRefKey> collectCurrentChunkKeys() {
@@ -1037,15 +1055,13 @@ public final class MadokuEcosystemManager {
 		return keys;
 	}
 
-	private static void writeEcosystemIndex(MinecraftServer server, int chunkFileCount, Set<ChunkRefKey> chunkKeys) {
+	private static void writeEcosystemIndex(MinecraftServer server, Set<ChunkRefKey> chunkKeys) {
 		if (server == null) {
 			return;
 		}
 
 		Path indexFile = resolveEcosystemIndexFile(server);
 		JsonObject indexData = JsonFormatBuilder.object()
-			.put(FIELD_CHUNK_FOLDER, CHUNK_DATA_FOLDER_NAME)
-			.put(FIELD_CHUNK_COUNT, chunkFileCount)
 			.put(FIELD_CHUNKS, buildChunkDescriptorArray(chunkKeys))
 			.build();
 		try {
@@ -1065,8 +1081,7 @@ public final class MadokuEcosystemManager {
 				chunks.object(chunk -> chunk
 					.put(FIELD_LEVEL_ID, chunkKey.levelId())
 					.put(FIELD_CHUNK_X, chunkKey.chunkX())
-					.put(FIELD_CHUNK_Z, chunkKey.chunkZ())
-					.put(FIELD_DATA_FILE, chunkPersistedDataRelativePath(chunkKey)));
+					.put(FIELD_CHUNK_Z, chunkKey.chunkZ()));
 			}
 		}
 		return chunks.build();
@@ -1124,10 +1139,6 @@ public final class MadokuEcosystemManager {
 			throw new IllegalStateException("Failed to create ecosystem chunk directory: " + file.getParent(), exception);
 		}
 		return file;
-	}
-
-	private static String chunkPersistedDataRelativePath(ChunkRefKey chunkKey) {
-		return normalizePathPart(chunkKey.levelId(), "level id") + "/" + chunkPersistedDataFileName(chunkKey);
 	}
 
 	private static String chunkPersistedDataFileName(ChunkRefKey chunkKey) {

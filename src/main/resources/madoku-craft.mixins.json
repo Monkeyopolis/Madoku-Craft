@@ -88,6 +88,7 @@
     "SaturationMobEffectMixin",
     "ServerExplosionBlockRadiusMixin",
     "ServerExplosionPlayerDamageMixin",
+    "ServerClockManagerMixin",
     "ServerGamePacketListenerCreativePetSlotMixin",
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerGameModeFarmingMixin",
@@ -96,6 +97,7 @@
     "SmithingTransformRecipeRarityMixin",
     "SnowLayerBlockSeasonalMeltMixin",
     "StemBlockFarmingMixin",
+    "TimelineMixin",
     "ThrownTridentGroundClearMixin",
     "ThrownTridentDamageMixin",
     "WitherSkeletonWitherEffectMixin"

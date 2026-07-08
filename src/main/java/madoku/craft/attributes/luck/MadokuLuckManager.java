@@ -344,7 +344,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 		boolean creative = context.player.isCreative();
-		boolean playerPlaced = MadokuPlacedBlocks.isPlayerPlacedBlock(context.level, context.pos);
+		boolean playerPlaced = BlockTrackingManager.isPlayerPlacedBlock(context.level, context.pos);
 		boolean managedCrop = MadokuFarming.isManagedCrop(context.level, context.pos, context.state)
 			&& MadokuFarming.isCropHarvestReady(context.level, context.pos, context.state);
 		emitLuckDebug(
@@ -861,7 +861,7 @@ public final class MadokuLuckManager {
 	public static void endBlockDropContext() {
 		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
 		if (context != null) {
-			MadokuPlacedBlocks.consumePlacedBlock(context.level, context.pos);
+			BlockTrackingManager.consumePlacedBlock(context.level, context.pos);
 		}
 		ACTIVE_DROP_CONTEXT.remove();
 	}

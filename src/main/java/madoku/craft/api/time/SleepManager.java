@@ -7,11 +7,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.saveddata.WeatherData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.Consumer;
 import java.lang.reflect.Method;
+import java.util.function.Consumer;
 
 public final class SleepManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SleepManager.class);
@@ -19,12 +20,16 @@ public final class SleepManager {
 	private static final double SLEEP_SPEED_MULTIPLIER = 100.0D;
 
 	private static double fractionalCarry = 0.0D;
+	private static volatile long cachedTickIncrement = 1L;
+	private static volatile long wakeTargetWorldTime = -1L;
 
 	private SleepManager() {
 	}
 
 	public static void reset() {
 		fractionalCarry = 0.0D;
+		cachedTickIncrement = 1L;
+		wakeTargetWorldTime = -1L;
 		emitSleepDebug("reset", builder -> builder
 			.subject("reset")
 			.field("carry", 0.0D));
@@ -45,7 +50,21 @@ public final class SleepManager {
 		return allowed;
 	}
 
+	public static long refreshTickIncrement(MinecraftServer server) {
+		long tickIncrement = resolveTickIncrement(server);
+		cachedTickIncrement = tickIncrement;
+		return tickIncrement;
+	}
+
+	public static long getCachedTickIncrement() {
+		return Math.max(1L, cachedTickIncrement);
+	}
+
 	public static long getTickIncrement(MinecraftServer server) {
+		return refreshTickIncrement(server);
+	}
+
+	private static long resolveTickIncrement(MinecraftServer server) {
 		if (server == null || !isForwardTimeActive()) {
 			resetCarry();
 			return 1L;
@@ -110,16 +129,60 @@ public final class SleepManager {
 		return canStartSleeping(player);
 	}
 
+	public static boolean shouldKeepSleepingWhileForwarding(BedRule bedRule, Level level, Player player) {
+		if (bedRule == null || level == null) {
+			return false;
+		}
+		if (!isForwardTimeActive()) {
+			return bedRule.canSleep(level);
+		}
+		if (player != null && player.isSleeping()) {
+			return true;
+		}
+		return bedRule.canSleep(level);
+	}
+
+	public static void onSleepStarted(ServerPlayer player) {
+		if (player == null || !isForwardTimeActive()) {
+			return;
+		}
+		if (!(player.level() instanceof ServerLevel level)) {
+			return;
+		}
+
+		long currentTime = level.getOverworldClockTime();
+		long targetWakeTime = resolveNextMorningWakeTime(currentTime);
+		if (wakeTargetWorldTime < 0L) {
+			wakeTargetWorldTime = targetWakeTime;
+		} else {
+			wakeTargetWorldTime = Math.max(wakeTargetWorldTime, targetWakeTime);
+		}
+
+		LOGGER.info(
+			"Madoku sleep-forward sleep started: worldTime={}, wakeTarget={}",
+			currentTime,
+			wakeTargetWorldTime
+		);
+		emitSleepDebug("sleepStarted", builder -> builder
+			.subject("sleep-started")
+			.field("world-time", currentTime)
+			.field("wake-target", wakeTargetWorldTime));
+	}
+
 	public static void onWorldTimeAdvanced(MinecraftServer server, long absoluteDayTime) {
 		if (server == null || !isForwardTimeActive()) {
 			return;
 		}
-		if (!MadokuTimeManager.isDaytime(absoluteDayTime)) {
-			return;
-		}
-
 		ServerLevel overworld = server.overworld();
 		if (overworld == null) {
+			return;
+		}
+		long wakeTarget = wakeTargetWorldTime;
+		if (wakeTarget < 0L) {
+			wakeTarget = resolveNextMorningWakeTime(absoluteDayTime);
+			wakeTargetWorldTime = wakeTarget;
+		}
+		if (absoluteDayTime < wakeTarget) {
 			return;
 		}
 
@@ -136,9 +199,18 @@ public final class SleepManager {
 		}
 
 		if (wokeSleepingPlayer) {
+			wakeTargetWorldTime = -1L;
+			final long finalWakeTarget = wakeTarget;
+			LOGGER.info(
+				"Madoku sleep-forward wake: worldTime={}, wakeTarget={}, clearWeather={}",
+				absoluteDayTime,
+				finalWakeTarget,
+				TimeConfigManager.shouldClearWeather()
+			);
 			emitSleepDebug("onWorldTimeAdvanced", builder -> builder
 				.subject("wake")
 				.field("daytime", absoluteDayTime)
+				.field("wake-target", finalWakeTarget)
 				.field("cleared-weather", TimeConfigManager.shouldClearWeather()));
 		}
 	}
@@ -155,29 +227,87 @@ public final class SleepManager {
 
 	private static void clearWeather(ServerLevel level) {
 		try {
-			Object levelData = level.getLevelData();
-			if (levelData == null) {
-				return;
+			MinecraftServer server = level.getServer();
+			boolean worldWeatherSet = invokeWeatherSetter(
+				server,
+				"setWeatherParameters",
+				new Class<?>[] { int.class, int.class, boolean.class, boolean.class },
+				new Object[] { 0, 0, false, false }
+			);
+			WeatherData weatherData = level.getWeatherData();
+			boolean weatherDataSet = false;
+			if (weatherData != null) {
+				weatherData.setClearWeatherTime(0);
+				weatherData.setThundering(false);
+				weatherData.setThunderTime(0);
+				weatherData.setRaining(false);
+				weatherData.setRainTime(0);
+				weatherDataSet = true;
 			}
-			invokeWeatherSetter(levelData, "setRaining", boolean.class, false);
-			invokeWeatherSetter(levelData, "setThundering", boolean.class, false);
-			invokeWeatherSetter(levelData, "setRainTime", int.class, 0);
-			invokeWeatherSetter(levelData, "setThunderTime", int.class, 0);
+			final boolean finalWorldWeatherSet = worldWeatherSet;
+			final boolean finalWeatherDataSet = weatherDataSet;
+			final int finalClearWeatherTime = weatherData == null ? -1 : weatherData.getClearWeatherTime();
+			final boolean finalThundering = weatherData != null && weatherData.isThundering();
+			final int finalThunderTime = weatherData == null ? -1 : weatherData.getThunderTime();
+			final boolean finalRaining = weatherData != null && weatherData.isRaining();
+			final int finalRainTime = weatherData == null ? -1 : weatherData.getRainTime();
+			emitSleepDebug("clearWeather", builder -> builder
+				.subject("weather")
+				.field("world-weather-parameters", finalWorldWeatherSet)
+				.field("weather-data", finalWeatherDataSet)
+				.field("clear-weather-time", finalClearWeatherTime)
+				.field("thundering", finalThundering)
+				.field("thunder-time", finalThunderTime)
+				.field("raining", finalRaining)
+				.field("rain-time", finalRainTime));
 		} catch (RuntimeException exception) {
 			LOGGER.warn("Failed to clear weather after sleep forward-time.", exception);
 		}
 	}
 
-	private static void invokeWeatherSetter(Object target, String methodName, Class<?> parameterType, Object value) {
+	private static long resolveNextMorningWakeTime(long absoluteDayTime) {
+		long currentTime = Math.max(0L, absoluteDayTime);
+		long currentDay = MadokuTimeManager.getDay(currentTime);
+		int currentMinutes = MadokuTimeManager.getTotalMinutes(currentTime);
+		int morningMinutes = TimeConfigManager.getMorningMinutes() * 60;
+		long wakeDay = currentMinutes < morningMinutes ? currentDay : currentDay + 1L;
+		return MadokuTimeManager.toAbsoluteDayTime(wakeDay, morningMinutes);
+	}
+
+	private static boolean invokeWeatherSetter(Object target, String methodName, Class<?>[] parameterTypes, Object[] values) {
 		if (target == null || methodName == null || methodName.isBlank()) {
-			return;
+			return false;
+		}
+		Method method = findWeatherSetter(target.getClass(), methodName, parameterTypes);
+		if (method == null) {
+			return false;
 		}
 		try {
-			Method method = target.getClass().getMethod(methodName, parameterType);
-			method.invoke(target, value);
-		} catch (ReflectiveOperationException ignored) {
-			// Some mappings expose weather state through different accessors.
+			if (!method.canAccess(target)) {
+				method.setAccessible(true);
+			}
+			method.invoke(target, values);
+			return true;
+		} catch (ReflectiveOperationException | RuntimeException ignored) {
+			// If a setter is unavailable on this mapping/runtime, we keep going.
+			return false;
 		}
+	}
+
+	private static Method findWeatherSetter(Class<?> type, String methodName, Class<?>... parameterTypes) {
+		Class<?> current = type;
+		while (current != null) {
+			try {
+				return current.getDeclaredMethod(methodName, parameterTypes);
+			} catch (NoSuchMethodException ignored) {
+				try {
+					return current.getMethod(methodName, parameterTypes);
+				} catch (NoSuchMethodException ignoredAgain) {
+					current = current.getSuperclass();
+				}
+			}
+		}
+		return null;
 	}
 
 	private static void resetCarry() {
