@@ -2,7 +2,7 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
 import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 
 import java.util.List;
 
@@ -121,7 +121,7 @@ public final class NaturalDecayConfigManager {
 		if (baseRange == null || multiplier == null) {
 			return null;
 		}
-		if (!multiplier.enabled() || !MadokuSeason.isEnabled()) {
+		if (!multiplier.enabled() || !MadokuSeasonManager.isEnabled()) {
 			return baseRange;
 		}
 		double speed = multiplier.forSeason(seasonId);

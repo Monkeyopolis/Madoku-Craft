@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -25,11 +25,11 @@ public abstract class SnowLayerBlockSeasonalMeltMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuSeason.isEnabled() || level == null || pos == null) {
+		if (!MadokuSeasonManager.isEnabled() || level == null || pos == null) {
 			return;
 		}
 
-		if (MadokuSeason.shouldSeasonFreezeAt(level, level.getBiome(pos).value(), pos)) {
+		if (!MadokuSeasonManager.shouldSeasonMeltAt(level, pos)) {
 			return;
 		}
 

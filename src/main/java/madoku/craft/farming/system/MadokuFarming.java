@@ -12,8 +12,8 @@ import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.season.MadokuSeason;
-import madoku.craft.season.MadokuSeasonConfig;
+import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonConfigManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -308,12 +308,12 @@ public final class MadokuFarming {
 
 	public static String getCropSeasonBlockedMessage(ItemStack stack) {
 		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return getCropSeasonBlockedMessage(rule, MadokuSeason.getCurrentSeasonId());
+		return getCropSeasonBlockedMessage(rule, MadokuSeasonManager.getCurrentSeasonId());
 	}
 
 	public static String getCropSeasonBlockedMessage(ItemStack stack, ServerLevel world) {
 		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return getCropSeasonBlockedMessage(rule, world == null ? MadokuSeason.getCurrentSeasonId() : MadokuSeason.getCurrentSeasonId(world));
+		return getCropSeasonBlockedMessage(rule, world == null ? MadokuSeasonManager.getCurrentSeasonId() : MadokuSeasonManager.getCurrentSeasonId(world));
 	}
 
 	public static String getCropSeasonBlockedMessage(ItemStack stack, String seasonId) {
@@ -510,7 +510,7 @@ public final class MadokuFarming {
 
 		String cropKey = cropKey(world, cropPos);
 		long nowAbsoluteDayTime = resolveAbsoluteDayTime(world);
-		String discoveredSeasonId = normalizeSeasonId(MadokuSeason.getCurrentSeasonId(world));
+		String discoveredSeasonId = normalizeSeasonId(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredGrowthTicks = resolveCropRequiredGrowthTicks(rule, discoveredSeasonId);
 		CropState existing = cropsByKey.get(cropKey);
 		boolean cropTypeChanged = existing != null && !rule.plantingItemId().equals(existing.cropId);
@@ -971,7 +971,7 @@ public final class MadokuFarming {
 			boolean replantedRegression = !observedMature
 				&& observedProgress + Math.max(1.0d, oneAgeStepTicks) < cappedTrackedProgress;
 			if (replantedRegression) {
-				String refreshedSeasonId = normalizeSeasonId(MadokuSeason.getCurrentSeasonId(world));
+				String refreshedSeasonId = normalizeSeasonId(MadokuSeasonManager.getCurrentSeasonId(world));
 				double refreshedRequiredTicks = Math.max(1.0d, resolveCropRequiredGrowthTicks(rule, refreshedSeasonId));
 				double refreshedObservedProgress = progressFromAge(observedAge, observedAgeLimit) * refreshedRequiredTicks;
 				crop.discoveredSeasonId = refreshedSeasonId;
@@ -1567,7 +1567,7 @@ public final class MadokuFarming {
 			}
 		}
 
-		if (MadokuSeason.isEnabled()) {
+		if (MadokuSeasonManager.isEnabled()) {
 			updatedLines.add(Component.literal(formatSeasonLoreLine(rule.blockedSeasonIds())).withStyle(ChatFormatting.DARK_GREEN));
 		}
 		updatedLines.add(Component.literal(formatGrowthTimeLoreLine(rule.growthMinecraftDays())).withStyle(ChatFormatting.GOLD));
@@ -1834,14 +1834,14 @@ public final class MadokuFarming {
 		if (rule == null) {
 			return true;
 		}
-		return isCropGrowingSeason(rule, MadokuSeason.getCurrentSeasonId());
+		return isCropGrowingSeason(rule, MadokuSeasonManager.getCurrentSeasonId());
 	}
 
 	private static boolean isCropGrowingSeason(CropRule rule, ServerLevel world) {
 		if (rule == null) {
 			return true;
 		}
-		String seasonId = world == null ? MadokuSeason.getCurrentSeasonId() : MadokuSeason.getCurrentSeasonId(world);
+		String seasonId = world == null ? MadokuSeasonManager.getCurrentSeasonId() : MadokuSeasonManager.getCurrentSeasonId(world);
 		return isCropGrowingSeason(rule, seasonId);
 	}
 
@@ -1875,7 +1875,7 @@ public final class MadokuFarming {
 	}
 
 	private static String normalizeSeasonId(String value) {
-		return MadokuSeasonConfig.normalizeKey(value);
+		return SeasonConfigManager.normalizeKey(value);
 	}
 
 	private static double resolveCropRequiredGrowthTicks(CropRule rule, String discoveredSeasonId) {

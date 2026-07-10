@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.world.level.biome.Biome;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -19,10 +20,10 @@ public abstract class BiomeSeasonalPrecipitationMixin {
 		int seaLevel,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
-		if (!MadokuSeason.isEnabled()) {
+		if (!MadokuSeasonManager.isEnabled() || !SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
 			return;
 		}
-		cir.setReturnValue(MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this).vanilla());
+		cir.setReturnValue(MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this));
 	}
 }
 

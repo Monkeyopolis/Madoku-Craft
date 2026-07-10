@@ -8,7 +8,7 @@ import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -411,7 +411,7 @@ public final class EcosystemNaturalDecayManager {
 	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+			 normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		}
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalDecaySettings.treeDecayForSeason(normalizedSeasonId);
 		return randomDaysToTicks(range);
@@ -488,7 +488,7 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredDecayTicks = resolveTreeDecayRequiredTicks(world, seasonId);
 		if (requiredDecayTicks <= 0.0d) {
 			return;

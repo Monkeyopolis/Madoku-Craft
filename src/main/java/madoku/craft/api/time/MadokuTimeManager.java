@@ -1,7 +1,7 @@
 package madoku.craft.api.time;
 
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -87,7 +87,7 @@ public final class MadokuTimeManager {
 			return;
 		}
 
-		String seasonId = MadokuSeason.getCurrentSeasonId();
+		String seasonId = MadokuSeasonManager.getCurrentSeasonId();
 		int clockTotalMinutes = getTotalMinutes(observedDayTime);
 		int clockHour = getClockHour(observedDayTime);
 		int clockMinute = Math.floorMod(clockTotalMinutes, 60);
@@ -122,7 +122,7 @@ public final class MadokuTimeManager {
 		}
 
 		long currentDayTime = overworld.getOverworldClockTime();
-		String seasonId = MadokuSeason.getCurrentSeasonId();
+		String seasonId = MadokuSeasonManager.getCurrentSeasonId();
 		int clockTotalMinutes = getTotalMinutes(currentDayTime);
 		int clockHour = getClockHour(currentDayTime);
 		int clockMinute = Math.floorMod(clockTotalMinutes, 60);

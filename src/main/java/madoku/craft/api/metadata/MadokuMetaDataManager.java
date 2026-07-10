@@ -54,6 +54,9 @@ public final class MadokuMetaDataManager {
 		"ecosystem",
 		subSystem("ecosystem-manager", entriesFromClass(madoku.craft.ecosystem.MadokuEcosystemManager.class)),
 		subSystem("ecosystem-config-manager", entriesFromClass(madoku.craft.ecosystem.EcosystemConfigManager.class)),
+		subSystem("ecosystem-seasonal-changes-manager", entriesFromClass(madoku.craft.ecosystem.EcosystemSeasonalChangesManager.class),
+			group("seasonal-changes-config-manager", entriesFromClass(madoku.craft.ecosystem.SeasonalChangesConfigManager.class)),
+			group("lifecycle", entry("state")), group("processing", entry("chunk"), entry("decision"))),
 		subSystem(
 			"ecosystem-natural-growth-manager",
 			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalGrowthManager.class)
@@ -66,6 +69,16 @@ public final class MadokuMetaDataManager {
 			"ecosystem-natural-decay-manager",
 			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalDecayManager.class)
 		)
+	);
+
+	public static final MainSystemMetadata SEASON = mainSystem(
+		"season",
+		subSystem("season-manager", entriesFromClass(madoku.craft.api.season.MadokuSeasonManager.class),
+			group("season-config-manager", entriesFromClass(madoku.craft.api.season.SeasonConfigManager.class)), group("lifecycle", entry("state"))),
+		subSystem("season-biome-climate-manager", entriesFromClass(madoku.craft.api.season.SeasonBiomeClimateManager.class),
+			group("biome-climate-config-manager", entriesFromClass(madoku.craft.api.season.BiomeClimateConfigManager.class)), group("lifecycle", entry("state"))),
+		subSystem("season-environment-transition-manager", entriesFromClass(madoku.craft.api.season.SeasonEnvironmentTransitionManager.class),
+			group("envrionment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvrionmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
 	);
 
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(

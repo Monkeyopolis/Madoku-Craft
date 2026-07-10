@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -26,23 +27,25 @@ public abstract class BiomeSeasonalFreezeMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuSeason.isEnabled()
+		if (MadokuSeasonManager.isEnabled()
+			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
 			&& levelReader instanceof ServerLevel
 			&& pos != null
-			&& MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) == MadokuSeason.SeasonalPrecipitation.RAIN) {
+			&& MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) == Biome.Precipitation.RAIN) {
 			cir.setReturnValue(false);
 			return;
 		}
 
 		if (cir.getReturnValue()
-			|| !MadokuSeason.isEnabled()
+			|| !MadokuSeasonManager.isEnabled()
+			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
 			|| pos == null
 			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)) {
 			return;
 		}
 
-		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
 		if (seasonalFreeze) {
 			cir.setReturnValue(true);
 		}
@@ -59,16 +62,18 @@ public abstract class BiomeSeasonalFreezeMixin {
 		boolean mustBeAtEdge,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuSeason.isEnabled()
+		if (MadokuSeasonManager.isEnabled()
+			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
 			&& levelReader instanceof ServerLevel
 			&& pos != null
-			&& MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) == MadokuSeason.SeasonalPrecipitation.RAIN) {
+			&& MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) == Biome.Precipitation.RAIN) {
 			cir.setReturnValue(false);
 			return;
 		}
 
 		if (cir.getReturnValue()
-			|| !MadokuSeason.isEnabled()
+			|| !MadokuSeasonManager.isEnabled()
+			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
 			|| pos == null
 			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)
@@ -76,7 +81,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 			return;
 		}
 
-		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
 		if (seasonalFreeze) {
 			cir.setReturnValue(true);
 		}
@@ -92,10 +97,11 @@ public abstract class BiomeSeasonalFreezeMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (!MadokuSeason.isEnabled() || !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
+		if (!MadokuSeasonManager.isEnabled() || !SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
+			|| !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
 			return;
 		}
-		if (MadokuSeason.resolveSeasonalPrecipitation((Biome) (Object) this) != MadokuSeason.SeasonalPrecipitation.SNOW) {
+		if (MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) != Biome.Precipitation.SNOW) {
 			cir.setReturnValue(false);
 			return;
 		}
@@ -103,7 +109,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 			return;
 		}
 
-		boolean seasonalFreeze = MadokuSeason.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
 		if (!seasonalFreeze || !madoku$canPlaceSeasonalSnow(levelReader, pos)) {
 			cir.setReturnValue(false);
 			return;

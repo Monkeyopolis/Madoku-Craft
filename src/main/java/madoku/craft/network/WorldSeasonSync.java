@@ -1,6 +1,6 @@
 package madoku.craft.network;
 
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -48,7 +48,7 @@ public final class WorldSeasonSync {
 			return;
 		}
 
-		if (!MadokuSeason.isEnabled()) {
+		if (!MadokuSeasonManager.isEnabled()) {
 			broadcastSeasonCleared(server, force);
 			return;
 		}
@@ -92,11 +92,11 @@ public final class WorldSeasonSync {
 	}
 
 	private static WorldSeasonPayload currentPayload(MinecraftServer server) {
-		if (!MadokuSeason.isEnabled()) {
+		if (!MadokuSeasonManager.isEnabled()) {
 			return null;
 		}
 		ServerLevel world = server == null ? null : server.overworld();
-		String season = MadokuSeason.getCurrentSeasonId(world);
+		String season = MadokuSeasonManager.getCurrentSeasonId(world);
 		if (season == null || season.isBlank()) {
 			return null;
 		}

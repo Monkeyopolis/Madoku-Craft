@@ -7,7 +7,7 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,7 +109,7 @@ public final class TimeConfigManager {
 	}
 
 	public static long getDayCycleTicks() {
-		return getSeasonalCycleTicks(isSeasonalChangesActive() ? MadokuSeason.getCurrentSeasonId() : null);
+		return getSeasonalCycleTicks(isSeasonalChangesActive() ? MadokuSeasonManager.getCurrentSeasonId() : null);
 	}
 
 	public static double getSeasonalCycleMinutes(String seasonId) {
@@ -269,7 +269,7 @@ public final class TimeConfigManager {
 	}
 
 	private static boolean isSeasonalChangesActive() {
-		return isSeasonalChangesEnabled() && MadokuSeason.isEnabled();
+		return isSeasonalChangesEnabled() && MadokuSeasonManager.isEnabled();
 	}
 
 	private static TimeAdjustmentSettings resolveSeasonAdjustment(String seasonId) {

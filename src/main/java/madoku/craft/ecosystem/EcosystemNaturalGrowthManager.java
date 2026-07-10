@@ -8,7 +8,7 @@ import madoku.craft.config.JsonFormatBuilder;
 import madoku.craft.config.JsonManagerSystem;
 import madoku.craft.config.JsonStaticSystem;
 import madoku.craft.scheduler.SchedulerManagerSystem;
-import madoku.craft.season.MadokuSeason;
+import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderGetter;
@@ -1006,7 +1006,7 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static double resolveSurfaceDirtRequiredGrowthTicks(ServerLevel world) {
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalGrowthSettings.dirtGrowthForSeason(seasonId);
 		return randomDaysToTicks(range);
 	}
@@ -1019,7 +1019,7 @@ public final class EcosystemNaturalGrowthManager {
 	static double resolveGrassRequiredGrowthTicks(ServerLevel world, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		}
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalGrowthSettings.grassGrowthForSeason(normalizedSeasonId);
 		return randomDaysToTicks(range);
@@ -1028,7 +1028,7 @@ public final class EcosystemNaturalGrowthManager {
 	static double resolveDesertFoliageGrowthRequiredTicks(ServerLevel world, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		}
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalGrowthSettings.desertFoliageGrowthForSeason(normalizedSeasonId);
 		return randomDaysToTicks(range);
@@ -1037,7 +1037,7 @@ public final class EcosystemNaturalGrowthManager {
 	static double resolveCactusRequiredGrowthTicks(ServerLevel world, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		}
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalGrowthSettings.cactusGrowthForSeason(normalizedSeasonId);
 		return randomDaysToTicks(range);
@@ -1046,7 +1046,7 @@ public final class EcosystemNaturalGrowthManager {
 	static double resolveFoliageRequiredGrowthTicks(ServerLevel world, String foliageType, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+			normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		}
 		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalGrowthSettings.foliageGrowthForSeason(foliageType, normalizedSeasonId);
 		return randomDaysToTicks(range);
@@ -1350,7 +1350,7 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		List<MadokuEcosystemManager.TreeCandidateOption> options = new ArrayList<>();
 		for (Long packedPos : treeGroundCandidates) {
 			if (packedPos == null) {
@@ -1406,7 +1406,7 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredGrowthTicks = resolveCactusRequiredGrowthTicks(world, seasonId);
 		if (requiredGrowthTicks <= 0.0d) {
 			return;
@@ -1485,7 +1485,7 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredGrowthTicks = resolveGrassRequiredGrowthTicks(world, seasonId);
 		if (requiredGrowthTicks <= 0.0d) {
 			return;
@@ -1552,7 +1552,7 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredGrowthTicks = resolveDesertFoliageGrowthRequiredTicks(world, seasonId);
 		if (requiredGrowthTicks <= 0.0d) {
 			return;
@@ -1632,7 +1632,7 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeason.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
 		double requiredGrowthTicks = resolveFoliageRequiredGrowthTicks(world, normalizedFoliageType, seasonId);
 		if (requiredGrowthTicks <= 0.0d) {
 			return;
