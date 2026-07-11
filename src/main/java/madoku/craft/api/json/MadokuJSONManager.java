@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Runtime API subsystem orchestrating JSON formatting and type management. */
 public final class MadokuJSONManager {
+	private static final String GLOBAL_ROOT_FOLDER_NAME = MadokuCraft.MOD_ID;
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuJSONManager.class);
 	private static final long DEFAULT_AUTO_SAVE_MINUTES = 5L;
 	private static final Map<Path, JsonObject> SETTINGS_CACHE = new ConcurrentHashMap<>();
@@ -40,7 +41,13 @@ public final class MadokuJSONManager {
 
 	public static boolean isInitialized() { return initialized; }
 
-	public static Path getGlobalRootDirectory() { return FabricLoader.getInstance().getConfigDir().resolve(MadokuCraft.MOD_ID); }
+	public static Path getGlobalRootDirectory() { return FabricLoader.getInstance().getConfigDir().resolve(GLOBAL_ROOT_FOLDER_NAME); }
+
+	public static Path getOrCreateGlobalRootDirectory() {
+		Path root = getGlobalRootDirectory();
+		try { Files.createDirectories(root); } catch (IOException exception) { throw new IllegalStateException("Failed to create global API root directory: " + root, exception); }
+		return root;
+	}
 
 	public static Path getWorldRootDirectory(MinecraftServer server) {
 		if (server == null) throw new IllegalArgumentException("Server must not be null.");

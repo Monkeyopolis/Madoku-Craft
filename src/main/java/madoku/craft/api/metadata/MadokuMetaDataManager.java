@@ -20,6 +20,12 @@ public final class MadokuMetaDataManager {
 		subSystem("metadata-manager", entriesFromClass(madoku.craft.api.metadata.MadokuMetaDataManager.class)),
 		subSystem("debug-manager", entriesFromClass(madoku.craft.api.debug.MadokuDebugManager.class)),
 		subSystem(
+			"data-manager",
+			entriesFromClass(madoku.craft.api.data.MadokuDataManager.class),
+			group("data-world-chunk-manager", entriesFromClass(madoku.craft.api.data.DataWorldChunkManager.class)),
+			group("data-systems-manager", entriesFromClass(madoku.craft.api.data.DataSystemsManager.class))
+		),
+		subSystem(
 			"chunk-manager",
 			entriesFromClass(madoku.craft.api.chunk.MadokuChunkManager.class),
 			group("chunk-discovery-manager", entriesFromClass("madoku.craft.api.chunk.ChunkDiscoveryManager")),
@@ -29,16 +35,16 @@ public final class MadokuMetaDataManager {
 			"time-manager",
 			entriesFromClass(madoku.craft.api.time.MadokuTimeManager.class),
 			group(
+				"time-manager",
+				entriesFromClass(madoku.craft.api.time.TimeManager.class)
+			),
+			group(
 				"time-config-manager",
-				entry("initialize")
+				entriesFromClass(madoku.craft.api.time.TimeConfigManager.class)
 			),
 			group(
 				"sleep-manager",
-				entry("reset"),
-				entry("clear-weather"),
-				entry("should-allow-resetting-time"),
-				entry("get-tick-increment"),
-				entry("on-world-time-advanced")
+				entriesFromClass(madoku.craft.api.time.SleepManager.class)
 			)
 		)
 	);

@@ -6,6 +6,7 @@ import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.data.MadokuDataManager;
 
 import java.nio.file.Path;
 
@@ -20,6 +21,7 @@ public final class MadokuAPIManager {
 		MadokuMetaDataManager.initialize();
 		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.API);
 		getApiRootDirectory();
+		MadokuDataManager.initialize();
 		MadokuDebugManager.initialize();
 		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.API);
 		MadokuTimeManager.initialize();
@@ -32,6 +34,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void reset() {
+		MadokuDataManager.reset();
 		MadokuJSONManager.reset();
 		MadokuTimeManager.reset();
 		MadokuSeasonManager.reset();
@@ -40,25 +43,30 @@ public final class MadokuAPIManager {
 	}
 
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {
+		MadokuDataManager.loadPersistedData(server);
 		MadokuChunkManager.loadPersistedData(server);
 	}
 
 	public static void onServerStarted(net.minecraft.server.MinecraftServer server) {
+		MadokuDataManager.onServerStarted(server);
 		MadokuTimeManager.onServerStarted(server);
 		MadokuChunkManager.onServerStarted(server);
 		MadokuSeasonManager.onServerStarted(server);
 	}
 
 	public static void autosavePersistedData(net.minecraft.server.MinecraftServer server) {
+		MadokuDataManager.autosavePersistedData(server);
 		MadokuChunkManager.autosavePersistedData(server);
 	}
 
 	public static void onServerStopping(net.minecraft.server.MinecraftServer server) {
+		MadokuDataManager.onServerStopping(server);
 		MadokuTimeManager.onServerStopping(server);
 		MadokuChunkManager.onServerStopping(server);
 	}
 
 	public static void savePersistedData(net.minecraft.server.MinecraftServer server) {
+		MadokuDataManager.savePersistedData(server);
 		MadokuChunkManager.savePersistedData(server);
 	}
 }

@@ -1,10 +1,9 @@
 package madoku.craft.api.chunk;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.minecraft.server.MinecraftServer;
@@ -23,8 +22,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 final class ChunkDiscoveryManager {
-	private static final String DATA_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-chunks";
-	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String DEBUG_MAIN_SYSTEM = "chunk";
 	private static final String DEBUG_SUB_SYSTEM = "chunk-discovery-manager";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
@@ -86,7 +83,7 @@ final class ChunkDiscoveryManager {
 			return;
 		}
 		serverStopping = false;
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		emitChunkDebug("chunk.discovery", builder -> builder
 			.subject("load-persisted-data")
@@ -139,7 +136,7 @@ final class ChunkDiscoveryManager {
 		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -164,7 +161,6 @@ final class ChunkDiscoveryManager {
 		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, MadokuChunkManager.toPersistedData());
 		emitChunkDebug("chunk.discovery", builder -> builder
 			.subject("save-persisted-data")
 			.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));

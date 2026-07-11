@@ -1,8 +1,5 @@
 package madoku.craft.api.chunk;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import net.minecraft.server.MinecraftServer;
@@ -11,13 +8,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -26,16 +20,8 @@ import java.util.LinkedHashMap;
 import java.util.function.Consumer;
 
 public final class MadokuChunkManager {
-	private static final String DATA_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-chunks";
-	private static final String DATA_FILE_NAME = "madoku-chunks";
 	private static final String DEBUG_MAIN_SYSTEM = "chunk";
 	private static final String DEBUG_SUB_SYSTEM = "chunk-manager";
-	private static final String FIELD_LEVELS = "levels";
-	private static final String FIELD_LEVEL_ID = "level-id";
-	private static final String FIELD_CHUNKS = "chunks";
-	private static final String FIELD_CHUNK_X = "chunk-x";
-	private static final String FIELD_CHUNK_Z = "chunk-z";
-	private static final String FIELD_STATUS = "status";
 
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
 	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
@@ -234,10 +220,7 @@ public final class MadokuChunkManager {
 		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.CHUNK);
 		ChunkConfigManager.initialize();
 		ChunkDiscoveryManager.initialize();
-		emitChunkDebug("chunk.lifecycle", builder -> builder
-			.subject("initialize")
-			.field("data-folder", DATA_FOLDER_NAME)
-			.field("data-file", DATA_FILE_NAME));
+		emitChunkDebug("chunk.lifecycle", builder -> builder.subject("initialize"));
 	}
 
 	public static void reset() {
@@ -302,7 +285,6 @@ public final class MadokuChunkManager {
 		if (server == null) {
 			return;
 		}
-		MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		ChunkDiscoveryManager.loadPersistedData(server);
 		AtomicInteger loadedLevels = new AtomicInteger();
@@ -452,42 +434,6 @@ public final class MadokuChunkManager {
 		}
 	}
 
-	static JsonObject toPersistedData() {
-		JSONFormatManager.ArrayBuilder levels = JSONFormatManager.array();
-		for (Map.Entry<String, Map<Long, FullChunkStatus>> levelEntry : CHUNK_STATUSES_BY_LEVEL.entrySet()) {
-			String levelId = levelEntry.getKey();
-			Map<Long, FullChunkStatus> chunks = levelEntry.getValue();
-			if (levelId == null || levelId.isBlank() || chunks == null || chunks.isEmpty()) {
-				continue;
-			}
-
-			List<Map.Entry<Long, FullChunkStatus>> orderedChunks = new ArrayList<>(chunks.entrySet());
-			orderedChunks.sort(Comparator.comparingLong(Map.Entry::getKey));
-			JSONFormatManager.ArrayBuilder chunkBuilder = JSONFormatManager.array();
-			for (Map.Entry<Long, FullChunkStatus> chunkEntry : orderedChunks) {
-				Long packedChunk = chunkEntry.getKey();
-				FullChunkStatus status = chunkEntry.getValue();
-				if (packedChunk == null || status == null) {
-					continue;
-				}
-
-				chunkBuilder.object(chunk -> chunk
-					.put(FIELD_CHUNK_X, unpackChunkX(packedChunk))
-					.put(FIELD_CHUNK_Z, unpackChunkZ(packedChunk))
-					.put(FIELD_STATUS, status.name().toLowerCase()));
-			}
-			JsonArray chunkArray = chunkBuilder.build();
-			if (!chunkArray.isEmpty()) {
-				levels.object(level -> level
-					.put(FIELD_LEVEL_ID, levelId)
-					.put(FIELD_CHUNKS, chunkArray));
-			}
-		}
-		return JSONFormatManager.object()
-			.put(FIELD_LEVELS, levels.build())
-			.build();
-	}
-
 	static FullChunkStatus resolveChunkStatus(ServerLevel level, long packedChunk) {
 		if (level == null) {
 			return null;
@@ -559,13 +505,6 @@ public final class MadokuChunkManager {
 			return null;
 		}
 		return chunks.get(packChunk(chunkX, chunkZ));
-	}
-
-	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
-			.array(FIELD_LEVELS, levels -> {
-			})
-			.build();
 	}
 
 	private static void emitChunkDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {

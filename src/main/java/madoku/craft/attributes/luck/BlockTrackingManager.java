@@ -1,23 +1,15 @@
 package madoku.craft.attributes.luck;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.Base64;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,21 +20,13 @@ import java.util.Map;
 import java.util.Set;
 
 public final class BlockTrackingManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(BlockTrackingManager.class);
-	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
-	private static final String DATA_FILE_NAME = "madoku-luck";
-	private static final String CHUNK_DATA_FOLDER_NAME = "luck-chunks";
-	private static final String FIELD_CHUNKS = "chunks";
-	private static final String FIELD_CHUNK_X = "chunk-x";
-	private static final String FIELD_CHUNK_Z = "chunk-z";
+	private static final String DATA_SYSTEM_ID = "luck";
 	private static final String FIELD_PACKED_POSITIONS = "packed-positions";
-	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_TRACKED_SINCE_GAMEPLAY_TICK = "tracked-since-gameplay-tick";
 	private static final long PLACED_BLOCK_RETENTION_DAYS = 336L;
 
 	private static final BlockTrackingData DATA = new BlockTrackingData();
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
-	private static volatile long PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK = -1L;
 	private static volatile boolean dirty = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 
@@ -55,7 +39,6 @@ public final class BlockTrackingManager {
 	public static void reset() {
 		DATA.clear();
 		PERSISTED_CHUNK_KEYS.clear();
-		PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK = -1L;
 		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
@@ -65,17 +48,15 @@ public final class BlockTrackingManager {
 			return;
 		}
 
-		JsonObject indexData = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultIndexData());
-		DATA.loadPersistedIndexData(server, indexData);
+		DATA.loadPersistedChunkData(DataWorldChunkManager.getAllChunkSystemData(DATA_SYSTEM_ID));
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(DATA.collectCurrentChunkKeys());
-		PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK = DATA.getTrackedSinceGameplayTick();
 
 		if (dirty) {
 			savePersistedData(server);
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -84,7 +65,7 @@ public final class BlockTrackingManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -105,10 +86,6 @@ public final class BlockTrackingManager {
 		Set<ChunkRefKey> dirtyChunkKeys = DATA.collectDirtyChunkKeys();
 		Set<ChunkRefKey> staleChunkKeys = new LinkedHashSet<>(PERSISTED_CHUNK_KEYS);
 		staleChunkKeys.removeAll(currentChunkKeys);
-		long currentTrackedSince = DATA.getTrackedSinceGameplayTick();
-		boolean indexChanged = !currentChunkKeys.equals(PERSISTED_CHUNK_KEYS)
-			|| currentTrackedSince != PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK;
-
 		int writtenChunkFiles = 0;
 		for (ChunkRefKey chunkKey : dirtyChunkKeys) {
 			if (!currentChunkKeys.contains(chunkKey)) {
@@ -118,20 +95,24 @@ public final class BlockTrackingManager {
 			if (chunkData == null) {
 				continue;
 			}
-			writeChunkPersistedData(server, chunkKey, chunkData);
+			DataWorldChunkManager.setChunkSystemData(
+				new DataWorldChunkManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+				DATA_SYSTEM_ID,
+				chunkData
+			);
 			writtenChunkFiles++;
 		}
 		for (ChunkRefKey chunkKey : staleChunkKeys) {
-			deleteChunkPersistedData(server, chunkKey);
+			DataWorldChunkManager.removeChunkSystemData(
+				new DataWorldChunkManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+				DATA_SYSTEM_ID
+			);
 		}
 
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
-		PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK = currentTrackedSince;
 		DATA.clearDirtyChunkKeys();
-		if (indexChanged) {
-			MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, DATA.createIndexPersistedData());
-		}
+		DataWorldChunkManager.savePersistedData(server);
 		dirty = false;
 		emitLuckDebug(
 			"luck.place_save",
@@ -176,18 +157,9 @@ public final class BlockTrackingManager {
 		return consumed;
 	}
 
-	private static JsonObject createDefaultIndexData() {
-		return JSONFormatManager.object()
-			.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, -1L)
-			.put(FIELD_CHUNKS, new JsonArray())
-			.build();
-	}
-
 	private static String levelId(ServerLevel world) {
-		if (world == null) {
-			return "";
-		}
-		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
+		String dimensionId = DataWorldChunkManager.dimensionId(world);
+		return dimensionId.isBlank() ? "" : dimensionId;
 	}
 
 	private static long resolvePlacedBlockRetentionTicks() {
@@ -221,21 +193,6 @@ public final class BlockTrackingManager {
 		}
 	}
 
-	private static int getInt(JsonObject object, String key, int fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-		try {
-			return element.getAsInt();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
 	private static String getString(JsonObject object, String key, String fallback) {
 		if (object == null || key == null || key.isBlank()) {
 			return fallback;
@@ -252,87 +209,8 @@ public final class BlockTrackingManager {
 		}
 	}
 
-	private static Path resolveWorldRootDirectory(MinecraftServer server) {
-		return MadokuJSONManager.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
-	}
-
-	private static Path resolveChunkPersistedDataPath(MinecraftServer server, ChunkRefKey chunkKey) {
-		Path chunkRoot = resolveWorldRootDirectory(server).resolve(CHUNK_DATA_FOLDER_NAME);
-		Path levelDirectory = chunkRoot.resolve(normalizePathPart(chunkKey.levelId(), "level id"));
-		return levelDirectory.resolve(chunkPersistedDataFileName(chunkKey));
-	}
-
-	private static Path resolveChunkPersistedDataFile(MinecraftServer server, ChunkRefKey chunkKey) {
-		Path file = resolveChunkPersistedDataPath(server, chunkKey);
-		try {
-			Files.createDirectories(file.getParent());
-		} catch (IOException exception) {
-			throw new IllegalStateException("Failed to create luck chunk directory: " + file.getParent(), exception);
-		}
-		return file;
-	}
-
-	private static void writeChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey, JsonObject data) {
-		if (server == null || chunkKey == null || data == null) {
-			return;
-		}
-
-		Path file = resolveChunkPersistedDataFile(server, chunkKey);
-		try {
-			JSONFormatManager.writeManagedDocument(file, data, new JsonObject(), JSONTypeManager.STATIC_DATA);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to write luck chunk data at {}.", file, exception);
-		}
-	}
-
-	private static void deleteChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey) {
-		if (server == null || chunkKey == null) {
-			return;
-		}
-
-		Path file = resolveChunkPersistedDataPath(server, chunkKey);
-		try {
-			Files.deleteIfExists(file);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to delete luck chunk data at {}.", file, exception);
-		}
-	}
-
 	private static void emitLuckDebug(String metricId, ServerLevel world, BlockPos pos, String subject, Map<String, String> fields) {
 		MadokuLuckManager.emitLuckDebug(metricId, world, pos, subject, fields);
-	}
-
-	private static String chunkPersistedDataFileName(ChunkRefKey chunkKey) {
-		return "chunk_" + chunkKey.chunkX() + "_" + chunkKey.chunkZ() + ".json";
-	}
-
-	private static String normalizePathPart(String value, String label) {
-		String normalized = value == null ? "" : value.trim();
-		StringBuilder builder = new StringBuilder(normalized.length() + 8);
-		char previous = 0;
-		for (int index = 0; index < normalized.length(); index++) {
-			char current = normalized.charAt(index);
-			if (Character.isUpperCase(current) && index > 0 && (Character.isLowerCase(previous) || Character.isDigit(previous))) {
-				builder.append('-');
-			}
-			builder.append(Character.toLowerCase(current));
-			previous = current;
-		}
-		normalized = builder.toString();
-		normalized = normalized.replace(' ', '-').replace('_', '-').replace('\\', '-').replace('/', '-').replace(':', '-');
-		while (normalized.contains("--")) {
-			normalized = normalized.replace("--", "-");
-		}
-		while (normalized.startsWith("-")) {
-			normalized = normalized.substring(1);
-		}
-		while (normalized.endsWith("-")) {
-			normalized = normalized.substring(0, normalized.length() - 1);
-		}
-		if (normalized.isBlank()) {
-			throw new IllegalArgumentException(label + " must not be blank.");
-		}
-		return normalized;
 	}
 
 	private static final class BlockTrackingData {
@@ -483,10 +361,6 @@ public final class BlockTrackingManager {
 			return new LinkedHashSet<>(placedBlocksByChunk.keySet());
 		}
 
-		private long getTrackedSinceGameplayTick() {
-			return trackedSinceGameplayTick;
-		}
-
 		private Set<ChunkRefKey> collectDirtyChunkKeys() {
 			return new LinkedHashSet<>(dirtyChunkKeys);
 		}
@@ -499,16 +373,6 @@ public final class BlockTrackingManager {
 			if (chunkKey != null) {
 				dirtyChunkKeys.add(chunkKey);
 			}
-		}
-
-		private JsonObject createIndexPersistedData() {
-			List<ChunkRefKey> chunkKeys = new ArrayList<>(placedBlocksByChunk.keySet());
-			chunkKeys.sort(Comparator.comparing(ChunkRefKey::levelId).thenComparingInt(ChunkRefKey::chunkX).thenComparingInt(ChunkRefKey::chunkZ));
-
-			return JSONFormatManager.object()
-				.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, trackedSinceGameplayTick)
-				.put(FIELD_CHUNKS, buildChunkDescriptorArray(chunkKeys))
-				.build();
 		}
 
 		private JsonObject createChunkPersistedData(ChunkRefKey chunkKey) {
@@ -525,25 +389,6 @@ public final class BlockTrackingManager {
 				.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, trackedSinceGameplayTick)
 				.put(FIELD_PACKED_POSITIONS, encodePackedPositions(positions))
 				.build();
-		}
-
-		private JsonArray buildChunkDescriptorArray(List<ChunkRefKey> chunkKeys) {
-			JSONFormatManager.ArrayBuilder chunks = JSONFormatManager.array();
-			if (chunkKeys == null) {
-				return chunks.build();
-			}
-
-			for (ChunkRefKey chunkKey : chunkKeys) {
-				if (chunkKey == null) {
-					continue;
-				}
-				chunks.object(chunk -> chunk
-					.put(FIELD_LEVEL_ID, chunkKey.levelId())
-					.put(FIELD_CHUNK_X, chunkKey.chunkX())
-					.put(FIELD_CHUNK_Z, chunkKey.chunkZ())
-				);
-			}
-			return chunks.build();
 		}
 
 		private boolean applyChunkPersistedData(JsonObject source, ChunkRefKey expectedChunkKey) {
@@ -618,61 +463,25 @@ public final class BlockTrackingManager {
 			return positions;
 		}
 
-		private void loadPersistedIndexData(MinecraftServer server, JsonObject source) {
+		private void loadPersistedChunkData(Map<DataWorldChunkManager.ChunkDataKey, JsonObject> persistedData) {
 			clear();
-			if (source == null) {
+			if (persistedData == null) {
 				return;
 			}
-
-			trackedSinceGameplayTick = getLong(source, FIELD_TRACKED_SINCE_GAMEPLAY_TICK, -1L);
-
-			JsonArray chunkDescriptors = source.has(FIELD_CHUNKS) && source.get(FIELD_CHUNKS).isJsonArray()
-				? source.getAsJsonArray(FIELD_CHUNKS)
-				: new JsonArray();
-			for (JsonElement element : chunkDescriptors) {
-				ChunkRefKey chunkKey = readChunkDescriptor(element);
-				if (chunkKey == null) {
+			for (Map.Entry<DataWorldChunkManager.ChunkDataKey, JsonObject> entry : persistedData.entrySet()) {
+				DataWorldChunkManager.ChunkDataKey dataKey = entry.getKey();
+				if (dataKey == null || dataKey.dimensionId().isBlank()) {
 					continue;
 				}
-				loadChunkPersistedData(server, chunkKey);
+				ChunkRefKey chunkKey = new ChunkRefKey(dataKey.dimensionId(), dataKey.chunkX(), dataKey.chunkZ());
+				JsonObject source = entry.getValue() == null ? new JsonObject() : entry.getValue().deepCopy();
+				applyChunkPersistedData(source, chunkKey);
 			}
-
 			if (!hasTrackedBlocks()) {
 				trackedSinceGameplayTick = -1L;
 			}
 		}
 
-		private boolean loadChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey) {
-			if (server == null || chunkKey == null) {
-				return false;
-			}
-
-			Path file = resolveChunkPersistedDataPath(server, chunkKey);
-			if (!Files.isRegularFile(file)) {
-				return false;
-			}
-
-			try {
-				JsonObject source = JSONFormatManager.readManagedDocument(file).data();
-				return applyChunkPersistedData(source, chunkKey);
-			} catch (IOException exception) {
-				LOGGER.error("Failed to load luck chunk data from {}.", file, exception);
-				return false;
-			}
-		}
-
-		private ChunkRefKey readChunkDescriptor(JsonElement element) {
-			if (!(element instanceof JsonObject source)) {
-				return null;
-			}
-			String levelId = getString(source, FIELD_LEVEL_ID, "");
-			int chunkX = getInt(source, FIELD_CHUNK_X, Integer.MIN_VALUE);
-			int chunkZ = getInt(source, FIELD_CHUNK_Z, Integer.MIN_VALUE);
-			if (levelId.isBlank() || chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) {
-				return null;
-			}
-			return new ChunkRefKey(normalizePathPart(levelId, "level id"), chunkX, chunkZ);
-		}
 	}
 
 	private record ChunkRefKey(String levelId, int chunkX, int chunkZ) {

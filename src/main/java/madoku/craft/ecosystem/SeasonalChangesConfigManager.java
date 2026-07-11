@@ -14,7 +14,7 @@ import java.nio.file.Path;
 public final class SeasonalChangesConfigManager {
 	public static final String CONFIG_FOLDER_NAME = EcosystemConfigManager.CONFIG_FOLDER_NAME;
 	public static final String CONFIG_FILE_NAME = "seasonal-changes";
-	public static final int DEFAULT_SEA_LEVEL = 63;
+	public static final int DEFAULT_SEA_LEVEL = 62;
 	public static final String FIELD_BIOME_DROUGHT = "biome-drought";
 	public static final String FIELD_BIOME_FLOOD = "biome-flood";
 	public static final String FIELD_DEPTH_RATE = "depth-rate";

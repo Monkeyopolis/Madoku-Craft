@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -256,12 +257,36 @@ public final class JSONFormatManager {
 			}
 			try {
 				Files.move(temporaryFile, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-			} catch (AtomicMoveNotSupportedException exception) {
-				Files.move(temporaryFile, file, StandardCopyOption.REPLACE_EXISTING);
+			} catch (AtomicMoveNotSupportedException | AccessDeniedException exception) {
+				moveWithRetries(temporaryFile, file);
 			}
 		} finally {
 			Files.deleteIfExists(temporaryFile);
 		}
+	}
+
+	private static void moveWithRetries(Path source, Path target) throws IOException {
+		IOException lastFailure = null;
+		for (int attempt = 0; attempt < 8; attempt++) {
+			try {
+				Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+				return;
+			} catch (AccessDeniedException exception) {
+				lastFailure = exception;
+				if (attempt == 7) {
+					break;
+				}
+				try {
+					Thread.sleep(25L);
+				} catch (InterruptedException interruptedException) {
+					Thread.currentThread().interrupt();
+					throw exception;
+				}
+			}
+		}
+		throw lastFailure == null
+			? new IOException("Failed to replace managed JSON file: " + target)
+			: lastFailure;
 	}
 
 	public static final class ManagedDocument {

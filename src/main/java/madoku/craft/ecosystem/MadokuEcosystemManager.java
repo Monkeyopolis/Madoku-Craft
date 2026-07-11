@@ -2,13 +2,12 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -16,26 +15,17 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.function.Consumer;
 
 public final class MadokuEcosystemManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuEcosystemManager.class);
-	private static final String DATA_FOLDER_NAME = "madoku-craft-ecosystem";
-	private static final String DATA_FILE_NAME = "madoku-ecosystem";
-	private static final String CHUNK_DATA_FOLDER_NAME = "ecosystem-chunks";
-	private static final String FIELD_CHUNKS = "chunks";
+	private static final String DATA_SYSTEM_ID = "ecosystem";
 	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
 	private static final String DEBUG_SUB_SYSTEM = "ecosystem-manager";
 
@@ -164,8 +154,7 @@ public final class MadokuEcosystemManager {
 		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
 			.subject("initialize")
-			.field("data-folder", DATA_FOLDER_NAME)
-			.field("data-file", DATA_FILE_NAME));
+			.field("data-system", DATA_SYSTEM_ID));
 	}
 
 	public static void reset() {
@@ -351,31 +340,19 @@ public final class MadokuEcosystemManager {
 			EcosystemSeasonalChangesManager.reset();
 
 			int loadedChunkFiles = 0;
-			Path indexFile = resolveEcosystemIndexFile(server);
-			if (Files.isRegularFile(indexFile)) {
-				try {
-					JsonObject indexData = JSONFormatManager.readManagedDocument(indexFile).data();
-					if (indexData != null) {
-						JsonElement chunksElement = indexData.get(FIELD_CHUNKS);
-						if (chunksElement != null && chunksElement.isJsonArray()) {
-							for (JsonElement element : chunksElement.getAsJsonArray()) {
-								ChunkRefKey chunkKey = readChunkDescriptor(element);
-								if (chunkKey == null) {
-									continue;
-								}
-								if (loadChunkPersistedData(server, chunkKey)) {
-									loadedChunkFiles++;
-								}
-							}
-						}
-					}
-				} catch (IOException exception) {
-					LOGGER.error("Failed to load ecosystem index data from {}.", indexFile, exception);
-				}
-			}
+			for (Map.Entry<DataWorldChunkManager.ChunkDataKey, JsonObject> entry
+				: DataWorldChunkManager.getAllChunkSystemData(DATA_SYSTEM_ID).entrySet()) {
+			DataWorldChunkManager.ChunkDataKey dataKey = entry.getKey();
+			if (dataKey == null || dataKey.dimensionId().isBlank()) continue;
+			JsonObject source = entry.getValue() == null ? new JsonObject() : entry.getValue().deepCopy();
+			source.addProperty(FIELD_LEVEL_ID, dataKey.dimensionId());
+			source.addProperty(FIELD_CHUNK_X, dataKey.chunkX());
+			source.addProperty(FIELD_CHUNK_Z, dataKey.chunkZ());
+			if (applyPersistedData(source) != null) loadedChunkFiles++;
+		}
 
 			final int loadedChunkFileCount = loadedChunkFiles;
-			long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+			long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 			lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 			dirty = false;
 			DIRTY_CHUNK_KEYS.clear();
@@ -395,7 +372,7 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -420,7 +397,6 @@ public final class MadokuEcosystemManager {
 		Set<ChunkRefKey> dirtyChunkKeys = collectDirtyChunkKeys();
 		Set<ChunkRefKey> staleChunkKeys = new LinkedHashSet<>(PERSISTED_CHUNK_KEYS);
 		staleChunkKeys.removeAll(currentChunkKeys);
-		boolean indexChanged = !currentChunkKeys.equals(PERSISTED_CHUNK_KEYS);
 		int writtenChunkFiles = 0;
 		for (ChunkRefKey chunkKey : dirtyChunkKeys) {
 			if (!currentChunkKeys.contains(chunkKey)) {
@@ -430,18 +406,23 @@ public final class MadokuEcosystemManager {
 			if (chunkData == null) {
 				continue;
 			}
-			writeChunkPersistedData(server, chunkKey, chunkData);
+			DataWorldChunkManager.setChunkSystemData(
+				new DataWorldChunkManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+				DATA_SYSTEM_ID,
+				chunkData
+			);
 			writtenChunkFiles++;
 		}
 		for (ChunkRefKey chunkKey : staleChunkKeys) {
-			deleteChunkPersistedData(server, chunkKey);
+			DataWorldChunkManager.removeChunkSystemData(
+				new DataWorldChunkManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+				DATA_SYSTEM_ID
+			);
 		}
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
 		DIRTY_CHUNK_KEYS.clear();
-		if (indexChanged) {
-			writeEcosystemIndex(server, currentChunkKeys);
-		}
+		DataWorldChunkManager.savePersistedData(server);
 		final int writtenChunkFileCount = writtenChunkFiles;
 		dirty = false;
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
@@ -851,7 +832,8 @@ public final class MadokuEcosystemManager {
 	}
 
 	static String levelId(ServerLevel world) {
-		return MadokuChunkManager.normalizeLevelId(world);
+		String dimensionId = DataWorldChunkManager.dimensionId(world);
+		return dimensionId.isBlank() ? "" : dimensionId;
 	}
 
 	static ChunkRefKey chunkRefForPos(String levelId, long packedBlockPos) {
@@ -1038,38 +1020,6 @@ public final class MadokuEcosystemManager {
 		return builder.build();
 	}
 
-	private static ChunkRefKey readChunkDescriptor(JsonElement element) {
-		if (!(element instanceof JsonObject source)) {
-			return null;
-		}
-		String levelId = getString(source, FIELD_LEVEL_ID, "").trim();
-		int chunkX = (int) getLong(source, FIELD_CHUNK_X, Integer.MIN_VALUE);
-		int chunkZ = (int) getLong(source, FIELD_CHUNK_Z, Integer.MIN_VALUE);
-		if (levelId.isEmpty() || chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) {
-			return null;
-		}
-		return new ChunkRefKey(normalizePathPart(levelId, "level id"), chunkX, chunkZ);
-	}
-
-	private static boolean loadChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey) {
-		if (server == null || chunkKey == null) {
-			return false;
-		}
-
-		Path file = resolveChunkPersistedDataPath(server, chunkKey);
-		if (!Files.isRegularFile(file)) {
-			return false;
-		}
-
-		try {
-			JsonObject source = JSONFormatManager.readManagedDocument(file).data();
-			return applyPersistedData(source) != null;
-		} catch (IOException exception) {
-			LOGGER.error("Failed to load ecosystem chunk data from {}.", file, exception);
-			return false;
-		}
-	}
-
 	private static Set<ChunkRefKey> collectCurrentChunkKeys() {
 		Set<ChunkRefKey> keys = new LinkedHashSet<>();
 		keys.addAll(dirtKeysByChunk.keySet());
@@ -1077,125 +1027,6 @@ public final class MadokuEcosystemManager {
 		keys.addAll(EcosystemNaturalDecayManager.collectTrackedChunkKeys());
 		keys.addAll(EcosystemSeasonalChangesManager.collectTrackedChunkKeys());
 		return keys;
-	}
-
-	private static void writeEcosystemIndex(MinecraftServer server, Set<ChunkRefKey> chunkKeys) {
-		if (server == null) {
-			return;
-		}
-
-		Path indexFile = resolveEcosystemIndexFile(server);
-		JsonObject indexData = JSONFormatManager.object()
-			.put(FIELD_CHUNKS, buildChunkDescriptorArray(chunkKeys))
-			.build();
-		try {
-			JSONFormatManager.writeManagedDocument(indexFile, indexData, new JsonObject(), JSONTypeManager.STATIC_DATA);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to write ecosystem index file at {}.", indexFile, exception);
-		}
-	}
-
-	private static JsonElement buildChunkDescriptorArray(Set<ChunkRefKey> chunkKeys) {
-		JSONFormatManager.ArrayBuilder chunks = JSONFormatManager.array();
-		if (chunkKeys != null) {
-			for (ChunkRefKey chunkKey : chunkKeys) {
-				if (chunkKey == null) {
-					continue;
-				}
-				chunks.object(chunk -> chunk
-					.put(FIELD_LEVEL_ID, chunkKey.levelId())
-					.put(FIELD_CHUNK_X, chunkKey.chunkX())
-					.put(FIELD_CHUNK_Z, chunkKey.chunkZ()));
-			}
-		}
-		return chunks.build();
-	}
-
-	private static void writeChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey, JsonObject data) {
-		if (server == null || chunkKey == null || data == null) {
-			return;
-		}
-
-		Path file = resolveChunkPersistedDataFile(server, chunkKey);
-		try {
-			JSONFormatManager.writeManagedDocument(file, data, new JsonObject(), JSONTypeManager.STATIC_DATA);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to write ecosystem chunk data at {}.", file, exception);
-		}
-	}
-
-	private static void deleteChunkPersistedData(MinecraftServer server, ChunkRefKey chunkKey) {
-		if (server == null || chunkKey == null) {
-			return;
-		}
-
-		Path file = resolveChunkPersistedDataFile(server, chunkKey);
-		try {
-			Files.deleteIfExists(file);
-		} catch (IOException exception) {
-			LOGGER.error("Failed to delete ecosystem chunk data at {}.", file, exception);
-		}
-	}
-
-	private static Path resolveEcosystemIndexFile(MinecraftServer server) {
-		return resolveEcosystemRootDirectory(server).resolve(DATA_FILE_NAME + ".json");
-	}
-
-	private static Path resolveEcosystemRootDirectory(MinecraftServer server) {
-		return MadokuJSONManager.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
-	}
-
-	private static Path resolveChunkDataRootDirectory(MinecraftServer server) {
-		return resolveEcosystemRootDirectory(server).resolve(CHUNK_DATA_FOLDER_NAME);
-	}
-
-	private static Path resolveChunkPersistedDataPath(MinecraftServer server, ChunkRefKey chunkKey) {
-		Path chunkRoot = resolveChunkDataRootDirectory(server);
-		Path levelDirectory = chunkRoot.resolve(normalizePathPart(chunkKey.levelId(), "level id"));
-		return levelDirectory.resolve(chunkPersistedDataFileName(chunkKey));
-	}
-
-	private static Path resolveChunkPersistedDataFile(MinecraftServer server, ChunkRefKey chunkKey) {
-		Path file = resolveChunkPersistedDataPath(server, chunkKey);
-		try {
-			Files.createDirectories(file.getParent());
-		} catch (IOException exception) {
-			throw new IllegalStateException("Failed to create ecosystem chunk directory: " + file.getParent(), exception);
-		}
-		return file;
-	}
-
-	private static String chunkPersistedDataFileName(ChunkRefKey chunkKey) {
-		return "chunk_" + chunkKey.chunkX() + "_" + chunkKey.chunkZ() + ".json";
-	}
-
-	private static String normalizePathPart(String value, String label) {
-		String normalized = value == null ? "" : value.trim();
-		StringBuilder builder = new StringBuilder(normalized.length() + 8);
-		char previous = 0;
-		for (int index = 0; index < normalized.length(); index++) {
-			char current = normalized.charAt(index);
-			if (Character.isUpperCase(current) && index > 0 && (Character.isLowerCase(previous) || Character.isDigit(previous))) {
-				builder.append('-');
-			}
-			builder.append(Character.toLowerCase(current));
-			previous = current;
-		}
-		normalized = builder.toString();
-		normalized = normalized.replace(' ', '-').replace('_', '-').replace('\\', '-').replace('/', '-').replace(':', '-');
-		while (normalized.contains("--")) {
-			normalized = normalized.replace("--", "-");
-		}
-		while (normalized.startsWith("-")) {
-			normalized = normalized.substring(1);
-		}
-		while (normalized.endsWith("-")) {
-			normalized = normalized.substring(0, normalized.length() - 1);
-		}
-		if (normalized.isBlank()) {
-			throw new IllegalArgumentException(label + " must not be blank.");
-		}
-		return normalized;
 	}
 
 	private static long getLong(JsonObject object, String key, long fallback) {
