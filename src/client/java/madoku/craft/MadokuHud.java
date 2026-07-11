@@ -581,7 +581,7 @@ public final class MadokuHud {
 	}
 
 	private static long displayDay(long rawDay) {
-		return rawDay + 1L;
+		return Math.max(0L, rawDay - 1L);
 	}
 
 	private static String getDifficultyDisplayText() {

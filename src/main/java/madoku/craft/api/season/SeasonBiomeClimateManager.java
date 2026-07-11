@@ -10,9 +10,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.biome.Biome;
 
-/** Runtime biome climate resolver. Values are intentionally exposed as 0..100. */
+/** Runtime biome climate resolver. Temperature and humidity may be below 0 or above 100. */
 public final class SeasonBiomeClimateManager {
-	public record Climate(int temperature, int humidity) { }
+	public record Climate(double temperature, double humidity) { }
 
 	private SeasonBiomeClimateManager() { }
 
@@ -41,8 +41,8 @@ public final class SeasonBiomeClimateManager {
 		String id = resolveBiomeId(level, pos);
 		BiomeClimateConfigManager.Climate configured = BiomeClimateConfigManager.getBiomeClimate(id);
 		if (configured != null) {
-			int temperature = isTemperatureEnabled() ? configured.temperature() : nativeClimate(biome).temperature();
-			int humidity = isHumidityEnabled() ? configured.humidity() : nativeClimate(biome).humidity();
+			double temperature = isTemperatureEnabled() ? configured.temperature() : nativeClimate(biome).temperature();
+			double humidity = isHumidityEnabled() ? configured.humidity() : nativeClimate(biome).humidity();
 			return new Climate(temperature, humidity);
 		}
 		return nativeClimate(biome);
@@ -55,7 +55,7 @@ public final class SeasonBiomeClimateManager {
 
 	public static Climate nativeClimate(Biome biome) {
 		if (biome == null) return new Climate(50, 50);
-		int temperature = clamp(Math.round((biome.getBaseTemperature() + 0.5f) * 40.0f));
+		int temperature = Math.round((biome.getBaseTemperature() + 0.5f) * 40.0f);
 		int humidity = biome.hasPrecipitation() ? 70 : 0;
 		return new Climate(temperature, humidity);
 	}
@@ -72,8 +72,6 @@ public final class SeasonBiomeClimateManager {
 			return "";
 		}
 	}
-
-	private static int clamp(int value) { return Math.max(0, Math.min(100, value)); }
 
 	private static void debug(String subject, int biomeCount) {
 		MadokuDebugManager.event("season.biome-climate.lifecycle", MadokuMetaDataManager.SEASON.mainSystem(), "season-biome-climate-manager", "lifecycle", "state")

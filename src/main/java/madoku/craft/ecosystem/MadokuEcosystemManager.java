@@ -149,7 +149,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.initialize();
 		EcosystemNaturalErosionManager.initialize();
 		EcosystemNaturalDecayManager.initialize();
-		EcosystemSeasonalChangesManager.initialize();
 		loadConfig();
 		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
@@ -165,7 +164,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.reset();
 		EcosystemNaturalErosionManager.reset();
 		EcosystemNaturalDecayManager.reset();
-		EcosystemSeasonalChangesManager.reset();
 		dirtBlocksByKey.clear();
 		dirtKeysByChunk.clear();
 		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
@@ -256,7 +254,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.syncChunkProcessorActivation();
 		EcosystemNaturalErosionManager.syncChunkProcessorActivation();
 		EcosystemNaturalDecayManager.syncChunkProcessorActivation();
-		EcosystemSeasonalChangesManager.syncChunkProcessorActivation();
 	}
 
 	private static void loadConfig() {
@@ -291,17 +288,12 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.onServerStarted(server);
 		EcosystemNaturalErosionManager.onServerStarted(server);
 		EcosystemNaturalDecayManager.onServerStarted(server);
-		EcosystemSeasonalChangesManager.onServerStarted(server);
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
 			.subject("server-started")
 			.field("enabled", isEnabled())
 			.field("growth", isNaturalGrowthEnabled())
 			.field("erosion", isNaturalErosionEnabled())
 			.field("decay", isNaturalDecayEnabled()));
-	}
-
-	public static void onServerStopping(MinecraftServer server) {
-		EcosystemSeasonalChangesManager.onServerStopping(server);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -322,7 +314,6 @@ public final class MadokuEcosystemManager {
 				EcosystemNaturalGrowthManager.reset();
 				EcosystemNaturalErosionManager.reset();
 				EcosystemNaturalDecayManager.reset();
-				EcosystemSeasonalChangesManager.reset();
 				dirty = false;
 				resetUnifiedDiscoveryState();
 				return;
@@ -337,7 +328,6 @@ public final class MadokuEcosystemManager {
 			EcosystemNaturalGrowthManager.reset();
 			EcosystemNaturalErosionManager.reset();
 			EcosystemNaturalDecayManager.reset();
-			EcosystemSeasonalChangesManager.reset();
 
 			int loadedChunkFiles = 0;
 			for (Map.Entry<DataWorldChunkManager.ChunkDataKey, JsonObject> entry
@@ -368,7 +358,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
 
@@ -389,7 +379,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
+		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
 
@@ -422,7 +412,6 @@ public final class MadokuEcosystemManager {
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
 		DIRTY_CHUNK_KEYS.clear();
-		DataWorldChunkManager.savePersistedData(server);
 		final int writtenChunkFileCount = writtenChunkFiles;
 		dirty = false;
 		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
@@ -434,7 +423,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void beginUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
@@ -452,7 +441,7 @@ public final class MadokuEcosystemManager {
 		int chunkZ,
 		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
 	) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
@@ -483,7 +472,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void finishUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
@@ -528,7 +517,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 		EcosystemNaturalErosionManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 		EcosystemNaturalDecayManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
-		EcosystemSeasonalChangesManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 	}
 
 	private static void finalizeTrackablesInChunkDiscovery(
@@ -543,7 +531,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 		EcosystemNaturalErosionManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 		EcosystemNaturalDecayManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
-		EcosystemSeasonalChangesManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 	}
 
 	static final class ChunkDiscoveryAccumulator {
@@ -555,7 +542,6 @@ public final class MadokuEcosystemManager {
 		final Set<Long> pinkPetalGroundCandidates = new LinkedHashSet<>();
 		final Set<Long> wetSeedPositions = new LinkedHashSet<>();
 		final Set<Long> treeDecayLeafCandidates = new LinkedHashSet<>();
-		final Map<Long, EcosystemSeasonalChangesManager.SeasonalColumn> seasonalColumns = new LinkedHashMap<>();
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
@@ -958,7 +944,6 @@ public final class MadokuEcosystemManager {
 		}
 		EcosystemNaturalGrowthManager.applyPersistedData(source);
 		EcosystemNaturalDecayManager.applyPersistedData(source);
-		EcosystemSeasonalChangesManager.applyPersistedData(source);
 
 		PERSISTED_CHUNK_KEYS.add(chunkKey);
 		return chunkKey;
@@ -982,8 +967,7 @@ public final class MadokuEcosystemManager {
 
 		JsonObject growthData = EcosystemNaturalGrowthManager.createChunkPersistedData(chunkKey);
 		JsonObject decayData = EcosystemNaturalDecayManager.createChunkPersistedData(chunkKey);
-		JsonObject seasonalData = EcosystemSeasonalChangesManager.createChunkPersistedData(chunkKey);
-		boolean hasData = (dirtKeys != null && !dirtKeys.isEmpty()) || growthData != null || decayData != null || seasonalData != null;
+		boolean hasData = (dirtKeys != null && !dirtKeys.isEmpty()) || growthData != null || decayData != null;
 		if (!hasData) {
 			return null;
 		}
@@ -1003,11 +987,6 @@ public final class MadokuEcosystemManager {
 		if (decayData != null) {
 			builder.put(FIELD_TREE_DECAY_CANDIDATES, decayData.get(FIELD_TREE_DECAY_CANDIDATES));
 		}
-		if (seasonalData != null) {
-			builder.put("seasonal-original-blocks", seasonalData.get("seasonal-original-blocks"));
-			if (seasonalData.has("seasonal-flood-level")) builder.put("seasonal-flood-level", seasonalData.get("seasonal-flood-level"));
-			if (seasonalData.has("seasonal-drought-level")) builder.put("seasonal-drought-level", seasonalData.get("seasonal-drought-level"));
-		}
 		return builder.build();
 	}
 
@@ -1025,7 +1004,6 @@ public final class MadokuEcosystemManager {
 		keys.addAll(dirtKeysByChunk.keySet());
 		keys.addAll(EcosystemNaturalGrowthManager.collectTrackedChunkKeys());
 		keys.addAll(EcosystemNaturalDecayManager.collectTrackedChunkKeys());
-		keys.addAll(EcosystemSeasonalChangesManager.collectTrackedChunkKeys());
 		return keys;
 	}
 

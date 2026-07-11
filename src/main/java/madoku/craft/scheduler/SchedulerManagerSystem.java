@@ -9,6 +9,7 @@ import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.data.DataSaveCoordinatorManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -511,21 +512,28 @@ public final class SchedulerManagerSystem {
 			}
 
 			activeSchedulerIds.add(entry.schedulerId);
-			Path file = resolveSchedulerFile(server, entry.schedulerId, true);
+			Path file = resolveSchedulerFile(server, entry.schedulerId, false);
 			if (file == null) {
 				continue;
 			}
 
-			try {
-				JsonObject general = new JsonObject();
-				general.addProperty("scheduler-id", entry.schedulerId);
-				JSONFormatManager.writeManagedDocument(file, entry.toJson(), general, JSONTypeManager.STATIC_DATA);
-			} catch (IOException | RuntimeException exception) {
-				LOGGER.error("Failed to save scheduler data file {}", file, exception);
-			}
+			JsonObject data = entry.toJson();
+			JsonObject general = new JsonObject();
+			general.addProperty("scheduler-id", entry.schedulerId);
+			DataSaveCoordinatorManager.submit(
+				"scheduler-" + entry.schedulerId,
+				file,
+				() -> JSONFormatManager.writeManagedDocument(file, data, general, JSONTypeManager.STATIC_DATA)
+			);
 		}
 
-		deleteStaleSchedulerFiles(server, activeSchedulerIds);
+		Path schedulerDirectory = resolveSchedulerDirectory(server, false);
+		Set<String> capturedActiveSchedulerIds = new LinkedHashSet<>(activeSchedulerIds);
+		DataSaveCoordinatorManager.submit(
+			"scheduler-cleanup",
+			schedulerDirectory,
+			() -> deleteStaleSchedulerFiles(server, capturedActiveSchedulerIds)
+		);
 	}
 
 	private static void deleteStaleSchedulerFiles(MinecraftServer server, Set<String> activeSchedulerIds) {

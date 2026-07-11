@@ -46,16 +46,16 @@ public final class BiomeClimateConfigManager {
 		LinkedHashMap<String, Climate> biomes = new LinkedHashMap<>();
 		String[] values = {
 			"deep-frozen-ocean,0,100", "frozen-ocean,0,100", "deep-cold-ocean,40,100", "cold-ocean,40,100",
-			"ocean,50,100", "deep-ocean,50,100", "lukewarm-ocean,50,100", "deep-lukewarm-ocean,50,100",
-			"warm-ocean,60,100", "mushroom-fields,50,70", "frozen-peaks,0,80", "jagged-peaks,0,80",
-			"stony-peaks,40,70", "meadow,50,50", "cherry-grove,50,50", "grove,20,50", "snowy-slopes,10,50",
-			"windswept-hills,40,30", "windswept-gravelly-hills,40,30", "windswept-forest,50,50", "forest,40,50",
-			"flower-forest,50,50", "taiga,50,50", "old-growth-pine-taiga,40,50", "old-growth-spruce-taiga,40,50",
-			"snowy-taiga,20,50", "birch-forest,40,50", "old-growth-birch-forest,50,60", "dark-forest,100,80",
-			"pale-garden,50,50", "jungle,80,70", "bamboo-jungle,50,100", "sparse-jungle,50,50", "river,50,60",
-			"frozen-river,20,60", "swamp,50,100", "beach,50,70", "snowy-beach,20,70", "stony-shore,20,60",
-			"plains,50,50", "sunflower-plains,50,50", "snowy-plains,50,20", "ice-spikes,0,80", "desert,80,0",
-			"savanna,60,40", "savanna-plateau,60,50", "windswept-savanna,60,50", "badlands,100,20",
+			"ocean,50,100", "deep-ocean,50,100", "lukewarm-ocean,60,100", "deep-lukewarm-ocean,60,100",
+			"warm-ocean,70,100", "mushroom-fields,50,70", "frozen-peaks,0,70", "jagged-peaks,10,70",
+			"stony-peaks,30,70", "meadow,50,50", "cherry-grove,50,50", "grove,20,50", "snowy-slopes,10,50",
+			"windswept-hills,30,40", "windswept-gravelly-hills,40,30", "windswept-forest,50,50", "forest,50,50",
+			"flower-forest,60,60", "taiga,40,40", "old-growth-pine-taiga,40,60", "old-growth-spruce-taiga,60,40",
+			"snowy-taiga,20,40", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,70,100",
+			"pale-garden,70,70", "jungle,50,90", "bamboo-jungle,90,90", "sparse-jungle,60,50", "river,50,70",
+			"frozen-river,10,70", "swamp,70,90", "beach,60,70", "snowy-beach,20,60", "stony-shore,40,60",
+			"plains,50,50", "sunflower-plains,60,60", "snowy-plains,50,20", "ice-spikes,0,60", "desert,90,10",
+			"savanna,70,10", "savanna-plateau,80,30", "windswept-savanna,60,20", "badlands,100,20",
 			"wooded-badlands,80,40", "eroded-badlands,100,0"
 		};
 		for (String value : values) {
@@ -95,8 +95,8 @@ public final class BiomeClimateConfigManager {
 			JsonObject configured = object(configuredBiomes, entry.getKey());
 			Climate climate = entry.getValue();
 			biomes.put(entry.getKey(), new Climate(
-				clamp(readInt(configured, FIELD_TEMPERATURE, climate.temperature())),
-				clamp(readInt(configured, FIELD_HUMIDITY, climate.humidity()))));
+				readInt(configured, FIELD_TEMPERATURE, climate.temperature()),
+				readInt(configured, FIELD_HUMIDITY, climate.humidity())));
 		}
 		return new Settings(readBoolean(temperature, FIELD_ENABLED, true), readBoolean(humidity, FIELD_ENABLED, true), biomes);
 	}
@@ -138,10 +138,7 @@ public final class BiomeClimateConfigManager {
 		catch (RuntimeException ignored) { return fallback; }
 	}
 
-	private static int clamp(int value) { return Math.max(0, Math.min(100, value)); }
-
 	public record Climate(int temperature, int humidity) {
-		public Climate { temperature = clamp(temperature); humidity = clamp(humidity); }
 	}
 
 	public record Settings(boolean temperatureEnabled, boolean humidityEnabled, Map<String, Climate> biomes) {

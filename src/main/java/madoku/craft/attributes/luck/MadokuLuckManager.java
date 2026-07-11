@@ -5,6 +5,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.farming.system.MadokuFarming;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
@@ -344,7 +345,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 		boolean creative = context.player.isCreative();
-		boolean playerPlaced = BlockTrackingManager.isPlayerPlacedBlock(context.level, context.pos);
+		boolean playerPlaced = MadokuChunkDataManager.isPlayerPlacedBlock(context.level, context.pos);
 		boolean managedCrop = MadokuFarming.isManagedCrop(context.level, context.pos, context.state)
 			&& MadokuFarming.isCropHarvestReady(context.level, context.pos, context.state);
 		emitLuckDebug(
@@ -859,10 +860,6 @@ public final class MadokuLuckManager {
 	}
 
 	public static void endBlockDropContext() {
-		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
-		if (context != null) {
-			BlockTrackingManager.consumePlacedBlock(context.level, context.pos);
-		}
 		ACTIVE_DROP_CONTEXT.remove();
 	}
 

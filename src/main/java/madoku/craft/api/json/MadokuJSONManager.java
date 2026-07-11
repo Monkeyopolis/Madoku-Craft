@@ -2,6 +2,7 @@ package madoku.craft.api.json;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
+import madoku.craft.api.data.DataSaveCoordinatorManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
@@ -87,15 +88,16 @@ public final class MadokuJSONManager {
 		}
 	}
 
-	public static synchronized void saveWorldData(MinecraftServer server, String folderName, String jsonName, JsonObject data) {
-		Path file = resolveWorldFile(server, folderName, jsonName, true);
-		try {
-			JSONFormatManager.ManagedDocument source = JSONFormatManager.readManagedDocument(file);
-			JSONFormatManager.writeManagedDocument(file, data == null ? new JsonObject() : data, source.settings(), JSONTypeManager.STATIC_DATA);
-			cacheSettings(file, source.settings());
-		} catch (IOException | RuntimeException exception) {
-			LOGGER.error("Failed to save world data file {}", file, exception);
-		}
+	public static void saveWorldData(MinecraftServer server, String folderName, String jsonName, JsonObject data) {
+		Path file = resolveWorldFile(server, folderName, jsonName, false);
+		JsonObject settings = SETTINGS_CACHE.get(file);
+		JsonObject snapshot = data == null ? new JsonObject() : data.deepCopy();
+		JsonObject capturedSettings = settings == null ? new JsonObject() : settings.deepCopy();
+		DataSaveCoordinatorManager.submit(
+			"json-" + file.getFileName(),
+			file,
+			() -> JSONFormatManager.writeManagedDocument(file, snapshot, capturedSettings, JSONTypeManager.STATIC_DATA)
+		);
 	}
 
 	public static synchronized long getAutoSaveIntervalTicks(MinecraftServer server, String folderName, String jsonName) {

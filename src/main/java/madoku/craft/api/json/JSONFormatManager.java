@@ -1,5 +1,7 @@
 package madoku.craft.api.json;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
@@ -27,6 +29,8 @@ import java.util.stream.Stream;
 /** Runtime group for building and normalizing managed JSON formats. */
 public final class JSONFormatManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(JSONFormatManager.class);
+	private static final Gson PRETTY_GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+	private static final Gson COMPACT_GSON = new GsonBuilder().disableHtmlEscaping().create();
 	private static volatile boolean initialized;
 
 	@FunctionalInterface
@@ -182,7 +186,7 @@ public final class JSONFormatManager {
 				root.add(entry.getKey(), entry.getValue() == null ? JsonNull.INSTANCE : entry.getValue().deepCopy());
 			}
 		}
-		writeJsonObject(file, root);
+		writeJsonObject(file, root, !type.isData());
 	}
 
 	private static JsonObject normalizeObject(JsonObject source, JsonObject defaults, DynamicEntryNormalizer dynamicEntryNormalizer) {
@@ -247,13 +251,13 @@ public final class JSONFormatManager {
 		}
 	}
 
-	private static void writeJsonObject(Path file, JsonObject json) throws IOException {
+	private static void writeJsonObject(Path file, JsonObject json, boolean pretty) throws IOException {
 		Path parent = file.toAbsolutePath().normalize().getParent();
 		if (parent != null) Files.createDirectories(parent);
 		Path temporaryFile = Files.createTempFile(parent, "madoku-json-", ".tmp");
 		try {
 			try (Writer writer = Files.newBufferedWriter(temporaryFile, StandardCharsets.UTF_8)) {
-				new com.google.gson.GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(json == null ? new JsonObject() : json.deepCopy(), writer);
+				(pretty ? PRETTY_GSON : COMPACT_GSON).toJson(json == null ? new JsonObject() : json, writer);
 			}
 			try {
 				Files.move(temporaryFile, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);

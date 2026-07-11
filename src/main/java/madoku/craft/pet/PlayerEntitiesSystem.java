@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.entity.Hag;
@@ -79,7 +80,6 @@ public final class PlayerEntitiesSystem {
 	private static final String PET_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-pets";
 	private static final String PET_CONFIG_FILE_NAME = "madoku-pets";
 	private static final String PET_RULES_FOLDER_NAME = "madoku-pets";
-	private static final String DATA_FOLDER_NAME = "madoku-craft-pets";
 	private static final String DATA_FILE_NAME = "madoku-pets";
 	private static final String TASK_TYPE_PET_ATTACK = "pet_attack";
 	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
@@ -233,10 +233,10 @@ public final class PlayerEntitiesSystem {
 		}
 
 		loadConfig();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, "slot-cooldowns", "uuid");
 		applyPersistedData(data);
 		removeTaggedPets(server);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -245,7 +245,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -258,7 +258,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData(), "slot-cooldowns", "uuid");
 	}
 
 	private static void onPlayerTickPhase(MinecraftServer server) {
@@ -2778,13 +2778,6 @@ public final class PlayerEntitiesSystem {
 		} catch (IllegalArgumentException exception) {
 			return null;
 		}
-	}
-
-	private static JsonObject createDefaultData() {
-		return madoku.craft.api.json.JSONFormatManager.object()
-			.array("slot-cooldowns", cooldowns -> {
-			})
-			.build();
 	}
 
 	private static JsonObject toPersistedData() {

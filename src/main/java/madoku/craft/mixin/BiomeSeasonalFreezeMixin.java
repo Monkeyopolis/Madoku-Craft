@@ -29,9 +29,9 @@ public abstract class BiomeSeasonalFreezeMixin {
 	) {
 		if (MadokuSeasonManager.isEnabled()
 			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
-			&& levelReader instanceof ServerLevel
+			&& levelReader instanceof ServerLevel serverLevel
 			&& pos != null
-			&& MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) == Biome.Precipitation.RAIN) {
+			&& MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) == Biome.Precipitation.RAIN) {
 			cir.setReturnValue(false);
 			return;
 		}
@@ -64,9 +64,9 @@ public abstract class BiomeSeasonalFreezeMixin {
 	) {
 		if (MadokuSeasonManager.isEnabled()
 			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
-			&& levelReader instanceof ServerLevel
+			&& levelReader instanceof ServerLevel serverLevel
 			&& pos != null
-			&& MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) == Biome.Precipitation.RAIN) {
+			&& MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) == Biome.Precipitation.RAIN) {
 			cir.setReturnValue(false);
 			return;
 		}
@@ -101,7 +101,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 			|| !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
 			return;
 		}
-		if (MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this) != Biome.Precipitation.SNOW) {
+		if (MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) != Biome.Precipitation.SNOW) {
 			cir.setReturnValue(false);
 			return;
 		}

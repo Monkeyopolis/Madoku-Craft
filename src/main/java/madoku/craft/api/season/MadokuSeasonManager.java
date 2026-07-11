@@ -30,8 +30,8 @@ public final class MadokuSeasonManager {
 	}
 
 	public static boolean isEnabled() { return SeasonConfigManager.getSettings().enabled(); }
-	public static SeasonState getCurrentState() { return resolveState(null); }
-	public static SeasonState getCurrentState(ServerLevel level) { return resolveState(level); }
+	public static SeasonState getCurrentState() { return currentState(null); }
+	public static SeasonState getCurrentState(ServerLevel level) { return currentState(level); }
 	public static String getCurrentSeasonId() { return getCurrentState().season().id(); }
 	public static String getCurrentSeasonId(ServerLevel level) { return getCurrentState(level).season().id(); }
 	public static String getCurrentSeasonDisplayName() { return capitalize(getCurrentSeasonId()); }
@@ -50,6 +50,11 @@ public final class MadokuSeasonManager {
 		return SeasonEnvironmentTransitionManager.resolvePrecipitation(biome, getCurrentSeasonId());
 	}
 
+	public static Biome.Precipitation resolveSeasonalPrecipitation(ServerLevel level, BlockPos pos) {
+		if (level == null || pos == null) return Biome.Precipitation.NONE;
+		return SeasonEnvironmentTransitionManager.resolvePrecipitation(SeasonBiomeClimateManager.resolve(level, pos), getCurrentSeasonId(level));
+	}
+
 	public static boolean shouldSeasonFreezeAt(ServerLevel level, Biome biome, BlockPos pos) {
 		return SeasonEnvironmentTransitionManager.shouldFreezeAt(level, pos, resolveBiomeClimate(level, pos));
 	}
@@ -62,7 +67,9 @@ public final class MadokuSeasonManager {
 		if (server != null) emitDebug("server-started", builder -> builder
 			.field("enabled", isEnabled()).field("season", getCurrentSeasonId(server.overworld())));
 	}
-	public static void onServerTick(MinecraftServer server) { }
+	public static void onServerTick(MinecraftServer server) {
+		if (server != null) currentState(server.overworld());
+	}
 
 	private static void emitDebug(String subject, java.util.function.Consumer<MadokuDebugManager.EventBuilder> customizer) {
 		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
@@ -83,6 +90,12 @@ public final class MadokuSeasonManager {
 		Season season = Season.values()[(int) (cycleDay / seasonLength)];
 		int day = (int) (cycleDay % seasonLength);
 		return new SeasonState(absoluteDay, cycleDay, season, day, day / SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1, day % SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1);
+	}
+
+	private static SeasonState currentState(ServerLevel level) {
+		SeasonState state = resolveState(level);
+		SeasonEnvironmentTransitionManager.updateSeasonState(state);
+		return state;
 	}
 	private static String capitalize(String value) { return value == null || value.isBlank() ? "Unknown" : Character.toUpperCase(value.charAt(0)) + value.substring(1); }
 

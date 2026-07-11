@@ -9,8 +9,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -38,7 +38,6 @@ public final class MadokuHealthManager {
 	private static final float HEALTH_ROUND_STEP = 0.125f;
 	private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 
-	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
 	private static final String DATA_FILE_NAME = "madoku-health";
 	private static final String TASK_TYPE_HEALTH_PLAYER_TICK = "health_player_tick";
 	private static final String HEALTH_PLAYER_TICK_SCHEDULER_KEY = "health_player_tick";
@@ -100,9 +99,9 @@ public final class MadokuHealthManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		emitHealthSystemDebug(
 			"health.persisted_state_loaded",
@@ -121,7 +120,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -134,7 +133,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 		syncTrackedPlayerHealth(server);
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -924,13 +923,6 @@ public final class MadokuHealthManager {
 			? effect.value
 			: maxHealth * effect.value;
 		return perLevelAmount * Math.max(1, level);
-	}
-
-	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
-			.array("players", players -> {
-			})
-			.build();
 	}
 
 	private static JsonObject toPersistedData() {

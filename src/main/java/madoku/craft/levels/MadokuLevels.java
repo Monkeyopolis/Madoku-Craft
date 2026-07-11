@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
@@ -37,7 +38,6 @@ import java.util.UUID;
 public final class MadokuLevels {
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-levels";
 	private static final String CONFIG_FILE_NAME = "madoku-levels";
-	private static final String DATA_FOLDER_NAME = "madoku-craft-levels";
 	private static final String DATA_FILE_NAME = "madoku-levels";
 	private static final double DEFAULT_BASE_XP_REQUIREMENT = 5.0d;
 	private static final double DEFAULT_BASE_XP_MULTIPLIER = 0.10d;
@@ -133,9 +133,9 @@ public final class MadokuLevels {
 		}
 
 		loadStaticConfig();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ensurePlayerState(player);
@@ -150,7 +150,7 @@ public final class MadokuLevels {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -163,7 +163,7 @@ public final class MadokuLevels {
 			return;
 		}
 
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {
@@ -450,13 +450,6 @@ public final class MadokuLevels {
 			normalized = normalized + ".json";
 		}
 		return directory.resolve(normalized);
-	}
-
-	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
-			.array("players", players -> {
-			})
-			.build();
 	}
 
 	private static void applyPersistedData(JsonObject data) {

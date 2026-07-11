@@ -28,8 +28,7 @@ public final class EnvironmentTransitionConfigManager {
 	public static final String FIELD_VALUE = "value";
 	public static final String FIELD_ADJUSTMENT_RATES = "adjustment-rates";
 	public static final String FIELD_TIME_RATE = "time-rate";
-	public static final String FIELD_TEMPERATURE_COUNT = "temperature-count";
-	public static final String FIELD_HUMIDITY_COUNT = "humidity-count";
+	public static final String FIELD_ADJUSTMENT_COUNT = "adjustment-count";
 	public static final String FIELD_ENABLED = "enabled";
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EnvironmentTransitionConfigManager.class);
@@ -43,16 +42,16 @@ public final class EnvironmentTransitionConfigManager {
 
 	public static Settings defaults() {
 		LinkedHashMap<String, Adjustment> temperature = new LinkedHashMap<>();
-		temperature.put("spring", new Adjustment("addition", 0));
-		temperature.put("summer", new Adjustment("addition", 10));
-		temperature.put("fall", new Adjustment("subtraction", 0));
-		temperature.put("winter", new Adjustment("subtraction", 10));
+		temperature.put("spring", new Adjustment("addition", 6.0));
+		temperature.put("summer", new Adjustment("addition", 9.0));
+		temperature.put("fall", new Adjustment("subtraction", 6.0));
+		temperature.put("winter", new Adjustment("subtraction", 9.0));
 		LinkedHashMap<String, Adjustment> humidity = new LinkedHashMap<>();
-		humidity.put("spring", new Adjustment("subtraction", 0));
-		humidity.put("summer", new Adjustment("subtraction", 10));
-		humidity.put("fall", new Adjustment("addition", 0));
-		humidity.put("winter", new Adjustment("addition", 10));
-		return new Settings(true, true, true, true, true, temperature, humidity, 7, 0, 0);
+		humidity.put("spring", new Adjustment("subtraction", 6.0));
+		humidity.put("summer", new Adjustment("subtraction", 9.0));
+		humidity.put("fall", new Adjustment("addition", 6.0));
+		humidity.put("winter", new Adjustment("addition", 9.0));
+		return new Settings(true, true, true, true, true, temperature, humidity, 7, 4);
 	}
 
 	public static JsonObject buildDefaultsJson() { return toJson(defaults()); }
@@ -67,7 +66,7 @@ public final class EnvironmentTransitionConfigManager {
 				b.object(FIELD_TEMPERATURE, t -> writeSeasonAdjustments(t, safe.temperatureAdjustments(), safe.temperatureEnabled()));
 				b.object(FIELD_HUMIDITY, h -> writeSeasonAdjustments(h, safe.humidityAdjustments(), safe.humidityEnabled()));
 				b.object(FIELD_ADJUSTMENT_RATES, rates -> rates.put(FIELD_TIME_RATE, safe.timeRateDays())
-					.put(FIELD_TEMPERATURE_COUNT, safe.temperatureCount()).put(FIELD_HUMIDITY_COUNT, safe.humidityCount()));
+					.put(FIELD_ADJUSTMENT_COUNT, safe.adjustmentCount()));
 			});
 		return root.build();
 	}
@@ -90,7 +89,7 @@ public final class EnvironmentTransitionConfigManager {
 			readBoolean(transitions, FIELD_ENABLED, true), readBoolean(temperature, FIELD_ENABLED, true), readBoolean(humidity, FIELD_ENABLED, true),
 			readAdjustments(temperature, fallback.temperatureAdjustments()), readAdjustments(humidity, fallback.humidityAdjustments()),
 			Math.max(1, readInt(rates, FIELD_TIME_RATE, fallback.timeRateDays())),
-			Math.max(0, readInt(rates, FIELD_TEMPERATURE_COUNT, 0)), Math.max(0, readInt(rates, FIELD_HUMIDITY_COUNT, 0))
+			Math.max(0, readInt(rates, FIELD_ADJUSTMENT_COUNT, fallback.adjustmentCount()))
 		);
 	}
 
@@ -101,7 +100,7 @@ public final class EnvironmentTransitionConfigManager {
 			JsonObject adjustment = object(object(seasons, entry.getKey()), FIELD_ADJUSTMENT);
 			String type = readString(adjustment, FIELD_TYPE, entry.getValue().type());
 			if (!type.equals("addition") && !type.equals("subtraction")) type = entry.getValue().type();
-			result.put(entry.getKey(), new Adjustment(type, Math.max(0, Math.min(100, readInt(adjustment, FIELD_VALUE, entry.getValue().value())))));
+			result.put(entry.getKey(), new Adjustment(type, Math.max(0.0, Math.min(100.0, readDouble(adjustment, FIELD_VALUE, entry.getValue().value())))));
 		}
 		return result;
 	}
@@ -125,12 +124,13 @@ public final class EnvironmentTransitionConfigManager {
 	}
 	private static boolean readBoolean(JsonObject source, String key, boolean fallback) { try { return source != null && source.has(key) ? source.get(key).getAsBoolean() : fallback; } catch (RuntimeException e) { return fallback; } }
 	private static int readInt(JsonObject source, String key, int fallback) { try { return source != null && source.has(key) ? source.get(key).getAsInt() : fallback; } catch (RuntimeException e) { return fallback; } }
+	private static double readDouble(JsonObject source, String key, double fallback) { try { return source != null && source.has(key) ? source.get(key).getAsDouble() : fallback; } catch (RuntimeException e) { return fallback; } }
 	private static String readString(JsonObject source, String key, String fallback) { try { return source != null && source.has(key) ? source.get(key).getAsString().toLowerCase(java.util.Locale.ROOT) : fallback; } catch (RuntimeException e) { return fallback; } }
 
-	public record Adjustment(String type, int value) {
-		public Adjustment { type = type == null ? "addition" : type.toLowerCase(java.util.Locale.ROOT); value = Math.max(0, Math.min(100, value)); }
+	public record Adjustment(String type, double value) {
+		public Adjustment { type = type == null ? "addition" : type.toLowerCase(java.util.Locale.ROOT); value = Math.max(0.0, Math.min(100.0, value)); }
 	}
-	public record Settings(boolean weatherEnabled, boolean waterEnabled, boolean seasonTransitionsEnabled, boolean temperatureEnabled, boolean humidityEnabled, Map<String, Adjustment> temperatureAdjustments, Map<String, Adjustment> humidityAdjustments, int timeRateDays, int temperatureCount, int humidityCount) {
-		public Settings { temperatureAdjustments = Map.copyOf(temperatureAdjustments == null ? Map.of() : temperatureAdjustments); humidityAdjustments = Map.copyOf(humidityAdjustments == null ? Map.of() : humidityAdjustments); timeRateDays = Math.max(1, timeRateDays); }
+	public record Settings(boolean weatherEnabled, boolean waterEnabled, boolean seasonTransitionsEnabled, boolean temperatureEnabled, boolean humidityEnabled, Map<String, Adjustment> temperatureAdjustments, Map<String, Adjustment> humidityAdjustments, int timeRateDays, int adjustmentCount) {
+		public Settings { temperatureAdjustments = Map.copyOf(temperatureAdjustments == null ? Map.of() : temperatureAdjustments); humidityAdjustments = Map.copyOf(humidityAdjustments == null ? Map.of() : humidityAdjustments); timeRateDays = Math.max(1, timeRateDays); adjustmentCount = Math.max(0, adjustmentCount); }
 	}
 }

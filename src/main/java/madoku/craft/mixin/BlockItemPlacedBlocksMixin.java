@@ -1,8 +1,9 @@
 package madoku.craft.mixin;
 
-import madoku.craft.attributes.luck.BlockTrackingManager;
+import madoku.craft.api.data.MadokuChunkDataManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -28,7 +29,7 @@ public abstract class BlockItemPlacedBlocksMixin {
 		}
 
 		Level level = context.getLevel();
-		if (!(level instanceof ServerLevel serverLevel)) {
+		if (!(level instanceof ServerLevel serverLevel) || !(context.getPlayer() instanceof ServerPlayer)) {
 			return;
 		}
 
@@ -47,7 +48,7 @@ public abstract class BlockItemPlacedBlocksMixin {
 			return;
 		}
 
-		BlockTrackingManager.recordPlacedBlock(serverLevel, placedPos);
+		MadokuChunkDataManager.recordPlayerPlacedBlock(serverLevel, placedPos);
 	}
 
 	private static BlockPos resolvePlacedPos(BlockPlaceContext context) {

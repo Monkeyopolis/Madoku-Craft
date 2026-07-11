@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
@@ -31,7 +32,6 @@ public final class MadokuItemStack {
 
 	private static final String ITEMSTACK_CONFIG_FOLDER_NAME = "madoku-craft-stacks";
 	private static final String ITEMSTACK_CONFIG_FILE_NAME = "madoku-stacks";
-	private static final String DATA_FOLDER_NAME = "madoku-craft-stacks";
 	private static final String DATA_FILE_NAME = "madoku-stacks";
 	private static final String DATA_KEPT_STACKS_KEY = "kept_stacks";
 	private static final String DATA_ENTRY_SLOT_KEY = "slot";
@@ -58,9 +58,9 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, DATA_KEPT_STACKS_KEY, "uuid");
 		applyPersistedData(server, data);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -68,7 +68,7 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -80,7 +80,7 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData(server));
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData(server), DATA_KEPT_STACKS_KEY, "uuid");
 	}
 
 	public static boolean isEnabled() {
@@ -208,13 +208,6 @@ public final class MadokuItemStack {
 		inventory.setChanged();
 		savePersistedData(player.level().getServer());
 		return true;
-	}
-
-	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
-			.object(DATA_KEPT_STACKS_KEY, kept -> {
-			})
-			.build();
 	}
 
 	private static void applyPersistedData(MinecraftServer server, JsonObject data) {

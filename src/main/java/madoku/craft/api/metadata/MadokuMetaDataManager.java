@@ -19,10 +19,11 @@ public final class MadokuMetaDataManager {
 		"api",
 		subSystem("metadata-manager", entriesFromClass(madoku.craft.api.metadata.MadokuMetaDataManager.class)),
 		subSystem("debug-manager", entriesFromClass(madoku.craft.api.debug.MadokuDebugManager.class)),
-		subSystem(
+			subSystem(
 			"data-manager",
 			entriesFromClass(madoku.craft.api.data.MadokuDataManager.class),
 			group("data-world-chunk-manager", entriesFromClass(madoku.craft.api.data.DataWorldChunkManager.class)),
+			group("data-player-manager", entriesFromClass(madoku.craft.api.data.DataPlayerManager.class)),
 			group("data-systems-manager", entriesFromClass(madoku.craft.api.data.DataSystemsManager.class))
 		),
 		subSystem(
@@ -60,9 +61,6 @@ public final class MadokuMetaDataManager {
 		"ecosystem",
 		subSystem("ecosystem-manager", entriesFromClass(madoku.craft.ecosystem.MadokuEcosystemManager.class)),
 		subSystem("ecosystem-config-manager", entriesFromClass(madoku.craft.ecosystem.EcosystemConfigManager.class)),
-		subSystem("ecosystem-seasonal-changes-manager", entriesFromClass(madoku.craft.ecosystem.EcosystemSeasonalChangesManager.class),
-			group("seasonal-changes-config-manager", entriesFromClass(madoku.craft.ecosystem.SeasonalChangesConfigManager.class)),
-			group("lifecycle", entry("state")), group("processing", entry("chunk"), entry("decision"))),
 		subSystem(
 			"ecosystem-natural-growth-manager",
 			entriesFromClass(madoku.craft.ecosystem.EcosystemNaturalGrowthManager.class)

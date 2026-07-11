@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
@@ -39,7 +39,6 @@ public final class MadokuHungerManager {
 	private static final long HUNGER_PLAYER_TICK_MIN_INTERVAL = 1L;
 	private static final long HUNGER_PLAYER_TICK_MAX_INTERVAL = 5L;
 	private static final int ACTION_INTERVAL_TICKS = 10;
-	private static final String DATA_FOLDER_NAME = "madoku-craft-attributes";
 	private static final String DATA_FILE_NAME = "madoku-hunger";
 	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
 	private static final String HUNGER_PLAYER_TICK_SCHEDULER_KEY = "hunger_player_tick";
@@ -75,9 +74,9 @@ public final class MadokuHungerManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		long totalPendingHunger = 0L;
 		for (PlayerState state : PLAYER_STATES.values()) {
@@ -103,7 +102,7 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -115,7 +114,7 @@ public final class MadokuHungerManager {
 		if (server == null) {
 			return;
 		}
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -1140,13 +1139,6 @@ public final class MadokuHungerManager {
 			return Integer.MIN_VALUE;
 		}
 		return (int) sum;
-	}
-
-	private static JsonObject createDefaultData() {
-		return madoku.craft.api.json.JSONFormatManager.object()
-			.array("players", players -> {
-			})
-			.build();
 	}
 
 	private static JsonObject toPersistedData() {

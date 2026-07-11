@@ -9,6 +9,13 @@ import net.minecraft.world.level.biome.Biome;
 
 /** Applies the current season's climate adjustment and vanilla environment overrides. */
 public final class SeasonEnvironmentTransitionManager {
+	private static final int COLD_TEMPERATURE_MAX = 30;
+	private static final int HOT_TEMPERATURE_MIN = 70;
+	private static final int PRECIPITATION_HUMIDITY_MIN = 31;
+	private static final int HOT_BIOME_HUMIDITY_MIN = 70;
+	private static volatile double temperatureOffset;
+	private static volatile double humidityOffset;
+
 	private SeasonEnvironmentTransitionManager() { }
 
 	public static void initialize() {
@@ -17,17 +24,30 @@ public final class SeasonEnvironmentTransitionManager {
 	}
 
 	public static void reset() {
+		temperatureOffset = 0.0;
+		humidityOffset = 0.0;
 		debug("reset");
 	}
 
-	public static int adjustTemperature(int base, String season) {
-		if (!isTemperatureTransitionEnabled()) return clamp(base);
-		return apply(base, EnvironmentTransitionConfigManager.getSettings().temperatureAdjustments().getOrDefault(normalizeSeason(season), new EnvironmentTransitionConfigManager.Adjustment("addition", 0)));
+	static void updateSeasonState(MadokuSeasonManager.SeasonState state) {
+		if (state == null || state.season() == null) return;
+		EnvironmentTransitionConfigManager.Settings settings = EnvironmentTransitionConfigManager.getSettings();
+		int elapsedIntervals = Math.max(0, state.seasonDay() / Math.max(1, settings.timeRateDays()));
+		int count = Math.min(settings.adjustmentCount(), elapsedIntervals);
+		temperatureOffset = settings.temperatureEnabled() && settings.seasonTransitionsEnabled()
+			? resolveCumulativeOffset(settings.temperatureAdjustments(), state.season(), count, settings.adjustmentCount()) : 0.0;
+		humidityOffset = settings.humidityEnabled() && settings.seasonTransitionsEnabled()
+			? resolveCumulativeOffset(settings.humidityAdjustments(), state.season(), count, settings.adjustmentCount()) : 0.0;
 	}
 
-	public static int adjustHumidity(int base, String season) {
-		if (!isHumidityTransitionEnabled()) return clamp(base);
-		return apply(base, EnvironmentTransitionConfigManager.getSettings().humidityAdjustments().getOrDefault(normalizeSeason(season), new EnvironmentTransitionConfigManager.Adjustment("addition", 0)));
+	public static double adjustTemperature(double base, String season) {
+		if (!isTemperatureTransitionEnabled()) return base;
+		return base + temperatureOffset;
+	}
+
+	public static double adjustHumidity(double base, String season) {
+		if (!isHumidityTransitionEnabled()) return base;
+		return base + humidityOffset;
 	}
 
 	public static boolean isWeatherTransitionEnabled() {
@@ -54,16 +74,21 @@ public final class SeasonEnvironmentTransitionManager {
 
 	public static Biome.Precipitation resolvePrecipitation(Biome biome, String season) {
 		if (!isWeatherTransitionEnabled() || biome == null) return vanillaPrecipitation(biome);
-		SeasonBiomeClimateManager.Climate climate = SeasonBiomeClimateManager.resolve(biome);
-		int temperature = adjustTemperature(climate.temperature(), season);
-		int humidity = adjustHumidity(climate.humidity(), season);
-		if (humidity < 40) return Biome.Precipitation.NONE;
-		return temperature <= 30 ? Biome.Precipitation.SNOW : Biome.Precipitation.RAIN;
+		return resolvePrecipitation(SeasonBiomeClimateManager.resolve(biome), season);
+	}
+
+	public static Biome.Precipitation resolvePrecipitation(SeasonBiomeClimateManager.Climate climate, String season) {
+		if (!isWeatherTransitionEnabled() || climate == null) return Biome.Precipitation.NONE;
+		double temperature = adjustTemperature(climate.temperature(), season);
+		double humidity = adjustHumidity(climate.humidity(), season);
+		if (humidity < PRECIPITATION_HUMIDITY_MIN) return Biome.Precipitation.NONE;
+		if (temperature >= HOT_TEMPERATURE_MIN && humidity < HOT_BIOME_HUMIDITY_MIN) return Biome.Precipitation.NONE;
+		return temperature <= COLD_TEMPERATURE_MAX ? Biome.Precipitation.SNOW : Biome.Precipitation.RAIN;
 	}
 
 	public static boolean shouldFreezeAt(LevelReader level, BlockPos pos, SeasonBiomeClimateManager.Climate climate) {
 		if (!isWaterTransitionEnabled() || level == null || pos == null || climate == null) return false;
-		if (climate.temperature() > 30) return false;
+		if (climate.temperature() > COLD_TEMPERATURE_MAX) return false;
 		var state = level.getBlockState(pos);
 		return state != null && state.getFluidState().is(FluidTags.WATER) && state.getFluidState().isSource()
 			&& (!state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED)
@@ -71,7 +96,7 @@ public final class SeasonEnvironmentTransitionManager {
 	}
 
 	public static boolean shouldMeltAt(SeasonBiomeClimateManager.Climate climate) {
-		return isWaterTransitionEnabled() && climate != null && climate.temperature() >= 30;
+		return isWaterTransitionEnabled() && climate != null && climate.temperature() > COLD_TEMPERATURE_MAX;
 	}
 
 	private static Biome.Precipitation vanillaPrecipitation(Biome biome) {
@@ -79,12 +104,31 @@ public final class SeasonEnvironmentTransitionManager {
 		return biome.getBaseTemperature() <= 0.15f ? Biome.Precipitation.SNOW : Biome.Precipitation.RAIN;
 	}
 
-	private static int apply(int base, EnvironmentTransitionConfigManager.Adjustment adjustment) {
-		int value = adjustment.type().equals("subtraction") ? base - adjustment.value() : base + adjustment.value();
-		return clamp(value);
+	private static double resolveCumulativeOffset(
+		java.util.Map<String, EnvironmentTransitionConfigManager.Adjustment> adjustments,
+		MadokuSeasonManager.Season season,
+		int currentCount,
+		int adjustmentCount
+	) {
+		// Spring begins at the value left by the previous Winter. The base climate is
+		// the midpoint of the warm and cold seasonal range for the default balanced cycle.
+		int fullCount = Math.max(0, adjustmentCount);
+		double offset = -0.5 * (signedValue(adjustments, "spring") + signedValue(adjustments, "summer")) * fullCount;
+		MadokuSeasonManager.Season[] seasons = MadokuSeasonManager.Season.values();
+		for (int index = 0; index < season.ordinal(); index++) {
+			offset += signedValue(adjustments, seasons[index].id()) * fullCount;
+		}
+		return offset + signedValue(adjustments, season.id()) * Math.max(0, currentCount);
 	}
-	private static int clamp(int value) { return Math.max(0, Math.min(100, value)); }
-	private static String normalizeSeason(String season) { return season == null ? "spring" : season.toLowerCase(java.util.Locale.ROOT); }
+
+	private static double signedValue(
+		java.util.Map<String, EnvironmentTransitionConfigManager.Adjustment> adjustments,
+		String season
+	) {
+		EnvironmentTransitionConfigManager.Adjustment adjustment = adjustments.get(season);
+		if (adjustment == null) return 0.0;
+		return adjustment.type().equals("subtraction") ? -adjustment.value() : adjustment.value();
+	}
 	private static void debug(String subject) {
 		MadokuDebugManager.event("season.environment-transition.lifecycle", MadokuMetaDataManager.SEASON.mainSystem(), "season-environment-transition-manager", "lifecycle", "state").subject(subject).log();
 	}
