@@ -3,8 +3,10 @@ package madoku.craft.api.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.metadata.MadokuMetaDataManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +38,14 @@ public final class EnvironmentTransitionConfigManager {
 
 	private EnvironmentTransitionConfigManager() { }
 
-	public static void initialize() { loadConfig(); }
-	public static void reset() { settings = defaults(); }
+	public static void initialize() {
+		loadConfig();
+		emitDebug("initialize", builder -> addSettingsFields(builder));
+	}
+	public static void reset() {
+		settings = defaults();
+		emitDebug("reset", builder -> addSettingsFields(builder));
+	}
 	public static Settings getSettings() { return settings; }
 
 	public static Settings defaults() {
@@ -129,6 +137,34 @@ public final class EnvironmentTransitionConfigManager {
 
 	public record Adjustment(String type, double value) {
 		public Adjustment { type = type == null ? "addition" : type.toLowerCase(java.util.Locale.ROOT); value = Math.max(0.0, Math.min(100.0, value)); }
+	}
+
+	private static void addSettingsFields(MadokuDebugManager.EventBuilder builder) {
+		builder
+			.field("config-file", CONFIG_FILE_NAME + ".json")
+			.field("weather-enabled", settings.weatherEnabled())
+			.field("water-enabled", settings.waterEnabled())
+			.field("season-transitions-enabled", settings.seasonTransitionsEnabled())
+			.field("temperature-enabled", settings.temperatureEnabled())
+			.field("humidity-enabled", settings.humidityEnabled())
+			.field("time-rate-days", settings.timeRateDays())
+			.field("adjustment-count", settings.adjustmentCount());
+	}
+
+	private static void emitDebug(String subject, java.util.function.Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-environment-transition-manager", "environment-transition-config-manager", entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
+			"season.environment-transition.config",
+			MadokuMetaDataManager.SEASON.mainSystem(),
+			"season-environment-transition-manager",
+			"environment-transition-config-manager",
+			entry
+		).side(MadokuDebugManager.Side.SERVER).subject(subject);
+		if (customizer != null) customizer.accept(builder);
+		builder.log();
 	}
 	public record Settings(boolean weatherEnabled, boolean waterEnabled, boolean seasonTransitionsEnabled, boolean temperatureEnabled, boolean humidityEnabled, Map<String, Adjustment> temperatureAdjustments, Map<String, Adjustment> humidityAdjustments, int timeRateDays, int adjustmentCount) {
 		public Settings { temperatureAdjustments = Map.copyOf(temperatureAdjustments == null ? Map.of() : temperatureAdjustments); humidityAdjustments = Map.copyOf(humidityAdjustments == null ? Map.of() : humidityAdjustments); timeRateDays = Math.max(1, timeRateDays); adjustmentCount = Math.max(0, adjustmentCount); }

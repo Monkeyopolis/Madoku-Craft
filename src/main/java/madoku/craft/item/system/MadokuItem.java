@@ -12,7 +12,7 @@ import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
@@ -92,7 +92,7 @@ public final class MadokuItem {
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, MadokuItem::runPlayerTickTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, MadokuItem::runPlayerTickTask);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -116,7 +116,7 @@ public final class MadokuItem {
 		tickQueued = false;
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -136,7 +136,7 @@ public final class MadokuItem {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
+		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -145,8 +145,8 @@ public final class MadokuItem {
 			return;
 		}
 
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -161,8 +161,8 @@ public final class MadokuItem {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -171,15 +171,15 @@ public final class MadokuItem {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_ITEM_PLAYER_TICK,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static String createClientSyncSnapshot() {

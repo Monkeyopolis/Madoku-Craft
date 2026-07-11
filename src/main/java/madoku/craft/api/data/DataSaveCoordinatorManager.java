@@ -10,7 +10,7 @@ import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.pet.PlayerEntitiesSystem;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +24,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 	/** Coordinates all managed data snapshots and serializes their disk writes off the server thread. */
 public final class DataSaveCoordinatorManager {
@@ -40,6 +44,8 @@ public final class DataSaveCoordinatorManager {
 	private static volatile ExecutorService executor;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile SaveMetrics lastMetrics = SaveMetrics.empty();
+	private static final Map<Path, PendingTask> PENDING_TASKS = new HashMap<>();
+	private static final Set<Path> ACTIVE_PATHS = new HashSet<>();
 
 	private DataSaveCoordinatorManager() { }
 
@@ -51,6 +57,8 @@ public final class DataSaveCoordinatorManager {
 			BYTES_WRITTEN.set(0L);
 			SAVE_TASKS.set(0L);
 			lastMetrics = SaveMetrics.empty();
+			PENDING_TASKS.clear();
+			ACTIVE_PATHS.clear();
 		}
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
@@ -59,6 +67,8 @@ public final class DataSaveCoordinatorManager {
 		ExecutorService current = executor;
 		executor = null;
 		lastAutosaveBucket = Long.MIN_VALUE;
+		PENDING_TASKS.clear();
+		ACTIVE_PATHS.clear();
 		if (current != null) current.shutdownNow();
 	}
 
@@ -88,25 +98,15 @@ public final class DataSaveCoordinatorManager {
 	}
 
 	public static void submit(String subsystem, Path file, IoTask task) {
-		ExecutorService current = ensureExecutor();
 		if (file == null || task == null) return;
-		SAVE_TASKS.incrementAndGet();
-		current.submit(() -> {
-			long start = System.nanoTime();
-			try {
-				task.run();
-				FILES_WRITTEN.incrementAndGet();
-				try {
-					if (Files.isRegularFile(file)) BYTES_WRITTEN.addAndGet(Math.max(0L, Files.size(file)));
-				} catch (IOException ignored) { }
-			} catch (Exception exception) {
-				LOGGER.error("Failed to save {}", subsystem == null ? "world data" : subsystem, exception);
-			} finally {
-				lastMetrics = new SaveMetrics(subsystem == null ? "world-data" : subsystem,
-					DIRTY_CHUNKS.get(), FILES_WRITTEN.get(), BYTES_WRITTEN.get(),
-					Math.max(0L, (System.nanoTime() - start) / 1_000_000L), SAVE_TASKS.get());
+		Path key = file.toAbsolutePath().normalize();
+		ExecutorService current = ensureExecutor();
+		synchronized (DataSaveCoordinatorManager.class) {
+			PENDING_TASKS.put(key, new PendingTask(subsystem, task));
+			if (ACTIVE_PATHS.add(key)) {
+				current.submit(() -> drain(key));
 			}
-		});
+		}
 	}
 
 	public static void recordDirtyChunks(long count) {
@@ -124,7 +124,7 @@ public final class DataSaveCoordinatorManager {
 			MadokuEntities.savePersistedData(server);
 			MadokuFarming.savePersistedData(server);
 			MadokuEcosystemManager.savePersistedData(server);
-			SchedulerManagerSystem.savePersistedData(server);
+			MadokuSchedulerManager.savePersistedData(server);
 			MadokuHealthManager.savePersistedData(server);
 			MadokuHungerManager.savePersistedData(server);
 			MadokuOxygenManager.savePersistedData(server);
@@ -135,7 +135,7 @@ public final class DataSaveCoordinatorManager {
 			MadokuEntities.autosavePersistedData(server);
 			MadokuFarming.autosavePersistedData(server);
 			MadokuEcosystemManager.autosavePersistedData(server);
-			SchedulerManagerSystem.autosavePersistedData(server);
+			MadokuSchedulerManager.autosavePersistedData(server);
 			MadokuHealthManager.autosavePersistedData(server);
 			MadokuHungerManager.autosavePersistedData(server);
 			MadokuOxygenManager.autosavePersistedData(server);
@@ -173,8 +173,42 @@ public final class DataSaveCoordinatorManager {
 		return executor;
 	}
 
+	private static void drain(Path file) {
+		while (true) {
+			PendingTask pending;
+			synchronized (DataSaveCoordinatorManager.class) {
+				pending = PENDING_TASKS.remove(file);
+				if (pending == null) {
+					ACTIVE_PATHS.remove(file);
+					return;
+				}
+			}
+			runTask(file, pending);
+		}
+	}
+
+	private static void runTask(Path file, PendingTask pending) {
+		long start = System.nanoTime();
+		SAVE_TASKS.incrementAndGet();
+		try {
+			pending.task().run();
+			FILES_WRITTEN.incrementAndGet();
+			try {
+				if (Files.isRegularFile(file)) BYTES_WRITTEN.addAndGet(Math.max(0L, Files.size(file)));
+			} catch (IOException ignored) { }
+		} catch (Exception exception) {
+			LOGGER.error("Failed to save {}", pending.subsystem() == null ? "world data" : pending.subsystem(), exception);
+		} finally {
+			lastMetrics = new SaveMetrics(pending.subsystem() == null ? "world-data" : pending.subsystem(),
+				DIRTY_CHUNKS.get(), FILES_WRITTEN.get(), BYTES_WRITTEN.get(),
+				Math.max(0L, (System.nanoTime() - start) / 1_000_000L), SAVE_TASKS.get());
+		}
+	}
+
 	@FunctionalInterface
 	public interface IoTask { void run() throws Exception; }
+
+	private record PendingTask(String subsystem, IoTask task) { }
 
 	public record SaveMetrics(String reason, long dirtyChunks, long filesWritten, long bytesWritten, long lastWriteDurationMillis, long saveTasks) {
 		private static SaveMetrics empty() { return new SaveMetrics("none", 0L, 0L, 0L, 0L, 0L); }

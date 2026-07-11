@@ -29,7 +29,6 @@ import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.loot.system.MadokuLootTableManager;
 import madoku.craft.recipe.system.MadokuRecipe;
-import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -87,8 +86,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuLevels.reset();
 			PlayerEntitiesSystem.reset();
 			MadokuAPIManager.reset();
-			SchedulerManagerSystem.reset();
-			SchedulerManagerSystem.loadPersistedData(server);
 			MadokuAPIManager.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarming.loadPersistedData(server);
@@ -132,7 +129,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuEcosystemManager.reset();
 			MadokuItem.reset();
 			MadokuAPIManager.reset();
-			SchedulerManagerSystem.reset();
 			MadokuChunkDataManager.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuRegionalDifficultyManager.onServerStopped();
@@ -155,11 +151,7 @@ public class MadokuCraft implements ModInitializer {
 			long tickIncrement = SleepManager.getCachedTickIncrement();
 			MadokuTimeManager.advance(server, tickIncrement);
 			MadokuTimeManager.update(server);
-			if (MadokuTimeManager.isEnabled()) {
-				SchedulerManagerSystem.onClockTick(server);
-			} else {
-				SchedulerManagerSystem.onServerTick(server);
-			}
+			MadokuAPIManager.onServerTick(server);
 			MadokuFarming.onServerTickIncrement(server, tickIncrement);
 			MadokuAPIManager.autosavePersistedData(server);
 			MadokuSeasonManager.onServerTick(server);

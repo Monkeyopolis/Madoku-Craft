@@ -2,8 +2,10 @@ package madoku.craft.api.season;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.metadata.MadokuMetaDataManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,10 +30,17 @@ public final class SeasonConfigManager {
 
 	public static void initialize() {
 		loadConfig();
+		emitDebug("initialize", builder -> builder
+			.field("config-file", CONFIG_FILE_NAME + ".json")
+			.field("enabled", settings.enabled())
+			.field("season-length-days", settings.seasonLengthDays()));
 	}
 
 	public static void reset() {
 		settings = defaults();
+		emitDebug("reset", builder -> builder
+			.field("enabled", settings.enabled())
+			.field("season-length-days", settings.seasonLengthDays()));
 	}
 
 	public static Settings getSettings() {
@@ -77,6 +86,22 @@ public final class SeasonConfigManager {
 			settings = defaults();
 			LOGGER.error("Failed to load Madoku Season root configuration; using defaults.", exception);
 		}
+	}
+
+	private static void emitDebug(String subject, java.util.function.Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-manager", "season-config-manager", entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
+			"season.config.lifecycle",
+			MadokuMetaDataManager.SEASON.mainSystem(),
+			"season-manager",
+			"season-config-manager",
+			entry
+		).side(MadokuDebugManager.Side.SERVER).subject(subject);
+		if (customizer != null) customizer.accept(builder);
+		builder.log();
 	}
 
 	private static boolean readBoolean(JsonObject source, String key, boolean fallback) {

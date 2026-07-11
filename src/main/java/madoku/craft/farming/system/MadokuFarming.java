@@ -9,7 +9,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonConfigManager;
 import net.minecraft.ChatFormatting;
@@ -156,7 +156,7 @@ public final class MadokuFarming {
 		loadCropConfigs();
 		MadokuChunkManager.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -177,7 +177,7 @@ public final class MadokuFarming {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		resetChunkProcessingCycle();
 		dirty = false;
-		SchedulerManagerSystem.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -185,15 +185,15 @@ public final class MadokuFarming {
 			return;
 		}
 		syncChunkProcessorActivation();
-		SchedulerManagerSystem.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 		applyCropItemMetadata();
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		resetChunkProcessingCycle();
 		rebuildTrackedChunkStateFromIndexes();
-		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+		farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
 		);
-		SchedulerManagerSystem.clearQueuedRequests(farmingProcessSchedulerId);
+		MadokuSchedulerManager.clearQueuedRequests(farmingProcessSchedulerId);
 		requestFarmingProcessing(server, 1L);
 	}
 
@@ -745,7 +745,7 @@ public final class MadokuFarming {
 		return true;
 	}
 
-	private static void runFarmingProcessTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runFarmingProcessTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			farmingProcessSchedulerId = context.getSchedulerId();
 		}
@@ -1090,7 +1090,7 @@ public final class MadokuFarming {
 	}
 
 	private static long resolveFarmingSchedulerInterval(MinecraftServer server) {
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
 			server,
 			FARMING_PROCESS_SCHEDULER_OWNER_ID,
 			FARMING_SCHEDULER_MIN_INTERVAL_TICKS,
@@ -1109,8 +1109,8 @@ public final class MadokuFarming {
 			return;
 		}
 
-		farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+		farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
 		);
 		if (enqueueFarmingTask(farmingProcessSchedulerId, delayTicks, TASK_TYPE_FARMING_PROCESS_TICK)) {
 			farmingProcessTaskScheduled = true;
@@ -1119,8 +1119,8 @@ public final class MadokuFarming {
 
 	private static String ensureFarmingProcessSchedulerExists() {
 		if (farmingProcessSchedulerId == null || farmingProcessSchedulerId.isBlank()) {
-			farmingProcessSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
+			farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+				MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
 			);
 		}
 		return farmingProcessSchedulerId;
@@ -1131,15 +1131,15 @@ public final class MadokuFarming {
 			return false;
 		}
 
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			taskType,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void onTrackedChunkLoaded(ServerLevel world, int chunkX, int chunkZ) {
@@ -1157,7 +1157,7 @@ public final class MadokuFarming {
 		if (world == null) {
 			return "";
 		}
-		return SchedulerManagerSystem.normalizeLevelIdentifier(world.dimension().toString());
+		return MadokuSchedulerManager.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
 	private static PlotState findPlot(ServerLevel world, BlockPos soilPos) {

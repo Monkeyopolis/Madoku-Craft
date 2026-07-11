@@ -13,13 +13,11 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.chunk.LevelChunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,47 +26,49 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 /** Runtime group for indexed per-dimension NBT world data. */
 public final class DataWorldChunkManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataWorldChunkManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuAPIManager.API_FOLDER_NAME + "/madoku-data/madoku-data-world";
+	private static final String DATA_CONFIG_FOLDER = MadokuAPIManager.API_FOLDER_NAME + "/madoku-data";
+	private static final String WORLD_DATA_FOLDER = MadokuAPIManager.API_FOLDER_NAME + "/madoku-data/madoku-data-world";
 	private static final String DATA_CONFIG_FILE = "madoku-data";
 	private static final String FIELD_AUTO_SAVE = "auto-save";
 	private static final String FIELD_VERSION = "version";
-	private static final String FIELD_CHUNKS = "chunks";
+	private static final String FIELD_CHUNK_X = "chunk-x";
+	private static final String FIELD_CHUNK_Z = "chunk-z";
+	private static final String FIELD_DATA = "data";
 	private static final int DATA_VERSION = 1;
 	private static final long DEFAULT_AUTO_SAVE_MINUTES = 5L;
 
-	private static final Map<Dimension, Map<Long, JsonObject>> CHUNK_DATA = new EnumMap<>(Dimension.class);
-	private static final Set<Dimension> DIRTY_DIMENSIONS = EnumSet.noneOf(Dimension.class);
+	private static final Map<Dimension, Long2ObjectOpenHashMap<JsonObject>> CHUNK_DATA = new EnumMap<>(Dimension.class);
+	private static final Set<ChunkDataKey> DIRTY_CHUNKS = new LinkedHashSet<>();
+	private static final Set<ChunkDataKey> LOADED_CHUNKS = new LinkedHashSet<>();
 	private static volatile long autoSaveMinutes = DEFAULT_AUTO_SAVE_MINUTES;
+	private static volatile MinecraftServer currentServer;
 	private static volatile boolean initialized;
-	private static volatile boolean eventHandlersRegistered;
 
 	private DataWorldChunkManager() { }
 
 	public static void initialize() {
 		loadConfig();
 		for (Dimension dimension : Dimension.values()) {
-			CHUNK_DATA.put(dimension, new LinkedHashMap<>());
+			CHUNK_DATA.put(dimension, new Long2ObjectOpenHashMap<>());
 		}
-		DIRTY_DIMENSIONS.clear();
-		if (!eventHandlersRegistered) {
-			ServerChunkEvents.CHUNK_LOAD.register(DataWorldChunkManager::onChunkLoad);
-			ServerChunkEvents.CHUNK_UNLOAD.register(DataWorldChunkManager::onChunkUnload);
-			eventHandlersRegistered = true;
-		}
+		DIRTY_CHUNKS.clear();
+		LOADED_CHUNKS.clear();
 		initialized = true;
 	}
 
 	public static void reset() {
-		for (Map<Long, JsonObject> chunks : CHUNK_DATA.values()) chunks.clear();
-		DIRTY_DIMENSIONS.clear();
+		for (Long2ObjectOpenHashMap<JsonObject> chunks : CHUNK_DATA.values()) chunks.clear();
+		DIRTY_CHUNKS.clear();
+		LOADED_CHUNKS.clear();
+		currentServer = null;
 		initialized = false;
 	}
 
@@ -91,19 +91,13 @@ public final class DataWorldChunkManager {
 
 	public static void loadPersistedData(MinecraftServer server) {
 		if (server == null) return;
+		currentServer = server;
 		clearChunkData();
-		for (Dimension dimension : Dimension.values()) loadDimension(server, dimension);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		if (server == null) return;
-		for (ServerLevel level : server.getAllLevels()) {
-			Dimension dimension = dimensionOf(level);
-			if (dimension == null) continue;
-			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
-				if (chunk != null) putLoadedChunk(level, chunk.getPos(), FullChunkStatus.FULL);
-			});
-		}
+		currentServer = server;
+		// Chunk data is created lazily by subsystem writes.
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -113,37 +107,42 @@ public final class DataWorldChunkManager {
 	public static void onServerStopping(MinecraftServer server) { }
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server == null || DIRTY_DIMENSIONS.isEmpty()) return;
-		Set<Dimension> dimensions = EnumSet.copyOf(DIRTY_DIMENSIONS);
-		DIRTY_DIMENSIONS.removeAll(dimensions);
-		for (Dimension dimension : dimensions) {
-			Map<Long, JsonObject> source = CHUNK_DATA.get(dimension);
-			if (source == null) continue;
-			Map<Long, JsonObject> snapshot = new LinkedHashMap<>();
-			for (Map.Entry<Long, JsonObject> entry : source.entrySet()) {
-				if (entry.getKey() != null && entry.getValue() != null) snapshot.put(entry.getKey(), entry.getValue().deepCopy());
-			}
-			DataSaveCoordinatorManager.recordDirtyChunks(snapshot.size());
-			Path file = resolveDataFile(server, dimension);
-			DataSaveCoordinatorManager.submit("chunk-data-" + dimension.fileName, file, () -> writeDimensionSnapshot(file, snapshot));
+		if (server == null || DIRTY_CHUNKS.isEmpty()) return;
+		Set<ChunkDataKey> dirtyChunks = new LinkedHashSet<>(DIRTY_CHUNKS);
+		DIRTY_CHUNKS.removeAll(dirtyChunks);
+		DataSaveCoordinatorManager.recordDirtyChunks(dirtyChunks.size());
+		for (ChunkDataKey chunkKey : dirtyChunks) {
+			Dimension dimension = dimensionOf(chunkKey);
+			if (dimension == null) continue;
+			Long2ObjectOpenHashMap<JsonObject> source = CHUNK_DATA.get(dimension);
+			JsonObject data = source == null ? null : source.get(pack(chunkKey.chunkX, chunkKey.chunkZ));
+			JsonObject snapshot = data == null ? new JsonObject() : data.deepCopy();
+			Path file = resolveChunkDataFile(server, dimension, chunkKey.chunkX, chunkKey.chunkZ);
+			DataSaveCoordinatorManager.submit(
+				"chunk-data-" + dimension.fileName + "-" + chunkKey.chunkX + "-" + chunkKey.chunkZ,
+				file,
+				() -> writeChunkSnapshot(file, chunkKey, snapshot)
+			);
 		}
 	}
 
 	public static JsonObject getChunkData(ServerLevel level, int chunkX, int chunkZ) {
 		Dimension dimension = dimensionOf(level);
 		if (dimension == null) return new JsonObject();
-		JsonObject data = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>()).get(pack(chunkX, chunkZ));
+		loadChunkIfNeeded(level == null ? currentServer : level.getServer(), dimension, chunkX, chunkZ);
+		JsonObject data = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>()).get(pack(chunkX, chunkZ));
 		return data == null ? createChunkDefaults(chunkX, chunkZ) : data.deepCopy();
 	}
 
 	public static void setChunkData(ServerLevel level, int chunkX, int chunkZ, JsonObject data) {
 		Dimension dimension = dimensionOf(level);
 		if (dimension == null) return;
+		loadChunkIfNeeded(level == null ? currentServer : level.getServer(), dimension, chunkX, chunkZ);
 		JsonObject safeData = data == null ? new JsonObject() : data.deepCopy();
 		safeData.addProperty("chunk-x", chunkX);
 		safeData.addProperty("chunk-z", chunkZ);
-		CHUNK_DATA.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>()).put(pack(chunkX, chunkZ), safeData);
-		DIRTY_DIMENSIONS.add(dimension);
+		CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>()).put(pack(chunkX, chunkZ), safeData);
+		markDirty(dimension, chunkX, chunkZ);
 	}
 
 	public static JsonObject getChunkSystemData(ServerLevel level, int chunkX, int chunkZ, String systemId) {
@@ -160,8 +159,9 @@ public final class DataWorldChunkManager {
 		Dimension dimension = dimensionOf(key);
 		String normalizedSystemId = normalizeSystemId(systemId);
 		if (dimension == null || normalizedSystemId.isBlank()) return new JsonObject();
-		JsonObject chunk = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>()).get(pack(key.chunkX, key.chunkZ));
-		JsonObject systems = getObject(chunk, "systems");
+		loadChunkIfNeeded(currentServer, dimension, key.chunkX, key.chunkZ);
+		JsonObject chunk = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>()).get(pack(key.chunkX, key.chunkZ));
+		JsonObject systems = getObjectReference(chunk, "systems");
 		JsonElement value = systems.get(normalizedSystemId);
 		return value != null && value.isJsonObject() ? value.getAsJsonObject().deepCopy() : new JsonObject();
 	}
@@ -170,27 +170,30 @@ public final class DataWorldChunkManager {
 		Dimension dimension = dimensionOf(key);
 		String normalizedSystemId = normalizeSystemId(systemId);
 		if (dimension == null || normalizedSystemId.isBlank()) return;
-		Map<Long, JsonObject> chunks = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>());
+		loadChunkIfNeeded(currentServer, dimension, key.chunkX, key.chunkZ);
+		Long2ObjectOpenHashMap<JsonObject> chunks = CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>());
 		long packedChunk = pack(key.chunkX, key.chunkZ);
 		JsonObject chunk = chunks.computeIfAbsent(packedChunk, ignored -> createChunkDefaults(key.chunkX, key.chunkZ));
-		JsonObject systems = getObject(chunk, "systems");
+		JsonObject systems = getObjectReference(chunk, "systems");
 		systems.add(normalizedSystemId, data == null ? new JsonObject() : data.deepCopy());
 		chunk.add("systems", systems);
-		DIRTY_DIMENSIONS.add(dimension);
+		markDirty(dimension, key.chunkX, key.chunkZ);
 	}
 
 	public static void removeChunkSystemData(ChunkDataKey key, String systemId) {
 		Dimension dimension = dimensionOf(key);
 		String normalizedSystemId = normalizeSystemId(systemId);
 		if (dimension == null || normalizedSystemId.isBlank()) return;
-		Map<Long, JsonObject> chunks = CHUNK_DATA.get(dimension);
+		loadChunkIfNeeded(currentServer, dimension, key.chunkX, key.chunkZ);
+		Long2ObjectOpenHashMap<JsonObject> chunks = CHUNK_DATA.get(dimension);
 		if (chunks == null) return;
 		JsonObject chunk = chunks.get(pack(key.chunkX, key.chunkZ));
-		JsonObject systems = getObject(chunk, "systems");
+		JsonObject systems = getObjectReference(chunk, "systems");
 		if (systems.remove(normalizedSystemId) != null) {
 			if (systems.isEmpty()) chunk.remove("systems");
 			else chunk.add("systems", systems);
-			DIRTY_DIMENSIONS.add(dimension);
+			if (systems.isEmpty()) chunks.remove(pack(key.chunkX, key.chunkZ));
+			markDirty(dimension, key.chunkX, key.chunkZ);
 		}
 	}
 
@@ -199,48 +202,28 @@ public final class DataWorldChunkManager {
 		Map<ChunkDataKey, JsonObject> result = new LinkedHashMap<>();
 		if (normalizedSystemId.isBlank()) return result;
 		for (Dimension dimension : Dimension.values()) {
-			Map<Long, JsonObject> chunks = CHUNK_DATA.get(dimension);
+			loadChunkFiles(currentServer, dimension);
+			Long2ObjectOpenHashMap<JsonObject> chunks = CHUNK_DATA.get(dimension);
 			if (chunks == null) continue;
-			for (Map.Entry<Long, JsonObject> entry : chunks.entrySet()) {
-				JsonObject systems = getObject(entry.getValue(), "systems");
+			for (var entry : chunks.long2ObjectEntrySet()) {
+				JsonObject systems = getObjectReference(entry.getValue(), "systems");
 				JsonElement value = systems.get(normalizedSystemId);
-				if (value != null && value.isJsonObject()) result.put(new ChunkDataKey(dimension.levelId, unpackX(entry.getKey()), unpackZ(entry.getKey())), value.getAsJsonObject().deepCopy());
+				if (value != null && value.isJsonObject()) result.put(new ChunkDataKey(dimension.levelId, unpackX(entry.getLongKey()), unpackZ(entry.getLongKey())), value.getAsJsonObject().deepCopy());
 			}
 		}
 		return result;
 	}
 
-	private static void loadDimension(MinecraftServer server, Dimension dimension) {
-		Path file = resolveDataFile(server, dimension);
-		if (!Files.isRegularFile(file)) return;
-		try {
-			CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
-			CompoundTag chunks = root.getCompoundOrEmpty(FIELD_CHUNKS);
-			for (String key : chunks.keySet()) {
-				try {
-					long packed = Long.parseLong(key);
-					CompoundTag chunk = chunks.getCompoundOrEmpty(key);
-					JsonElement json = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, chunk);
-					if (json.isJsonObject()) CHUNK_DATA.get(dimension).put(packed, json.getAsJsonObject());
-				} catch (RuntimeException ignored) { }
-			}
-		} catch (IOException | RuntimeException exception) {
-			LOGGER.error("Failed to load Madoku NBT data file {}", file, exception);
-		}
-	}
-
-	private static void writeDimensionSnapshot(Path file, Map<Long, JsonObject> snapshot) throws IOException {
+	private static void writeChunkSnapshot(Path file, ChunkDataKey chunkKey, JsonObject snapshot) throws IOException {
 		CompoundTag root = new CompoundTag();
 		root.putInt(FIELD_VERSION, DATA_VERSION);
-		CompoundTag chunks = new CompoundTag();
-		for (Map.Entry<Long, JsonObject> entry : snapshot.entrySet()) {
-			Tag tag = JsonOps.INSTANCE.convertTo(NbtOps.INSTANCE, entry.getValue());
-			if (tag instanceof CompoundTag compound) chunks.put(Long.toString(entry.getKey()), compound);
-		}
-		root.put(FIELD_CHUNKS, chunks);
+		root.putInt(FIELD_CHUNK_X, chunkKey.chunkX);
+		root.putInt(FIELD_CHUNK_Z, chunkKey.chunkZ);
+		Tag data = JsonOps.INSTANCE.convertTo(NbtOps.INSTANCE, snapshot == null ? new JsonObject() : snapshot);
+		if (data instanceof CompoundTag compound) root.put(FIELD_DATA, compound);
 		Path parent = file.toAbsolutePath().normalize().getParent();
 		if (parent != null) Files.createDirectories(parent);
-		Path temporary = Files.createTempFile(parent, "madoku-data-", ".tmp");
+		Path temporary = Files.createTempFile(parent, "madoku-chunk-data-", ".tmp");
 		try {
 			NbtIo.writeCompressed(root, temporary);
 			try {
@@ -253,26 +236,49 @@ public final class DataWorldChunkManager {
 		}
 	}
 
-	private static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
-		if (level != null && chunk != null) putLoadedChunk(level, chunk.getPos(), FullChunkStatus.FULL);
-	}
-
-	private static void onChunkUnload(ServerLevel level, LevelChunk chunk) { }
-
-	private static void putLoadedChunk(ServerLevel level, ChunkPos position, FullChunkStatus status) {
-		Dimension dimension = dimensionOf(level);
-		if (dimension == null || position == null) return;
-		Map<Long, JsonObject> chunks = CHUNK_DATA.get(dimension);
-		long packedChunk = position.pack();
-		if (chunks.containsKey(packedChunk)) return;
-		chunks.put(packedChunk, createChunkDefaults(position.x(), position.z()));
-		DIRTY_DIMENSIONS.add(dimension);
-	}
-
-	private static Path resolveDataFile(MinecraftServer server, Dimension dimension) {
+	private static Path resolveChunkDataFile(MinecraftServer server, Dimension dimension, int chunkX, int chunkZ) {
 		return MadokuJSONManager.getWorldRootDirectory(server)
-			.resolve(DATA_CONFIG_FOLDER)
-			.resolve(dimension.fileName + ".nbt");
+			.resolve(WORLD_DATA_FOLDER)
+			.resolve(dimension.fileName)
+			.resolve(chunkX + "_" + chunkZ + ".nbt");
+	}
+
+	private static void loadChunkIfNeeded(MinecraftServer server, Dimension dimension, int chunkX, int chunkZ) {
+		ChunkDataKey key = new ChunkDataKey(dimension.levelId, chunkX, chunkZ);
+		if (server == null || !LOADED_CHUNKS.add(key)) return;
+		Path file = resolveChunkDataFile(server, dimension, chunkX, chunkZ);
+		if (!Files.isRegularFile(file)) return;
+		try {
+			CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
+			JsonElement json = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, root.getCompoundOrEmpty(FIELD_DATA));
+			if (json.isJsonObject()) {
+				CHUNK_DATA.get(dimension).put(pack(chunkX, chunkZ), json.getAsJsonObject());
+			}
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.error("Failed to load Madoku chunk data file {}", file, exception);
+		}
+	}
+
+	private static void loadChunkFiles(MinecraftServer server, Dimension dimension) {
+		if (server == null) return;
+		Path directory = MadokuJSONManager.getWorldRootDirectory(server)
+			.resolve(WORLD_DATA_FOLDER)
+			.resolve(dimension.fileName);
+		if (!Files.isDirectory(directory)) return;
+		try (var files = Files.list(directory)) {
+			files.filter(Files::isRegularFile)
+				.filter(path -> path.getFileName().toString().endsWith(".nbt"))
+				.forEach(path -> {
+					String name = path.getFileName().toString();
+					String[] parts = name.substring(0, name.length() - 4).split("_", 2);
+					if (parts.length != 2) return;
+					try {
+						loadChunkIfNeeded(server, dimension, Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+					} catch (NumberFormatException ignored) { }
+				});
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.error("Failed to list Madoku chunk data directory {}", directory, exception);
+		}
 	}
 
 	private static void loadConfig() {
@@ -290,17 +296,22 @@ public final class DataWorldChunkManager {
 	}
 
 	private static void clearChunkData() {
-		for (Dimension dimension : Dimension.values()) CHUNK_DATA.computeIfAbsent(dimension, ignored -> new LinkedHashMap<>()).clear();
-		DIRTY_DIMENSIONS.clear();
+		for (Dimension dimension : Dimension.values()) CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>()).clear();
+		DIRTY_CHUNKS.clear();
+		LOADED_CHUNKS.clear();
 	}
 
 	private static JsonObject createChunkDefaults(int chunkX, int chunkZ) {
 		return JSONFormatManager.object().put("chunk-x", chunkX).put("chunk-z", chunkZ).put("status", FullChunkStatus.FULL.name().toLowerCase(java.util.Locale.ROOT)).build();
 	}
 
-	private static JsonObject getObject(JsonObject object, String key) {
+	private static JsonObject getObjectReference(JsonObject object, String key) {
 		JsonElement element = object == null ? null : object.get(key);
-		return element != null && element.isJsonObject() ? element.getAsJsonObject().deepCopy() : new JsonObject();
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
+	}
+
+	private static void markDirty(Dimension dimension, int chunkX, int chunkZ) {
+		DIRTY_CHUNKS.add(new ChunkDataKey(dimension.levelId, chunkX, chunkZ));
 	}
 
 	private static String normalizeSystemId(String systemId) { return systemId == null ? "" : systemId.trim().toLowerCase(java.util.Locale.ROOT); }

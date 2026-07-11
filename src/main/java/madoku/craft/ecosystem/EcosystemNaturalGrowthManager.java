@@ -6,7 +6,7 @@ import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
@@ -118,7 +118,7 @@ public final class EcosystemNaturalGrowthManager {
 	public static void initialize() {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE, EcosystemNaturalGrowthManager::runTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE, EcosystemNaturalGrowthManager::runTask);
 		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
 			.subject("initialize")
 			.field("config-folder", CONFIG_FOLDER_NAME)
@@ -838,17 +838,17 @@ public final class EcosystemNaturalGrowthManager {
 		if (server == null) {
 			return;
 		}
-		SchedulerManagerSystem.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
 		if (!isEnabled()) {
 			clearSchedulerState();
 			return;
 		}
 		clearSchedulerState();
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(SCHEDULER_OWNER_ID)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
 		);
-		SchedulerManagerSystem.clearQueuedRequests(schedulerId);
+		MadokuSchedulerManager.clearQueuedRequests(schedulerId);
 		requestProcessing(server, 1L);
 		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
 			.subject("server-started")
@@ -861,7 +861,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (server == null) {
 			return;
 		}
-		SchedulerManagerSystem.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
 		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
 			.subject("server-stopping")
 			.field("scheduler-id", schedulerId)
@@ -2190,7 +2190,7 @@ public final class EcosystemNaturalGrowthManager {
 			.field("remaining", candidates.size()));
 	}
 
-	public static void runTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	public static void runTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			schedulerId = context.getSchedulerId();
 		}
@@ -2216,12 +2216,12 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 		taskScheduled = false;
-		SchedulerManagerSystem.EnqueueStatus firstStatus = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus firstStatus = MadokuSchedulerManager.enqueue(
 			currentSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
 		if (isAccepted(firstStatus)) {
 			taskScheduled = true;
@@ -2233,16 +2233,16 @@ public final class EcosystemNaturalGrowthManager {
 				.field("accepted", true));
 			return;
 		}
-		String refreshedSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(SCHEDULER_OWNER_ID)
+		String refreshedSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
 		);
 		schedulerId = refreshedSchedulerId;
-		SchedulerManagerSystem.EnqueueStatus secondStatus = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus secondStatus = MadokuSchedulerManager.enqueue(
 			refreshedSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
 		if (isAccepted(secondStatus)) {
 			taskScheduled = true;
@@ -2256,13 +2256,13 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	private static long resolveSchedulerInterval(MinecraftServer server) {
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(server, SCHEDULER_OWNER_ID, MIN_INTERVAL_TICKS, MAX_INTERVAL_TICKS);
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(server, SCHEDULER_OWNER_ID, MIN_INTERVAL_TICKS, MAX_INTERVAL_TICKS);
 	}
 
 	private static String ensureSchedulerExists() {
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(SCHEDULER_OWNER_ID)
+			schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+				MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
 			);
 		}
 		return schedulerId;
@@ -2270,12 +2270,12 @@ public final class EcosystemNaturalGrowthManager {
 
 	private static boolean isTaskQueued(String schedulerIdInput) {
 		String current = schedulerIdInput == null ? "" : schedulerIdInput.trim();
-		return !current.isEmpty() && SchedulerManagerSystem.hasQueuedTask(current, TASK_TYPE);
+		return !current.isEmpty() && MadokuSchedulerManager.hasQueuedTask(current, TASK_TYPE);
 	}
 
-	private static boolean isAccepted(SchedulerManagerSystem.EnqueueStatus status) {
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+	private static boolean isAccepted(MadokuSchedulerManager.EnqueueStatus status) {
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void clearSchedulerState() {

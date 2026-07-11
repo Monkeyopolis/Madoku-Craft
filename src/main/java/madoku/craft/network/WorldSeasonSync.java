@@ -1,5 +1,7 @@
 package madoku.craft.network;
 
+import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -7,6 +9,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+
+import java.util.function.Consumer;
 
 public final class WorldSeasonSync {
 	private static boolean initialized = false;
@@ -29,66 +33,83 @@ public final class WorldSeasonSync {
 				sender.sendPacket(payload);
 			});
 		initialized = true;
+		emitDebug("initialize", builder -> builder.field("payload", WorldSeasonPayload.TYPE.id()));
 	}
 
 	public static void reset() {
 		lastBroadcastSeason = "";
+		emitDebug("reset", builder -> builder.field("season", ""));
 	}
 
 	public static void broadcastNow(MinecraftServer server) {
-		broadcast(server, true);
+		int sent = broadcast(server, true);
+		emitDebug("broadcast-now", builder -> builder
+			.field("season", lastBroadcastSeason)
+			.field("players-sent", sent)
+			.field("force", true));
 	}
 
 	public static void broadcastIfChanged(MinecraftServer server) {
-		broadcast(server, false);
+		int sent = broadcast(server, false);
+		if (sent > 0) {
+			emitDebug("broadcast-changed", builder -> builder
+				.field("season", lastBroadcastSeason)
+				.field("players-sent", sent)
+				.field("force", false));
+		}
 	}
 
-	private static void broadcast(MinecraftServer server, boolean force) {
+	private static int broadcast(MinecraftServer server, boolean force) {
 		if (server == null) {
-			return;
+			return 0;
 		}
 
 		if (!MadokuSeasonManager.isEnabled()) {
-			broadcastSeasonCleared(server, force);
-			return;
+			return broadcastSeasonCleared(server, force);
 		}
 
 		WorldSeasonPayload payload = currentPayload(server);
 		if (payload == null) {
-			return;
+			return 0;
 		}
 
 		String season = payload.season();
 		if (!force && season.equals(lastBroadcastSeason)) {
-			return;
+			return 0;
 		}
 
+		int sent = 0;
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
 				ServerPlayNetworking.send(player, payload);
+				sent++;
 			}
 		}
 
 		lastBroadcastSeason = season;
+		return sent;
 	}
 
-	private static void broadcastSeasonCleared(MinecraftServer server, boolean force) {
+	private static int broadcastSeasonCleared(MinecraftServer server, boolean force) {
 		if (server == null) {
-			return;
+			return 0;
 		}
 
 		if (!force && lastBroadcastSeason.isEmpty()) {
-			return;
+			return 0;
 		}
 
 		WorldSeasonPayload payload = new WorldSeasonPayload("");
+		int sent = 0;
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
 				ServerPlayNetworking.send(player, payload);
+				sent++;
 			}
 		}
 
 		lastBroadcastSeason = "";
+		return sent;
 	}
 
 	private static WorldSeasonPayload currentPayload(MinecraftServer server) {
@@ -101,6 +122,21 @@ public final class WorldSeasonSync {
 			return null;
 		}
 		return new WorldSeasonPayload(season);
+	}
+
+	private static void emitDebug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		String entry = MadokuDebugManager.resolveCallerMethodName(1);
+		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-sync", entry)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
+			"season.sync",
+			MadokuMetaDataManager.SEASON.mainSystem(),
+			"season-sync",
+			entry
+		).side(MadokuDebugManager.Side.SERVER).subject(subject);
+		if (customizer != null) customizer.accept(builder);
+		builder.log();
 	}
 }
 

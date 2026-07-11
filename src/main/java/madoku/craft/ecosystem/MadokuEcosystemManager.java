@@ -11,6 +11,7 @@ import madoku.craft.api.json.JSONFormatManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -122,6 +123,7 @@ public final class MadokuEcosystemManager {
 	private static final ThreadLocal<Integer> CHUNK_TRACKING_SYNC_BATCH_DEPTH = ThreadLocal.withInitial(() -> 0);
 	private static final ThreadLocal<Set<ChunkRefKey>> CHUNK_TRACKING_SYNC_BATCH_KEYS = ThreadLocal.withInitial(LinkedHashSet::new);
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
 
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
@@ -131,6 +133,7 @@ public final class MadokuEcosystemManager {
 	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+			loadPersistedChunkData(level, chunkX, chunkZ);
 		}
 
 		@Override
@@ -170,6 +173,7 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
 		discoveryAccumulatorsByChunk.clear();
 		PERSISTED_CHUNK_KEYS.clear();
+		LOADED_PERSISTED_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
@@ -285,6 +289,11 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 		syncChunkProcessorActivation();
+		for (ServerLevel level : server.getAllLevels()) {
+			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
+				if (chunk != null) loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
+			});
+		}
 		EcosystemNaturalGrowthManager.onServerStarted(server);
 		EcosystemNaturalErosionManager.onServerStarted(server);
 		EcosystemNaturalDecayManager.onServerStarted(server);
@@ -329,19 +338,6 @@ public final class MadokuEcosystemManager {
 			EcosystemNaturalErosionManager.reset();
 			EcosystemNaturalDecayManager.reset();
 
-			int loadedChunkFiles = 0;
-			for (Map.Entry<DataWorldChunkManager.ChunkDataKey, JsonObject> entry
-				: DataWorldChunkManager.getAllChunkSystemData(DATA_SYSTEM_ID).entrySet()) {
-			DataWorldChunkManager.ChunkDataKey dataKey = entry.getKey();
-			if (dataKey == null || dataKey.dimensionId().isBlank()) continue;
-			JsonObject source = entry.getValue() == null ? new JsonObject() : entry.getValue().deepCopy();
-			source.addProperty(FIELD_LEVEL_ID, dataKey.dimensionId());
-			source.addProperty(FIELD_CHUNK_X, dataKey.chunkX());
-			source.addProperty(FIELD_CHUNK_Z, dataKey.chunkZ());
-			if (applyPersistedData(source) != null) loadedChunkFiles++;
-		}
-
-			final int loadedChunkFileCount = loadedChunkFiles;
 			long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 			lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 			dirty = false;
@@ -350,7 +346,7 @@ public final class MadokuEcosystemManager {
 				.subject("load-persisted-data")
 				.field("auto-save-ticks", autoSaveIntervalTicks)
 				.field("dirty", dirty)
-				.field("chunk-files", loadedChunkFileCount)
+				.field("chunk-files", 0)
 				.field("persisted-chunks", PERSISTED_CHUNK_KEYS.size()));
 		} finally {
 			loadingPersistedData = false;
@@ -542,6 +538,18 @@ public final class MadokuEcosystemManager {
 		final Set<Long> pinkPetalGroundCandidates = new LinkedHashSet<>();
 		final Set<Long> wetSeedPositions = new LinkedHashSet<>();
 		final Set<Long> treeDecayLeafCandidates = new LinkedHashSet<>();
+	}
+
+	private static void loadPersistedChunkData(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null || !isEnabled()) return;
+		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
+		if (chunkKey.levelId().isBlank() || !LOADED_PERSISTED_CHUNK_KEYS.add(chunkKey)) return;
+		JsonObject source = DataWorldChunkManager.getChunkSystemData(level, chunkX, chunkZ, DATA_SYSTEM_ID);
+		if (source == null || source.isEmpty()) return;
+		source.addProperty(FIELD_LEVEL_ID, chunkKey.levelId());
+		source.addProperty(FIELD_CHUNK_X, chunkX);
+		source.addProperty(FIELD_CHUNK_Z, chunkZ);
+		applyPersistedData(source);
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {

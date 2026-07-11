@@ -2,7 +2,7 @@ package madoku.craft.api.chunk;
 
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
@@ -246,7 +246,7 @@ final class ChunkProcessorManager {
 			if (runtime == null || runtime.id == null || runtime.id.isBlank()) {
 				continue;
 			}
-			SchedulerManagerSystem.clearAdaptiveDelayState(processorRoundRobinAdaptiveOwnerId(runtime.id));
+			MadokuSchedulerManager.clearAdaptiveDelayState(processorRoundRobinAdaptiveOwnerId(runtime.id));
 		}
 	}
 
@@ -410,7 +410,7 @@ final class ChunkProcessorManager {
 		if (server == null || runtime == null) {
 			return PROCESSOR_ROUND_ROBIN_MIN_INTERVAL_TICKS;
 		}
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
 			server,
 			processorRoundRobinAdaptiveOwnerId(runtime.id),
 			PROCESSOR_ROUND_ROBIN_MIN_INTERVAL_TICKS,

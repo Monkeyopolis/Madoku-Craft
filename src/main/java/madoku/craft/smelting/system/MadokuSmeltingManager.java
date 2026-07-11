@@ -8,7 +8,7 @@ import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -76,7 +76,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	public static void initialize() {
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
 
 		try {
@@ -177,7 +177,7 @@ public final class MadokuSmeltingManager {
 		requestFurnaceProcessing(server, key, 0L);
 	}
 
-	private static void runScheduledFurnaceTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runScheduledFurnaceTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		if (server == null || context == null || !isEnabled()) {
 			return;
 		}
@@ -239,7 +239,7 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		String created = SchedulerManagerSystem.createOrGetScheduler(key.toBinding());
+		String created = MadokuSchedulerManager.createOrGetScheduler(key.toBinding());
 		furnaceSchedulerIds.put(key, created);
 		if (enqueueFurnaceTask(created, delay)) {
 			scheduledFurnaces.add(key);
@@ -252,7 +252,7 @@ public final class MadokuSmeltingManager {
 	private static String ensureSchedulerExists(FurnaceKey key) {
 		String schedulerId = furnaceSchedulerIds.get(key);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = SchedulerManagerSystem.createOrGetScheduler(key.toBinding());
+			schedulerId = MadokuSchedulerManager.createOrGetScheduler(key.toBinding());
 			furnaceSchedulerIds.put(key, schedulerId);
 		}
 		return schedulerId;
@@ -263,15 +263,15 @@ public final class MadokuSmeltingManager {
 			return false;
 		}
 
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			schedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void advanceSingleFurnaceTicks(ServerLevel level, BlockPos blockPos, long extraTicks) {
@@ -305,7 +305,7 @@ public final class MadokuSmeltingManager {
 		}
 		Identifier location = Identifier.tryParse(levelId);
 		if (location == null) {
-			location = Identifier.tryParse(SchedulerManagerSystem.normalizeLevelIdentifier(levelId));
+			location = Identifier.tryParse(MadokuSchedulerManager.normalizeLevelIdentifier(levelId));
 		}
 		if (location == null) {
 			return null;
@@ -683,15 +683,15 @@ public final class MadokuSmeltingManager {
 			if (level == null || blockPos == null) {
 				return null;
 			}
-			String normalizedLevelId = SchedulerManagerSystem.normalizeLevelIdentifier(level.dimension().toString());
+			String normalizedLevelId = MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
 			if (normalizedLevelId == null || normalizedLevelId.isBlank()) {
 				return null;
 			}
 			return new FurnaceKey(normalizedLevelId, blockPos.asLong());
 		}
 
-		private static FurnaceKey from(SchedulerManagerSystem.SchedulerBinding binding) {
-			if (binding == null || binding.getEventType() != SchedulerManagerSystem.EventType.BLOCK_ENTITY) {
+		private static FurnaceKey from(MadokuSchedulerManager.SchedulerBinding binding) {
+			if (binding == null || binding.getEventType() != MadokuSchedulerManager.EventType.BLOCK_ENTITY) {
 				return null;
 			}
 			String levelId = binding.getLevelId();
@@ -705,8 +705,8 @@ public final class MadokuSmeltingManager {
 			return new FurnaceKey(levelId, blockPosLong);
 		}
 
-		private SchedulerManagerSystem.SchedulerBinding toBinding() {
-			return SchedulerManagerSystem.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
+		private MadokuSchedulerManager.SchedulerBinding toBinding() {
+			return MadokuSchedulerManager.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
 		}
 	}
 

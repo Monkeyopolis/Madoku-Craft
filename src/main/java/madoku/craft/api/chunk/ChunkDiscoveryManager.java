@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataWorldChunkManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
@@ -47,7 +47,7 @@ final class ChunkDiscoveryManager {
 	}
 
 	public static void initialize() {
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkDiscoveryManager::runChunkRefreshTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkDiscoveryManager::runChunkRefreshTask);
 		ServerChunkEvents.CHUNK_LOAD.register(ChunkDiscoveryManager::onChunkLoad);
 		ServerChunkEvents.CHUNK_UNLOAD.register(ChunkDiscoveryManager::onChunkUnload);
 		emitChunkDebug("chunk.discovery", builder -> builder
@@ -64,7 +64,7 @@ final class ChunkDiscoveryManager {
 		refreshTaskScheduled = false;
 		serverStopping = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
-		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
 		emitChunkDebug("chunk.discovery", builder -> builder
 			.subject("reset")
 			.field("scheduler-id", previousSchedulerId)
@@ -95,7 +95,7 @@ final class ChunkDiscoveryManager {
 		if (server == null) {
 			return;
 		}
-		SchedulerManagerSystem.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
 		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			chunkSchedulerId = "";
 			refreshTaskScheduled = false;
@@ -118,10 +118,10 @@ final class ChunkDiscoveryManager {
 				.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));
 			return;
 		}
-		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
+		chunkSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 		);
-		refreshTaskScheduled = SchedulerManagerSystem.hasQueuedTask(chunkSchedulerId, TASK_TYPE_CHUNK_REFRESH);
+		refreshTaskScheduled = MadokuSchedulerManager.hasQueuedTask(chunkSchedulerId, TASK_TYPE_CHUNK_REFRESH);
 		if (!refreshTaskScheduled) {
 			requestChunkRefresh(server, resolveChunkRefreshInterval(server));
 		}
@@ -198,7 +198,7 @@ final class ChunkDiscoveryManager {
 		MadokuChunkManager.notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
 	}
 
-	static void runChunkRefreshTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	static void runChunkRefreshTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			chunkSchedulerId = context.getSchedulerId();
 		}
@@ -558,8 +558,8 @@ final class ChunkDiscoveryManager {
 			refreshTaskScheduled = true;
 			return;
 		}
-		chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
+		chunkSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 		);
 		if (enqueueChunkRefresh(chunkSchedulerId, delayTicks)) {
 			refreshTaskScheduled = true;
@@ -567,7 +567,7 @@ final class ChunkDiscoveryManager {
 	}
 
 	private static long resolveChunkRefreshInterval(MinecraftServer server) {
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
 			server,
 			CHUNK_SCHEDULER_OWNER_ID,
 			CHUNK_REFRESH_MIN_INTERVAL_TICKS,
@@ -577,8 +577,8 @@ final class ChunkDiscoveryManager {
 
 	private static String ensureChunkSchedulerExists() {
 		if (chunkSchedulerId == null || chunkSchedulerId.isBlank()) {
-			chunkSchedulerId = SchedulerManagerSystem.createOrGetScheduler(
-				SchedulerManagerSystem.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
+			chunkSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
+				MadokuSchedulerManager.SchedulerBinding.global(CHUNK_SCHEDULER_OWNER_ID)
 			);
 		}
 		return chunkSchedulerId;
@@ -588,15 +588,15 @@ final class ChunkDiscoveryManager {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_CHUNK_REFRESH,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static List<String> getActiveProcessorIds() {

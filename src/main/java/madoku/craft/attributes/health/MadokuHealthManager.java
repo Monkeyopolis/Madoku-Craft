@@ -13,7 +13,7 @@ import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -69,7 +69,7 @@ public final class MadokuHealthManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealthManager::runPlayerTickTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealthManager::runPlayerTickTask);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealthManager::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealthManager::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealthManager::handlePlayerRespawn);
@@ -90,7 +90,7 @@ public final class MadokuHealthManager {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
-		SchedulerManagerSystem.clearAdaptiveDelayState(HEALTH_PLAYER_TICK_SCHEDULER_KEY);
+		MadokuSchedulerManager.clearAdaptiveDelayState(HEALTH_PLAYER_TICK_SCHEDULER_KEY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -140,7 +140,7 @@ public final class MadokuHealthManager {
 		ensureQueued(server);
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -158,13 +158,13 @@ public final class MadokuHealthManager {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		long delayTicks = SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+		long delayTicks = MadokuSchedulerManager.resolveAdaptiveDelayTicks(
 			server,
 			HEALTH_PLAYER_TICK_SCHEDULER_KEY,
 			HEALTH_PLAYER_TICK_MIN_INTERVAL,
 			HEALTH_PLAYER_TICK_MAX_INTERVAL
 		);
-		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
+		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -173,8 +173,8 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -189,8 +189,8 @@ public final class MadokuHealthManager {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -199,15 +199,15 @@ public final class MadokuHealthManager {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_HEALTH_PLAYER_TICK,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void onGameplayTick(MinecraftServer server, long gameplayTick) {

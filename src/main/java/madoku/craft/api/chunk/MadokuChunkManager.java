@@ -8,7 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -457,7 +457,7 @@ public final class MadokuChunkManager {
 		if (level == null) {
 			return "";
 		}
-		return SchedulerManagerSystem.normalizeLevelIdentifier(level.dimension().toString());
+		return MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
 	}
 
 	static ServerLevel resolveLevel(MinecraftServer server, String levelId) {

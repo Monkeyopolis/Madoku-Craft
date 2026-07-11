@@ -1,4 +1,4 @@
-package madoku.craft.scheduler;
+package madoku.craft.api.scheduler;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -36,8 +36,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public final class SchedulerManagerSystem {
-	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerManagerSystem.class);
+public final class MadokuSchedulerManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuSchedulerManager.class);
 	private static final String DATA_FOLDER_NAME = "madoku-craft-schedulers";
 	private static final String DATA_FILE_NAME = "madoku-schedulers";
 	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
@@ -58,13 +58,17 @@ public final class SchedulerManagerSystem {
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static boolean dirty;
 
-	private SchedulerManagerSystem() {
+	private MadokuSchedulerManager() {
+	}
+
+	public static void initialize() {
+		SchedulerAdaptiveIntervalManager.clearAll();
 	}
 
 	public static void reset() {
 		SCHEDULERS.clear();
 		SCHEDULER_IDS_BY_BINDING.clear();
-		AdaptiveSchedulerInterval.clearAll();
+		SchedulerAdaptiveIntervalManager.clearAll();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 	}
@@ -134,7 +138,7 @@ public final class SchedulerManagerSystem {
 		long minimumIntervalTicks,
 		long maximumIntervalTicks
 	) {
-		return AdaptiveSchedulerInterval.resolve(
+		return SchedulerAdaptiveIntervalManager.resolve(
 			adaptiveSystemIdForSchedulerOwner(schedulerOwnerId),
 			server,
 			minimumIntervalTicks,
@@ -143,7 +147,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	public static void clearAdaptiveDelayState(String schedulerOwnerId) {
-		AdaptiveSchedulerInterval.clearSystem(adaptiveSystemIdForSchedulerOwner(schedulerOwnerId));
+		SchedulerAdaptiveIntervalManager.clearSystem(adaptiveSystemIdForSchedulerOwner(schedulerOwnerId));
 	}
 
 	public static void clearQueuedRequests(String schedulerId) {

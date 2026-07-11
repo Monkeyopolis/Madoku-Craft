@@ -5,7 +5,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
@@ -85,7 +85,7 @@ public final class MadokuEntities {
 		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output ->
 			output.accept(HAG_SPAWN_EGG)
 		);
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (!(entity instanceof Witch witch) || witch.getType() != madoku.craft.entity.MadokuEntityTypes.WITCH || !(world instanceof ServerLevel serverLevel)) {
 				return;
@@ -168,7 +168,7 @@ public final class MadokuEntities {
 		}
 	}
 
-	private static void runRuntimeTickTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runRuntimeTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -185,7 +185,7 @@ public final class MadokuEntities {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		if (SchedulerManagerSystem.hasQueuedTask(currentSchedulerId, TASK_TYPE_ENTITY_RUNTIME_TICK)) {
+		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ENTITY_RUNTIME_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -194,8 +194,8 @@ public final class MadokuEntities {
 			return;
 		}
 
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -208,8 +208,8 @@ public final class MadokuEntities {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = SchedulerManagerSystem.createOrGetScheduler(
-			SchedulerManagerSystem.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -218,15 +218,15 @@ public final class MadokuEntities {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_ENTITY_RUNTIME_TICK,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static boolean isSwampHutSpawn(ServerLevel level, Witch witch) {

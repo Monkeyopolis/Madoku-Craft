@@ -7,7 +7,7 @@ import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.MobExperienceAccessor;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -71,18 +71,18 @@ public final class MadokuRegionalDifficultyManager {
 
 	public static void initialize() {
 		loadConfig();
-		SchedulerManagerSystem.registerTaskHandler(TASK_TYPE_TIME_TICK, MadokuRegionalDifficultyManager::runTimeTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MadokuRegionalDifficultyManager::runTimeTask);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		SchedulerManagerSystem.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		refreshCachedTimeAdjustment(server, snapshot);
-		timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
-		SchedulerManagerSystem.clearQueuedRequests(timeSchedulerId);
+		timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+		MadokuSchedulerManager.clearQueuedRequests(timeSchedulerId);
 		requestTimeProcessing(server, 1L);
 	}
 
@@ -91,7 +91,7 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	public static void onServerStopped() {
-		SchedulerManagerSystem.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
+		MadokuSchedulerManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
@@ -649,7 +649,7 @@ public final class MadokuRegionalDifficultyManager {
 		return 0L;
 	}
 
-	private static void runTimeTask(MinecraftServer server, SchedulerManagerSystem.TaskContext context, JsonObject payload) {
+	private static void runTimeTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
 		if (context == null) {
 			return;
 		}
@@ -667,7 +667,7 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	private static long resolveTimeSchedulerInterval(MinecraftServer server) {
-		return SchedulerManagerSystem.resolveAdaptiveDelayTicks(
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
 			server,
 			TIME_SCHEDULER_OWNER_ID,
 			TIME_SCHEDULER_MIN_INTERVAL_TICKS,
@@ -698,7 +698,7 @@ public final class MadokuRegionalDifficultyManager {
 			return;
 		}
 
-		timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+		timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		if (enqueueTimeTask(timeSchedulerId, delay)) {
 			timeTaskScheduled = true;
 			return;
@@ -708,7 +708,7 @@ public final class MadokuRegionalDifficultyManager {
 
 	private static String ensureTimeSchedulerExists() {
 		if (timeSchedulerId == null || timeSchedulerId.isBlank()) {
-			timeSchedulerId = SchedulerManagerSystem.createOrGetScheduler(SchedulerManagerSystem.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+			timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		}
 		return timeSchedulerId;
 	}
@@ -717,15 +717,15 @@ public final class MadokuRegionalDifficultyManager {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
-		SchedulerManagerSystem.EnqueueStatus status = SchedulerManagerSystem.enqueue(
+		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
 			schedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_TIME_TICK,
 			new JsonObject(),
-			SchedulerManagerSystem.TickDomain.GAMEPLAY
+			MadokuSchedulerManager.TickDomain.GAMEPLAY
 		);
-		return status == SchedulerManagerSystem.EnqueueStatus.ACCEPTED
-			|| status == SchedulerManagerSystem.EnqueueStatus.QUEUE_FULL;
+		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
+			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static boolean isHealthOnlyBoss(Mob mob) {

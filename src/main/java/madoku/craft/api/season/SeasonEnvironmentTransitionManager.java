@@ -7,6 +7,8 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
 
+import java.util.function.Consumer;
+
 /** Applies the current season's climate adjustment and vanilla environment overrides. */
 public final class SeasonEnvironmentTransitionManager {
 	private static final int COLD_TEMPERATURE_MAX = 30;
@@ -33,11 +35,28 @@ public final class SeasonEnvironmentTransitionManager {
 		if (state == null || state.season() == null) return;
 		EnvironmentTransitionConfigManager.Settings settings = EnvironmentTransitionConfigManager.getSettings();
 		int elapsedIntervals = Math.max(0, state.seasonDay() / Math.max(1, settings.timeRateDays()));
-		int count = Math.min(settings.adjustmentCount(), elapsedIntervals);
+		// The first transition is active on season day 0; subsequent transitions
+		// begin at each configured time-rate boundary.
+		int count = Math.min(settings.adjustmentCount(), elapsedIntervals + 1);
+		double previousTemperatureOffset = temperatureOffset;
+		double previousHumidityOffset = humidityOffset;
 		temperatureOffset = settings.temperatureEnabled() && settings.seasonTransitionsEnabled()
 			? resolveCumulativeOffset(settings.temperatureAdjustments(), state.season(), count, settings.adjustmentCount()) : 0.0;
 		humidityOffset = settings.humidityEnabled() && settings.seasonTransitionsEnabled()
 			? resolveCumulativeOffset(settings.humidityAdjustments(), state.season(), count, settings.adjustmentCount()) : 0.0;
+		if (Double.compare(previousTemperatureOffset, temperatureOffset) != 0
+			|| Double.compare(previousHumidityOffset, humidityOffset) != 0) {
+			debug("offsets-changed", builder -> builder
+				.field("season", state.season().id())
+				.field("season-day", state.seasonDay())
+				.field("elapsed-intervals", elapsedIntervals)
+				.field("adjustment-count", count)
+				.field("temperature-offset", temperatureOffset)
+				.field("humidity-offset", humidityOffset)
+				.field("temperature-enabled", settings.temperatureEnabled())
+				.field("humidity-enabled", settings.humidityEnabled())
+				.field("season-transitions-enabled", settings.seasonTransitionsEnabled()));
+		}
 	}
 
 	public static double adjustTemperature(double base, String season) {
@@ -130,6 +149,18 @@ public final class SeasonEnvironmentTransitionManager {
 		return adjustment.type().equals("subtraction") ? -adjustment.value() : adjustment.value();
 	}
 	private static void debug(String subject) {
-		MadokuDebugManager.event("season.environment-transition.lifecycle", MadokuMetaDataManager.SEASON.mainSystem(), "season-environment-transition-manager", "lifecycle", "state").subject(subject).log();
+		debug(subject, builder -> { });
+	}
+
+	private static void debug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
+			"season.environment-transition.lifecycle",
+			MadokuMetaDataManager.SEASON.mainSystem(),
+			"season-environment-transition-manager",
+			"lifecycle",
+			"state"
+		).side(MadokuDebugManager.Side.SERVER).tick(madoku.craft.api.time.MadokuTimeManager.getGameplayTicks()).subject(subject);
+		if (customizer != null) customizer.accept(builder);
+		builder.log();
 	}
 }

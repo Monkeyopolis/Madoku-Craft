@@ -7,6 +7,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.data.MadokuDataManager;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 
 import java.nio.file.Path;
 
@@ -27,6 +28,7 @@ public final class MadokuAPIManager {
 		MadokuTimeManager.initialize();
 		MadokuChunkManager.initialize();
 		MadokuSeasonManager.initialize();
+		MadokuSchedulerManager.initialize();
 	}
 
 	public static Path getApiRootDirectory() {
@@ -40,11 +42,13 @@ public final class MadokuAPIManager {
 		MadokuSeasonManager.reset();
 		MadokuDebugManager.resetSession();
 		MadokuChunkManager.reset();
+		MadokuSchedulerManager.reset();
 	}
 
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {
 		MadokuDataManager.loadPersistedData(server);
 		MadokuChunkManager.loadPersistedData(server);
+		MadokuSchedulerManager.loadPersistedData(server);
 	}
 
 	public static void onServerStarted(net.minecraft.server.MinecraftServer server) {
@@ -52,6 +56,14 @@ public final class MadokuAPIManager {
 		MadokuTimeManager.onServerStarted(server);
 		MadokuChunkManager.onServerStarted(server);
 		MadokuSeasonManager.onServerStarted(server);
+	}
+
+	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
+		if (MadokuTimeManager.isEnabled()) {
+			MadokuSchedulerManager.onClockTick(server);
+		} else {
+			MadokuSchedulerManager.onServerTick(server);
+		}
 	}
 
 	public static void autosavePersistedData(net.minecraft.server.MinecraftServer server) {

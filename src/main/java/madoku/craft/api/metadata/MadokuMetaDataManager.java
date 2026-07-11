@@ -82,7 +82,8 @@ public final class MadokuMetaDataManager {
 		subSystem("season-biome-climate-manager", entriesFromClass(madoku.craft.api.season.SeasonBiomeClimateManager.class),
 			group("biome-climate-config-manager", entriesFromClass(madoku.craft.api.season.BiomeClimateConfigManager.class)), group("lifecycle", entry("state"))),
 		subSystem("season-environment-transition-manager", entriesFromClass(madoku.craft.api.season.SeasonEnvironmentTransitionManager.class),
-			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
+			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state"))),
+		subSystem("season-sync", entriesFromClass(madoku.craft.network.WorldSeasonSync.class))
 	);
 
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(

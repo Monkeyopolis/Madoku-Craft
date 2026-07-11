@@ -3,7 +3,7 @@ package madoku.craft.mob.system;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.scheduler.SchedulerManagerSystem;
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -306,7 +306,7 @@ public final class MadokuMobBee {
 		String bestKey = "";
 		double bestProgress = Double.MAX_VALUE;
 		int tieCount = 0;
-		String levelId = SchedulerManagerSystem.normalizeLevelIdentifier(level.dimension().toString());
+		String levelId = MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
 		for (BlockPos candidate : BlockPos.betweenClosed(
 			center.offset(-searchRadiusHorizontal, -searchRadiusVertical, -searchRadiusHorizontal),
 			center.offset(searchRadiusHorizontal, searchRadiusVertical, searchRadiusHorizontal)
@@ -358,7 +358,7 @@ public final class MadokuMobBee {
 		if (level == null || state == null || !state.hasTarget() || beeId == null) {
 			return false;
 		}
-		String currentLevelId = SchedulerManagerSystem.normalizeLevelIdentifier(level.dimension().toString());
+		String currentLevelId = MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
 		if (!currentLevelId.equals(state.reservedLevelId)) {
 			return false;
 		}

@@ -199,7 +199,8 @@ public final class TimeManager {
 	}
 
 	public static long getDay(long absoluteDayTime) {
-		return Math.floorDiv(absoluteDayTime + dayRolloverOffsetTicks(), MINECRAFT_TICKS_PER_CYCLE);
+		long oneBasedDay = Math.floorDiv(absoluteDayTime + dayRolloverOffsetTicks(), MINECRAFT_TICKS_PER_CYCLE);
+		return Math.max(0L, oneBasedDay - 1L);
 	}
 
 	public static long toAbsoluteDayTime(long day, int hour, int minute) {
@@ -210,8 +211,8 @@ public final class TimeManager {
 		long normalizedDay = Math.max(0L, day);
 		int minecraftMinutes = Math.floorMod(totalMinutes - MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES, (int) MINUTES_PER_DAY);
 		long timeOfDay = (minecraftMinutes * MINECRAFT_TICKS_PER_CYCLE) / MINUTES_PER_DAY;
-		long dayCarry = Math.floorDiv(timeOfDay + dayRolloverOffsetTicks(), MINECRAFT_TICKS_PER_CYCLE);
-		long completedCycles = normalizedDay - dayCarry;
+		long oneBasedDayCarry = Math.floorDiv(timeOfDay + dayRolloverOffsetTicks(), MINECRAFT_TICKS_PER_CYCLE);
+		long completedCycles = normalizedDay + 1L - oneBasedDayCarry;
 		return completedCycles * MINECRAFT_TICKS_PER_CYCLE + timeOfDay;
 	}
 
@@ -414,5 +415,4 @@ public final class TimeManager {
 		builder.log();
 	}
 }
-
 

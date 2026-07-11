@@ -136,7 +136,7 @@ public final class MadokuHud {
 	private static final String HUD_CONFIG_FILE_NAME = "madoku-hud";
 	private static volatile boolean initialized = false;
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile long serverDay = 1L;
+	private static volatile long serverDay = 0L;
 	private static volatile int serverHour = 6;
 	private static volatile int serverMinute = 0;
 	private static volatile boolean hasServerTime = false;
@@ -581,7 +581,7 @@ public final class MadokuHud {
 	}
 
 	private static long displayDay(long rawDay) {
-		return Math.max(0L, rawDay - 1L);
+		return Math.max(0L, rawDay);
 	}
 
 	private static String getDifficultyDisplayText() {

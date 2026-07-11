@@ -7,12 +7,18 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.biome.Biome;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /** Runtime biome climate resolver. Temperature and humidity may be below 0 or above 100. */
 public final class SeasonBiomeClimateManager {
 	public record Climate(double temperature, double humidity) { }
+	private static volatile Map<Biome, BiomeClimateConfigManager.Climate> runtimeConfiguredClimates = Map.of();
 
 	private SeasonBiomeClimateManager() { }
 
@@ -23,7 +29,25 @@ public final class SeasonBiomeClimateManager {
 	}
 
 	public static void reset() {
+		runtimeConfiguredClimates = Map.of();
 		debug("reset", 0);
+	}
+
+	static void onServerStarted(MinecraftServer server) {
+		if (server == null || server.overworld() == null) {
+			runtimeConfiguredClimates = Map.of();
+			return;
+		}
+		Registry<Biome> registry = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME);
+		IdentityHashMap<Biome, BiomeClimateConfigManager.Climate> configured = new IdentityHashMap<>();
+		for (Map.Entry<ResourceKey<Biome>, Biome> entry : registry.entrySet()) {
+			Identifier biomeId = entry.getKey().identifier();
+			BiomeClimateConfigManager.Climate climate = BiomeClimateConfigManager.getBiomeClimate(biomeId.toString());
+			if (climate != null) {
+				configured.put(entry.getValue(), climate);
+			}
+		}
+		runtimeConfiguredClimates = Collections.unmodifiableMap(configured);
 	}
 
 	public static boolean isTemperatureEnabled() {
@@ -49,8 +73,14 @@ public final class SeasonBiomeClimateManager {
 	}
 
 	public static Climate resolve(Biome biome) {
-		BiomeClimateConfigManager.Climate configured = BiomeClimateConfigManager.getBiomeClimate("");
-		return configured == null ? nativeClimate(biome) : new Climate(configured.temperature(), configured.humidity());
+		Climate nativeClimate = nativeClimate(biome);
+		BiomeClimateConfigManager.Climate configured = runtimeConfiguredClimates.get(biome);
+		if (configured == null) {
+			return nativeClimate;
+		}
+		return new Climate(
+			isTemperatureEnabled() ? configured.temperature() : nativeClimate.temperature(),
+			isHumidityEnabled() ? configured.humidity() : nativeClimate.humidity());
 	}
 
 	public static Climate nativeClimate(Biome biome) {
