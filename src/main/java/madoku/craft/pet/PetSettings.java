@@ -77,7 +77,7 @@ final class PetSettings {
 	}
 
 	JsonObject toConfigJson() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put("enabled", enabled)
 			.put("pet-entity", entitiesEnabled)
 			.put("pet-rarity-common", petRarityCommonChanceWeight)

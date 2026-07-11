@@ -3,9 +3,8 @@ package madoku.craft.loot.system;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mob.system.MobConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -34,9 +33,9 @@ public final class EquipmentConfigManager {
 
 	public static void reloadConfig() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ROOT_FOLDER);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ROOT_FOLDER);
 			Path settingsFile = resolveJsonFile(rootDirectory, SETTINGS_FILE);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(settingsFile, LootTableConfigManager.buildSettingsDefaults());
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, LootTableConfigManager.buildSettingsDefaults());
 			JsonObject settingsMainRoot = resolveMainRoot(settingsRoot);
 			boolean enabled = resolveFileEnabled(settingsRoot);
 			boolean customEntityEquipmentEnabled = readBoolean(
@@ -54,7 +53,7 @@ public final class EquipmentConfigManager {
 
 			Path equipmentDirectory = rootDirectory.resolve(EQUIPMENT_FOLDER);
 			Map<String, JsonObject> defaultFiles = LootTableEquipmentsConfig.buildDefaultEquipmentTableFiles();
-			Map<String, JsonObject> files = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				equipmentDirectory,
 				defaultFiles,
 				fileKey -> buildDynamicEquipmentDefaults(fileKey, defaultFiles),

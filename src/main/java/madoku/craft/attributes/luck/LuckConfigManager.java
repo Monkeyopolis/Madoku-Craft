@@ -3,8 +3,7 @@ package madoku.craft.attributes.luck;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.AttributesConfigManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,9 +37,9 @@ public final class LuckConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(LUCK_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			return loaded.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuLuckManager config; using defaults.", exception);
@@ -115,7 +114,7 @@ public final class LuckConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put("enabled", enabled)
 				.object("luck", luck -> this.luck.toConfigJson(luck))
 				.object("luck-effect", luckEffect -> this.luckEffect.toConfigJson(luckEffect))
@@ -229,7 +228,7 @@ public final class LuckConfigManager {
 			return new LuckSettings(enabled, startingPoints, maxPoints);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("starting-points", startingPoints)
 				.put("max-points", maxPoints);
@@ -257,7 +256,7 @@ public final class LuckConfigManager {
 			return new LuckEffectSettings(enabled, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("value", value);
 			return builder.build();
@@ -287,7 +286,7 @@ public final class LuckConfigManager {
 			return new DropGroupSettings(enabled, dropAdjustment);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("drop-adjustment", dropAdjustment -> this.dropAdjustment.toConfigJson(dropAdjustment));
 			return builder.build();
@@ -314,7 +313,7 @@ public final class LuckConfigManager {
 			return new DropAdjustmentSettings(type, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("type", type.configValue)
 				.put("value", value);
 			return builder.build();
@@ -346,7 +345,7 @@ public final class LuckConfigManager {
 			return new ReductionGroupSettings(enabled, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("adjustment-multiplier", multiplier -> multiplier.put("value", adjustmentMultiplier));
 			return builder.build();
@@ -378,7 +377,7 @@ public final class LuckConfigManager {
 			return new CriticalDamageSettings(enabled, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("damage-multiplier", damageMultiplier -> damageMultiplier.put("value", this.damageMultiplier));
 			return builder.build();

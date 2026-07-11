@@ -4,12 +4,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -75,7 +74,7 @@ public final class SchedulerManagerSystem {
 		}
 
 		reset();
-		JsonObject persistedData = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject persistedData = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(server, persistedData);
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
@@ -87,7 +86,7 @@ public final class SchedulerManagerSystem {
 		}
 
 		saveSchedulerFiles(server);
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
@@ -107,7 +106,7 @@ public final class SchedulerManagerSystem {
 		}
 
 		saveSchedulerFiles(server);
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 		lastAutosaveBucket = currentBucket;
 	}
@@ -429,7 +428,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put("gameplay-ticks", 0L)
 			.array("schedulers", schedulers -> {
 			})
@@ -437,7 +436,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static JsonObject toPersistedData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put("gameplay-ticks", Math.max(0L, MadokuTimeManager.getGameplayTicks()))
 			.array("schedulers", schedulers -> {
 				for (SchedulerEntry entry : SCHEDULERS.values()) {
@@ -478,7 +477,7 @@ public final class SchedulerManagerSystem {
 	}
 
 	private static long getAutoSaveIntervalTicks(MinecraftServer server) {
-		return DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		return MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 	}
 
 	private static SchedulerEntry loadSchedulerEntry(MinecraftServer server, String schedulerId) {
@@ -493,7 +492,7 @@ public final class SchedulerManagerSystem {
 		}
 
 		try {
-			return SchedulerEntry.fromJson(JsonStaticSystem.readManagedDocument(file).main());
+			return SchedulerEntry.fromJson(JSONFormatManager.readManagedDocument(file).data());
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load scheduler data file {}", file, exception);
 			return null;
@@ -520,7 +519,7 @@ public final class SchedulerManagerSystem {
 			try {
 				JsonObject general = new JsonObject();
 				general.addProperty("scheduler-id", entry.schedulerId);
-				JsonStaticSystem.writeManagedDocument(file, entry.toJson(), general);
+				JSONFormatManager.writeManagedDocument(file, entry.toJson(), general, JSONTypeManager.STATIC_DATA);
 			} catch (IOException | RuntimeException exception) {
 				LOGGER.error("Failed to save scheduler data file {}", file, exception);
 			}
@@ -561,7 +560,7 @@ public final class SchedulerManagerSystem {
 			return null;
 		}
 
-		Path schedulerDirectory = JsonManagerSystem.getWorldRootDirectory(server)
+		Path schedulerDirectory = MadokuJSONManager.getWorldRootDirectory(server)
 			.resolve(DATA_FOLDER_NAME)
 			.resolve(SCHEDULER_FILES_DIRECTORY);
 		if (!createDirectories) {
@@ -1124,13 +1123,13 @@ public final class SchedulerManagerSystem {
 		}
 
 		private JsonObject toJson() {
-			JsonFormatBuilder.ArrayBuilder tasksArray = JsonFormatBuilder.array();
+			JSONFormatManager.ArrayBuilder tasksArray = JSONFormatManager.array();
 			List<ScheduledTask> snapshot = new ArrayList<>(tasks);
 			snapshot.sort(TASK_COMPARATOR);
 			for (ScheduledTask task : snapshot) {
 				tasksArray.add(task.toJson());
 			}
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put("scheduler-id", schedulerId)
 				.object(GROUP_GENERAL, general -> general
 					.put(FIELD_EXPIRATION, expirationDays)
@@ -1197,7 +1196,7 @@ public final class SchedulerManagerSystem {
 		}
 
 		private JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put("request-id", requestId)
 				.put("enqueued-tick", enqueuedTick)
 				.put("due-tick", dueTick)

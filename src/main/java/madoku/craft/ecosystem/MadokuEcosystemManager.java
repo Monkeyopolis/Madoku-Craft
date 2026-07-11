@@ -6,10 +6,9 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -355,7 +354,7 @@ public final class MadokuEcosystemManager {
 			Path indexFile = resolveEcosystemIndexFile(server);
 			if (Files.isRegularFile(indexFile)) {
 				try {
-					JsonObject indexData = JsonStaticSystem.readManagedDocument(indexFile).main();
+					JsonObject indexData = JSONFormatManager.readManagedDocument(indexFile).data();
 					if (indexData != null) {
 						JsonElement chunksElement = indexData.get(FIELD_CHUNKS);
 						if (chunksElement != null && chunksElement.isJsonArray()) {
@@ -376,7 +375,7 @@ public final class MadokuEcosystemManager {
 			}
 
 			final int loadedChunkFileCount = loadedChunkFiles;
-			long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+			long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 			lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 			dirty = false;
 			DIRTY_CHUNK_KEYS.clear();
@@ -396,7 +395,7 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -454,7 +453,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void beginUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
 			return;
 		}
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
@@ -472,7 +471,7 @@ public final class MadokuEcosystemManager {
 		int chunkZ,
 		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
 	) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
@@ -503,7 +502,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void finishUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
+		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled() && !EcosystemSeasonalChangesManager.isEnabled())) {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
@@ -548,6 +547,7 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 		EcosystemNaturalErosionManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 		EcosystemNaturalDecayManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
+		EcosystemSeasonalChangesManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
 	}
 
 	private static void finalizeTrackablesInChunkDiscovery(
@@ -562,6 +562,7 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 		EcosystemNaturalErosionManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 		EcosystemNaturalDecayManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
+		EcosystemSeasonalChangesManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
 	}
 
 	static final class ChunkDiscoveryAccumulator {
@@ -573,6 +574,7 @@ public final class MadokuEcosystemManager {
 		final Set<Long> pinkPetalGroundCandidates = new LinkedHashSet<>();
 		final Set<Long> wetSeedPositions = new LinkedHashSet<>();
 		final Set<Long> treeDecayLeafCandidates = new LinkedHashSet<>();
+		final Map<Long, EcosystemSeasonalChangesManager.SeasonalColumn> seasonalColumns = new LinkedHashMap<>();
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
@@ -985,7 +987,7 @@ public final class MadokuEcosystemManager {
 			return null;
 		}
 
-		JsonFormatBuilder.ArrayBuilder dirtBlocks = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder dirtBlocks = JSONFormatManager.array();
 		Set<String> dirtKeys = dirtKeysByChunk.get(chunkKey);
 		if (dirtKeys != null) {
 			for (String key : dirtKeys) {
@@ -1004,7 +1006,7 @@ public final class MadokuEcosystemManager {
 			return null;
 		}
 
-		JsonFormatBuilder.ObjectBuilder builder = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder builder = JSONFormatManager.object()
 			.put(FIELD_LEVEL_ID, chunkKey.levelId())
 			.put(FIELD_CHUNK_X, chunkKey.chunkX())
 			.put(FIELD_CHUNK_Z, chunkKey.chunkZ())
@@ -1027,11 +1029,11 @@ public final class MadokuEcosystemManager {
 		return builder.build();
 	}
 
-	static JsonObject buildChunkPersistedData(Consumer<JsonFormatBuilder.ObjectBuilder> writer) {
+	static JsonObject buildChunkPersistedData(Consumer<JSONFormatManager.ObjectBuilder> writer) {
 		if (writer == null) {
 			return null;
 		}
-		JsonFormatBuilder.ObjectBuilder builder = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder builder = JSONFormatManager.object();
 		writer.accept(builder);
 		return builder.build();
 	}
@@ -1060,7 +1062,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		try {
-			JsonObject source = JsonStaticSystem.readManagedDocument(file).main();
+			JsonObject source = JSONFormatManager.readManagedDocument(file).data();
 			return applyPersistedData(source) != null;
 		} catch (IOException exception) {
 			LOGGER.error("Failed to load ecosystem chunk data from {}.", file, exception);
@@ -1083,18 +1085,18 @@ public final class MadokuEcosystemManager {
 		}
 
 		Path indexFile = resolveEcosystemIndexFile(server);
-		JsonObject indexData = JsonFormatBuilder.object()
+		JsonObject indexData = JSONFormatManager.object()
 			.put(FIELD_CHUNKS, buildChunkDescriptorArray(chunkKeys))
 			.build();
 		try {
-			JsonStaticSystem.writeManagedDocument(indexFile, indexData, new JsonObject());
+			JSONFormatManager.writeManagedDocument(indexFile, indexData, new JsonObject(), JSONTypeManager.STATIC_DATA);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to write ecosystem index file at {}.", indexFile, exception);
 		}
 	}
 
 	private static JsonElement buildChunkDescriptorArray(Set<ChunkRefKey> chunkKeys) {
-		JsonFormatBuilder.ArrayBuilder chunks = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder chunks = JSONFormatManager.array();
 		if (chunkKeys != null) {
 			for (ChunkRefKey chunkKey : chunkKeys) {
 				if (chunkKey == null) {
@@ -1116,7 +1118,7 @@ public final class MadokuEcosystemManager {
 
 		Path file = resolveChunkPersistedDataFile(server, chunkKey);
 		try {
-			JsonStaticSystem.writeManagedDocument(file, data, new JsonObject());
+			JSONFormatManager.writeManagedDocument(file, data, new JsonObject(), JSONTypeManager.STATIC_DATA);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to write ecosystem chunk data at {}.", file, exception);
 		}
@@ -1140,7 +1142,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	private static Path resolveEcosystemRootDirectory(MinecraftServer server) {
-		return JsonManagerSystem.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
+		return MadokuJSONManager.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
 	}
 
 	private static Path resolveChunkDataRootDirectory(MinecraftServer server) {
@@ -1282,7 +1284,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CHUNK_X, chunkX)
 				.put(FIELD_CHUNK_Z, chunkZ)
@@ -1365,7 +1367,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CHUNK_X, chunkX)
 				.put(FIELD_CHUNK_Z, chunkZ)
@@ -1452,7 +1454,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CHUNK_X, chunkX)
 				.put(FIELD_CHUNK_Z, chunkZ)
@@ -1538,7 +1540,7 @@ public final class MadokuEcosystemManager {
 		}
 
 			JsonObject toJson() {
-				return JsonFormatBuilder.object()
+				return JSONFormatManager.object()
 					.put(FIELD_LEVEL_ID, levelId)
 					.put(FIELD_CHUNK_X, chunkX)
 					.put(FIELD_CHUNK_Z, chunkZ)
@@ -1642,7 +1644,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CHUNK_X, chunkX)
 				.put(FIELD_CHUNK_Z, chunkZ)
@@ -1729,7 +1731,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_BLOCK_POS, dirtPos)
 				.put(FIELD_MODE, mode)

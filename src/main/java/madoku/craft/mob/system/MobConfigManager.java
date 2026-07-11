@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -164,7 +164,7 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildMobSystemDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.build();
 	}
@@ -208,7 +208,7 @@ public final class MobConfigManager {
 	}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.object(FIELD_MOB_STATS, builder -> {
 			})
@@ -261,7 +261,7 @@ public final class MobConfigManager {
 		Double chargeUpTicks,
 		String mobDropsReference
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (hasConfiguredDoubleValue(health)) {
 			root.put(FIELD_HEALTH, health);
 		}
@@ -308,7 +308,7 @@ public final class MobConfigManager {
 	}
 
 	static JsonObject buildMobWeaponDefaults(String itemId) {
-		JsonFormatBuilder.ObjectBuilder weapon = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder weapon = JSONFormatManager.object();
 		if (itemId != null && !itemId.isBlank()) {
 			weapon.put(FIELD_ITEM, itemId);
 		}
@@ -319,7 +319,7 @@ public final class MobConfigManager {
 		if (effectId == null || effectId.isBlank() || durationSeconds <= 0) {
 			return new JsonObject();
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_EFFECT, effectId)
 			.put(FIELD_DURATION, durationSeconds)
 			.build();

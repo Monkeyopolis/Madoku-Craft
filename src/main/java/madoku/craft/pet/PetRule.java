@@ -131,7 +131,7 @@ final class PetRule {
 		boolean usesDamageBlock = PlayerEntitiesSystem.PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 		boolean usesMobScan = PlayerEntitiesSystem.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 		boolean usesBeeSwarm = PlayerEntitiesSystem.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
-		madoku.craft.config.JsonFormatBuilder.ObjectBuilder root = madoku.craft.config.JsonFormatBuilder.object()
+		madoku.craft.api.json.JSONFormatManager.ObjectBuilder root = madoku.craft.api.json.JSONFormatManager.object()
 			.put("enabled", true)
 			.put("item-id", resolvedItemId)
 			.put("rarity", PlayerEntitiesSystem.defaultRarityForItem(resolvedItemId))

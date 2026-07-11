@@ -2,9 +2,8 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.difficulty.system.DifficultyScaledMob;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
@@ -2313,12 +2312,12 @@ public final class MadokuMobManager {
 
 	private static void loadConfig() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(MOB_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MOB_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, MOB_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(settingsFile, MobConfigManager.buildMobSystemDefaults());
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, MobConfigManager.buildMobSystemDefaults());
 			boolean enabled = readBoolean(settingsRoot, MobConfigManager.FIELD_ENABLED, true);
 			Path mobsDirectory = rootDirectory.resolve(MOB_CONFIG_MOBS_FOLDER_NAME);
-			Map<String, JsonObject> files = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				mobsDirectory,
 				MobConfigManager.buildDefaultMobFileDefaults(),
 				MobConfigManager::buildDynamicMobDefaults,

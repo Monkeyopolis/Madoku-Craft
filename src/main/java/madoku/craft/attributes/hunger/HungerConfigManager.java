@@ -3,8 +3,7 @@ package madoku.craft.attributes.hunger;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.AttributesConfigManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,9 +31,9 @@ public final class HungerConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(HUNGER_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			return configured.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuHungerManager config; using defaults.", exception);
@@ -80,7 +79,7 @@ public final class HungerConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.object("hunger", hunger -> this.hunger.toConfigJson(hunger))
 				.object("hunger-depletion", hungerDepletion -> this.hungerDepletion.toConfigJson(hungerDepletion))
 				.object("saturation", saturation -> this.saturation.toConfigJson(saturation))
@@ -145,7 +144,7 @@ public final class HungerConfigManager {
 			return new HungerSettings(enabled, maxHunger, starvationPenalty, respawnHungerPercentage);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("max-hunger", maxHunger)
 				.object("starvation-penalty", starvationPenalty -> this.starvationPenalty.toConfigJson(starvationPenalty))
@@ -187,7 +186,7 @@ public final class HungerConfigManager {
 			return new StarvationPenaltySettings(enabled, starvationPenaltyPercentage);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("starvation-penalty-percentage", starvationPenaltyPercentage);
 			return builder.build();
@@ -231,7 +230,7 @@ public final class HungerConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("block-goal", blockGoal -> this.blockGoal.toConfigJson(blockGoal))
 				.object("movement-goal", movementGoal -> this.movementGoal.toConfigJson(movementGoal))
@@ -261,7 +260,7 @@ public final class HungerConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("value", value);
 			return builder.build();
@@ -289,7 +288,7 @@ public final class HungerConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("value", value);
 			return builder.build();
@@ -317,7 +316,7 @@ public final class HungerConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("value", value);
 			return builder.build();
@@ -347,7 +346,7 @@ public final class HungerConfigManager {
 			return new EffectSettings(enabled, type, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("type", type.configValue)
 				.put("value", value);

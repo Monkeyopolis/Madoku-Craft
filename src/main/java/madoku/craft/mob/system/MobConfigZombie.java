@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigZombie {
 	private MobConfigZombie() {
@@ -36,7 +36,7 @@ public final class MobConfigZombie {
 		int experience
 	) {
 		boolean zombieFile = MobConfigManager.FILE_ZOMBIE.equals(mobKey);
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -84,7 +84,7 @@ public final class MobConfigZombie {
 	}
 
 	private static JsonObject buildZombieJockeyVariantDefaults() {
-		JsonObject jockey = JsonFormatBuilder.object()
+		JsonObject jockey = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.object(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger -> passenger
 				.object(MobConfigManager.FIELD_MOB, passengerMob -> passengerMob
@@ -96,7 +96,7 @@ public final class MobConfigZombie {
 					.put(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:zombie_horse")
 					.put(MobConfigManager.FIELD_BABY_GROUP, "minecraft:chicken")))
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
@@ -106,11 +106,11 @@ public final class MobConfigZombie {
 	}
 
 	private static JsonObject buildZombieVillagerVariantDefaults() {
-		JsonObject alternativeMob = JsonFormatBuilder.object()
+		JsonObject alternativeMob = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB, "minecraft:zombie_villager")
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
@@ -163,7 +163,7 @@ public final class MobConfigZombie {
 	}
 
 	private static JsonObject buildZombieEquipmentSetDefaults(String mobKey) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference(mobKey))
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -195,7 +195,7 @@ public final class MobConfigZombie {
 		int experience,
 		double spawnWeight
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
 				MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()

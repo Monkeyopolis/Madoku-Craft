@@ -2,7 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 import java.util.List;
 
 public final class ConfigStructuresShipwreck {
@@ -12,7 +12,7 @@ public final class ConfigStructuresShipwreck {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonArray groups = JsonFormatBuilder.array()
+		JsonArray groups = JSONFormatManager.array()
 			.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:bread", 1, 2, 6),
 				LootTableConfigStructures.item("minecraft:baked_potato", 1, 2, 6)
@@ -63,7 +63,7 @@ public final class ConfigStructuresShipwreck {
 			)))
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(LootTableConfigStructures.buildStructureTable(TABLE_ID, 7, 11))
 			.put(LootTableConfigManager.FIELD_GROUPS, groups)
 			.build();

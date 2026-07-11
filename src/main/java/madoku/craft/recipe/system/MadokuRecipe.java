@@ -4,10 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -85,7 +83,7 @@ public final class MadokuRecipe {
 		source = addMadokuDefaultCookingRecipes(source);
 
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(RECIPE_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(RECIPE_CONFIG_ROOT_FOLDER_NAME);
 			Path recipesDirectory = rootDirectory.resolve(RECIPE_CONFIG_RECIPES_FOLDER_NAME);
 
 			List<RecipeDescriptor> descriptors = collectDescriptors(source);
@@ -116,7 +114,7 @@ public final class MadokuRecipe {
 				Map<String, JsonObject> staticDefaults = defaultsByFolder.getOrDefault(folder, Map.of());
 				Set<String> validKeys = keysByFolder.getOrDefault(folder, Set.of());
 
-				Map<String, JsonObject> normalized = DynamicStaticSystem.ensureManagedFolder(
+				Map<String, JsonObject> normalized = JSONFormatManager.ensureManagedFolder(
 					folder,
 					staticDefaults,
 					fileKey -> defaultsByFileKey.getOrDefault(fileKey, new JsonObject()),
@@ -1042,7 +1040,7 @@ public final class MadokuRecipe {
 
 	private static JsonObject buildRecipeDefaults(String recipeId, RecipeSnapshot snapshot, Recipe<?> recipe) {
 		boolean defaultEnabled = isDefaultEnabled(recipeId);
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object().putAll(MadokuRecipeConfig.buildBaseRecipeDefaults(
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object().putAll(MadokuRecipeConfig.buildBaseRecipeDefaults(
 			recipeId,
 			snapshot.recipeTypeId(),
 			snapshot.resultItemId(),
@@ -1075,14 +1073,14 @@ public final class MadokuRecipe {
 		return !normalized.equals("minecraft:bone_meal");
 	}
 
-	private static void writeShapedDefaults(JsonFormatBuilder.ObjectBuilder root, ShapedRecipe recipe) {
+	private static void writeShapedDefaults(JSONFormatManager.ObjectBuilder root, ShapedRecipe recipe) {
 		List<Optional<Ingredient>> ingredients = recipe.getIngredients();
 		int width = Math.max(1, recipe.getWidth());
 		int height = Math.max(1, recipe.getHeight());
 
 		Map<String, Character> symbolBySignature = new LinkedHashMap<>();
 		Map<Character, String> firstItemIdBySymbol = new LinkedHashMap<>();
-		madoku.craft.config.JsonFormatBuilder.ArrayBuilder pattern = madoku.craft.config.JsonFormatBuilder.array();
+		madoku.craft.api.json.JSONFormatManager.ArrayBuilder pattern = madoku.craft.api.json.JSONFormatManager.array();
 		int symbolIndex = 0;
 
 		for (int row = 0; row < height; row++) {
@@ -1113,7 +1111,7 @@ public final class MadokuRecipe {
 			pattern.add(rowBuilder.toString());
 		}
 
-		madoku.craft.config.JsonFormatBuilder.ObjectBuilder key = madoku.craft.config.JsonFormatBuilder.object();
+		madoku.craft.api.json.JSONFormatManager.ObjectBuilder key = madoku.craft.api.json.JSONFormatManager.object();
 		for (Map.Entry<Character, String> entry : firstItemIdBySymbol.entrySet()) {
 			key.put(String.valueOf(entry.getKey()), entry.getValue());
 		}
@@ -1123,7 +1121,7 @@ public final class MadokuRecipe {
 		writeCraftingIngredientsDefaults(root, readShapedIngredients(recipe));
 	}
 
-	private static void writeSingleInputDefaults(JsonFormatBuilder.ObjectBuilder root, SingleItemRecipe recipe) {
+	private static void writeSingleInputDefaults(JSONFormatManager.ObjectBuilder root, SingleItemRecipe recipe) {
 		Ingredient ingredient = recipe.input();
 		String itemId = firstItemIdFromIngredient(ingredient);
 		if (!itemId.isBlank()) {
@@ -1131,12 +1129,12 @@ public final class MadokuRecipe {
 		}
 	}
 
-	private static void writeShapelessDefaults(JsonFormatBuilder.ObjectBuilder root, ShapelessRecipe recipe) {
+	private static void writeShapelessDefaults(JSONFormatManager.ObjectBuilder root, ShapelessRecipe recipe) {
 		writeCraftingIngredientsDefaults(root, readShapelessIngredients(recipe));
 	}
 
-	private static void writeCraftingIngredientsDefaults(JsonFormatBuilder.ObjectBuilder root, List<Ingredient> ingredientList) {
-		JsonFormatBuilder.ArrayBuilder ingredients = JsonFormatBuilder.array();
+	private static void writeCraftingIngredientsDefaults(JSONFormatManager.ObjectBuilder root, List<Ingredient> ingredientList) {
+		JSONFormatManager.ArrayBuilder ingredients = JSONFormatManager.array();
 		if (ingredientList == null || ingredientList.isEmpty()) {
 			return;
 		}
@@ -1155,7 +1153,7 @@ public final class MadokuRecipe {
 		}
 	}
 
-	private static void writeSmithingDefaults(JsonFormatBuilder.ObjectBuilder root, SmithingRecipe recipe) {
+	private static void writeSmithingDefaults(JSONFormatManager.ObjectBuilder root, SmithingRecipe recipe) {
 		if (recipe == null) {
 			return;
 		}
@@ -1298,9 +1296,9 @@ public final class MadokuRecipe {
 
 	private static boolean loadSystemEnabled() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(RECIPE_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(RECIPE_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, RECIPE_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 				settingsFile,
 				MadokuRecipeConfig.buildRecipeSystemDefaults()
 			);

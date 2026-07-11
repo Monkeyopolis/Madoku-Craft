@@ -6,11 +6,8 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMobManager;
@@ -236,10 +233,10 @@ public final class PlayerEntitiesSystem {
 		}
 
 		loadConfig();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
 		removeTaggedPets(server);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -248,7 +245,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -261,7 +258,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	private static void onPlayerTickPhase(MinecraftServer server) {
@@ -798,12 +795,12 @@ public final class PlayerEntitiesSystem {
 
 	private static void loadStaticConfig() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, PET_CONFIG_FILE_NAME);
 			JsonObject defaults = PetSettings.defaults().toConfigJson();
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			PetSettings configured = PetSettings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			settings = configured;
 		} catch (IOException exception) {
 			settings = PetSettings.defaults();
@@ -813,9 +810,9 @@ public final class PlayerEntitiesSystem {
 
 	private static void loadPetRules() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
 			Path rulesDirectory = rootDirectory.resolve(PET_RULES_FOLDER_NAME);
-			Map<String, JsonObject> normalizedFiles = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
 				rulesDirectory,
 				buildDefaultPetRuleFiles(),
 				PlayerEntitiesSystem::buildDynamicPetRuleDefaults,
@@ -834,7 +831,7 @@ public final class PlayerEntitiesSystem {
 				String abilityType = normalizeKey(getString(sourceRoot, "ability", defaultAbilityForItem(itemId)));
 				JsonObject abilityDefaults = PetRule.defaultsForItem(itemId, abilityType);
 				Path file = resolveJsonFile(rulesDirectory, fileKey);
-				JsonObject normalized = DynamicStaticSystem.writeManagedFile(file, sourceRoot, abilityDefaults, null);
+				JsonObject normalized = JSONFormatManager.writeManagedFile(file, sourceRoot, abilityDefaults, null);
 				abilityNormalizedFiles.put(fileKey, normalized);
 			}
 			Map<String, PetRule> resolved = new LinkedHashMap<>();
@@ -870,7 +867,7 @@ public final class PlayerEntitiesSystem {
 	private static JsonObject buildDynamicPetRuleDefaults(String fileKey) {
 		String itemId = resolvePetItemId(fileKey, null);
 		if (itemId == null) {
-			return JsonFormatBuilder.object().build();
+			return JSONFormatManager.object().build();
 		}
 		return PetRule.defaultsForItem(itemId, defaultAbilityForItem(itemId));
 	}
@@ -2366,7 +2363,7 @@ public final class PlayerEntitiesSystem {
 			return false;
 		}
 
-		JsonObject payload = madoku.craft.config.JsonFormatBuilder.object()
+		JsonObject payload = madoku.craft.api.json.JSONFormatManager.object()
 			.put(FIELD_SLOT, slot)
 			.put(FIELD_TARGET_UUID, target.getUUID().toString())
 			.put(FIELD_SPAWN_X, spawnPosition.x)
@@ -2784,20 +2781,20 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static JsonObject createDefaultData() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.array("slot-cooldowns", cooldowns -> {
 			})
 			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		madoku.craft.config.JsonFormatBuilder.ArrayBuilder cooldowns = madoku.craft.config.JsonFormatBuilder.array();
+		madoku.craft.api.json.JSONFormatManager.ArrayBuilder cooldowns = madoku.craft.api.json.JSONFormatManager.array();
 		for (Map.Entry<UUID, long[]> entry : PLAYER_SLOT_COOLDOWNS.entrySet()) {
 			if (entry.getKey() == null || !hasNonZeroCooldown(entry.getValue())) {
 				continue;
 			}
 			long[] source = entry.getValue();
-			madoku.craft.config.JsonFormatBuilder.ArrayBuilder values = madoku.craft.config.JsonFormatBuilder.array();
+			madoku.craft.api.json.JSONFormatManager.ArrayBuilder values = madoku.craft.api.json.JSONFormatManager.array();
 			for (int slot = 0; slot < SLOT_COUNT; slot++) {
 				values.add(slot < source.length ? Math.max(0L, source[slot]) : 0L);
 			}
@@ -2805,7 +2802,7 @@ public final class PlayerEntitiesSystem {
 				.put("uuid", entry.getKey().toString())
 				.put("cooldowns", values.build()));
 		}
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put("slot-cooldowns", cooldowns.build())
 			.build();
 	}

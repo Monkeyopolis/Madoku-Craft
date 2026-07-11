@@ -2,7 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class ConfigStructuresVillage {
 	private static final String TABLE_ID = "minecraft:structure_chests/village";
@@ -11,7 +11,7 @@ public final class ConfigStructuresVillage {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonArray groups = JsonFormatBuilder.array()
+		JsonArray groups = JSONFormatManager.array()
 			.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:bread", 1, 2, 6),
 				LootTableConfigStructures.item("minecraft:baked_potato", 1, 2, 6)
@@ -29,7 +29,7 @@ public final class ConfigStructuresVillage {
 			)))
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(LootTableConfigStructures.buildStructureTable(TABLE_ID, 3, 7))
 			.put(LootTableConfigManager.FIELD_GROUPS, groups)
 			.build();

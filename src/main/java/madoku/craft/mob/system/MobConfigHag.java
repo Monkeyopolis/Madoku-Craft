@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigHag {
 	private MobConfigHag() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				MobConfigManager.buildMobStatsDefaults(40.0d, 1.0d, null, 0.25d, 0.2d, null, 11)
@@ -18,7 +18,7 @@ public final class MobConfigHag {
 			.build();
 		MobConfigManager.ensureMobSchema(defaultGroup, false);
 
-		JsonObject hag = JsonFormatBuilder.object()
+		JsonObject hag = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -31,7 +31,7 @@ public final class MobConfigHag {
 			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)

@@ -11,8 +11,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 
 import java.util.ArrayList;
@@ -302,7 +302,7 @@ public final class MadokuChunkManager {
 		if (server == null) {
 			return;
 		}
-		DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		CHUNK_STATUSES_BY_LEVEL.clear();
 		ChunkDiscoveryManager.loadPersistedData(server);
 		AtomicInteger loadedLevels = new AtomicInteger();
@@ -453,7 +453,7 @@ public final class MadokuChunkManager {
 	}
 
 	static JsonObject toPersistedData() {
-		JsonFormatBuilder.ArrayBuilder levels = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder levels = JSONFormatManager.array();
 		for (Map.Entry<String, Map<Long, FullChunkStatus>> levelEntry : CHUNK_STATUSES_BY_LEVEL.entrySet()) {
 			String levelId = levelEntry.getKey();
 			Map<Long, FullChunkStatus> chunks = levelEntry.getValue();
@@ -463,7 +463,7 @@ public final class MadokuChunkManager {
 
 			List<Map.Entry<Long, FullChunkStatus>> orderedChunks = new ArrayList<>(chunks.entrySet());
 			orderedChunks.sort(Comparator.comparingLong(Map.Entry::getKey));
-			JsonFormatBuilder.ArrayBuilder chunkBuilder = JsonFormatBuilder.array();
+			JSONFormatManager.ArrayBuilder chunkBuilder = JSONFormatManager.array();
 			for (Map.Entry<Long, FullChunkStatus> chunkEntry : orderedChunks) {
 				Long packedChunk = chunkEntry.getKey();
 				FullChunkStatus status = chunkEntry.getValue();
@@ -483,7 +483,7 @@ public final class MadokuChunkManager {
 					.put(FIELD_CHUNKS, chunkArray));
 			}
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_LEVELS, levels.build())
 			.build();
 	}
@@ -562,7 +562,7 @@ public final class MadokuChunkManager {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.array(FIELD_LEVELS, levels -> {
 			})
 			.build();

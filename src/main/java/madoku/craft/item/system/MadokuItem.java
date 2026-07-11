@@ -4,10 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.composter.system.MadokuComposterConfig;
 import madoku.craft.farming.system.MadokuFarmingConfig;
 import madoku.craft.itemstack.system.MadokuItemStack;
@@ -184,7 +183,7 @@ public final class MadokuItem {
 	}
 
 	public static String createClientSyncSnapshot() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, enabled)
 			.put(FIELD_SYNC_TOOL_PROFILES, writeToolProfilesSnapshot(toolProfilesByItem))
 			.put(FIELD_SYNC_ARMOR_PROFILES, writeArmorProfilesSnapshot(armorProfilesByItem))
@@ -417,15 +416,15 @@ public final class MadokuItem {
 
 	private static void loadStaticConfig() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ITEM_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ITEM_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, ITEM_CONFIG_SETTINGS_FILE_NAME);
-			JsonStaticSystem.ManagedStaticDocument settingsDocument = JsonStaticSystem.readManagedDocument(settingsFile);
-			JsonObject rawSettingsRoot = settingsDocument.main();
+			JSONFormatManager.ManagedDocument settingsDocument = JSONFormatManager.readManagedDocument(settingsFile);
+			JsonObject rawSettingsRoot = settingsDocument.data();
 			boolean itemSystemEnabled = readBoolean(rawSettingsRoot, FIELD_ENABLED, true);
 			JsonObject settingsRoot = normalizeCategoryFeatureSettings(rawSettingsRoot);
-			JsonObject settingsGeneral = settingsDocument.general();
+			JsonObject settingsGeneral = settingsDocument.settings();
 			settingsGeneral.addProperty(FIELD_ENABLED, itemSystemEnabled);
-			JsonStaticSystem.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral);
+			JSONFormatManager.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral, JSONTypeManager.STATIC_CONFIG);
 			boolean fuelCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_FUEL_ENABLED, true);
 			boolean miscCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_MISC_ENABLED, true);
 			boolean farmingCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_FARMING_ENABLED, true);
@@ -442,7 +441,7 @@ public final class MadokuItem {
 			Path toolDirectory = itemsDirectory.resolve(TOOL_ITEMS_FOLDER_NAME);
 			Path armorDirectory = itemsDirectory.resolve(ARMOR_ITEMS_FOLDER_NAME);
 
-			Map<String, JsonObject> normalizedFuel = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFuel = JSONFormatManager.ensureManagedFolder(
 				fuelDirectory,
 				MadokuItemConfig.buildDefaultFuelFileDefaults(),
 				MadokuItem::buildDynamicFuelDefaultsForFile,
@@ -450,7 +449,7 @@ public final class MadokuItem {
 				null
 			);
 
-			Map<String, JsonObject> normalizedMisc = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedMisc = JSONFormatManager.ensureManagedFolder(
 				miscDirectory,
 				MadokuItemConfig.buildDefaultMiscFileDefaults(),
 				MadokuItem::buildDynamicMiscDefaultsForFile,
@@ -458,7 +457,7 @@ public final class MadokuItem {
 				null
 			);
 
-			Map<String, JsonObject> normalizedFarming = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFarming = JSONFormatManager.ensureManagedFolder(
 				farmingDirectory,
 				farmingSystemEnabled ? MadokuItemConfig.buildDefaultFarmingFileDefaults() : Map.of(),
 				farmingSystemEnabled ? MadokuItem::buildDynamicFarmingDefaultsForFile : null,
@@ -466,7 +465,7 @@ public final class MadokuItem {
 				null
 			);
 
-				Map<String, JsonObject> normalizedComposter = DynamicStaticSystem.ensureManagedFolder(
+				Map<String, JsonObject> normalizedComposter = JSONFormatManager.ensureManagedFolder(
 					composterDirectory,
 					MadokuComposterConfig.buildDefaultComposterFileDefaults(farmingSystemEnabled && farmingCategoryEnabled),
 					MadokuComposterConfig::buildDynamicComposterDefaultsForFile,
@@ -474,7 +473,7 @@ public final class MadokuItem {
 					null
 			);
 
-			Map<String, JsonObject> normalizedTool = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedTool = JSONFormatManager.ensureManagedFolder(
 				toolDirectory,
 				MadokuItemConfig.buildDefaultToolsCategoryFileDefaults(),
 				MadokuItem::buildDynamicToolDefaultsForFile,
@@ -482,7 +481,7 @@ public final class MadokuItem {
 				MadokuItem::normalizeToolDynamicEntry
 			);
 
-			Map<String, JsonObject> normalizedArmor = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedArmor = JSONFormatManager.ensureManagedFolder(
 				armorDirectory,
 				MadokuItemConfig.buildDefaultArmorFileDefaults(),
 				MadokuItem::buildDynamicArmorDefaultsForFile,
@@ -861,9 +860,9 @@ public final class MadokuItem {
 	}
 
 	private static boolean readFarmingSystemEnabled() throws IOException {
-		Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
+		Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
 		Path settingsFile = resolveJsonFile(rootDirectory, FARMING_CONFIG_SETTINGS_FILE_NAME);
-		JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(
+		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 			settingsFile,
 			MadokuFarmingConfig.buildFarmingDefaults()
 		);
@@ -1038,7 +1037,7 @@ public final class MadokuItem {
 	}
 
 	private static JsonObject writeToolProfilesSnapshot(Map<Item, MadokuToolProfile> profiles) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (profiles == null || profiles.isEmpty()) {
 			return root.build();
 		}
@@ -1064,7 +1063,7 @@ public final class MadokuItem {
 	}
 
 	private static JsonObject writeArmorProfilesSnapshot(Map<Item, MadokuArmorProfile> profiles) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (profiles == null || profiles.isEmpty()) {
 			return root.build();
 		}
@@ -1090,7 +1089,7 @@ public final class MadokuItem {
 	}
 
 	private static JsonObject writeToolProfile(MadokuToolProfile profile) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (profile == null) {
 			return root.build();
 		}
@@ -1120,7 +1119,7 @@ public final class MadokuItem {
 	}
 
 	private static JsonObject writeArmorProfile(MadokuArmorProfile profile) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (profile == null) {
 			return root.build();
 		}
@@ -1196,7 +1195,7 @@ public final class MadokuItem {
 		return element.getAsJsonObject();
 	}
 
-	private static void addOptionalDouble(JsonFormatBuilder.ObjectBuilder root, String key, Double value) {
+	private static void addOptionalDouble(JSONFormatManager.ObjectBuilder root, String key, Double value) {
 		if (root == null || key == null || key.isBlank() || value == null) {
 			return;
 		}

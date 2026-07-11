@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigStray {
 	private static final String DEFAULT_MOB_DROPS = "minecraft-entities-stray.json";
@@ -11,7 +11,7 @@ public final class MobConfigStray {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0d)
 			.put(MobConfigManager.FIELD_MOB_STATS, buildStrayMobStatsDefaults())
 			.put(
@@ -35,7 +35,7 @@ public final class MobConfigStray {
 			)
 			.build();
 
-		JsonObject stray = JsonFormatBuilder.object()
+		JsonObject stray = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -50,7 +50,7 @@ public final class MobConfigStray {
 			.put("stray-jockey", buildStrayJockeyVariantDefaults())
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -63,7 +63,7 @@ public final class MobConfigStray {
 	}
 
 	private static JsonObject buildStrayMobStatsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				12.0d,
 				null,
@@ -86,7 +86,7 @@ public final class MobConfigStray {
 	}
 
 	private static JsonObject buildStrayEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, "minecraft-equipment-stray.json")
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -94,7 +94,7 @@ public final class MobConfigStray {
 	}
 
 	private static JsonObject buildStrayJockeyVariantDefaults() {
-		JsonObject jockey = JsonFormatBuilder.object()
+		JsonObject jockey = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.object(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger -> passenger
 				.object(MobConfigManager.FIELD_MOB, passengerMob -> passengerMob
@@ -104,7 +104,7 @@ public final class MobConfigStray {
 				.object(MobConfigManager.FIELD_MOB, mountMob -> mountMob
 					.put(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:spider")))
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,

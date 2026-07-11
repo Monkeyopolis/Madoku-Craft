@@ -4,9 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
@@ -165,7 +164,7 @@ public final class EcosystemNaturalDecayManager {
 			return null;
 		}
 
-		JsonFormatBuilder.ArrayBuilder treeDecayCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder treeDecayCandidates = JSONFormatManager.array();
 		for (MadokuEcosystemManager.TreeDecayCandidateState candidate : treeDecayCandidateList) {
 			if (candidate != null) {
 				treeDecayCandidates.add(candidate.toJson());
@@ -761,11 +760,11 @@ public final class EcosystemNaturalDecayManager {
 		NaturalDecayConfigManager.Settings fallback = NaturalDecayConfigManager.defaults();
 		JsonObject defaults = NaturalDecayConfigManager.buildDefaultsJson();
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = rootDirectory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
 			settings = NaturalDecayConfigManager.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(file, NaturalDecayConfigManager.toJson(settings), defaults);
+			JSONFormatManager.writeManagedFile(file, NaturalDecayConfigManager.toJson(settings), defaults);
 			emitDecayDebug("ecosystem.natural_decay.config", builder -> builder
 				.subject("load-config")
 				.field("config-folder", CONFIG_FOLDER_NAME)

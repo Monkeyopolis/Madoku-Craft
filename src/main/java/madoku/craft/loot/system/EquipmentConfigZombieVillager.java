@@ -2,14 +2,14 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class EquipmentConfigZombieVillager {
 	private EquipmentConfigZombieVillager() {
 	}
 
 	public static JsonObject buildZombieVillagerDefaults() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put(LootTableEquipmentsConfig.FIELD_ENABLED, true)
 			.put(LootTableEquipmentsConfig.FIELD_MOB_ID, "minecraft:zombie_villager")
 			.object(LootTableEquipmentsConfig.FIELD_ARMOR_SET, armorSet -> armorSet
@@ -24,7 +24,7 @@ public final class EquipmentConfigZombieVillager {
 	}
 
 	private static JsonArray buildDefaultSlotEntries(String piece) {
-		return JsonFormatBuilder.array()
+		return JSONFormatManager.array()
 			.add(itemEntry("minecraft:netherite_" + piece, 1.0D))
 			.add(itemEntry("minecraft:diamond_" + piece, 5.0D))
 			.add(itemEntry("minecraft:golden_" + piece, 10.0D))
@@ -35,7 +35,7 @@ public final class EquipmentConfigZombieVillager {
 	}
 
 	private static JsonObject itemEntry(String itemId, double weight) {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put(LootTableEquipmentsConfig.FIELD_ITEM, itemId)
 			.put(LootTableEquipmentsConfig.FIELD_WEIGHT, weight)
 			.build();

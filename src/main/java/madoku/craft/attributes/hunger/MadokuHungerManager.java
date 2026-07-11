@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.levels.MadokuLevels;
 import madoku.craft.network.HungerHudSync;
@@ -75,9 +75,9 @@ public final class MadokuHungerManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		long totalPendingHunger = 0L;
 		for (PlayerState state : PLAYER_STATES.values()) {
@@ -103,7 +103,7 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -115,7 +115,7 @@ public final class MadokuHungerManager {
 		if (server == null) {
 			return;
 		}
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -1143,14 +1143,14 @@ public final class MadokuHungerManager {
 	}
 
 	private static JsonObject createDefaultData() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.array("players", players -> {
 			})
 			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		madoku.craft.config.JsonFormatBuilder.ArrayBuilder players = madoku.craft.config.JsonFormatBuilder.array();
+		madoku.craft.api.json.JSONFormatManager.ArrayBuilder players = madoku.craft.api.json.JSONFormatManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			players.object(player -> player
@@ -1165,7 +1165,7 @@ public final class MadokuHungerManager {
 				.put("hunger-effect-progress-ticks", Math.max(0L, state.hungerEffectProgressTicks))
 				.put("saturation-effect-progress-ticks", Math.max(0L, state.saturationEffectProgressTicks)));
 		}
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put("players", players.build())
 			.build();
 	}

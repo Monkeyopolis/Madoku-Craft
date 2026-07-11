@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigCaveSpider {
 	private MobConfigCaveSpider() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d)
 			.put(MobConfigManager.FIELD_MOB_STATS, buildCaveSpiderMobStatsDefaults())
 			.put(MobConfigManager.FIELD_SPAWN_RULES, buildCaveSpiderSpawnRulesDefaults())
@@ -29,7 +29,7 @@ public final class MobConfigCaveSpider {
 			)
 			.build();
 
-		JsonObject caveSpider = JsonFormatBuilder.object()
+		JsonObject caveSpider = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -42,7 +42,7 @@ public final class MobConfigCaveSpider {
 			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -54,7 +54,7 @@ public final class MobConfigCaveSpider {
 	}
 
 	private static JsonObject buildCaveSpiderMobStatsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				12.0d,
 				null,

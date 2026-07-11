@@ -6,10 +6,9 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
@@ -59,9 +58,9 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(server, data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -69,7 +68,7 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -81,7 +80,7 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData(server));
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData(server));
 	}
 
 	public static boolean isEnabled() {
@@ -212,7 +211,7 @@ public final class MadokuItemStack {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.object(DATA_KEPT_STACKS_KEY, kept -> {
 			})
 			.build();
@@ -276,7 +275,7 @@ public final class MadokuItemStack {
 	}
 
 	private static JsonObject toPersistedData(MinecraftServer server) {
-		JsonFormatBuilder.ObjectBuilder keptRoot = JsonFormatBuilder.object();
+		JSONFormatManager.ObjectBuilder keptRoot = JSONFormatManager.object();
 		if (server != null) {
 			RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
 			for (Map.Entry<UUID, List<KeptStack>> entry : keptStacksByPlayer.entrySet()) {
@@ -286,7 +285,7 @@ public final class MadokuItemStack {
 					continue;
 				}
 
-				JsonFormatBuilder.ArrayBuilder encodedStacks = JsonFormatBuilder.array();
+				JSONFormatManager.ArrayBuilder encodedStacks = JSONFormatManager.array();
 				for (KeptStack keptStack : keptStacks) {
 					if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
 						continue;
@@ -309,23 +308,23 @@ public final class MadokuItemStack {
 			}
 		}
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(DATA_KEPT_STACKS_KEY, keptRoot.build())
 			.build();
 	}
 
 	private static void loadStaticConfig() {
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, ITEMSTACK_CONFIG_FILE_NAME);
-			JsonStaticSystem.ManagedStaticDocument document = JsonStaticSystem.readManagedDocument(configFile);
-			JsonObject root = document.main();
-			JsonObject general = document.general();
+			JSONFormatManager.ManagedDocument document = JSONFormatManager.readManagedDocument(configFile);
+			JsonObject root = document.data();
+			JsonObject general = document.settings();
 			configuration.enabled = readBoolean(general, "enabled", true);
 			boolean changed = configuration.updateItemStack(root);
 			general.addProperty("enabled", configuration.enabled);
-			if (changed || !root.equals(document.main()) || !general.equals(document.general())) {
-				JsonStaticSystem.writeManagedDocument(configFile, root, general);
+			if (changed || !root.equals(document.data()) || !general.equals(document.settings())) {
+				JSONFormatManager.writeManagedDocument(configFile, root, general, JSONTypeManager.STATIC_CONFIG);
 			}
 		} catch (IOException | RuntimeException exception) {
 			configuration.resetToDefaults();

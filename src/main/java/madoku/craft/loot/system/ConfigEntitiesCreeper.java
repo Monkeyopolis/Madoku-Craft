@@ -7,7 +7,7 @@ public final class ConfigEntitiesCreeper {
 	}
 
 	public static JsonObject buildDefaults() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.object("general", general -> general
 				.put("version", "1.1.7")
 				.put("type", "dynamic")
@@ -30,7 +30,7 @@ public final class ConfigEntitiesCreeper {
 						.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
 							LootTableConfigStructures.item("minecraft:creeper_spawn_egg", 1, 0, 1)
 						))
-						.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.config.JsonFormatBuilder.array().add("madoku-pets").build()))))
+						.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.api.json.JSONFormatManager.array().add("madoku-pets").build()))))
 			.build();
 	}
 }

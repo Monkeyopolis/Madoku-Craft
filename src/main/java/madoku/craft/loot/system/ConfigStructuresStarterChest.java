@@ -2,7 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class ConfigStructuresStarterChest {
 	private static final String TABLE_ID = "minecraft:structure_chests/starter_chest";
@@ -11,7 +11,7 @@ public final class ConfigStructuresStarterChest {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonArray groups = JsonFormatBuilder.array()
+		JsonArray groups = JSONFormatManager.array()
 			.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(
 				LootTableConfigStructures.item("minecraft:potato", 1, 2, 6),
 				LootTableConfigStructures.item("minecraft:carrot", 1, 2, 6)
@@ -44,7 +44,7 @@ public final class ConfigStructuresStarterChest {
 			)))
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(LootTableConfigStructures.buildStructureTable(TABLE_ID, 7, 11))
 			.put(LootTableConfigManager.FIELD_GROUPS, groups)
 			.build();

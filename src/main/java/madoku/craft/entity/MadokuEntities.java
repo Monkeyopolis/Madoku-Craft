@@ -3,8 +3,8 @@ package madoku.craft.entity;
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.data.DataManagerSystem;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -115,14 +115,14 @@ public final class MadokuEntities {
 			return;
 		}
 		JsonObject defaults = createDefaultData();
-		JsonObject data = DataManagerSystem.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
+		JsonObject data = MadokuJSONManager.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
 		nextWanderingHagSpawnDay = Math.max(-1L, getLong(data, DATA_NEXT_HAG_SPAWN_DAY, -1L));
 		lastProcessedWanderingHagDay = getLong(data, DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
 		long currentDay = currentAbsoluteDay(server);
 		if (nextWanderingHagSpawnDay < 0L) {
 			nextWanderingHagSpawnDay = currentDay + randomSpawnIntervalDays(server);
 		}
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -130,7 +130,7 @@ public final class MadokuEntities {
 		if (server == null) {
 			return;
 		}
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -142,7 +142,7 @@ public final class MadokuEntities {
 		if (server == null) {
 			return;
 		}
-		DataManagerSystem.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
 	}
 
 	private static void onServerTick(MinecraftServer server) {
@@ -434,14 +434,14 @@ public final class MadokuEntities {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(DATA_NEXT_HAG_SPAWN_DAY, -1L)
 			.put(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE)
 			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay)
 			.put(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay)
 			.build();

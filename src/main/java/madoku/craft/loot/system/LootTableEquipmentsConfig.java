@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,7 +24,7 @@ public final class LootTableEquipmentsConfig {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.build();
 	}

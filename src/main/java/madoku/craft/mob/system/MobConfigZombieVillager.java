@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigZombieVillager {
 	private MobConfigZombieVillager() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				buildZombieVillagerMobStatsDefaults(
@@ -30,7 +30,7 @@ public final class MobConfigZombieVillager {
 			.put(MobConfigManager.FIELD_BABY_GROUP, buildZombieVillagerAgeOverride(true, 10.0d, 2.5d, 0.24d, 3, 10.0d))
 			.build();
 
-		JsonObject zombieVillager = JsonFormatBuilder.object()
+		JsonObject zombieVillager = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.put(MobConfigManager.FIELD_WEAPON_DAMAGE, false)
@@ -44,7 +44,7 @@ public final class MobConfigZombieVillager {
 			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -100,7 +100,7 @@ public final class MobConfigZombieVillager {
 	}
 
 	private static JsonObject buildZombieVillagerEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference())
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -130,7 +130,7 @@ public final class MobConfigZombieVillager {
 		int experience,
 		double spawnWeight
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
 				MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()

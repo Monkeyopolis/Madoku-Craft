@@ -2,10 +2,9 @@ package madoku.craft;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.api.time.MadokuTimeManager;
@@ -954,11 +953,11 @@ public final class MadokuHud {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(HUD_CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(HUD_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, HUD_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -1165,7 +1164,7 @@ public final class MadokuHud {
 		}
 
 		private JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put("enabled", enabled)
 				.put("world-hud-enabled", worldHudEnabled)
 				.put("health-hud-enabled", healthHudEnabled)

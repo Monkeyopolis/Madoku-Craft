@@ -1,7 +1,7 @@
 package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 
 import java.util.List;
@@ -174,7 +174,7 @@ public final class NaturalGrowthConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.object(FIELD_BLOCK_GROWTH, block -> {
 			block.put(FIELD_ENABLED, value.blockGrowth().enabled());
 				block.object("dirt", dirt -> writeDirtGrowth(dirt, value.blockGrowth().dirt()));
@@ -223,7 +223,7 @@ public final class NaturalGrowthConfigManager {
 		);
 	}
 
-	private static void writeFoliageGrowth(JsonFormatBuilder.ObjectBuilder builder, FoliageGrowthSettings value) {
+	private static void writeFoliageGrowth(JSONFormatManager.ObjectBuilder builder, FoliageGrowthSettings value) {
 		FoliageGrowthSettings safe = value == null ? defaults().foliageGrowth : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.object(FIELD_GROWTH_TIME, time -> time
@@ -248,7 +248,7 @@ public final class NaturalGrowthConfigManager {
 		);
 	}
 
-	private static void writeSpeciesLike(JsonFormatBuilder.ObjectBuilder builder, SpeciesGrowthSettings value) {
+	private static void writeSpeciesLike(JSONFormatManager.ObjectBuilder builder, SpeciesGrowthSettings value) {
 		SpeciesGrowthSettings safe = value == null ? defaults().vegetationGrowth().wildflowers() : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_ELIGIBLE_BIOMES, EcosystemConfigManager.toStringArray(safe.eligibleBiomes()))
@@ -264,7 +264,7 @@ public final class NaturalGrowthConfigManager {
 		return new FoliageTargetSettings(EcosystemConfigManager.readInt(entryRoot, FIELD_WEIGHT, safeFallback.weight()));
 	}
 
-	private static void writeDirtGrowth(JsonFormatBuilder.ObjectBuilder builder, DirtGrowthSettings value) {
+	private static void writeDirtGrowth(JSONFormatManager.ObjectBuilder builder, DirtGrowthSettings value) {
 		DirtGrowthSettings safe = value == null ? defaults().blockGrowth().dirt() : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_TARGET_BLOCKS, EcosystemConfigManager.toStringArray(safe.targetBlocks()))
@@ -274,7 +274,7 @@ public final class NaturalGrowthConfigManager {
 			.object(FIELD_GROWTH_MULTIPLIER, multiplier -> writeMultiplier(multiplier, safe.growthMultiplier()));
 	}
 
-	private static void writeMultiplier(JsonFormatBuilder.ObjectBuilder builder, EcosystemConfigManager.SeasonGrowthMultiplier value) {
+	private static void writeMultiplier(JSONFormatManager.ObjectBuilder builder, EcosystemConfigManager.SeasonGrowthMultiplier value) {
 		EcosystemConfigManager.SeasonGrowthMultiplier safe = value == null
 			? new EcosystemConfigManager.SeasonGrowthMultiplier(true, 1.0d, 1.0d, 1.0d, 1.0d)
 			: value;

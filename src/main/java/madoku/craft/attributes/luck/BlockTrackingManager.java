@@ -4,10 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -66,7 +65,7 @@ public final class BlockTrackingManager {
 			return;
 		}
 
-		JsonObject indexData = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultIndexData());
+		JsonObject indexData = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultIndexData());
 		DATA.loadPersistedIndexData(server, indexData);
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(DATA.collectCurrentChunkKeys());
@@ -76,7 +75,7 @@ public final class BlockTrackingManager {
 			savePersistedData(server);
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -85,7 +84,7 @@ public final class BlockTrackingManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -131,7 +130,7 @@ public final class BlockTrackingManager {
 		PERSISTED_TRACKED_SINCE_GAMEPLAY_TICK = currentTrackedSince;
 		DATA.clearDirtyChunkKeys();
 		if (indexChanged) {
-			DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, DATA.createIndexPersistedData());
+			MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, DATA.createIndexPersistedData());
 		}
 		dirty = false;
 		emitLuckDebug(
@@ -178,7 +177,7 @@ public final class BlockTrackingManager {
 	}
 
 	private static JsonObject createDefaultIndexData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, -1L)
 			.put(FIELD_CHUNKS, new JsonArray())
 			.build();
@@ -254,7 +253,7 @@ public final class BlockTrackingManager {
 	}
 
 	private static Path resolveWorldRootDirectory(MinecraftServer server) {
-		return JsonManagerSystem.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
+		return MadokuJSONManager.getOrCreateWorldSystemDirectory(server, DATA_FOLDER_NAME);
 	}
 
 	private static Path resolveChunkPersistedDataPath(MinecraftServer server, ChunkRefKey chunkKey) {
@@ -280,7 +279,7 @@ public final class BlockTrackingManager {
 
 		Path file = resolveChunkPersistedDataFile(server, chunkKey);
 		try {
-			JsonStaticSystem.writeManagedDocument(file, data, new JsonObject());
+			JSONFormatManager.writeManagedDocument(file, data, new JsonObject(), JSONTypeManager.STATIC_DATA);
 		} catch (IOException exception) {
 			LOGGER.error("Failed to write luck chunk data at {}.", file, exception);
 		}
@@ -506,7 +505,7 @@ public final class BlockTrackingManager {
 			List<ChunkRefKey> chunkKeys = new ArrayList<>(placedBlocksByChunk.keySet());
 			chunkKeys.sort(Comparator.comparing(ChunkRefKey::levelId).thenComparingInt(ChunkRefKey::chunkX).thenComparingInt(ChunkRefKey::chunkZ));
 
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, trackedSinceGameplayTick)
 				.put(FIELD_CHUNKS, buildChunkDescriptorArray(chunkKeys))
 				.build();
@@ -522,14 +521,14 @@ public final class BlockTrackingManager {
 				return null;
 			}
 
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_TRACKED_SINCE_GAMEPLAY_TICK, trackedSinceGameplayTick)
 				.put(FIELD_PACKED_POSITIONS, encodePackedPositions(positions))
 				.build();
 		}
 
 		private JsonArray buildChunkDescriptorArray(List<ChunkRefKey> chunkKeys) {
-			JsonFormatBuilder.ArrayBuilder chunks = JsonFormatBuilder.array();
+			JSONFormatManager.ArrayBuilder chunks = JSONFormatManager.array();
 			if (chunkKeys == null) {
 				return chunks.build();
 			}
@@ -654,7 +653,7 @@ public final class BlockTrackingManager {
 			}
 
 			try {
-				JsonObject source = JsonStaticSystem.readManagedDocument(file).main();
+				JsonObject source = JSONFormatManager.readManagedDocument(file).data();
 				return applyChunkPersistedData(source, chunkKey);
 			} catch (IOException exception) {
 				LOGGER.error("Failed to load luck chunk data from {}.", file, exception);

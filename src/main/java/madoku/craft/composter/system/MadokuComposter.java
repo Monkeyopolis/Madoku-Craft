@@ -2,8 +2,8 @@ package madoku.craft.composter.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.item.system.MadokuItemConfig;
 import net.minecraft.world.item.Item;
@@ -63,9 +63,9 @@ public final class MadokuComposter {
 				return;
 			}
 
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(COMPOSTER_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(COMPOSTER_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, COMPOSTER_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 				settingsFile,
 				MadokuComposterConfig.buildComposterSystemDefaults()
 			);

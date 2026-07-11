@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigDrowned {
 	private MobConfigDrowned() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				buildDrownedMeleeMobStatsDefaults(
@@ -29,7 +29,7 @@ public final class MobConfigDrowned {
 			.put(MobConfigManager.FIELD_BABY_GROUP, buildDrownedAgeOverride(true))
 			.build();
 
-		JsonObject drowned = JsonFormatBuilder.object()
+		JsonObject drowned = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.put(MobConfigManager.FIELD_WEAPON_DAMAGE, false)
@@ -46,7 +46,7 @@ public final class MobConfigDrowned {
 			.put("ranged-drowned", buildRangedDrownedVariantDefaults())
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -93,7 +93,7 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference())
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -101,7 +101,7 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildRangedDrownedVariantDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				buildRangedDrownedSharedMobStatsDefaults(resolveDefaultMobDropsReference(), "minecraft:trident")
@@ -137,7 +137,7 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildRangedDrownedSharedMobStatsDefaults(String mobDropsReference, String weaponItemId) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 			null,
 			null,
@@ -174,7 +174,7 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildRangedDrownedAgeOverride(boolean baby) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, buildDrownedRangedAgeMobStatsDefaults(baby))
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
@@ -203,7 +203,7 @@ public final class MobConfigDrowned {
 	}
 
 	private static JsonObject buildDrownedAgeOverride(boolean baby) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
 				MobConfigManager.mobSpawnRules().spawnWeight(baby ? 10.0d : 90.0d).build()

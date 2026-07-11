@@ -4,10 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
@@ -211,9 +209,9 @@ public final class MadokuFarming {
 		loadStaticConfig();
 		loadCropConfigs();
 		syncChunkProcessorActivation();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
 	}
@@ -223,7 +221,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -240,7 +238,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 	}
 
@@ -1376,7 +1374,7 @@ public final class MadokuFarming {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_CHUNK_CURSOR, 0)
 			.array(FIELD_PLOTS, plots -> {
 			})
@@ -1386,19 +1384,19 @@ public final class MadokuFarming {
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonFormatBuilder.ArrayBuilder plots = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder plots = JSONFormatManager.array();
 		for (PlotState plot : plotsByKey.values()) {
 			if (plot != null) {
 				plots.add(plot.toJson());
 			}
 		}
-		JsonFormatBuilder.ArrayBuilder crops = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder crops = JSONFormatManager.array();
 		for (CropState crop : cropsByKey.values()) {
 			if (crop != null) {
 				crops.add(crop.toJson());
 			}
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_CHUNK_CURSOR, Math.max(0, chunkScanCursor))
 			.put(FIELD_PLOTS, plots.build())
 			.put(FIELD_CROPS, crops.build())
@@ -1410,11 +1408,11 @@ public final class MadokuFarming {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, FARMING_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -1429,12 +1427,12 @@ public final class MadokuFarming {
 		Map<String, JsonObject> defaultFiles = MadokuCropConfig.buildDefaultCropFileDefaults();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CROP_CONFIG_ROOT_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CROP_CONFIG_ROOT_FOLDER_NAME);
 			for (Map.Entry<String, JsonObject> entry : defaultFiles.entrySet()) {
 				String fileKey = entry.getKey();
 				JsonObject defaults = entry.getValue();
 				Path file = resolveJsonFile(directory, fileKey);
-				JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
+				JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
 				CropRule rule = CropRule.fromJson(fileKey, normalized);
 				if (rule == null) {
 					rule = CropRule.defaultRule(fileKey);
@@ -2102,7 +2100,7 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_SOIL_POS, soilPos)
 				.put(FIELD_CROP_POS, cropPos)
@@ -2178,7 +2176,7 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CROP_POS, cropPos)
 				.put(FIELD_SOIL_POS, soilPos)
@@ -2305,7 +2303,7 @@ public final class MadokuFarming {
 		}
 
 		private JsonObject toConfigJson() {
-			return madoku.craft.config.JsonFormatBuilder.object()
+			return madoku.craft.api.json.JSONFormatManager.object()
 				.put(MadokuFarmingConfig.FIELD_ENABLED, enabled)
 				.put(MadokuFarmingConfig.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost)
 				.put(MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost)

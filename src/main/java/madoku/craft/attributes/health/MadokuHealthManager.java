@@ -9,8 +9,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
@@ -100,9 +100,9 @@ public final class MadokuHealthManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		emitHealthSystemDebug(
 			"health.persisted_state_loaded",
@@ -121,7 +121,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -134,7 +134,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 		syncTrackedPlayerHealth(server);
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -927,14 +927,14 @@ public final class MadokuHealthManager {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.array("players", players -> {
 			})
 			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonFormatBuilder.ArrayBuilder players = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder players = JSONFormatManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			if (!state.hasPersistableState()) {
@@ -952,7 +952,7 @@ public final class MadokuHealthManager {
 				.put("wither-progress-ticks", Math.max(0L, state.witherProgressTicks))
 				.put("regeneration-progress-ticks", Math.max(0L, state.regenerationProgressTicks)));
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put("players", players.build())
 			.build();
 	}

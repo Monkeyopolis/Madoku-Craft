@@ -4,10 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
@@ -81,15 +80,15 @@ public final class MadokuSmeltingManager {
 		resetRuntimeState();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
 			Path smeltingFile = resolveJsonFile(directory, SMELTING_CONFIG_FILE_NAME);
 
-			JsonStaticSystem.ManagedStaticDocument smeltingDocument = JsonStaticSystem.readManagedDocument(smeltingFile);
-			boolean smeltingEnabled = readBoolean(smeltingDocument.main(), FIELD_ENABLED, true);
+			JSONFormatManager.ManagedDocument smeltingDocument = JSONFormatManager.readManagedDocument(smeltingFile);
+			boolean smeltingEnabled = readBoolean(smeltingDocument.settings(), FIELD_ENABLED, true);
 			configuration.enableFeature = smeltingEnabled;
-			JsonObject smeltingGeneral = smeltingDocument.general();
-			smeltingGeneral.addProperty(FIELD_ENABLED, smeltingEnabled);
-			JsonStaticSystem.writeManagedDocument(smeltingFile, new JsonObject(), smeltingGeneral);
+			JsonObject smeltingSettings = smeltingDocument.settings();
+			smeltingSettings.addProperty(FIELD_ENABLED, smeltingEnabled);
+			JSONFormatManager.writeManagedDocument(smeltingFile, new JsonObject(), smeltingSettings, JSONTypeManager.STATIC_CONFIG);
 
 			FurnaceLoadResult furnaceLoadResult = loadFurnaceRules(directory);
 			rebuildRules(furnaceLoadResult.behaviorByBlockEntityId);
@@ -336,7 +335,7 @@ public final class MadokuSmeltingManager {
 		Path furnacesFolder = smeltingRootDirectory.resolve(FURNACES_DIRECTORY_NAME);
 
 		Map<String, JsonObject> defaultFiles = buildDefaultFurnaceFiles();
-		Map<String, JsonObject> loadedFiles = DynamicStaticSystem.ensureManagedFolder(
+		Map<String, JsonObject> loadedFiles = JSONFormatManager.ensureManagedFolder(
 			furnacesFolder,
 			defaultFiles,
 			ignored -> buildGenericFurnaceDefaults(),
@@ -371,7 +370,7 @@ public final class MadokuSmeltingManager {
 
 			if (changed) {
 				JsonObject fileDefaults = defaultFiles.getOrDefault(fileKey, buildGenericFurnaceDefaults());
-				DynamicStaticSystem.writeManagedFile(
+				JSONFormatManager.writeManagedFile(
 					furnacesFolder.resolve(fileKey + ".json"),
 					root,
 					fileDefaults,
@@ -457,7 +456,7 @@ public final class MadokuSmeltingManager {
 		double smeltingSpeed,
 		double fuelEfficiency
 	) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_BLOCK_ID, blockId)
 			.put(FIELD_BLOCK_ENTITY_ID, blockEntityId)
 			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId)

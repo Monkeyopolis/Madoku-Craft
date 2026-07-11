@@ -9,7 +9,7 @@ public final class ConfigEntitiesZombie {
 	}
 
 	public static JsonObject buildDefaults() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, true)
 			.put(LootTableConfigManager.FIELD_TABLE_ID, TABLE_ID)
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
@@ -34,7 +34,7 @@ public final class ConfigEntitiesZombie {
 					.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
 						LootTableConfigStructures.item("minecraft:zombie_spawn_egg", 1, 0, 1)
 					))
-					.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.config.JsonFormatBuilder.array().add("madoku-pets").build())))
+					.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.api.json.JSONFormatManager.array().add("madoku-pets").build())))
 			.build();
 	}
 }

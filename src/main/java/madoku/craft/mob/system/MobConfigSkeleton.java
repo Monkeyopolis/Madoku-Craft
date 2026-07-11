@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigSkeleton {
 	private static final String DEFAULT_MOB_DROPS = "minecraft-entities-skeleton.json";
@@ -11,7 +11,7 @@ public final class MobConfigSkeleton {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject difficultyScale = JsonFormatBuilder.object()
+		JsonObject difficultyScale = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_HEALTH, 0.25d)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_DAMAGE, 0.10d)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE, 0.10d)
@@ -20,17 +20,17 @@ public final class MobConfigSkeleton {
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP, 0.25d)
 			.build();
 
-		JsonObject skeleton = JsonFormatBuilder.object()
+		JsonObject skeleton = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale)
 			.put(
 				MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING,
-				JsonFormatBuilder.object().put(MobConfigManager.FIELD_ENABLED, true).build()
+				JSONFormatManager.object().put(MobConfigManager.FIELD_ENABLED, true).build()
 			)
 			.put(
 				MobConfigManager.FIELD_DEFAULT_GROUP,
-				JsonFormatBuilder.object()
+				JSONFormatManager.object()
 					.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 80.0d)
 					.put(MobConfigManager.FIELD_MOB_STATS, buildSkeletonMobStatsDefaults())
 					.put(
@@ -58,7 +58,7 @@ public final class MobConfigSkeleton {
 			.put("skeleton-jockey", buildSkeletonJockeyVariantDefaults())
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -87,7 +87,7 @@ public final class MobConfigSkeleton {
 			10.0d,
 			DEFAULT_MOB_DROPS
 		);
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(mobStats)
 			.put(MobConfigManager.FIELD_MOB_WEAPON, MobConfigManager.buildMobWeaponDefaults("minecraft:bow"))
 			.build();
@@ -110,12 +110,12 @@ public final class MobConfigSkeleton {
 			null,
 			DEFAULT_MOB_DROPS
 		);
-		stats = JsonFormatBuilder.object()
+		stats = JSONFormatManager.object()
 			.putAll(stats)
 			.put(MobConfigManager.FIELD_MOB_WEAPON, MobConfigManager.buildMobWeaponDefaults("empty"))
 			.put(MobConfigManager.FIELD_TRUE_DAMAGE, 1.0d)
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, stats)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
@@ -136,7 +136,7 @@ public final class MobConfigSkeleton {
 	}
 
 	private static JsonObject buildSkeletonEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, "minecraft-equipment-skeleton.json")
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -144,7 +144,7 @@ public final class MobConfigSkeleton {
 	}
 
 	private static JsonObject buildSkeletonJockeyVariantDefaults() {
-		JsonObject jockey = JsonFormatBuilder.object()
+		JsonObject jockey = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.object(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger -> passenger
 				.object(MobConfigManager.FIELD_MOB, passengerMob -> passengerMob
@@ -154,7 +154,7 @@ public final class MobConfigSkeleton {
 				.object(MobConfigManager.FIELD_MOB, mountMob -> mountMob
 					.put(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:spider")))
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,

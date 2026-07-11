@@ -1,9 +1,8 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.DynamicStaticSystem;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -26,9 +25,9 @@ public final class MadokuLootTableEquipments {
 
 	public static synchronized void reloadNow() {
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(EQUIPMENT_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(EQUIPMENT_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, EQUIPMENT_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JsonStaticSystem.ensureManagedFile(settingsFile, LootTableConfigManager.buildSettingsDefaults());
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, LootTableConfigManager.buildSettingsDefaults());
 			boolean enabled = readBoolean(settingsRoot, LootTableConfigManager.FIELD_ENABLED, true);
 			boolean customEntityEquipmentEnabled = readBoolean(
 				settingsRoot,
@@ -37,7 +36,7 @@ public final class MadokuLootTableEquipments {
 			);
 
 			Path tablesDirectory = rootDirectory.resolve(EQUIPMENT_CONFIG_TABLES_FOLDER_NAME);
-			Map<String, JsonObject> normalizedFiles = DynamicStaticSystem.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
 				tablesDirectory,
 				LootTableEquipmentsConfig.buildDefaultEquipmentTableFiles(),
 				ignored -> new JsonObject(),

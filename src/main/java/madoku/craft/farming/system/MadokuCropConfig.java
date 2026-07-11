@@ -2,7 +2,7 @@ package madoku.craft.farming.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -196,7 +196,7 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(FIELD_CROP_ID, normalizeRegistryId(cropId))
 			.put(FIELD_GROWTH_TIME, growthMinecraftDays)
 			.put(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount))
@@ -213,7 +213,7 @@ public final class MadokuCropConfig {
 			root.put(FIELD_MAX_HARVEST_SEEDS, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
 		}
 
-		JsonFormatBuilder.ArrayBuilder seasons = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder seasons = JSONFormatManager.array();
 		if (blockedSeasons != null) {
 			for (String season : blockedSeasons) {
 				String normalized = normalizeSeasonId(season);

@@ -2,7 +2,7 @@ package madoku.craft.difficulty.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -59,7 +59,7 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_BIOMES_ENABLED, true)
 			.put(FIELD_STRUCTURES_ENABLED, true)
@@ -243,21 +243,21 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	public static JsonObject buildBiomeRuleDefaults(int adjustment, List<String> biomeList) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
 			.put(FIELD_BIOME_LIST, toStringArray(biomeList))
 			.build();
 	}
 
 	public static JsonObject buildStructureRuleDefaults(int adjustment, List<String> structureList) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
 			.put(FIELD_STRUCTURE_LIST, toStringArray(structureList))
 			.build();
 	}
 
 	public static JsonObject buildTimeRuleDefaults(int minDay, int maxDay, int adjustment) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_MIN_DAY, Math.max(0, minDay))
 			.put(FIELD_MAX_DAY, maxDay < 0 ? TIME_UNBOUNDED_MAX_DAY : Math.max(minDay, maxDay))
 			.put(FIELD_ADJUSTMENT, Math.max(0, adjustment))
@@ -297,7 +297,7 @@ public final class RegionalDifficultyConfigManager {
 		Double attackAccuracy,
 		Double explosionPower
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_MOB_ID, normalizeMobId(mobId));
 		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_MULTIPLY);
@@ -325,7 +325,7 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	private static JsonArray toStringArray(List<String> values) {
-		JsonFormatBuilder.ArrayBuilder array = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder array = JSONFormatManager.array();
 		if (values == null) {
 			return array.build();
 		}
@@ -342,13 +342,13 @@ public final class RegionalDifficultyConfigManager {
 		if (!SCALING_TYPE_ADD.equals(normalizedType) && !SCALING_TYPE_MULTIPLY.equals(normalizedType)) {
 			normalizedType = SCALING_TYPE_ADD;
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_SCALING_TYPE, normalizedType)
 			.put(FIELD_SCALING_VALUE, roundDifficultyScaleValue(value))
 			.build();
 	}
 
-	private static void addScalingEntry(JsonFormatBuilder.ObjectBuilder root, String field, Double value, String type) {
+	private static void addScalingEntry(JSONFormatManager.ObjectBuilder root, String field, Double value, String type) {
 		if (root == null || field == null || field.isBlank() || value == null) {
 			return;
 		}

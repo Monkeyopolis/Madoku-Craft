@@ -5,7 +5,7 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 
 import java.nio.file.Path;
 
@@ -16,6 +16,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void initialize() {
+		MadokuJSONManager.initialize();
 		MadokuMetaDataManager.initialize();
 		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.API);
 		getApiRootDirectory();
@@ -27,10 +28,11 @@ public final class MadokuAPIManager {
 	}
 
 	public static Path getApiRootDirectory() {
-		return JsonManagerSystem.getOrCreateGlobalSystemDirectory(API_FOLDER_NAME);
+		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(API_FOLDER_NAME);
 	}
 
 	public static void reset() {
+		MadokuJSONManager.reset();
 		MadokuTimeManager.reset();
 		MadokuSeasonManager.reset();
 		MadokuDebugManager.resetSession();

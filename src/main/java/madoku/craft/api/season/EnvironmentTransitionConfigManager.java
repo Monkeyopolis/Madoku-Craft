@@ -3,9 +3,8 @@ package madoku.craft.api.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Configuration for weather, water, and seasonal climate transitions. */
-public final class EnvrionmentTransitionConfigManager {
+public final class EnvironmentTransitionConfigManager {
 	public static final String CONFIG_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-season";
 	public static final String CONFIG_FILE_NAME = "environment-transition";
 	public static final String FIELD_TRANSITION_WEATHER = "transition-weather";
@@ -33,10 +32,10 @@ public final class EnvrionmentTransitionConfigManager {
 	public static final String FIELD_HUMIDITY_COUNT = "humidity-count";
 	public static final String FIELD_ENABLED = "enabled";
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(EnvrionmentTransitionConfigManager.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(EnvironmentTransitionConfigManager.class);
 	private static volatile Settings settings = defaults();
 
-	private EnvrionmentTransitionConfigManager() { }
+	private EnvironmentTransitionConfigManager() { }
 
 	public static void initialize() { loadConfig(); }
 	public static void reset() { settings = defaults(); }
@@ -60,7 +59,7 @@ public final class EnvrionmentTransitionConfigManager {
 
 	public static JsonObject toJson(Settings value) {
 		Settings safe = value == null ? defaults() : value;
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.object(FIELD_TRANSITION_WEATHER, b -> b.put(FIELD_ENABLED, safe.weatherEnabled()))
 			.object(FIELD_TRANSITION_WATER, b -> b.put(FIELD_ENABLED, safe.waterEnabled()))
 			.object(FIELD_SEASON_TRANSITIONS, b -> {
@@ -73,7 +72,7 @@ public final class EnvrionmentTransitionConfigManager {
 		return root.build();
 	}
 
-	private static void writeSeasonAdjustments(JsonFormatBuilder.ObjectBuilder parent, Map<String, Adjustment> values, boolean enabled) {
+	private static void writeSeasonAdjustments(JSONFormatManager.ObjectBuilder parent, Map<String, Adjustment> values, boolean enabled) {
 		parent.put(FIELD_ENABLED, enabled);
 		parent.object(FIELD_SEASONS, seasons -> values.forEach((season, adjustment) -> seasons.object(season, s ->
 			s.object(FIELD_ADJUSTMENT, a -> a.put(FIELD_TYPE, adjustment.type()).put(FIELD_VALUE, adjustment.value())))));
@@ -109,11 +108,11 @@ public final class EnvrionmentTransitionConfigManager {
 
 	private static void loadConfig() {
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, buildDefaultsJson());
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, buildDefaultsJson());
 			settings = fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(file, toJson(settings), buildDefaultsJson());
+			JSONFormatManager.writeManagedFile(file, toJson(settings), buildDefaultsJson());
 		} catch (IOException | RuntimeException exception) {
 			settings = defaults();
 			LOGGER.error("Failed to load environment transition configuration; using defaults.", exception);

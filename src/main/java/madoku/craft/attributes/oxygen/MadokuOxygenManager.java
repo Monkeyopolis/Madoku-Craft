@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.data.DataManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -77,9 +77,9 @@ public final class MadokuOxygenManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -88,7 +88,7 @@ public final class MadokuOxygenManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -100,7 +100,7 @@ public final class MadokuOxygenManager {
 		if (server == null) {
 			return;
 		}
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -683,7 +683,7 @@ public final class MadokuOxygenManager {
 	}
 
 	private static JsonObject createDefaultData() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.array("players", players -> {
 			})
 			.build();
@@ -691,7 +691,7 @@ public final class MadokuOxygenManager {
 
 	private static JsonObject toPersistedData() {
 		int oxygenCapTicks = settings.oxygen.maxOxygenTicks;
-		madoku.craft.config.JsonFormatBuilder.ArrayBuilder players = madoku.craft.config.JsonFormatBuilder.array();
+		madoku.craft.api.json.JSONFormatManager.ArrayBuilder players = madoku.craft.api.json.JSONFormatManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			if (!state.hasPersistableState(oxygenCapTicks)) {
@@ -702,7 +702,7 @@ public final class MadokuOxygenManager {
 				.put("uuid", entry.getKey().toString())
 				.put("oxygen-ticks", state.oxygenTicks));
 		}
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.put("players", players.build())
 			.build();
 	}

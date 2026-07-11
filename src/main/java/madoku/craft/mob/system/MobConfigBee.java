@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigBee {
 	private MobConfigBee() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0d)
 			.put(MobConfigManager.FIELD_MOB_STATS, buildSharedBeeStatsDefaults())
 			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildSharedBeeBehaviorDefaults())
@@ -18,7 +18,7 @@ public final class MobConfigBee {
 			.put(MobConfigManager.FIELD_BABY_GROUP, buildBeeAgeOverrides(true))
 			.build();
 
-		JsonObject bee = JsonFormatBuilder.object()
+		JsonObject bee = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -32,7 +32,7 @@ public final class MobConfigBee {
 			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -45,7 +45,7 @@ public final class MobConfigBee {
 	}
 
 	private static JsonObject buildSharedBeeStatsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				10.0d,
 				null,
@@ -96,7 +96,7 @@ public final class MobConfigBee {
 	}
 
 	private static JsonObject buildBeeAgeOverrides(boolean baby) {
-		JsonObject group = JsonFormatBuilder.object()
+		JsonObject group = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_MOB_STATS,
 				MobConfigManager.buildMobStatsDefaults(

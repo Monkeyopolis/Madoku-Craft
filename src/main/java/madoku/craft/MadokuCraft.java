@@ -6,7 +6,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.time.SleepManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.composter.system.MadokuComposter;
-import madoku.craft.config.JsonManagerSystem;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
@@ -44,7 +44,6 @@ public class MadokuCraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		JsonManagerSystem.initialize();
 		MadokuAPIManager.initialize();
 		MadokuSmeltingManager.initialize();
 		MadokuRecipe.initialize();
@@ -160,6 +159,7 @@ public class MadokuCraft implements ModInitializer {
 			WorldTimeSync.reset();
 			WorldDifficultySync.reset();
 			WorldSeasonSync.reset();
+			MadokuJSONManager.clearRuntimeState();
 		});
 
 		ServerTickEvents.START_SERVER_TICK.register(SleepManager::refreshTickIncrement);

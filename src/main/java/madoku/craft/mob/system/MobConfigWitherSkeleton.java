@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigWitherSkeleton {
 	private static final String DEFAULT_MOB_DROPS = "minecraft-entities-wither-skeleton.json";
@@ -11,7 +11,7 @@ public final class MobConfigWitherSkeleton {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0d)
 			.put(MobConfigManager.FIELD_MOB_STATS, buildWitherSkeletonStatsDefaults())
 			.put(
@@ -36,7 +36,7 @@ public final class MobConfigWitherSkeleton {
 			.build();
 		MobConfigManager.ensureMobSchema(defaultGroup, false);
 
-		JsonObject witherSkeleton = JsonFormatBuilder.object()
+		JsonObject witherSkeleton = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -51,7 +51,7 @@ public final class MobConfigWitherSkeleton {
 			.put("melee-wither-skeleton", buildMeleeWitherSkeletonVariantDefaults())
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -64,7 +64,7 @@ public final class MobConfigWitherSkeleton {
 	}
 
 	private static JsonObject buildWitherSkeletonStatsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				20.0d,
 				null,
@@ -87,7 +87,7 @@ public final class MobConfigWitherSkeleton {
 	}
 
 	private static JsonObject buildWitherSkeletonEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, "minecraft-equipment-wither-skeleton.json")
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -95,7 +95,7 @@ public final class MobConfigWitherSkeleton {
 	}
 
 	private static JsonObject buildMeleeWitherSkeletonVariantDefaults() {
-		JsonObject stats = JsonFormatBuilder.object()
+		JsonObject stats = JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				20.0d,
 				null,
@@ -115,7 +115,7 @@ public final class MobConfigWitherSkeleton {
 			.put(MobConfigManager.FIELD_MOB_WEAPON, MobConfigManager.buildMobWeaponDefaults("minecraft:netherite_sword"))
 			.put(MobConfigManager.FIELD_MOB_EFFECT, MobConfigManager.buildMobEffectDefaults("minecraft:wither", 15))
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0d)
 			.put(MobConfigManager.FIELD_MOB_STATS, stats)
 			.put(

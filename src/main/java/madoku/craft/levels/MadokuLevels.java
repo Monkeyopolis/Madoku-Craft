@@ -6,11 +6,9 @@ import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
-import madoku.craft.data.DataManagerSystem;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.network.MadokuLevelUpPayload;
@@ -135,9 +133,9 @@ public final class MadokuLevels {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataManagerSystem.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			ensurePlayerState(player);
@@ -152,7 +150,7 @@ public final class MadokuLevels {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataManagerSystem.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
 		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -165,7 +163,7 @@ public final class MadokuLevels {
 			return;
 		}
 
-		DataManagerSystem.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {
@@ -432,11 +430,11 @@ public final class MadokuLevels {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -455,7 +453,7 @@ public final class MadokuLevels {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.array("players", players -> {
 			})
 			.build();
@@ -505,7 +503,7 @@ public final class MadokuLevels {
 	}
 
 	private static JsonObject toPersistedData() {
-		JsonFormatBuilder.ArrayBuilder players = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder players = JSONFormatManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			players.object(playerData -> {
@@ -522,7 +520,7 @@ public final class MadokuLevels {
 					});
 			});
 		}
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put("players", players.build())
 			.build();
 	}
@@ -705,7 +703,7 @@ public final class MadokuLevels {
 		}
 
 		private JsonObject toConfigJson() {
-			return madoku.craft.config.JsonFormatBuilder.object()
+			return madoku.craft.api.json.JSONFormatManager.object()
 				.put("base-xp-requirement", baseXpRequirement)
 				.put("base-xp-multiplier", baseXpMultiplier)
 				.put("max-player-level-attributes", maxPlayerLevelAttributes)

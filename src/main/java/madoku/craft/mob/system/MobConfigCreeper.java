@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigCreeper {
 	private MobConfigCreeper() {
@@ -11,7 +11,7 @@ public final class MobConfigCreeper {
 	public static JsonObject buildDefaults() {
 		JsonObject defaultGroup = buildCreeperDefaultGroup();
 		JsonObject chargedVariant = buildChargedCreeperVariant();
-		JsonObject creeper = JsonFormatBuilder.object()
+		JsonObject creeper = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -25,7 +25,7 @@ public final class MobConfigCreeper {
 			.put(MobConfigManager.FIELD_CHARGED_CREEPER, chargedVariant)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -37,7 +37,7 @@ public final class MobConfigCreeper {
 	}
 
 	private static JsonObject buildCreeperDefaultGroup() {
-		JsonObject group = JsonFormatBuilder.object()
+		JsonObject group = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, buildCreeperStatsDefaults(3.0d, 0.27d, 0.10d, 30.0d, 7))
 			.put(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(90.0d).build())
 			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildCreeperBehaviorDefaults(0.4d, 0.4d))
@@ -48,7 +48,7 @@ public final class MobConfigCreeper {
 	}
 
 	private static JsonObject buildChargedCreeperVariant() {
-		JsonObject variant = JsonFormatBuilder.object()
+		JsonObject variant = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, buildCreeperStatsDefaults(5.0d, 0.30d, 0.20d, 25.0d, 11))
 			.put(MobConfigManager.FIELD_SPAWN_RULES, MobConfigManager.mobSpawnRules().spawnWeight(10.0d).build())
 			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildCreeperBehaviorDefaults(0.6d, 0.6d))
@@ -65,7 +65,7 @@ public final class MobConfigCreeper {
 		double fuseLength,
 		int experience
 	) {
-		JsonObject creeperStats = JsonFormatBuilder.object()
+		JsonObject creeperStats = JSONFormatManager.object()
 			.putAll(MobConfigManager.buildMobStatsDefaults(
 				12.0d,
 				1.0d,

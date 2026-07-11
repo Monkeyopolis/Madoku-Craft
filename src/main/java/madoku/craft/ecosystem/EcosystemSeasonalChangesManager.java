@@ -7,9 +7,10 @@ import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonBiomeClimateManager;
 import madoku.craft.api.season.SeasonConfigManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
@@ -30,11 +31,10 @@ public final class EcosystemSeasonalChangesManager {
 	private static final String FIELD_SEASONAL_ORIGINAL_BLOCKS = "seasonal-original-blocks";
 	private static final String FIELD_SEASONAL_FLOOD_LEVEL = "seasonal-flood-level";
 	private static final String FIELD_SEASONAL_DROUGHT_LEVEL = "seasonal-drought-level";
-	private static final int SEA_LEVEL = 63;
-	private static final int FLOOD_SPILLOVER_MIN_Y = SEA_LEVEL - 2;
 	private static final Map<String, OriginalBlock> ORIGINAL_BLOCKS = new LinkedHashMap<>();
 	private static final Map<String, Integer> FLOOD_LEVEL_BY_CHUNK = new LinkedHashMap<>();
 	private static final Map<String, Integer> DROUGHT_LEVEL_BY_CHUNK = new LinkedHashMap<>();
+	private static final Map<MadokuEcosystemManager.ChunkRefKey, Map<Long, SeasonalColumn>> SEASONAL_COLUMNS_BY_CHUNK = new LinkedHashMap<>();
 	private static final long MIN_INTERVAL_TICKS = 1L;
 	private static final long MAX_INTERVAL_TICKS = 20L;
 	private static volatile String schedulerId = "";
@@ -42,9 +42,16 @@ public final class EcosystemSeasonalChangesManager {
 
 	private static final MadokuChunkManager.ChunkProcessor PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override public boolean requiresMotionColumns() { return false; }
-		@Override public boolean requiresSurfaceColumns() { return false; }
-		@Override public void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) { MadokuChunkManager.trackChunkForProcessor(PROCESSOR_ID, level, chunkX, chunkZ); }
-		@Override public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) { }
+		@Override public boolean requiresSurfaceColumns() { return true; }
+		@Override public void beginLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
+			MadokuEcosystemManager.beginUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
+		}
+		@Override public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
+			MadokuEcosystemManager.runUnifiedDiscoveryForChunk(level, chunkX, chunkZ, snapshot);
+		}
+		@Override public void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
+			MadokuEcosystemManager.finishUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
+		}
 		@Override public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
 			if (level != null && MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
 				processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
@@ -66,12 +73,17 @@ public final class EcosystemSeasonalChangesManager {
 		ORIGINAL_BLOCKS.clear();
 		FLOOD_LEVEL_BY_CHUNK.clear();
 		DROUGHT_LEVEL_BY_CHUNK.clear();
+		SEASONAL_COLUMNS_BY_CHUNK.clear();
 		SchedulerManagerSystem.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
 		clearSchedulerState();
 		MadokuChunkManager.resetChunkProcessor(PROCESSOR_ID);
 		emitLifecycleDebug("reset", builder -> builder.field("processor-id", PROCESSOR_ID));
 	}
-	public static boolean isEnabled() { return MadokuEcosystemManager.isEnabled() && MadokuSeasonManager.isEnabled() && SeasonalChangesConfigManager.getSettings().droughtEnabled() || MadokuEcosystemManager.isEnabled() && MadokuSeasonManager.isEnabled() && SeasonalChangesConfigManager.getSettings().floodEnabled(); }
+	public static boolean isEnabled() {
+		SeasonalChangesConfigManager.Settings settings = SeasonalChangesConfigManager.getSettings();
+		return MadokuEcosystemManager.isEnabled() && MadokuSeasonManager.isEnabled()
+			&& (settings.droughtEnabled() || settings.floodEnabled());
+	}
 	public static void syncChunkProcessorActivation() {
 		boolean enabled = isEnabled();
 		MadokuChunkManager.setChunkProcessorActive(PROCESSOR_ID, enabled);
@@ -112,13 +124,14 @@ public final class EcosystemSeasonalChangesManager {
 		int chunkZ = integer(data, "chunk-z", Integer.MIN_VALUE);
 		if (levelId.isBlank() || chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) return;
 		String chunkKey = chunkKey(levelId, chunkX, chunkZ);
+		int seaLevel = SeasonalChangesConfigManager.getSettings().seaLevel();
 		JsonElement entries = data.get(FIELD_SEASONAL_ORIGINAL_BLOCKS);
 		if (entries instanceof JsonArray array) for (JsonElement element : array) if (element.isJsonObject()) {
 			JsonObject item = element.getAsJsonObject(); String key = string(item, "key"); String kind = string(item, "kind");
 			if (!key.isBlank()) ORIGINAL_BLOCKS.put(key, new OriginalBlock(kind, booleanValue(item, "flood-origin", false)));
 		}
-		if (data.has(FIELD_SEASONAL_FLOOD_LEVEL)) FLOOD_LEVEL_BY_CHUNK.put(chunkKey, integer(data, FIELD_SEASONAL_FLOOD_LEVEL, SEA_LEVEL));
-		if (data.has(FIELD_SEASONAL_DROUGHT_LEVEL)) DROUGHT_LEVEL_BY_CHUNK.put(chunkKey, integer(data, FIELD_SEASONAL_DROUGHT_LEVEL, SEA_LEVEL - 1));
+		if (data.has(FIELD_SEASONAL_FLOOD_LEVEL)) FLOOD_LEVEL_BY_CHUNK.put(chunkKey, integer(data, FIELD_SEASONAL_FLOOD_LEVEL, seaLevel));
+		if (data.has(FIELD_SEASONAL_DROUGHT_LEVEL)) DROUGHT_LEVEL_BY_CHUNK.put(chunkKey, integer(data, FIELD_SEASONAL_DROUGHT_LEVEL, seaLevel));
 	}
 	static java.util.Set<MadokuEcosystemManager.ChunkRefKey> collectTrackedChunkKeys() {
 		java.util.LinkedHashSet<MadokuEcosystemManager.ChunkRefKey> keys = new java.util.LinkedHashSet<>();
@@ -127,10 +140,63 @@ public final class EcosystemSeasonalChangesManager {
 		ORIGINAL_BLOCKS.keySet().forEach(key -> { TrackedBlock parsed = parse(key); if (parsed != null) keys.add(new MadokuEcosystemManager.ChunkRefKey(parsed.levelId(), parsed.pos().getX() >> 4, parsed.pos().getZ() >> 4)); });
 		return keys;
 	}
+	static void discoverTrackablesInChunk(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || snapshot == null || accumulator == null || !isEnabled()) return;
+		SeasonalChangesConfigManager.Settings config = SeasonalChangesConfigManager.getSettings();
+		int seaLevel = config.seaLevel();
+		for (MadokuChunkManager.ColumnSample column : snapshot.surfaceColumns()) {
+			if (column == null || !column.hasDepth(0)) continue;
+			int x = column.worldX();
+			int z = column.worldZ();
+			BlockPos climatePos = new BlockPos(x, Math.min(world.getMaxY() - 1, seaLevel), z);
+			SeasonBiomeClimateManager.Climate climate = MadokuSeasonManager.resolveBiomeClimate(world, climatePos);
+			String biomeId = world.getBiome(climatePos).unwrapKey().map(k -> k.identifier().toString()).orElse("unknown");
+			boolean ocean = biomeId.contains(":ocean") || biomeId.endsWith("ocean");
+			boolean droughtEligible = !ocean && config.droughtEnabled() && climate.humidity() <= 20 && climate.temperature() > 20;
+			boolean floodEligible = !ocean && config.floodEnabled() && climate.humidity() >= 80 && climate.temperature() < 80;
+			if (droughtEligible || floodEligible) {
+				accumulator.seasonalColumns.put(BlockPos.asLong(x, 0, z), new SeasonalColumn(x, z, biomeId, climate.temperature(), climate.humidity(), droughtEligible, floodEligible));
+			}
+		}
+	}
+
+	static void finalizeTrackablesInChunkDiscovery(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
+	) {
+		if (world == null || accumulator == null || !isEnabled()) return;
+		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(
+			MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
+		if (accumulator.seasonalColumns.isEmpty()) {
+			SEASONAL_COLUMNS_BY_CHUNK.remove(chunkKey);
+		} else {
+			SEASONAL_COLUMNS_BY_CHUNK.put(chunkKey, new LinkedHashMap<>(accumulator.seasonalColumns));
+		}
+		syncChunkProcessorTracking(chunkKey);
+	}
+
+	private static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) return;
+		Map<Long, SeasonalColumn> columns = SEASONAL_COLUMNS_BY_CHUNK.get(chunkKey);
+		boolean tracked = isEnabled() && columns != null && !columns.isEmpty();
+		if (tracked) {
+			MadokuChunkManager.trackChunkForProcessor(PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		} else {
+			MadokuChunkManager.untrackChunkForProcessor(PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
+		}
+	}
 	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunk) {
 		if (chunk == null) return null;
 		String stateKey = chunkKey(chunk.levelId(), chunk.chunkX(), chunk.chunkZ());
-		JsonFormatBuilder.ArrayBuilder originals = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder originals = JSONFormatManager.array();
 		for (Map.Entry<String, OriginalBlock> entry : ORIGINAL_BLOCKS.entrySet()) {
 			TrackedBlock tracked = parse(entry.getKey());
 			if (tracked != null && tracked.levelId().equals(chunk.levelId()) && (tracked.pos().getX() >> 4) == chunk.chunkX() && (tracked.pos().getZ() >> 4) == chunk.chunkZ()) {
@@ -141,7 +207,7 @@ public final class EcosystemSeasonalChangesManager {
 		boolean hasFloodLevel = FLOOD_LEVEL_BY_CHUNK.containsKey(stateKey);
 		boolean hasDroughtLevel = DROUGHT_LEVEL_BY_CHUNK.containsKey(stateKey);
 		if (!hasOriginals && !hasFloodLevel && !hasDroughtLevel) return null;
-		JsonFormatBuilder.ObjectBuilder builder = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder builder = JSONFormatManager.object()
 			.put(FIELD_SEASONAL_ORIGINAL_BLOCKS, originals.build());
 		if (hasFloodLevel) builder.put(FIELD_SEASONAL_FLOOD_LEVEL, FLOOD_LEVEL_BY_CHUNK.get(stateKey));
 		if (hasDroughtLevel) builder.put(FIELD_SEASONAL_DROUGHT_LEVEL, DROUGHT_LEVEL_BY_CHUNK.get(stateKey));
@@ -204,48 +270,47 @@ public final class EcosystemSeasonalChangesManager {
 	private static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
 		if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) return;
 		SeasonalChangesConfigManager.Settings config = SeasonalChangesConfigManager.getSettings();
+		int seaLevel = config.seaLevel();
 		long currentDay = Math.max(0L, MadokuTimeManager.getDay(currentAbsoluteDayTime));
 		int seasonLengthDays = SeasonConfigManager.getSettings().seasonLengthDays();
 		int seasonDay = (int) Math.floorMod(currentDay, seasonLengthDays);
 		int adjustmentWindowDays = Math.max(1, seasonLengthDays / 2);
 		String chunkKey = chunkKey(level, chunkX, chunkZ);
-		int floodLevel = FLOOD_LEVEL_BY_CHUNK.getOrDefault(chunkKey, SEA_LEVEL);
-		int droughtLevel = DROUGHT_LEVEL_BY_CHUNK.getOrDefault(chunkKey, SEA_LEVEL - 1);
+		int floodLevel = FLOOD_LEVEL_BY_CHUNK.getOrDefault(chunkKey, seaLevel);
+		int droughtLevel = DROUGHT_LEVEL_BY_CHUNK.getOrDefault(chunkKey, seaLevel);
 		boolean floodDue = floodLevel < level.getMaxY() - 1
-			&& transitionDue(seasonDay, floodLevel - SEA_LEVEL, config.floodTimeRateDays(), adjustmentWindowDays);
+			&& transitionDue(seasonDay, floodLevel - seaLevel, config.floodTimeRateDays(), adjustmentWindowDays);
 		boolean droughtDue = droughtLevel > level.getMinY()
-			&& transitionDue(seasonDay, (SEA_LEVEL - 1) - droughtLevel, config.droughtTimeRateDays(), adjustmentWindowDays);
+			&& transitionDue(seasonDay, seaLevel - droughtLevel, config.droughtTimeRateDays(), adjustmentWindowDays);
 		boolean flooded = false;
 		boolean dried = false;
-		boolean hasFloodEligibleColumn = false;
-		boolean hasDroughtEligibleColumn = false;
+		Map<Long, SeasonalColumn> seasonalColumns = SEASONAL_COLUMNS_BY_CHUNK.getOrDefault(
+			new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(level), chunkX, chunkZ), Map.of());
+		boolean hasFloodEligibleColumn = config.floodEnabled()
+			&& seasonalColumns.values().stream().anyMatch(SeasonalColumn::floodEligible);
+		boolean hasDroughtEligibleColumn = config.droughtEnabled()
+			&& seasonalColumns.values().stream().anyMatch(SeasonalColumn::droughtEligible);
 		boolean floodRestored = false;
 		boolean droughtRestored = false;
 		boolean floodSpilloverCleared = false;
-		for (int localX = 0; localX < 16; localX++) for (int localZ = 0; localZ < 16; localZ++) {
-			int x = (chunkX << 4) + localX, z = (chunkZ << 4) + localZ;
-			BlockPos pos = new BlockPos(x, Math.min(level.getMaxY() - 1, SEA_LEVEL), z);
-			var climate = MadokuSeasonManager.resolveBiomeClimate(level, pos);
-			String biomeId = level.getBiome(pos).unwrapKey().map(k -> k.identifier().toString()).orElse("unknown");
-			boolean ocean = biomeId.contains(":ocean") || biomeId.endsWith("ocean");
-			boolean droughtEligible = !ocean && config.droughtEnabled() && climate.humidity() <= 20 && climate.temperature() > 20;
-			boolean floodEligible = !ocean && config.floodEnabled() && climate.humidity() >= 80 && climate.temperature() < 80;
-			hasFloodEligibleColumn |= floodEligible;
-			hasDroughtEligibleColumn |= droughtEligible;
-			String action = ocean ? "skip-ocean" : droughtEligible && droughtDue ? "drought" : floodEligible && floodDue ? "flood" : climate.humidity() >= 21 && climate.humidity() < 80 ? "restore" : "none";
-			emitDecisionDebug(level, chunkX, chunkZ, x, z, biomeId, climate.temperature(), climate.humidity(), ocean,
+		for (SeasonalColumn column : seasonalColumns.values()) {
+			int x = column.x();
+			int z = column.z();
+			boolean droughtEligible = config.droughtEnabled() && column.droughtEligible();
+			boolean floodEligible = config.floodEnabled() && column.floodEligible();
+			String action = droughtEligible && droughtDue ? "drought" : floodEligible && floodDue ? "flood" : "none";
+			emitDecisionDebug(level, chunkX, chunkZ, x, z, column.biomeId(), column.temperature(), column.humidity(), false,
 				droughtEligible, droughtDue, droughtLevel, floodEligible, floodDue, floodLevel, action);
-			if (ocean) continue;
 			if (droughtEligible && droughtDue) {
 				applyDrought(level, x, z, droughtLevel, config.droughtDepthRate());
 				dried = true;
 			}
 			if (floodEligible && floodDue) {
-				applyFlood(level, x, z, floodLevel, config.floodDepthRate());
+				applyFlood(level, x, z, floodLevel, config.floodDepthRate(), seaLevel);
 				flooded = true;
 			}
-			if (floodEligible && (flooded || floodLevel > SEA_LEVEL)) {
-				floodSpilloverCleared |= clearFloodSpilloverBelowSeaLevel(level, x, z);
+			if (floodEligible && (flooded || floodLevel > seaLevel)) {
+				floodSpilloverCleared |= clearFloodSpilloverBelowSeaLevel(level, x, z, seaLevel);
 			}
 		}
 		if (!hasFloodEligibleColumn) {
@@ -270,8 +335,8 @@ public final class EcosystemSeasonalChangesManager {
 			.field("adjustment-window-days", adjustmentWindowDays)
 			.field("processor-id", PROCESSOR_ID));
 		emitProcessingDebug(level, chunkX, chunkZ,
-			FLOOD_LEVEL_BY_CHUNK.getOrDefault(chunkKey, SEA_LEVEL),
-			DROUGHT_LEVEL_BY_CHUNK.getOrDefault(chunkKey, SEA_LEVEL - 1), flooded, dried);
+			FLOOD_LEVEL_BY_CHUNK.getOrDefault(chunkKey, seaLevel),
+			DROUGHT_LEVEL_BY_CHUNK.getOrDefault(chunkKey, seaLevel), flooded, dried);
 	}
 
 	private static void applyDrought(ServerLevel level, int x, int z, int levelY, int amount) {
@@ -293,8 +358,8 @@ public final class EcosystemSeasonalChangesManager {
 			}
 		}
 	}
-	private static void applyFlood(ServerLevel level, int x, int z, int currentLevel, int amount) {
-		rememberFloodBand(level, x, z, currentLevel, amount);
+	private static void applyFlood(ServerLevel level, int x, int z, int currentLevel, int amount, int seaLevel) {
+		rememberFloodBand(level, x, z, currentLevel, amount, seaLevel);
 		for (int i = 1; i <= amount; i++) {
 			int targetY = currentLevel + i;
 			if (targetY >= level.getMaxY()) return;
@@ -315,21 +380,15 @@ public final class EcosystemSeasonalChangesManager {
 		return nextAdjustmentDay <= adjustmentWindowDays && seasonDay >= nextAdjustmentDay;
 	}
 	private static boolean restoreFloodTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-		boolean[] restored = {false};
-		ORIGINAL_BLOCKS.entrySet().removeIf(entry -> {
-			if (!entry.getValue().floodOrigin()) return false;
-			TrackedBlock tracked = parse(entry.getKey());
-			if (tracked == null || !tracked.levelId().equals(MadokuChunkManager.normalizeLevelId(level))
-				|| (tracked.pos().getX() >> 4) != chunkX || (tracked.pos().getZ() >> 4) != chunkZ) return false;
-			restored[0] |= restoreOriginalBlock(level, tracked.pos(), entry.getValue());
-			return true;
-		});
-		return restored[0];
+		return restoreTrackedChunk(level, chunkX, chunkZ, true);
 	}
 	private static boolean restoreDroughtTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
+		return restoreTrackedChunk(level, chunkX, chunkZ, false);
+	}
+	private static boolean restoreTrackedChunk(ServerLevel level, int chunkX, int chunkZ, boolean floodOrigin) {
 		boolean[] restored = {false};
 		ORIGINAL_BLOCKS.entrySet().removeIf(entry -> {
-			if (entry.getValue().floodOrigin()) return false;
+			if (entry.getValue().floodOrigin() != floodOrigin) return false;
 			TrackedBlock tracked = parse(entry.getKey());
 			if (tracked == null || !tracked.levelId().equals(MadokuChunkManager.normalizeLevelId(level))
 				|| (tracked.pos().getX() >> 4) != chunkX || (tracked.pos().getZ() >> 4) != chunkZ) return false;
@@ -349,9 +408,9 @@ public final class EcosystemSeasonalChangesManager {
 		else if (original.kind().equals("waterloggable") && current.hasProperty(BlockStateProperties.WATERLOGGED)) { level.setBlock(pos, current.setValue(BlockStateProperties.WATERLOGGED, false), 3); return true; }
 		return false;
 	}
-	private static void rememberFloodBand(ServerLevel level, int x, int z, int currentLevel, int amount) {
-		int maximumTargetY = Math.min(level.getMaxY() - 1, Math.max(SEA_LEVEL + 1, currentLevel + amount));
-		for (int targetY = Math.max(level.getMinY(), FLOOD_SPILLOVER_MIN_Y); targetY <= maximumTargetY; targetY++) {
+	private static void rememberFloodBand(ServerLevel level, int x, int z, int currentLevel, int amount, int seaLevel) {
+		int maximumTargetY = Math.min(level.getMaxY() - 1, Math.max(seaLevel + 1, currentLevel + amount));
+		for (int targetY = Math.max(level.getMinY(), seaLevel - 2); targetY <= maximumTargetY; targetY++) {
 			if (targetY < level.getMinY() || targetY >= level.getMaxY()) continue;
 			BlockPos target = new BlockPos(x, targetY, z);
 			BlockState state = level.getBlockState(target);
@@ -360,9 +419,9 @@ public final class EcosystemSeasonalChangesManager {
 			}
 		}
 	}
-	private static boolean clearFloodSpilloverBelowSeaLevel(ServerLevel level, int x, int z) {
+	private static boolean clearFloodSpilloverBelowSeaLevel(ServerLevel level, int x, int z, int seaLevel) {
 		boolean cleared = false;
-		for (int targetY = Math.max(level.getMinY(), FLOOD_SPILLOVER_MIN_Y); targetY <= SEA_LEVEL; targetY++) {
+		for (int targetY = Math.max(level.getMinY(), seaLevel - 2); targetY <= seaLevel; targetY++) {
 			BlockPos target = new BlockPos(x, targetY, z);
 			OriginalBlock original = ORIGINAL_BLOCKS.get(key(level, target));
 			if (original == null || !original.floodOrigin() || !isFloodState(level.getBlockState(target))) continue;
@@ -471,4 +530,5 @@ public final class EcosystemSeasonalChangesManager {
 	}
 	private record OriginalBlock(String kind, boolean floodOrigin) { }
 	private record TrackedBlock(String levelId, BlockPos pos) { }
+	static record SeasonalColumn(int x, int z, String biomeId, int temperature, int humidity, boolean droughtEligible, boolean floodEligible) { }
 }

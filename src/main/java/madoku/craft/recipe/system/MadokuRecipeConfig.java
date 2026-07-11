@@ -2,7 +2,7 @@ package madoku.craft.recipe.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MadokuRecipeConfig {
 	public static final String FIELD_ENABLED = "enabled";
@@ -38,7 +38,7 @@ public final class MadokuRecipeConfig {
 	}
 
 	public static JsonObject buildRecipeSystemDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.build();
 	}
@@ -52,7 +52,7 @@ public final class MadokuRecipeConfig {
 		String processCategory,
 		boolean enabled
 	) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, enabled)
 			.put(FIELD_RECIPE_ID, recipeId == null ? "" : recipeId)
 			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId == null ? "" : recipeTypeId)
@@ -64,7 +64,7 @@ public final class MadokuRecipeConfig {
 	}
 
 	private static JsonArray buildCategoryArray(String outputCategory, String processCategory) {
-		JsonFormatBuilder.ArrayBuilder categories = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder categories = JSONFormatManager.array();
 		if (outputCategory != null && !outputCategory.isBlank()) {
 			categories.add(outputCategory);
 		}

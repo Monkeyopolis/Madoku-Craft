@@ -1,7 +1,7 @@
 package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.List;
 
@@ -122,7 +122,7 @@ public final class NaturalErosionConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.object(FIELD_WATER_EROSION, waterRoot -> {
 				waterRoot.put(FIELD_ENABLED, value.waterErosion.enabled());
 				waterRoot.put(FIELD_EROSION_RADIUS, value.waterErosion.erosionRadius());
@@ -153,7 +153,7 @@ public final class NaturalErosionConfigManager {
 		);
 	}
 
-	private static void writeRule(JsonFormatBuilder.ObjectBuilder builder, ErosionRuleSettings value) {
+	private static void writeRule(JSONFormatManager.ObjectBuilder builder, ErosionRuleSettings value) {
 		ErosionRuleSettings safe = value == null
 			? new ErosionRuleSettings(true, List.of(), List.of(), new EcosystemConfigManager.DayRange(1, 1))
 			: value;

@@ -4,9 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
@@ -309,19 +308,19 @@ public final class EcosystemNaturalGrowthManager {
 			return null;
 		}
 
-		JsonFormatBuilder.ArrayBuilder treeCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder treeCandidates = JSONFormatManager.array();
 		MadokuEcosystemManager.TreeCandidateState treeCandidate = getTreeCandidate(chunkKey);
 		if (treeCandidate != null) {
 			treeCandidates.add(treeCandidate.toJson());
 		}
 
-		JsonFormatBuilder.ArrayBuilder cactusCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder cactusCandidates = JSONFormatManager.array();
 		MadokuEcosystemManager.CactusCandidateState cactusCandidate = getCactusCandidate(chunkKey);
 		if (cactusCandidate != null) {
 			cactusCandidates.add(cactusCandidate.toJson());
 		}
 
-		JsonFormatBuilder.ArrayBuilder grassCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder grassCandidates = JSONFormatManager.array();
 		List<MadokuEcosystemManager.GrassCandidateState> grassCandidateList = getGrassCandidates(chunkKey);
 		if (grassCandidateList != null) {
 			for (MadokuEcosystemManager.GrassCandidateState candidate : grassCandidateList) {
@@ -331,7 +330,7 @@ public final class EcosystemNaturalGrowthManager {
 			}
 		}
 
-		JsonFormatBuilder.ArrayBuilder desertFoliageGrowthCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder desertFoliageGrowthCandidates = JSONFormatManager.array();
 		List<MadokuEcosystemManager.GrassCandidateState> desertFoliageGrowthCandidateList = getDesertFoliageGrowthCandidates(chunkKey);
 		if (desertFoliageGrowthCandidateList != null) {
 			for (MadokuEcosystemManager.GrassCandidateState candidate : desertFoliageGrowthCandidateList) {
@@ -341,7 +340,7 @@ public final class EcosystemNaturalGrowthManager {
 			}
 		}
 
-		JsonFormatBuilder.ArrayBuilder foliageCandidates = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder foliageCandidates = JSONFormatManager.array();
 		List<MadokuEcosystemManager.FoliageCandidateState> foliageCandidateList = getFoliageCandidates(chunkKey);
 		if (foliageCandidateList != null) {
 			for (MadokuEcosystemManager.FoliageCandidateState candidate : foliageCandidateList) {
@@ -2305,11 +2304,11 @@ public final class EcosystemNaturalGrowthManager {
 		NaturalGrowthConfigManager.Settings fallback = NaturalGrowthConfigManager.defaults();
 		JsonObject defaults = NaturalGrowthConfigManager.buildDefaultsJson();
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = rootDirectory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
 			settings = NaturalGrowthConfigManager.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(file, NaturalGrowthConfigManager.toJson(settings), defaults);
+			JSONFormatManager.writeManagedFile(file, NaturalGrowthConfigManager.toJson(settings), defaults);
 			emitGrowthDebug("ecosystem.natural_growth.config", builder -> builder
 				.subject("load-config")
 				.field("config-folder", CONFIG_FOLDER_NAME)

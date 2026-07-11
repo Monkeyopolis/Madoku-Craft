@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class ConfigStructuresEndCity {
 	private static final String TABLE_ID = "minecraft:structure_chests/end_city";
@@ -10,7 +10,7 @@ public final class ConfigStructuresEndCity {
 	}
 
 	public static JsonObject buildDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(LootTableConfigStructures.buildStructureTable(TABLE_ID, 3, 7))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(LootTableConfigStructures.group("common", 100, LootTableConfigStructures.entries(

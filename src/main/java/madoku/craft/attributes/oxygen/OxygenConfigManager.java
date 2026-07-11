@@ -3,8 +3,7 @@ package madoku.craft.attributes.oxygen;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.attributes.AttributesConfigManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,9 +33,9 @@ public final class OxygenConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(OXYGEN_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			return configured.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuOxygenManager config; using defaults.", exception);
@@ -90,7 +89,7 @@ public final class OxygenConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen))
 				.object("water-breathing", waterBreathing -> this.waterBreathing.toConfigJson(waterBreathing))
 				.object("conduit-power", conduitPower -> this.conduitPower.toConfigJson(conduitPower))
@@ -140,7 +139,7 @@ public final class OxygenConfigManager {
 			return new OxygenSettings(enabled, maxOxygenTicks, suffocatingPenalty);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("max-oxygen", maxOxygenTicks)
 				.object("suffocating-penalty", suffocatingPenalty -> this.suffocatingPenalty.toConfigJson(suffocatingPenalty));
@@ -179,7 +178,7 @@ public final class OxygenConfigManager {
 			return new SuffocatingPenaltySettings(enabled, type, value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("type", type.configValue)
 				.put("value", value);
@@ -212,7 +211,7 @@ public final class OxygenConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen));
 			return builder.build();
@@ -247,7 +246,7 @@ public final class OxygenConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen))
 				.object("mining-speed", miningSpeed -> this.miningSpeed.toConfigJson(miningSpeed));
@@ -283,7 +282,7 @@ public final class OxygenConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen))
 				.object("swimming-speed", swimmingSpeed -> this.swimmingSpeed.toConfigJson(swimmingSpeed));
@@ -316,7 +315,7 @@ public final class OxygenConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen));
 			return builder.build();
@@ -344,7 +343,7 @@ public final class OxygenConfigManager {
 			return new TicksSettings(value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("value", value);
 			return builder.build();
 		}
@@ -367,7 +366,7 @@ public final class OxygenConfigManager {
 			return new PercentageSettings(value);
 		}
 
-		JsonObject toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			builder.put("value", value);
 			return builder.build();
 		}

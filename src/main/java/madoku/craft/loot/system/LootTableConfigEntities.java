@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -12,7 +12,7 @@ public final class LootTableConfigEntities {
 	}
 
 	public static JsonObject buildEntityTableTemplate(String tableId) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, false)
 			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
@@ -24,7 +24,7 @@ public final class LootTableConfigEntities {
 	}
 
 	public static JsonObject buildEntityTable(String tableId, boolean enabled, int minRolls, int maxRolls) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, enabled)
 			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls

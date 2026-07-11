@@ -3,9 +3,8 @@ package madoku.craft.api.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +71,7 @@ public final class BiomeClimateConfigManager {
 
 	public static JsonObject toJson(Settings value) {
 		Settings safe = value == null ? defaults() : value;
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.object(FIELD_BIOME_TEMPERATURE, child -> child.put(FIELD_ENABLED, safe.temperatureEnabled()))
 			.object(FIELD_BIOME_HUMIDITY, child -> child.put(FIELD_ENABLED, safe.humidityEnabled()));
 		root.object(FIELD_BIOMES, biomes -> {
@@ -113,11 +112,11 @@ public final class BiomeClimateConfigManager {
 
 	private static void loadConfig() {
 		try {
-			Path directory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, buildDefaultsJson());
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, buildDefaultsJson());
 			settings = fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(file, toJson(settings), buildDefaultsJson());
+			JSONFormatManager.writeManagedFile(file, toJson(settings), buildDefaultsJson());
 		} catch (IOException | RuntimeException exception) {
 			settings = defaults();
 			LOGGER.error("Failed to load biome climate configuration; using defaults.", exception);

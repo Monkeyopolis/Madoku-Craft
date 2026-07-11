@@ -9,7 +9,7 @@ public final class ConfigEntitiesStray {
 	}
 
 	public static JsonObject buildDefaults() {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.object("general", general -> general
 				.put("version", "1.1.7")
 				.put("type", "dynamic")

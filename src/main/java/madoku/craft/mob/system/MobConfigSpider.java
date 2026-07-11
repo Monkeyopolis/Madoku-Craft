@@ -2,7 +2,7 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigSpider {
 	private static final String DEFAULT_MOB_DROPS = "minecraft-entities-spider.json";
@@ -11,14 +11,14 @@ public final class MobConfigSpider {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, buildSpiderStatsDefaults())
 			.put(MobConfigManager.FIELD_SPAWN_RULES, buildSpiderVariantSpawnRulesDefaults(80.0d))
 			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildSpiderBehaviorDefaults())
 			.put(MobConfigManager.FIELD_MOB_GOALS, buildSpiderGoalsDefaults())
 			.build();
 
-		JsonObject spider = JsonFormatBuilder.object()
+		JsonObject spider = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.object(MobConfigManager.FIELD_DIFFICULTY_SCALE, difficultyScale -> difficultyScale
@@ -34,7 +34,7 @@ public final class MobConfigSpider {
 			.put("spider-jockey", buildSpiderJockeyVariantDefaults())
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -46,7 +46,7 @@ public final class MobConfigSpider {
 	}
 
 	private static JsonObject buildSpiderJockeyVariantDefaults() {
-		JsonObject jockey = JsonFormatBuilder.object()
+		JsonObject jockey = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.object(MobConfigManager.FIELD_JOCKEY_PASSENGER, passenger -> passenger
 				.object(MobConfigManager.FIELD_MOB, passengerMob -> passengerMob
@@ -56,7 +56,7 @@ public final class MobConfigSpider {
 				.object(MobConfigManager.FIELD_MOB, mountMob -> mountMob
 					.put(MobConfigManager.FIELD_ADULT_GROUP, "minecraft:spider")))
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
@@ -66,11 +66,11 @@ public final class MobConfigSpider {
 	}
 
 	private static JsonObject buildCaveSpiderVariantDefaults() {
-		JsonObject alternativeMob = JsonFormatBuilder.object()
+		JsonObject alternativeMob = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB, "minecraft:cave_spider")
 			.build();
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_SHARED_COMPONENTS, true)
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,

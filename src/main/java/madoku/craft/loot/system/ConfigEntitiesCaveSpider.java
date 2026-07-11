@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class ConfigEntitiesCaveSpider {
 	private static final String TABLE_ID = "minecraft:entities/cave_spider";
@@ -10,7 +10,7 @@ public final class ConfigEntitiesCaveSpider {
 	}
 
 	public static JsonObject buildDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(LootTableConfigEntities.buildEntityTable(TABLE_ID, true, 1, 2))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(LootTableConfigStructures.group(

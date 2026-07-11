@@ -1,7 +1,7 @@
 package madoku.craft.api.metadata;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -78,7 +78,7 @@ public final class MadokuMetaDataManager {
 		subSystem("season-biome-climate-manager", entriesFromClass(madoku.craft.api.season.SeasonBiomeClimateManager.class),
 			group("biome-climate-config-manager", entriesFromClass(madoku.craft.api.season.BiomeClimateConfigManager.class)), group("lifecycle", entry("state"))),
 		subSystem("season-environment-transition-manager", entriesFromClass(madoku.craft.api.season.SeasonEnvironmentTransitionManager.class),
-			group("envrionment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvrionmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
+			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
 	);
 
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(
@@ -231,7 +231,7 @@ public final class MadokuMetaDataManager {
 	}
 
 	public static JsonObject createDefaultDebugConfig(MainSystemMetadata mainSystem) {
-		return mainSystem == null ? JsonFormatBuilder.object().build() : mainSystem.toDebugConfigJson();
+		return mainSystem == null ? JSONFormatManager.object().build() : mainSystem.toDebugConfigJson();
 	}
 
 	public record MainSystemMetadata(String mainSystem, Map<String, SubSystemMetadata> subSystems) {
@@ -268,7 +268,7 @@ public final class MadokuMetaDataManager {
 		}
 
 		public JsonObject toDebugConfigJson() {
-			JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object();
+			JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 			root.put("enabled", false);
 			for (Map.Entry<String, SubSystemMetadata> entry : subSystems.entrySet()) {
 				root.put(entry.getKey(), entry.getValue().toDebugConfigJson());
@@ -306,7 +306,7 @@ public final class MadokuMetaDataManager {
 		}
 
 		private JsonObject toDebugConfigJson() {
-			JsonFormatBuilder.ObjectBuilder builder = JsonFormatBuilder.object().put("enabled", false);
+			JSONFormatManager.ObjectBuilder builder = JSONFormatManager.object().put("enabled", false);
 			for (Map.Entry<String, EntryMetadata> entry : entries.entrySet()) {
 				builder.object(entry.getKey(), value -> value.put("enabled", false));
 			}
@@ -332,7 +332,7 @@ public final class MadokuMetaDataManager {
 		}
 
 		private JsonObject toDebugConfigJson() {
-			JsonFormatBuilder.ObjectBuilder builder = JsonFormatBuilder.object().put("enabled", false);
+			JSONFormatManager.ObjectBuilder builder = JSONFormatManager.object().put("enabled", false);
 			for (Map.Entry<String, EntryMetadata> entry : entries.entrySet()) {
 				builder.object(entry.getKey(), value -> value.put("enabled", false));
 			}

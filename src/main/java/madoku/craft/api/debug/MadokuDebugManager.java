@@ -4,8 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -218,7 +218,7 @@ public final class MadokuDebugManager {
 				Path file = resolveMainSystemFile(mainSystem);
 				JsonObject defaults = MadokuMetaDataManager.createDefaultDebugConfig(hierarchy);
 				try {
-					return JsonStaticSystem.ensureManagedFile(file, defaults);
+					return JSONFormatManager.ensureManagedFile(file, defaults);
 				} catch (IOException exception) {
 					LOGGER.error("Failed to create or read debug config file at {}.", file, exception);
 					return defaults;
@@ -228,7 +228,7 @@ public final class MadokuDebugManager {
 	}
 
 	private static Path resolveRootDirectory() {
-		return JsonManagerSystem.getOrCreateGlobalSystemDirectory(DEBUG_CONFIG_FOLDER_NAME);
+		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(DEBUG_CONFIG_FOLDER_NAME);
 	}
 
 	private static Path resolveMainSystemFile(String mainSystem) {

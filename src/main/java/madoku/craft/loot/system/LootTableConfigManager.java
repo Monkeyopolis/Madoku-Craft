@@ -1,7 +1,7 @@
 package madoku.craft.loot.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class LootTableConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
@@ -29,7 +29,7 @@ public final class LootTableConfigManager {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_USE_MADOKU_LUCK, true)
 			.put(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true)

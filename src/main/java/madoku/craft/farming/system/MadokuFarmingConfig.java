@@ -1,7 +1,7 @@
 package madoku.craft.farming.system;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MadokuFarmingConfig {
 	public static final String FIELD_ENABLED = "enabled";
@@ -26,7 +26,7 @@ public final class MadokuFarmingConfig {
 	}
 
 	public static JsonObject buildFarmingDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_RAIN_GROWTH_BOOST, DEFAULT_RAIN_GROWTH_BOOST)
 			.put(FIELD_FERTILIZED_GROWTH_BOOST, DEFAULT_FERTILIZED_GROWTH_BOOST)

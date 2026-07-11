@@ -12,7 +12,7 @@ public final class SeasonEnvironmentTransitionManager {
 	private SeasonEnvironmentTransitionManager() { }
 
 	public static void initialize() {
-		EnvrionmentTransitionConfigManager.initialize();
+		EnvironmentTransitionConfigManager.initialize();
 		debug("initialize");
 	}
 
@@ -22,34 +22,34 @@ public final class SeasonEnvironmentTransitionManager {
 
 	public static int adjustTemperature(int base, String season) {
 		if (!isTemperatureTransitionEnabled()) return clamp(base);
-		return apply(base, EnvrionmentTransitionConfigManager.getSettings().temperatureAdjustments().getOrDefault(normalizeSeason(season), new EnvrionmentTransitionConfigManager.Adjustment("addition", 0)));
+		return apply(base, EnvironmentTransitionConfigManager.getSettings().temperatureAdjustments().getOrDefault(normalizeSeason(season), new EnvironmentTransitionConfigManager.Adjustment("addition", 0)));
 	}
 
 	public static int adjustHumidity(int base, String season) {
 		if (!isHumidityTransitionEnabled()) return clamp(base);
-		return apply(base, EnvrionmentTransitionConfigManager.getSettings().humidityAdjustments().getOrDefault(normalizeSeason(season), new EnvrionmentTransitionConfigManager.Adjustment("addition", 0)));
+		return apply(base, EnvironmentTransitionConfigManager.getSettings().humidityAdjustments().getOrDefault(normalizeSeason(season), new EnvironmentTransitionConfigManager.Adjustment("addition", 0)));
 	}
 
 	public static boolean isWeatherTransitionEnabled() {
 		return MadokuSeasonManager.isEnabled() && SeasonBiomeClimateManager.isTemperatureEnabled() && SeasonBiomeClimateManager.isHumidityEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().weatherEnabled();
+			&& EnvironmentTransitionConfigManager.getSettings().weatherEnabled();
 	}
 
 	public static boolean isWaterTransitionEnabled() {
 		return MadokuSeasonManager.isEnabled() && SeasonBiomeClimateManager.isTemperatureEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().waterEnabled();
+			&& EnvironmentTransitionConfigManager.getSettings().waterEnabled();
 	}
 
 	public static boolean isTemperatureTransitionEnabled() {
 		return MadokuSeasonManager.isEnabled() && SeasonBiomeClimateManager.isTemperatureEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().seasonTransitionsEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().temperatureEnabled();
+			&& EnvironmentTransitionConfigManager.getSettings().seasonTransitionsEnabled()
+			&& EnvironmentTransitionConfigManager.getSettings().temperatureEnabled();
 	}
 
 	public static boolean isHumidityTransitionEnabled() {
 		return MadokuSeasonManager.isEnabled() && SeasonBiomeClimateManager.isHumidityEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().seasonTransitionsEnabled()
-			&& EnvrionmentTransitionConfigManager.getSettings().humidityEnabled();
+			&& EnvironmentTransitionConfigManager.getSettings().seasonTransitionsEnabled()
+			&& EnvironmentTransitionConfigManager.getSettings().humidityEnabled();
 	}
 
 	public static Biome.Precipitation resolvePrecipitation(Biome biome, String season) {
@@ -79,7 +79,7 @@ public final class SeasonEnvironmentTransitionManager {
 		return biome.getBaseTemperature() <= 0.15f ? Biome.Precipitation.SNOW : Biome.Precipitation.RAIN;
 	}
 
-	private static int apply(int base, EnvrionmentTransitionConfigManager.Adjustment adjustment) {
+	private static int apply(int base, EnvironmentTransitionConfigManager.Adjustment adjustment) {
 		int value = adjustment.type().equals("subtraction") ? base - adjustment.value() : base + adjustment.value();
 		return clamp(value);
 	}

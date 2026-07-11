@@ -2,7 +2,7 @@ package madoku.craft.loot.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,7 +14,7 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject buildStructureTableTemplate(String tableId) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, true)
 			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
@@ -26,7 +26,7 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject buildStructureTable(String tableId, int minRolls, int maxRolls) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, true)
 			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
@@ -38,19 +38,19 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject group(String rarity, int weight, JsonArray entries) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
-			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JsonFormatBuilder.array().build() : entries)
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatManager.array().build() : entries)
 			.build();
 	}
 
 	public static JsonObject group(String rarity, int weight, List<String> tags, JsonArray entries) {
-		JsonFormatBuilder.ObjectBuilder group = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder group = JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
-			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JsonFormatBuilder.array().build() : entries);
-		JsonFormatBuilder.ArrayBuilder tagArray = JsonFormatBuilder.array();
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatManager.array().build() : entries);
+		JSONFormatManager.ArrayBuilder tagArray = JSONFormatManager.array();
 		if (tags != null) {
 			for (String tag : tags) {
 				if (tag == null || tag.isBlank()) {
@@ -67,7 +67,7 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonArray entries(JsonObject... entries) {
-		JsonFormatBuilder.ArrayBuilder array = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder array = JSONFormatManager.array();
 		if (entries != null) {
 			for (JsonObject entry : entries) {
 				if (entry == null || entry.isEmpty()) {
@@ -80,7 +80,7 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ITEM, itemId == null ? "" : itemId)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
 			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)
@@ -89,7 +89,7 @@ public final class LootTableConfigStructures {
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount, String itemRarity) {
-		JsonFormatBuilder.ObjectBuilder entry = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder entry = JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ITEM, itemId == null ? "" : itemId)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
 			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)

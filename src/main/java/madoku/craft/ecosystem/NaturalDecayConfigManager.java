@@ -1,7 +1,7 @@
 package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 
 import java.util.List;
@@ -61,7 +61,7 @@ public final class NaturalDecayConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.object(FIELD_LEAF_LITTER, leaf -> leaf
 				.put(FIELD_ENABLED, value.leafLitter.enabled())
 				.object(FIELD_DECAY_TIME, time -> time

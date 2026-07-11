@@ -2,7 +2,7 @@ package madoku.craft.item.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -49,7 +49,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildCategoryFeatureDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_FUEL_ENABLED, true)
 			.put(FIELD_MISC_ENABLED, true)
 			.put(FIELD_FARMING_ENABLED, true)
@@ -143,7 +143,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks, String stackValue) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_FUEL, 100)))
 			.put(FIELD_FUEL_TICKS, fuelTicks)
 			.build();
@@ -158,7 +158,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildFarmingItemDefaults(String itemId, String stackValue) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(buildBaseDefaults(
 				itemId,
 				stackValue,
@@ -191,7 +191,7 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		String stackValue
 	) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_TOOL, 100)))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -224,7 +224,7 @@ public final class MadokuItemConfig {
 		double reachMax,
 		String stackValue
 	) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_TOOL, 100)))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -252,7 +252,7 @@ public final class MadokuItemConfig {
 		double armorToughness,
 		String stackValue
 	) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_ARMOR, 100)))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ARMOR, armor)
@@ -261,7 +261,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildBaseDefaults(String itemId, String stackValue, CategoryWeight... categories) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ITEM_ID, itemId == null ? "" : itemId)
 			.put(FIELD_CATEGORY, buildCategoryArray(categories))
 			.put(FIELD_STACK, normalizeStackValue(stackValue))
@@ -273,7 +273,7 @@ public final class MadokuItemConfig {
 	}
 
 	private static JsonArray buildCategoryArray(CategoryWeight... categoryWeights) {
-		JsonFormatBuilder.ArrayBuilder categoryArray = JsonFormatBuilder.array();
+		JSONFormatManager.ArrayBuilder categoryArray = JSONFormatManager.array();
 		if (categoryWeights == null || categoryWeights.length == 0) {
 			categoryArray.add(newCategoryEntry(CATEGORY_MISC, 100));
 			return categoryArray.build();
@@ -308,7 +308,7 @@ public final class MadokuItemConfig {
 	}
 
 	private static JsonObject newCategoryEntry(String category, int weight) {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_CATEGORY_NAME, category)
 			.put(FIELD_CATEGORY_WEIGHT, Math.max(1, weight))
 			.build();

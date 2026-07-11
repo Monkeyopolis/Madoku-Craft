@@ -2,14 +2,14 @@ package madoku.craft.mob.system;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MobConfigHusk {
 	private MobConfigHusk() {
 	}
 
 	public static JsonObject buildDefaults() {
-		JsonObject huskStats = JsonFormatBuilder.object()
+		JsonObject huskStats = JSONFormatManager.object()
 			.putAll(buildHuskMobStatsDefaults(
 				28.0d,
 				2.0d,
@@ -23,7 +23,7 @@ public final class MobConfigHusk {
 			.put(MobConfigManager.FIELD_MOB_EFFECT, MobConfigManager.buildMobEffectDefaults("minecraft:slowness", 15))
 			.build();
 
-		JsonObject defaultGroup = JsonFormatBuilder.object()
+		JsonObject defaultGroup = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_MOB_STATS, huskStats)
 			.put(MobConfigManager.FIELD_SPAWN_RULES, buildHuskSpawnRulesDefaults())
 			.put(MobConfigManager.FIELD_MOB_BEHAVIOR, buildHuskBehaviorDefaults(true))
@@ -32,7 +32,7 @@ public final class MobConfigHusk {
 			.put(MobConfigManager.FIELD_BABY_GROUP, buildHuskAgeOverride(true, 0.2d, 3, 10.0d, 14.0d, 1.0d, 3.5d))
 			.build();
 
-		JsonObject husk = JsonFormatBuilder.object()
+		JsonObject husk = JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_CUSTOM_MOB_DROPS, true)
 			.put(MobConfigManager.FIELD_DIFFICULTY_SCALING, true)
 			.put(MobConfigManager.FIELD_WEAPON_DAMAGE, false)
@@ -46,7 +46,7 @@ public final class MobConfigHusk {
 			.put(MobConfigManager.FIELD_DEFAULT_GROUP, defaultGroup)
 			.build();
 
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_STATS, true)
 			.put(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -102,7 +102,7 @@ public final class MobConfigHusk {
 	}
 
 	private static JsonObject buildHuskEquipmentSetDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)
 			.put(MobConfigManager.FIELD_MOB_EQUIPMENT, resolveDefaultMobEquipmentReference())
 			.put(MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0d)
@@ -133,7 +133,7 @@ public final class MobConfigHusk {
 		Double armor,
 		Double damage
 	) {
-		JsonFormatBuilder.ObjectBuilder root = JsonFormatBuilder.object()
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(
 				MobConfigManager.FIELD_SPAWN_RULES,
 				MobConfigManager.mobSpawnRules().spawnWeight(spawnWeight).build()

@@ -4,9 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.config.JsonFormatBuilder;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,11 +158,11 @@ public final class TimeConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, TIME_CONFIG_FILE_NAME);
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -324,7 +323,7 @@ public final class TimeConfigManager {
 		}
 
 		private JsonObject toConfigJson() {
-			return JsonFormatBuilder.object()
+			return JSONFormatManager.object()
 				.object(FIELD_DAY_CYCLE, builder -> dayCycle.toConfigJson(builder))
 				.object(FIELD_SLEEP, builder -> sleep.toConfigJson(builder))
 				.build();
@@ -345,7 +344,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -369,7 +368,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -389,7 +388,7 @@ public final class TimeConfigManager {
 			return new TimeDurationSettings(sanitizePositive(getLong(source, FIELD_VALUE, base.valueMinutes), base.valueMinutes));
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -425,7 +424,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -447,7 +446,7 @@ public final class TimeConfigManager {
 			return new SeasonSettings(TimeAdjustmentSettings.fromJson(readObject(source, FIELD_TIME_ADJUSTMENT), base.timeAdjustment));
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -467,7 +466,7 @@ public final class TimeConfigManager {
 			return new TimeAdjustmentSettings(day, night);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -490,7 +489,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -523,7 +522,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -549,7 +548,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -569,7 +568,7 @@ public final class TimeConfigManager {
 			return new ThunderstormBypassSettings(getBoolean(source, FIELD_ENABLED, base.enabled));
 		}
 
-		private void toConfigJson(JsonFormatBuilder.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}

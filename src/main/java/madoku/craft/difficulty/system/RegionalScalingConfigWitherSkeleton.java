@@ -14,7 +14,7 @@ public final class RegionalScalingConfigWitherSkeleton {
 		double knockbackResistance,
 		double experienceDrop
 	) {
-		return madoku.craft.config.JsonFormatBuilder.object()
+		return madoku.craft.api.json.JSONFormatManager.object()
 			.putAll(RegionalScalingConfigManager.buildMobScalingDefaults(
 				"minecraft:wither_skeleton",
 				health,

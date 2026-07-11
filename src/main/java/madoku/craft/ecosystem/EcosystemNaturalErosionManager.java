@@ -3,8 +3,8 @@ package madoku.craft.ecosystem;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.config.JsonManagerSystem;
-import madoku.craft.config.JsonStaticSystem;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.scheduler.SchedulerManagerSystem;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
@@ -684,11 +684,11 @@ public final class EcosystemNaturalErosionManager {
 		NaturalErosionConfigManager.Settings fallback = NaturalErosionConfigManager.defaults();
 		JsonObject defaults = NaturalErosionConfigManager.buildDefaultsJson();
 		try {
-			Path rootDirectory = JsonManagerSystem.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = rootDirectory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JsonStaticSystem.ensureManagedFile(file, defaults);
+			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
 			settings = NaturalErosionConfigManager.fromJson(normalized);
-			JsonStaticSystem.writeManagedFile(file, NaturalErosionConfigManager.toJson(settings), defaults);
+			JSONFormatManager.writeManagedFile(file, NaturalErosionConfigManager.toJson(settings), defaults);
 			emitErosionDebug("ecosystem.natural_erosion.config", builder -> builder
 				.subject("load-config")
 				.field("config-folder", CONFIG_FOLDER_NAME)

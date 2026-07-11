@@ -2,7 +2,7 @@ package madoku.craft.rarity;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.JsonFormatBuilder;
+import madoku.craft.api.json.JSONFormatManager;
 
 public final class MadokuRarityConfig {
 	private static final String FIELD_ENABLED = "enabled";
@@ -78,7 +78,7 @@ public final class MadokuRarityConfig {
 	}
 
 	public static JsonObject buildDefaults() {
-		return JsonFormatBuilder.object()
+		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_COMMON_CHANCE_WEIGHT, DEFAULT_COMMON_CHANCE_WEIGHT)
 			.put(FIELD_RARE_CHANCE_WEIGHT, DEFAULT_RARE_CHANCE_WEIGHT)
