@@ -14,6 +14,7 @@ public final class MadokuSchedulerManager {
 	}
 
 	public static void initialize() {
+		SchedulerConfigManager.initialize();
 		SchedulerRuntimeManager.initialize();
 	}
 
@@ -63,7 +64,7 @@ public final class MadokuSchedulerManager {
 	}
 
 	public static String createOrGetScheduler(SchedulerBinding binding) {
-		return createOrGetScheduler(binding, SchedulerRuntimeManager.DEFAULT_EXPIRATION_DAYS);
+		return createOrGetScheduler(binding, SchedulerConfigManager.getSettings().defaultExpirationDays());
 	}
 
 	public static String createOrGetScheduler(SchedulerBinding binding, int expirationDays) {
