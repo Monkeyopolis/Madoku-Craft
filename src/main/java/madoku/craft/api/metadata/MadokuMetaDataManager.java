@@ -51,7 +51,6 @@ public final class MadokuMetaDataManager {
 		subSystem(
 			"scheduler-manager",
 			entriesFromClass(madoku.craft.api.scheduler.MadokuSchedulerManager.class),
-			group("scheduler-config-manager", entriesFromClass(madoku.craft.api.scheduler.SchedulerConfigManager.class)),
 			group("scheduler-runtime-manager", entriesFromClass("madoku.craft.api.scheduler.SchedulerRuntimeManager"))
 		)
 	);

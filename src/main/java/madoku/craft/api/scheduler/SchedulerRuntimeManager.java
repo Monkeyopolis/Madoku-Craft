@@ -3,6 +3,7 @@ package madoku.craft.api.scheduler;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.api.data.DataSaveCoordinatorManager;
@@ -37,8 +38,10 @@ import java.util.UUID;
 /** Owns scheduler state, execution, expiration, and persistence behind the public facade. */
 final class SchedulerRuntimeManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerRuntimeManager.class);
-	private static final String DATA_FOLDER_NAME = "madoku-craft-schedulers";
-	private static final String DATA_FILE_NAME = "madoku-schedulers";
+	private static final int DEFAULT_EXPIRATION_DAYS = 14;
+	private static final long DEFAULT_INACTIVE_EXPIRATION_MINUTES = 5L;
+	private static final String DATA_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-scheduler";
+	private static final String DATA_FILE_NAME = "madoku-scheduler";
 	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
 	private static final String GROUP_GENERAL = "general";
 	private static final String FIELD_EXPIRATION = "expiration";
@@ -51,6 +54,22 @@ final class SchedulerRuntimeManager {
 	private static boolean dirty;
 
 	private SchedulerRuntimeManager() { }
+
+	static int defaultExpirationDays() {
+		return DEFAULT_EXPIRATION_DAYS;
+	}
+
+	static long getInactiveExpirationTicks() {
+		try {
+			return Math.multiplyExact(
+				Math.multiplyExact(DEFAULT_INACTIVE_EXPIRATION_MINUTES, MadokuTimeManager.SECONDS_PER_MINUTE),
+				MadokuTimeManager.TICKS_PER_SECOND);
+		} catch (ArithmeticException exception) {
+			return DEFAULT_INACTIVE_EXPIRATION_MINUTES
+				* MadokuTimeManager.SECONDS_PER_MINUTE
+				* MadokuTimeManager.TICKS_PER_SECOND;
+		}
+	}
 
 	static void initialize() {
 		SchedulerAdaptiveIntervalManager.clearAll();
@@ -517,7 +536,7 @@ final class SchedulerRuntimeManager {
 
 		private boolean isExpiredForInactivity(long nowTick) {
 			return nowTick >= lastRunnableGameplayTick
-				&& nowTick - lastRunnableGameplayTick >= SchedulerConfigManager.getInactiveExpirationTicks();
+				&& nowTick - lastRunnableGameplayTick >= getInactiveExpirationTicks();
 		}
 
 		private JsonObject toJson() {
@@ -539,7 +558,7 @@ final class SchedulerRuntimeManager {
 			JsonObject general = getObject(source, GROUP_GENERAL);
 			if (schedulerId.isBlank() || binding == null) return null;
 			SchedulerEntry entry = new SchedulerEntry(schedulerId, binding,
-				normalizeExpirationDays(getInt(general, FIELD_EXPIRATION, SchedulerConfigManager.getSettings().defaultExpirationDays())),
+				normalizeExpirationDays(getInt(general, FIELD_EXPIRATION, DEFAULT_EXPIRATION_DAYS)),
 				Math.max(0L, getLong(general, FIELD_LAST_TOUCHED_DAY, resolveCurrentSchedulerDay())));
 			entry.nextRequestId = Math.max(1L, getLong(source, "next-request-id", 1L));
 			JsonArray tasksArray = getArray(source, "tasks");
