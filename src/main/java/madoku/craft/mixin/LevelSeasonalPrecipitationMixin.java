@@ -25,7 +25,8 @@ public abstract class LevelSeasonalPrecipitationMixin {
 		if (!MadokuSeasonManager.isEnabled()
 			|| !SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
 			|| !((Object) this instanceof ServerLevel serverLevel)
-			|| pos == null) {
+			|| pos == null
+			|| !serverLevel.isRaining()) {
 			return;
 		}
 		cir.setReturnValue(MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos));

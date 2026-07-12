@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.api.data.MadokuChunkDataManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,6 +52,9 @@ public abstract class BlockLuckContextMixin {
 		CallbackInfo ci
 	) {
 		MadokuLuckManager.endBlockDropContext();
+		if (level instanceof ServerLevel serverLevel && player instanceof ServerPlayer) {
+			MadokuChunkDataManager.removePlayerPlacedBlock(serverLevel, pos);
+		}
 	}
 }
 

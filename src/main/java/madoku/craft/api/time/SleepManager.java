@@ -18,6 +18,9 @@ public final class SleepManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SleepManager.class);
 	private static final String DEBUG_SUB_SYSTEM = "sleep-manager";
 	private static final double SLEEP_SPEED_MULTIPLIER = 100.0D;
+	private static final long MINECRAFT_TICKS_PER_CYCLE = 24000L;
+	private static final int MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES = 6 * 60;
+	private static final int MINUTES_PER_DAY = 24 * 60;
 
 	private static double fractionalCarry = 0.0D;
 	private static volatile long cachedTickIncrement = 1L;
@@ -152,7 +155,7 @@ public final class SleepManager {
 
 		long currentTime = level.getOverworldClockTime();
 		long targetWakeTime = resolveNextMorningWakeTime(currentTime);
-		if (wakeTargetWorldTime < 0L) {
+		if (wakeTargetWorldTime < 0L || currentTime < wakeTargetWorldTime) {
 			wakeTargetWorldTime = targetWakeTime;
 		} else {
 			wakeTargetWorldTime = Math.max(wakeTargetWorldTime, targetWakeTime);
@@ -176,6 +179,9 @@ public final class SleepManager {
 		ServerLevel overworld = server.overworld();
 		if (overworld == null) {
 			return;
+		}
+		if (MadokuTimeManager.getWorldTimeDelta() < 0L) {
+			wakeTargetWorldTime = resolveNextMorningWakeTime(absoluteDayTime);
 		}
 		long wakeTarget = wakeTargetWorldTime;
 		if (wakeTarget < 0L) {
@@ -267,11 +273,13 @@ public final class SleepManager {
 
 	private static long resolveNextMorningWakeTime(long absoluteDayTime) {
 		long currentTime = Math.max(0L, absoluteDayTime);
-		long currentDay = MadokuTimeManager.getDay(currentTime);
-		int currentMinutes = MadokuTimeManager.getTotalMinutes(currentTime);
-		int morningMinutes = TimeConfigManager.getMorningMinutes() * 60;
-		long wakeDay = currentMinutes < morningMinutes ? currentDay : currentDay + 1L;
-		return MadokuTimeManager.toAbsoluteDayTime(wakeDay, morningMinutes);
+		int morningMinutes = Math.floorMod(
+			TimeConfigManager.getMorningMinutes() * 60 - MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES,
+			MINUTES_PER_DAY);
+		long morningTick = (morningMinutes * MINECRAFT_TICKS_PER_CYCLE) / MINUTES_PER_DAY;
+		long cycleStart = Math.floorDiv(currentTime, MINECRAFT_TICKS_PER_CYCLE) * MINECRAFT_TICKS_PER_CYCLE;
+		long wakeTarget = cycleStart + morningTick;
+		return wakeTarget > currentTime ? wakeTarget : wakeTarget + MINECRAFT_TICKS_PER_CYCLE;
 	}
 
 	private static boolean invokeWeatherSetter(Object target, String methodName, Class<?>[] parameterTypes, Object[] values) {

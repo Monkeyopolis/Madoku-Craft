@@ -337,8 +337,8 @@ public final class MadokuChunkManager {
 
 	public static boolean isChunkBlockTicking(ServerLevel level, int chunkX, int chunkZ) {
 		FullChunkStatus status = getStoredChunkStatus(level, chunkX, chunkZ);
-		if (status != null) {
-			return status.isOrAfter(FullChunkStatus.BLOCK_TICKING);
+		if (status != null && status.isOrAfter(FullChunkStatus.BLOCK_TICKING)) {
+			return true;
 		}
 
 		if (level == null || !isChunkAccessible(level, chunkX, chunkZ)) {
@@ -355,7 +355,9 @@ public final class MadokuChunkManager {
 	public static boolean isChunkEntityTicking(ServerLevel level, int chunkX, int chunkZ) {
 		FullChunkStatus status = getStoredChunkStatus(level, chunkX, chunkZ);
 		if (status != null) {
-			return status.isOrAfter(FullChunkStatus.ENTITY_TICKING);
+			if (status.isOrAfter(FullChunkStatus.ENTITY_TICKING)) {
+				return true;
+			}
 		}
 
 		if (level == null || !isChunkAccessible(level, chunkX, chunkZ)) {
@@ -473,15 +475,15 @@ public final class MadokuChunkManager {
 	}
 
 	static long packChunk(int chunkX, int chunkZ) {
-		return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
+		return (chunkX & 0xFFFFFFFFL) | ((long) chunkZ << 32);
 	}
 
 	static int unpackChunkX(long packedChunk) {
-		return (int) (packedChunk >> 32);
+		return (int) packedChunk;
 	}
 
 	static int unpackChunkZ(long packedChunk) {
-		return (int) packedChunk;
+		return (int) (packedChunk >> 32);
 	}
 
 	static boolean isKnownLoadedChunk(String levelId, int chunkX, int chunkZ) {

@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -23,6 +24,7 @@ public final class MadokuChunkDataManager {
 
 	private static final PlayerPlacedBlockData DATA = new PlayerPlacedBlockData();
 	private static final Set<ChunkRefKey> LOADED_CHUNKS = new LinkedHashSet<>();
+	private static final Set<PendingRemoval> PENDING_REMOVALS = new LinkedHashSet<>();
 	private static volatile boolean dirty;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile boolean eventHandlersRegistered;
@@ -45,9 +47,10 @@ public final class MadokuChunkDataManager {
 		if (!eventHandlersRegistered) {
 			PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
 				if (world instanceof ServerLevel level) {
-					removePlayerPlacedBlock(level, pos);
+					PENDING_REMOVALS.add(new PendingRemoval(level, pos == null ? null : pos.immutable()));
 				}
 			});
+			ServerTickEvents.END_SERVER_TICK.register(server -> flushPendingRemovals());
 			eventHandlersRegistered = true;
 		}
 	}
@@ -55,6 +58,7 @@ public final class MadokuChunkDataManager {
 	public static void reset() {
 		DATA.clear();
 		LOADED_CHUNKS.clear();
+		PENDING_REMOVALS.clear();
 		dirty = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 	}
@@ -64,6 +68,7 @@ public final class MadokuChunkDataManager {
 
 		DATA.clear();
 		LOADED_CHUNKS.clear();
+		PENDING_REMOVALS.clear();
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(
 			madoku.craft.api.time.MadokuTimeManager.getGameplayTicks(),
@@ -110,6 +115,19 @@ public final class MadokuChunkDataManager {
 	public static void removePlayerPlacedBlock(ServerLevel level, BlockPos pos) {
 		ensureChunkLoaded(level, pos);
 		if (level != null && pos != null && DATA.remove(level, pos)) dirty = true;
+	}
+
+	private static void flushPendingRemovals() {
+		if (PENDING_REMOVALS.isEmpty()) {
+			return;
+		}
+		Set<PendingRemoval> pending = new LinkedHashSet<>(PENDING_REMOVALS);
+		PENDING_REMOVALS.removeAll(pending);
+		for (PendingRemoval removal : pending) {
+			if (removal != null && removal.level() != null && removal.pos() != null) {
+				removePlayerPlacedBlock(removal.level(), removal.pos());
+			}
+		}
 	}
 
 	private static void ensureChunkLoaded(ServerLevel level, BlockPos pos) {
@@ -243,4 +261,5 @@ public final class MadokuChunkDataManager {
 	}
 
 	private record ChunkRefKey(String levelId, int chunkX, int chunkZ) { }
+	private record PendingRemoval(ServerLevel level, BlockPos pos) { }
 }

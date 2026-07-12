@@ -14,6 +14,7 @@ import madoku.craft.network.WorldSeasonPayload;
 import madoku.craft.network.WorldTimePayload;
 import madoku.craft.pet.PetSoundState;
 import madoku.craft.network.WorldTimeSync;
+import madoku.craft.season.ClientSeasonalPrecipitationState;
 import madoku.craft.trade.MerchantEggVariantsClient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -32,6 +33,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		PlayerEntitiesInventoryClient.initialize();
 		MerchantEggVariantsClient.initialize();
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			ClientSeasonalPrecipitationState.refresh(client.level);
 			if (configuredItemMetadataApplied || client.level == null) {
 				return;
 			}
@@ -47,7 +49,11 @@ public class MadokuCraftClient implements ClientModInitializer {
 			MadokuHud.setServerDifficulty(payload.level())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(WorldSeasonPayload.TYPE, (payload, context) ->
-			MadokuHud.setServerSeason(payload.season())
+			context.client().execute(() -> {
+				ClientSeasonalPrecipitationState.update(payload.season(), payload.temperatureOffset(), payload.humidityOffset());
+				ClientSeasonalPrecipitationState.refresh(context.client().level);
+				MadokuHud.setServerSeason(payload.season());
+			})
 		);
 		ClientPlayNetworking.registerGlobalReceiver(ItemProfileSyncPayload.TYPE, (payload, context) ->
 			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
@@ -59,6 +65,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 			PetSoundState.set(parseUuid(payload.petUuid()), payload.itemId())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			ClientSeasonalPrecipitationState.clear();
 			MadokuHud.clearServerTime();
 			MadokuHud.clearServerHunger();
 			MadokuHud.clearServerDifficulty();

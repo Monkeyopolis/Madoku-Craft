@@ -216,6 +216,16 @@ final class SchedulerRuntimeManager {
 				removeExpiredScheduler(entry, "stale", nowTick, currentDay);
 				continue;
 			}
+			ScheduledTask next = entry.tasks.peek();
+			if (next == null) {
+				removeScheduler(entry);
+				continue;
+			}
+			// A future task does not need its target validated yet. This avoids
+			// querying live chunk ticking state for every queued scheduler every tick.
+			if (next.dueTick > nowTick) {
+				continue;
+			}
 			if (!isRunnable(server, entry.binding)) {
 				if (entry.isExpiredForInactivity(nowTick)) removeExpiredScheduler(entry, "inactive", nowTick, currentDay);
 				continue;

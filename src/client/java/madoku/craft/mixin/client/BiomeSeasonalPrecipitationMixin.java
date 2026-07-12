@@ -1,13 +1,12 @@
-package madoku.craft.mixin;
+package madoku.craft.mixin.client;
 
-import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.season.ClientSeasonalPrecipitationState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.biome.Biome;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import net.minecraft.world.level.biome.Biome;
 
 @Mixin(Biome.class)
 public abstract class BiomeSeasonalPrecipitationMixin {
@@ -17,13 +16,14 @@ public abstract class BiomeSeasonalPrecipitationMixin {
 		cancellable = true
 	)
 	private void madoku$seasonalPrecipitationAtPosition(
-		net.minecraft.core.BlockPos pos,
+		BlockPos pos,
 		int seaLevel,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
-		if (!MadokuSeasonManager.isEnabled() || !SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
+		if (!ClientSeasonalPrecipitationState.isSynchronized()) {
 			return;
 		}
-		cir.setReturnValue(MadokuSeasonManager.resolveSeasonalPrecipitation((Biome) (Object) this));
+		Biome.Precipitation precipitation = ClientSeasonalPrecipitationState.resolve((Biome) (Object) this);
+		cir.setReturnValue(precipitation);
 	}
 }

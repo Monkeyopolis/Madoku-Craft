@@ -15,6 +15,8 @@ import java.util.function.Consumer;
 public final class WorldSeasonSync {
 	private static boolean initialized = false;
 	private static String lastBroadcastSeason = "";
+	private static double lastBroadcastTemperatureOffset;
+	private static double lastBroadcastHumidityOffset;
 
 	private WorldSeasonSync() {
 	}
@@ -38,6 +40,8 @@ public final class WorldSeasonSync {
 
 	public static void reset() {
 		lastBroadcastSeason = "";
+		lastBroadcastTemperatureOffset = 0.0;
+		lastBroadcastHumidityOffset = 0.0;
 		emitDebug("reset", builder -> builder.field("season", ""));
 	}
 
@@ -54,6 +58,8 @@ public final class WorldSeasonSync {
 		if (sent > 0) {
 			emitDebug("broadcast-changed", builder -> builder
 				.field("season", lastBroadcastSeason)
+				.field("temperature-offset", lastBroadcastTemperatureOffset)
+				.field("humidity-offset", lastBroadcastHumidityOffset)
 				.field("players-sent", sent)
 				.field("force", false));
 		}
@@ -74,7 +80,9 @@ public final class WorldSeasonSync {
 		}
 
 		String season = payload.season();
-		if (!force && season.equals(lastBroadcastSeason)) {
+		if (!force && season.equals(lastBroadcastSeason)
+			&& Double.compare(payload.temperatureOffset(), lastBroadcastTemperatureOffset) == 0
+			&& Double.compare(payload.humidityOffset(), lastBroadcastHumidityOffset) == 0) {
 			return 0;
 		}
 
@@ -87,6 +95,8 @@ public final class WorldSeasonSync {
 		}
 
 		lastBroadcastSeason = season;
+		lastBroadcastTemperatureOffset = payload.temperatureOffset();
+		lastBroadcastHumidityOffset = payload.humidityOffset();
 		return sent;
 	}
 
@@ -99,7 +109,7 @@ public final class WorldSeasonSync {
 			return 0;
 		}
 
-		WorldSeasonPayload payload = new WorldSeasonPayload("");
+		WorldSeasonPayload payload = new WorldSeasonPayload("", 0.0, 0.0);
 		int sent = 0;
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			if (ServerPlayNetworking.canSend(player, WorldSeasonPayload.TYPE)) {
@@ -109,6 +119,8 @@ public final class WorldSeasonSync {
 		}
 
 		lastBroadcastSeason = "";
+		lastBroadcastTemperatureOffset = 0.0;
+		lastBroadcastHumidityOffset = 0.0;
 		return sent;
 	}
 
@@ -121,7 +133,10 @@ public final class WorldSeasonSync {
 		if (season == null || season.isBlank()) {
 			return null;
 		}
-		return new WorldSeasonPayload(season);
+		return new WorldSeasonPayload(
+			season,
+			madoku.craft.api.season.SeasonEnvironmentTransitionManager.getTemperatureOffset(),
+			madoku.craft.api.season.SeasonEnvironmentTransitionManager.getHumidityOffset());
 	}
 
 	private static void emitDebug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {

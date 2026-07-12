@@ -69,6 +69,14 @@ public final class SeasonEnvironmentTransitionManager {
 		return base + humidityOffset;
 	}
 
+	public static double getTemperatureOffset() {
+		return temperatureOffset;
+	}
+
+	public static double getHumidityOffset() {
+		return humidityOffset;
+	}
+
 	public static boolean isWeatherTransitionEnabled() {
 		return MadokuSeasonManager.isEnabled() && SeasonBiomeClimateManager.isTemperatureEnabled() && SeasonBiomeClimateManager.isHumidityEnabled()
 			&& EnvironmentTransitionConfigManager.getSettings().weatherEnabled();
@@ -97,9 +105,18 @@ public final class SeasonEnvironmentTransitionManager {
 	}
 
 	public static Biome.Precipitation resolvePrecipitation(SeasonBiomeClimateManager.Climate climate, String season) {
+		return resolvePrecipitation(climate, season, temperatureOffset, humidityOffset);
+	}
+
+	public static Biome.Precipitation resolvePrecipitation(
+		SeasonBiomeClimateManager.Climate climate,
+		String season,
+		double temperatureOffset,
+		double humidityOffset
+	) {
 		if (!isWeatherTransitionEnabled() || climate == null) return Biome.Precipitation.NONE;
-		double temperature = adjustTemperature(climate.temperature(), season);
-		double humidity = adjustHumidity(climate.humidity(), season);
+		double temperature = isTemperatureTransitionEnabled() ? climate.temperature() + temperatureOffset : climate.temperature();
+		double humidity = isHumidityTransitionEnabled() ? climate.humidity() + humidityOffset : climate.humidity();
 		if (humidity < PRECIPITATION_HUMIDITY_MIN) return Biome.Precipitation.NONE;
 		if (temperature >= HOT_TEMPERATURE_MIN && humidity < HOT_BIOME_HUMIDITY_MIN) return Biome.Precipitation.NONE;
 		return temperature <= COLD_TEMPERATURE_MAX ? Biome.Precipitation.SNOW : Biome.Precipitation.RAIN;
