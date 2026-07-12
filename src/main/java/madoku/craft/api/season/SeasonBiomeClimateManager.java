@@ -19,6 +19,7 @@ import java.util.Map;
 public final class SeasonBiomeClimateManager {
 	public record Climate(double temperature, double humidity) { }
 	private static volatile Map<Biome, BiomeClimateConfigManager.Climate> runtimeConfiguredClimates = Map.of();
+	private static volatile MinecraftServer currentServer;
 
 	private SeasonBiomeClimateManager() { }
 
@@ -29,11 +30,26 @@ public final class SeasonBiomeClimateManager {
 	}
 
 	public static void reset() {
+		currentServer = null;
 		runtimeConfiguredClimates = Map.of();
 		debug("reset", 0);
 	}
 
 	static void onServerStarted(MinecraftServer server) {
+		currentServer = server;
+		rebuildConfiguredClimates(server);
+	}
+
+	static void onClimateConfigReloaded() {
+		MinecraftServer server = currentServer;
+		if (server == null) {
+			runtimeConfiguredClimates = Map.of();
+			return;
+		}
+		rebuildConfiguredClimates(server);
+	}
+
+	private static void rebuildConfiguredClimates(MinecraftServer server) {
 		if (server == null || server.overworld() == null) {
 			runtimeConfiguredClimates = Map.of();
 			return;
@@ -48,6 +64,7 @@ public final class SeasonBiomeClimateManager {
 			}
 		}
 		runtimeConfiguredClimates = Collections.unmodifiableMap(configured);
+		debug("refresh", configured.size());
 	}
 
 	public static boolean isTemperatureEnabled() {

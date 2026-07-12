@@ -167,10 +167,14 @@ final class ChunkDiscoveryManager {
 	}
 
 	static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
-		if (level == null || chunk == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
+		if (level == null || chunk == null) {
 			return;
 		}
 		ChunkPos chunkPos = chunk.getPos();
+		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			MadokuChunkManager.notifyChunkLoaded(level, chunkPos.x(), chunkPos.z());
+			return;
+		}
 		String loadedLevelId = MadokuChunkManager.levelId(level);
 		MadokuChunkManager.putChunkStatus(loadedLevelId, chunkPos.pack(), FullChunkStatus.FULL);
 		MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(loadedLevelId, chunkPos.x(), chunkPos.z());
@@ -181,13 +185,17 @@ final class ChunkDiscoveryManager {
 	}
 
 	static void onChunkUnload(ServerLevel level, LevelChunk chunk) {
-		if (level == null || chunk == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
+		if (level == null || chunk == null) {
 			return;
 		}
 		if (serverStopping) {
 			return;
 		}
 		ChunkPos chunkPos = chunk.getPos();
+		if (!ChunkConfigManager.isChunkDiscoveryEnabled()) {
+			MadokuChunkManager.notifyChunkUnloaded(level, chunkPos.x(), chunkPos.z());
+			return;
+		}
 		String unloadedLevelId = MadokuChunkManager.levelId(level);
 		MadokuChunkManager.removeChunk(unloadedLevelId, chunkPos.pack());
 		MadokuChunkManager.ProcessorChunkKey chunkKey = new MadokuChunkManager.ProcessorChunkKey(unloadedLevelId, chunkPos.x(), chunkPos.z());

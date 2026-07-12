@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import madoku.craft.api.MadokuAPIManager;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
@@ -51,10 +52,22 @@ public final class DataWorldChunkManager {
 	private static volatile long autoSaveMinutes = DEFAULT_AUTO_SAVE_MINUTES;
 	private static volatile MinecraftServer currentServer;
 	private static volatile boolean initialized;
+	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
+		@Override
+		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+			// Chunk state is loaded lazily by the subsystem that requests it.
+		}
+
+		@Override
+		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+			releaseChunk(level, chunkX, chunkZ);
+		}
+	};
 
 	private DataWorldChunkManager() { }
 
 	public static void initialize() {
+		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 		loadConfig();
 		for (Dimension dimension : Dimension.values()) {
 			CHUNK_DATA.put(dimension, new Long2ObjectOpenHashMap<>());
@@ -116,14 +129,33 @@ public final class DataWorldChunkManager {
 			if (dimension == null) continue;
 			Long2ObjectOpenHashMap<JsonObject> source = CHUNK_DATA.get(dimension);
 			JsonObject data = source == null ? null : source.get(pack(chunkKey.chunkX, chunkKey.chunkZ));
-			JsonObject snapshot = data == null ? new JsonObject() : data.deepCopy();
+			JsonObject snapshot = hasSubsystemData(data) ? data.deepCopy() : null;
 			Path file = resolveChunkDataFile(server, dimension, chunkKey.chunkX, chunkKey.chunkZ);
-			DataSaveCoordinatorManager.submit(
-				"chunk-data-" + dimension.fileName + "-" + chunkKey.chunkX + "-" + chunkKey.chunkZ,
-				file,
-				() -> writeChunkSnapshot(file, chunkKey, snapshot)
-			);
+			queueChunkSnapshot(dimension, chunkKey, file, snapshot);
 		}
+	}
+
+	static void releaseChunk(ServerLevel level, int chunkX, int chunkZ) {
+		Dimension dimension = dimensionOf(level);
+		if (dimension == null) return;
+		ChunkDataKey key = new ChunkDataKey(dimension.levelId, chunkX, chunkZ);
+		long packedChunk = pack(chunkX, chunkZ);
+		Long2ObjectOpenHashMap<JsonObject> chunks = CHUNK_DATA.get(dimension);
+		boolean dirty = DIRTY_CHUNKS.remove(key);
+		JsonObject data = chunks == null ? null : chunks.remove(packedChunk);
+		LOADED_CHUNKS.remove(key);
+		if (!dirty) return;
+
+		MinecraftServer server = level.getServer();
+		if (server == null) {
+			if (chunks != null && data != null) chunks.put(packedChunk, data);
+			DIRTY_CHUNKS.add(key);
+			LOADED_CHUNKS.add(key);
+			return;
+		}
+		Path file = resolveChunkDataFile(server, dimension, chunkX, chunkZ);
+		DataSaveCoordinatorManager.recordDirtyChunks(1);
+		queueChunkSnapshot(dimension, key, file, hasSubsystemData(data) ? data.deepCopy() : null);
 	}
 
 	public static JsonObject getChunkData(ServerLevel level, int chunkX, int chunkZ) {
@@ -215,6 +247,10 @@ public final class DataWorldChunkManager {
 	}
 
 	private static void writeChunkSnapshot(Path file, ChunkDataKey chunkKey, JsonObject snapshot) throws IOException {
+		if (!hasSubsystemData(snapshot)) {
+			Files.deleteIfExists(file);
+			return;
+		}
 		CompoundTag root = new CompoundTag();
 		root.putInt(FIELD_VERSION, DATA_VERSION);
 		root.putInt(FIELD_CHUNK_X, chunkKey.chunkX);
@@ -234,6 +270,14 @@ public final class DataWorldChunkManager {
 		} finally {
 			Files.deleteIfExists(temporary);
 		}
+	}
+
+	private static void queueChunkSnapshot(Dimension dimension, ChunkDataKey chunkKey, Path file, JsonObject snapshot) {
+		DataSaveCoordinatorManager.submit(
+			"chunk-data-" + dimension.fileName + "-" + chunkKey.chunkX + "-" + chunkKey.chunkZ,
+			file,
+			() -> writeChunkSnapshot(file, chunkKey, snapshot)
+		);
 	}
 
 	private static Path resolveChunkDataFile(MinecraftServer server, Dimension dimension, int chunkX, int chunkZ) {
@@ -299,6 +343,12 @@ public final class DataWorldChunkManager {
 		for (Dimension dimension : Dimension.values()) CHUNK_DATA.computeIfAbsent(dimension, ignored -> new Long2ObjectOpenHashMap<>()).clear();
 		DIRTY_CHUNKS.clear();
 		LOADED_CHUNKS.clear();
+	}
+
+	private static boolean hasSubsystemData(JsonObject data) {
+		if (data == null) return false;
+		JsonElement systems = data.get("systems");
+		return systems != null && systems.isJsonObject() && !systems.getAsJsonObject().isEmpty();
 	}
 
 	private static JsonObject createChunkDefaults(int chunkX, int chunkZ) {

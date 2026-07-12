@@ -41,6 +41,11 @@ public final class BiomeClimateConfigManager {
 			.field("biomes", settings.biomes().size()));
 	}
 
+	public static void reloadConfig() {
+		loadConfig();
+		SeasonBiomeClimateManager.onClimateConfigReloaded();
+	}
+
 	public static void reset() {
 		settings = defaults();
 		emitDebug("reset", builder -> builder
@@ -58,8 +63,8 @@ public final class BiomeClimateConfigManager {
 		String[] values = {
 			"deep-frozen-ocean,0,100", "frozen-ocean,0,100", "deep-cold-ocean,40,100", "cold-ocean,40,100",
 			"ocean,50,100", "deep-ocean,50,100", "lukewarm-ocean,60,100", "deep-lukewarm-ocean,60,100",
-			"warm-ocean,70,100", "mushroom-fields,50,70", "frozen-peaks,0,70", "jagged-peaks,10,70",
-			"stony-peaks,30,70", "meadow,50,50", "cherry-grove,50,50", "grove,20,50", "snowy-slopes,10,50",
+			"warm-ocean,70,100", "mushroom-fields,50,70", "frozen-peaks,0,70", "jagged-peaks,0,20",
+			"stony-peaks,30,70", "meadow,50,50", "cherry-grove,50,50", "grove,10,90", "snowy-slopes,10,40",
 			"windswept-hills,30,40", "windswept-gravelly-hills,40,30", "windswept-forest,50,50", "forest,50,50",
 			"flower-forest,60,60", "taiga,40,40", "old-growth-pine-taiga,40,60", "old-growth-spruce-taiga,60,40",
 			"snowy-taiga,20,40", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,70,100",
