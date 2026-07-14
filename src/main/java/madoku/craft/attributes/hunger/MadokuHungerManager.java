@@ -121,6 +121,22 @@ public final class MadokuHungerManager {
 		ensureQueued(server);
 	}
 
+	/**
+	 * Re-baselines movement tracking after a server-side reposition. Teleports
+	 * are not travelled distance and must not be allowed to bridge two hunger
+	 * movement samples.
+	 */
+	public static void handlePlayerTeleport(ServerPlayer player) {
+		if (player == null || !settings.hunger.enabled) {
+			return;
+		}
+
+		PlayerState state = PLAYER_STATES.get(player.getUUID());
+		if (state != null) {
+			state.markPosition(player.getX(), player.getZ());
+		}
+	}
+
 	public static boolean isEnabled() {
 		return settings.hunger.enabled;
 	}

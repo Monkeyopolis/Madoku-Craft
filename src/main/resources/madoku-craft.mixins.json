@@ -93,6 +93,7 @@
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerGameModeFarmingMixin",
     "ServerPlayerSleepTimeMixin",
+    "ServerPlayerTeleportHungerMixin",
     "SkeletonRuntimeTickMixin",
     "SmithingTransformRecipeRarityMixin",
     "SnowLayerBlockSeasonalMeltMixin",
