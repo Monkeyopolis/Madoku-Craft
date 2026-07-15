@@ -10,7 +10,7 @@ import net.minecraft.world.clock.ClockTimeMarkers;
 
 import java.util.function.Consumer;
 
-public final class TimeManager {
+public final class TimeClockManager {
 	public static final long TICKS_PER_SECOND = 20L;
 	public static final long SECONDS_PER_MINUTE = 60L;
 	public static final long MINECRAFT_TICKS_PER_CYCLE = 24000L;
@@ -27,7 +27,7 @@ public final class TimeManager {
 	private static volatile long lastObservedGameplayTicks = 0L;
 	private static volatile long lastGameplayTickDelta = 0L;
 
-	private TimeManager() {
+	private TimeClockManager() {
 	}
 
 	public static void initialize() {

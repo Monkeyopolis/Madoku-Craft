@@ -10,9 +10,9 @@ import net.minecraft.world.clock.ClockTimeMarker;
 
 /** Runtime API subsystem orchestrating the time runtime, sleep, and time configuration groups. */
 public final class MadokuTimeManager {
-	public static final long TICKS_PER_SECOND = TimeManager.TICKS_PER_SECOND;
-	public static final long SECONDS_PER_MINUTE = TimeManager.SECONDS_PER_MINUTE;
-	public static final long MINECRAFT_TICKS_PER_CYCLE = TimeManager.MINECRAFT_TICKS_PER_CYCLE;
+	public static final long TICKS_PER_SECOND = TimeClockManager.TICKS_PER_SECOND;
+	public static final long SECONDS_PER_MINUTE = TimeClockManager.SECONDS_PER_MINUTE;
+	public static final long MINECRAFT_TICKS_PER_CYCLE = TimeClockManager.MINECRAFT_TICKS_PER_CYCLE;
 	private static long lastSyncDay = -1L;
 	private static long lastSyncTotalMinutes = -1L;
 
@@ -21,7 +21,7 @@ public final class MadokuTimeManager {
 
 	public static void initialize() {
 		TimeConfigManager.initialize();
-		TimeManager.initialize();
+		TimeClockManager.initialize();
 		TimeSleepManager.reset();
 		resetSyncState();
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
@@ -33,121 +33,121 @@ public final class MadokuTimeManager {
 	}
 
 	public static void reset() {
-		TimeManager.reset();
+		TimeClockManager.reset();
 		TimeSleepManager.reset();
 		resetSyncState();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		TimeManager.onServerStarted(server);
+		TimeClockManager.onServerStarted(server);
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
-		TimeManager.onServerStopping(server);
+		TimeClockManager.onServerStopping(server);
 	}
 
 	public static void update(MinecraftServer server) {
-		TimeManager.update(server);
+		TimeClockManager.update(server);
 	}
 
 	public static float resolveWorldClockRate(MinecraftServer server) {
-		return TimeManager.resolveWorldClockRate(server);
+		return TimeClockManager.resolveWorldClockRate(server);
 	}
 
 	public static long getElapsedGameplayTicks() {
-		return TimeManager.getElapsedGameplayTicks();
+		return TimeClockManager.getElapsedGameplayTicks();
 	}
 
 	public static long getGameplayTickDelta() {
-		return TimeManager.getGameplayTickDelta();
+		return TimeClockManager.getGameplayTickDelta();
 	}
 
 	public static long getElapsedWorldTimeTicks() {
-		return TimeManager.getElapsedWorldTimeTicks();
+		return TimeClockManager.getElapsedWorldTimeTicks();
 	}
 
 	public static long getWorldTimeDelta() {
-		return TimeManager.getWorldTimeDelta();
+		return TimeClockManager.getWorldTimeDelta();
 	}
 
 	public static long getCurrentAbsoluteDayTime() {
-		return TimeManager.getCurrentAbsoluteDayTime();
+		return TimeClockManager.getCurrentAbsoluteDayTime();
 	}
 
 	public static long getCurrentAbsoluteDayTime(ServerLevel world) {
-		return TimeManager.getCurrentAbsoluteDayTime(world);
+		return TimeClockManager.getCurrentAbsoluteDayTime(world);
 	}
 
 	public static boolean isEnabled() {
-		return TimeManager.isEnabled();
+		return TimeClockManager.isEnabled();
 	}
 
 	public static long getGameplayTicksPerDay() {
-		return TimeManager.getGameplayTicksPerDay();
+		return TimeClockManager.getGameplayTicksPerDay();
 	}
 
 	public static long getDay(long absoluteDayTime) {
-		return TimeManager.getDay(absoluteDayTime);
+		return TimeClockManager.getDay(absoluteDayTime);
 	}
 
 	public static long toAbsoluteDayTime(long day, int hour, int minute) {
-		return TimeManager.toAbsoluteDayTime(day, hour, minute);
+		return TimeClockManager.toAbsoluteDayTime(day, hour, minute);
 	}
 
 	public static long toAbsoluteDayTime(long day, int totalMinutes) {
-		return TimeManager.toAbsoluteDayTime(day, totalMinutes);
+		return TimeClockManager.toAbsoluteDayTime(day, totalMinutes);
 	}
 
 	public static void setClockFromAbsoluteDayTime(long absoluteDayTime) {
-		TimeManager.setClockFromAbsoluteDayTime(absoluteDayTime);
+		TimeClockManager.setClockFromAbsoluteDayTime(absoluteDayTime);
 	}
 
 	public static void setGameplayTicks(long value) {
-		TimeManager.setGameplayTicks(value);
+		TimeClockManager.setGameplayTicks(value);
 	}
 
 	public static void setWorldTimeTicks(long value) {
-		TimeManager.setWorldTimeTicks(value);
+		TimeClockManager.setWorldTimeTicks(value);
 	}
 
 	public static void tickGameplay() {
-		TimeManager.tickGameplay();
+		TimeClockManager.tickGameplay();
 	}
 
 	public static void advance(MinecraftServer server, long ignoredAmount) {
-		TimeManager.advance(server, ignoredAmount);
+		TimeClockManager.advance(server, ignoredAmount);
 	}
 
 	public static long getGameplayTicks() {
-		return TimeManager.getGameplayTicks();
+		return TimeClockManager.getGameplayTicks();
 	}
 
 	public static boolean isDaytime(long absoluteDayTime) {
-		return TimeManager.isDaytime(absoluteDayTime);
+		return TimeClockManager.isDaytime(absoluteDayTime);
 	}
 
 	public static boolean isSleepTime(long absoluteDayTime) {
-		return TimeManager.isSleepTime(absoluteDayTime);
+		return TimeClockManager.isSleepTime(absoluteDayTime);
 	}
 
 	public static int getTotalMinutes(long absoluteDayTime) {
-		return TimeManager.getTotalMinutes(absoluteDayTime);
+		return TimeClockManager.getTotalMinutes(absoluteDayTime);
 	}
 
 	public static int getClockHour(long absoluteDayTime) {
-		return TimeManager.getClockHour(absoluteDayTime);
+		return TimeClockManager.getClockHour(absoluteDayTime);
 	}
 
 	public static long resolveClockHourToMinecraftTimeTicks(int clockHour) {
-		return TimeManager.resolveClockHourToMinecraftTimeTicks(clockHour);
+		return TimeClockManager.resolveClockHourToMinecraftTimeTicks(clockHour);
 	}
 
 	public static long resolveConfiguredTimeMarkerTicks(ResourceKey<ClockTimeMarker> markerKey) {
-		return TimeManager.resolveConfiguredTimeMarkerTicks(markerKey);
+		return TimeClockManager.resolveConfiguredTimeMarkerTicks(markerKey);
 	}
 
 	public static int getCycleMinutes(long absoluteDayTime) {
-		return TimeManager.getCycleMinutes(absoluteDayTime);
+		return TimeClockManager.getCycleMinutes(absoluteDayTime);
 	}
 
 	public static void broadcastWorldTimeNow(MinecraftServer server) {

@@ -21,7 +21,6 @@ import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.loot.system.MadokuLootTableManager;
-import madoku.craft.recipe.system.MadokuRecipe;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -38,7 +37,6 @@ public class MadokuCraft implements ModInitializer {
 	public void onInitialize() {
 		MadokuAPIManager.initialize();
 		MadokuSmeltingManager.initialize();
-		MadokuRecipe.initialize();
 		MadokuLootTableManager.initialize();
 		MadokuRegionalDifficultyManager.initialize();
 		MadokuSeasonManager.initialize();

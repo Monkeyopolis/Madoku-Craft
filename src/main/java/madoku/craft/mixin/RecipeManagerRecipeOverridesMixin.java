@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.recipe.system.MadokuRecipe;
+import madoku.craft.api.recipes.MadokuRecipesManager;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
@@ -36,7 +36,7 @@ public abstract class RecipeManagerRecipeOverridesMixin {
 			return;
 		}
 
-		List<RecipeHolder<?>> resolvedRecipes = MadokuRecipe.applyRecipeOverrides(this.recipes.values());
+		List<RecipeHolder<?>> resolvedRecipes = MadokuRecipesManager.applyRecipeOverrides(this.recipes.values());
 		this.recipes = RecipeMap.create(resolvedRecipes);
 		this.madokuCraft$rebuildingRecipeCaches = true;
 		try {

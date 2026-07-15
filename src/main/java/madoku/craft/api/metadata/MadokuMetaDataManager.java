@@ -37,7 +37,7 @@ public final class MadokuMetaDataManager {
 			entriesFromClass(madoku.craft.api.time.MadokuTimeManager.class),
 			group(
 				"time-manager",
-				entriesFromClass(madoku.craft.api.time.TimeManager.class)
+				entriesFromClass(madoku.craft.api.time.TimeClockManager.class)
 			),
 			group(
 				"time-config-manager",

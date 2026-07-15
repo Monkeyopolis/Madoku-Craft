@@ -118,12 +118,21 @@ public final class BiomeClimateConfigManager {
 	}
 
 	public static Climate getBiomeClimate(String biomeId) {
-		if (biomeId == null) return null;
-		String normalized = biomeId.toLowerCase(java.util.Locale.ROOT);
+		if (biomeId == null || biomeId.isBlank()) return null;
+
+		String normalized = biomeId.trim().toLowerCase(java.util.Locale.ROOT);
 		Climate climate = settings.biomes().get(normalized);
 		if (climate != null) return climate;
+
 		int separator = normalized.indexOf(':');
-		return separator >= 0 ? settings.biomes().get(normalized.substring(separator + 1)) : null;
+		String path = separator >= 0 ? normalized.substring(separator + 1) : normalized;
+		climate = settings.biomes().get(path);
+		if (climate != null) return climate;
+
+		// Minecraft resource IDs use underscores, while Madoku config IDs use
+		// hyphens. Support both forms without requiring existing config files to
+		// be rewritten.
+		return settings.biomes().get(path.replace('_', '-'));
 	}
 
 	private static void loadConfig() {
