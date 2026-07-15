@@ -7,7 +7,6 @@ import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
 import madoku.craft.difficulty.system.DifficultyPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
-import madoku.craft.levels.LevelUpPayloadManager;
 import madoku.craft.levels.LevelsPayloadManager;
 import madoku.craft.pet.PetAbilityHudPayloadManager;
 import madoku.craft.pet.PetSoundStatePayloadManager;
@@ -94,13 +93,13 @@ public final class SyncGlobalManager {
 	private static void registerPayloadTypes() {
 		registerClientbound(HungerPayloadManager.TYPE, HungerPayloadManager.CODEC);
 		registerClientbound(ItemProfilePayloadManager.TYPE, ItemProfilePayloadManager.CODEC);
-		registerClientbound(LevelsPayloadManager.TYPE, LevelsPayloadManager.CODEC);
+		registerClientbound(LevelsPayloadManager.Payload.TYPE, LevelsPayloadManager.Payload.CODEC);
 		registerClientbound(PetAbilityHudPayloadManager.TYPE, PetAbilityHudPayloadManager.CODEC);
 		registerClientbound(PetSoundStatePayloadManager.TYPE, PetSoundStatePayloadManager.CODEC);
 		registerClientbound(DifficultyPayloadManager.TYPE, DifficultyPayloadManager.CODEC);
 		registerClientbound(SeasonPayloadManager.TYPE, SeasonPayloadManager.CODEC);
 		registerClientbound(TimePayloadManager.TYPE, TimePayloadManager.CODEC);
-		registerServerbound(LevelUpPayloadManager.TYPE, LevelUpPayloadManager.CODEC);
+		registerServerbound(LevelsPayloadManager.LevelUpPayload.TYPE, LevelsPayloadManager.LevelUpPayload.CODEC);
 	}
 
 	private static <T extends CustomPacketPayload> void registerClientbound(

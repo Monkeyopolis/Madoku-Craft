@@ -128,6 +128,14 @@ public final class MadokuMetaDataManager {
 		)
 	);
 
+	public static final MainSystemMetadata LEVELS = mainSystem(
+		"levels",
+		subSystem("levels-player-manager", entriesFromClass(madoku.craft.levels.LevelsPlayerManager.class)),
+		subSystem("levels-attributes-manager", entriesFromClass(madoku.craft.levels.LevelsAttributesManager.class)),
+		subSystem("levels-config-manager", entriesFromClass(madoku.craft.levels.LevelsConfigManager.class)),
+		subSystem("levels-payload-manager", entriesFromClass(madoku.craft.levels.LevelsPayloadManager.class))
+	);
+
 	private MadokuMetaDataManager() {
 	}
 

@@ -58,10 +58,6 @@ public abstract class ItemFoodGateMixin {
 			return;
 		}
 
-		if (!MadokuHungerManager.canConsumeFood(serverPlayer, false)) {
-			return;
-		}
-
 		MadokuHungerManager.onFoodConsumed(serverPlayer, Math.max(0, food.nutrition()));
 	}
 }

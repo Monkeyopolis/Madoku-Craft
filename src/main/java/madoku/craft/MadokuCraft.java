@@ -15,7 +15,7 @@ import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.itemstack.system.MadokuItemStack;
-import madoku.craft.levels.MadokuLevels;
+import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
@@ -52,7 +52,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuItemStack.initialize();
 		MadokuAttributesManager.initialize();
 		MadokuChunkDataManager.initialize();
-		MadokuLevels.initialize();
+		MadokuLevelsManager.initialize();
 		PlayerEntitiesSystem.initialize();
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeSleepManager::shouldAllowResettingTime);
 
@@ -67,7 +67,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
 			MadokuOxygenManager.reset();
-			MadokuLevels.reset();
+			MadokuLevelsManager.reset();
 			PlayerEntitiesSystem.reset();
 			MadokuAPIManager.reset();
 			MadokuAPIManager.loadPersistedData(server);
@@ -83,7 +83,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHealthManager.loadPersistedData(server);
 			MadokuHungerManager.loadPersistedData(server);
 			MadokuOxygenManager.loadPersistedData(server);
-			MadokuLevels.loadPersistedData(server);
+			MadokuLevelsManager.loadPersistedData(server);
 			PlayerEntitiesSystem.loadPersistedData(server);
 			MadokuItemStack.loadPersistedData(server);
 			MadokuItem.onServerStarted(server);
@@ -117,7 +117,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
 			MadokuOxygenManager.reset();
-			MadokuLevels.reset();
+			MadokuLevelsManager.reset();
 			PlayerEntitiesSystem.reset();
 			MadokuItemStack.reset();
 			MadokuJSONManager.clearRuntimeState();
@@ -135,7 +135,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSeasonManager.onServerTick(server);
 			MadokuRegionalDifficultyManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);
-			MadokuLevels.flushDirtySyncs(server);
+			MadokuLevelsManager.flushDirtySyncs(server);
 			if (MadokuAPIManager.shouldRunWorldSync(server)) {
 				MadokuTimeManager.broadcastWorldTimeIfChanged(server);
 				MadokuRegionalDifficultyManager.broadcastDifficultyIfChanged(server);

@@ -1,5 +1,7 @@
 package madoku.craft.levels;
 
+import madoku.craft.levels.MadokuLevelsManager.LevelStat;
+
 import java.util.EnumMap;
 import java.util.List;
 
@@ -10,7 +12,7 @@ public final class MadokuLevelsClientState {
 	private MadokuLevelsClientState() {
 	}
 
-	public static void applyPayload(LevelsPayloadManager payload) {
+	public static void applyPayload(LevelsPayloadManager.Payload payload) {
 		if (payload == null) {
 			return;
 		}
@@ -21,10 +23,10 @@ public final class MadokuLevelsClientState {
 			Math.max(0, payload.currentXp()),
 			Math.max(1, payload.requiredXp()),
 			Math.max(0, payload.availablePoints()),
-			Math.max(1, payload.maxStatLevel()),
+			decodeMaxStatLevels(payload.maxStatLevels()),
 			payload.useAttributesContainer(),
 			visibleStatsForPayload(payload),
-			MadokuLevelStat.decodeLevels(payload.statLevels())
+			decodeStatLevels(payload.statLevels(), decodeMaxStatLevels(payload.maxStatLevels()))
 		);
 		version++;
 	}
@@ -42,14 +44,42 @@ public final class MadokuLevelsClientState {
 		version++;
 	}
 
-	private static List<MadokuLevelStat> visibleStatsForPayload(LevelsPayloadManager payload) {
-		List<MadokuLevelStat> decoded = MadokuLevelStat.decodeVisibleStats(payload.visibleStats());
+	private static List<LevelStat> visibleStatsForPayload(LevelsPayloadManager.Payload payload) {
+		List<LevelStat> decoded = LevelStat.decodeVisibleStats(payload.visibleStats());
 		if (!decoded.isEmpty()) {
 			return List.copyOf(decoded);
 		}
-		return payload.useAttributesContainer()
-			? MadokuLevelStat.attributeVisibleStats()
-			: MadokuLevelStat.vanillaVisibleStats();
+		return payload.useAttributesContainer() ? LevelStat.attributeVisibleStats() : LevelStat.vanillaVisibleStats();
+	}
+
+	private static EnumMap<LevelStat, Integer> decodeMaxStatLevels(String encoded) {
+		EnumMap<LevelStat, Integer> maxLevels = new EnumMap<>(LevelStat.class);
+		for (LevelStat stat : LevelStat.values()) maxLevels.put(stat, stat.maxLevel());
+		if (encoded == null || encoded.isBlank()) return maxLevels;
+		for (String entry : encoded.split(";")) {
+			String[] pair = entry.split("=", 2);
+			if (pair.length != 2) continue;
+			LevelStat stat = LevelStat.fromId(pair[0]);
+			if (stat == null) continue;
+			try { maxLevels.put(stat, Math.max(1, Integer.parseInt(pair[1].trim()))); } catch (NumberFormatException ignored) { }
+		}
+		return maxLevels;
+	}
+
+	private static EnumMap<LevelStat, Integer> decodeStatLevels(String encoded, EnumMap<LevelStat, Integer> maxLevels) {
+		EnumMap<LevelStat, Integer> levels = LevelStat.createDefaultLevels();
+		if (encoded == null || encoded.isBlank()) return levels;
+		for (String entry : encoded.split(";")) {
+			String[] pair = entry.split("=", 2);
+			if (pair.length != 2) continue;
+			LevelStat stat = LevelStat.fromId(pair[0]);
+			if (stat == null) continue;
+			try {
+				int maximum = maxLevels.getOrDefault(stat, stat.maxLevel());
+				levels.put(stat, Math.max(LevelStat.DEFAULT_LEVEL, Math.min(maximum, Integer.parseInt(pair[1].trim()))));
+			} catch (NumberFormatException ignored) { }
+		}
+		return levels;
 	}
 
 	public record Snapshot(
@@ -58,10 +88,10 @@ public final class MadokuLevelsClientState {
 		int currentXp,
 		int requiredXp,
 		int availablePoints,
-		int maxStatLevel,
+		EnumMap<LevelStat, Integer> maxStatLevels,
 		boolean useAttributesContainer,
-		List<MadokuLevelStat> visibleStats,
-		EnumMap<MadokuLevelStat, Integer> statLevels
+		List<LevelStat> visibleStats,
+		EnumMap<LevelStat, Integer> statLevels
 	) {
 		private static Snapshot empty() {
 			return new Snapshot(
@@ -70,10 +100,10 @@ public final class MadokuLevelsClientState {
 				0,
 				1,
 				0,
-				MadokuLevelStat.maxStatLevel(),
+				LevelStat.createDefaultLevels(),
 				false,
-				MadokuLevelStat.vanillaVisibleStats(),
-				MadokuLevelStat.createDefaultLevels()
+				LevelStat.vanillaVisibleStats(),
+				LevelStat.createDefaultLevels()
 			);
 		}
 
@@ -81,8 +111,12 @@ public final class MadokuLevelsClientState {
 			return username != null && !username.isBlank();
 		}
 
-		public int statLevel(MadokuLevelStat stat) {
-			return statLevels.getOrDefault(stat, MadokuLevelStat.DEFAULT_STAT_LEVEL);
+		public int statLevel(LevelStat stat) {
+			return statLevels.getOrDefault(stat, LevelStat.DEFAULT_LEVEL);
+		}
+
+		public int maxStatLevel(LevelStat stat) {
+			return maxStatLevels.getOrDefault(stat, stat == null ? 1 : stat.maxLevel());
 		}
 	}
 }

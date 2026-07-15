@@ -8,7 +8,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.sync.SyncPlayerManager;
-import madoku.craft.levels.MadokuLevels;
+import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -907,7 +907,7 @@ public final class MadokuHungerManager {
 		if (player == null || !settings.hunger.enabled) {
 			return configuredMaximum;
 		}
-		return Math.max(1, configuredMaximum + Math.max(0, MadokuLevels.getPlayerHungerBonusPoints(player)));
+		return Math.max(1, configuredMaximum + Math.max(0, MadokuLevelsManager.getPlayerHungerBonusPoints(player)));
 	}
 
 	private static int resolveEffectAmount(ServerPlayer player, HungerConfigManager.EffectSettings effect, int effectLevel, int maxHungerPoints) {
