@@ -13,6 +13,8 @@ import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import madoku.craft.api.sync.SyncPlayerManager;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
@@ -93,6 +95,9 @@ public final class MadokuItem {
 	public static void initialize() {
 		loadStaticConfig();
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, MadokuItem::runPlayerTickTask);
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+			SyncPlayerManager.send(handler.player, new ItemProfilePayloadManager(createClientSyncSnapshot()))
+		);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {

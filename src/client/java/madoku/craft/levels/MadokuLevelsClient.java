@@ -1,8 +1,6 @@
 package madoku.craft.levels;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import madoku.craft.network.MadokuLevelUpPayload;
-import madoku.craft.network.MadokuLevelsPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -21,7 +19,7 @@ public final class MadokuLevelsClient {
 			return;
 		}
 
-		ClientPlayNetworking.registerGlobalReceiver(MadokuLevelsPayload.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(LevelsPayloadManager.TYPE, (payload, context) ->
 			MadokuLevelsClientState.applyPayload(payload)
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> MadokuLevelsClientState.clear());
@@ -47,6 +45,6 @@ public final class MadokuLevelsClient {
 			return;
 		}
 
-		ClientPlayNetworking.send(new MadokuLevelUpPayload(stat.id()));
+		ClientPlayNetworking.send(new LevelUpPayloadManager(stat.id()));
 	}
 }

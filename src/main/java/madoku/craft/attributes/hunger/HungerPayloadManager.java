@@ -1,4 +1,4 @@
-package madoku.craft.network;
+package madoku.craft.attributes.hunger;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -7,23 +7,22 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-public record HungerHudPayload(int current, int pending, int max) implements CustomPacketPayload {
-	public static final CustomPacketPayload.Type<HungerHudPayload> TYPE =
+public record HungerPayloadManager(int current, int pending, int max) implements CustomPacketPayload {
+	public static final CustomPacketPayload.Type<HungerPayloadManager> TYPE =
 		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "hunger_hud"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, HungerHudPayload> CODEC =
+	public static final StreamCodec<RegistryFriendlyByteBuf, HungerPayloadManager> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.VAR_INT,
-			HungerHudPayload::current,
+			HungerPayloadManager::current,
 			ByteBufCodecs.VAR_INT,
-			HungerHudPayload::pending,
+			HungerPayloadManager::pending,
 			ByteBufCodecs.VAR_INT,
-			HungerHudPayload::max,
-			HungerHudPayload::new
+			HungerPayloadManager::max,
+			HungerPayloadManager::new
 		);
 
 	@Override
-	public Type<HungerHudPayload> type() {
+	public Type<HungerPayloadManager> type() {
 		return TYPE;
 	}
 }
-

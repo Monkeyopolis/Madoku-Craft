@@ -1,4 +1,4 @@
-package madoku.craft.network;
+package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -7,7 +7,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-public record MadokuLevelsPayload(
+public record LevelsPayloadManager(
 	String username,
 	int level,
 	int currentXp,
@@ -18,34 +18,33 @@ public record MadokuLevelsPayload(
 	String visibleStats,
 	String statLevels
 ) implements CustomPacketPayload {
-	public static final CustomPacketPayload.Type<MadokuLevelsPayload> TYPE =
+	public static final CustomPacketPayload.Type<LevelsPayloadManager> TYPE =
 		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_levels"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, MadokuLevelsPayload> CODEC =
+	public static final StreamCodec<RegistryFriendlyByteBuf, LevelsPayloadManager> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.STRING_UTF8,
-			MadokuLevelsPayload::username,
+			LevelsPayloadManager::username,
 			ByteBufCodecs.VAR_INT,
-			MadokuLevelsPayload::level,
+			LevelsPayloadManager::level,
 			ByteBufCodecs.VAR_INT,
-			MadokuLevelsPayload::currentXp,
+			LevelsPayloadManager::currentXp,
 			ByteBufCodecs.VAR_INT,
-			MadokuLevelsPayload::requiredXp,
+			LevelsPayloadManager::requiredXp,
 			ByteBufCodecs.VAR_INT,
-			MadokuLevelsPayload::availablePoints,
+			LevelsPayloadManager::availablePoints,
 			ByteBufCodecs.VAR_INT,
-			MadokuLevelsPayload::maxStatLevel,
+			LevelsPayloadManager::maxStatLevel,
 			ByteBufCodecs.BOOL,
-			MadokuLevelsPayload::useAttributesContainer,
+			LevelsPayloadManager::useAttributesContainer,
 			ByteBufCodecs.STRING_UTF8,
-			MadokuLevelsPayload::visibleStats,
+			LevelsPayloadManager::visibleStats,
 			ByteBufCodecs.STRING_UTF8,
-			MadokuLevelsPayload::statLevels,
-			MadokuLevelsPayload::new
+			LevelsPayloadManager::statLevels,
+			LevelsPayloadManager::new
 		);
 
 	@Override
-	public Type<MadokuLevelsPayload> type() {
+	public Type<LevelsPayloadManager> type() {
 		return TYPE;
 	}
 }
-

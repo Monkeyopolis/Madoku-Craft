@@ -14,8 +14,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Method;
 import java.util.function.Consumer;
 
-public final class SleepManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(SleepManager.class);
+public final class TimeSleepManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(TimeSleepManager.class);
 	private static final String DEBUG_SUB_SYSTEM = "sleep-manager";
 	private static final double SLEEP_SPEED_MULTIPLIER = 100.0D;
 	private static final long MINECRAFT_TICKS_PER_CYCLE = 24000L;
@@ -26,7 +26,7 @@ public final class SleepManager {
 	private static volatile long cachedTickIncrement = 1L;
 	private static volatile long wakeTargetWorldTime = -1L;
 
-	private SleepManager() {
+	private TimeSleepManager() {
 	}
 
 	public static void reset() {

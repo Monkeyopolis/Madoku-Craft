@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.api.time.TimeConfigManager;
-import madoku.craft.api.time.SleepManager;
+import madoku.craft.api.time.TimeSleepManager;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -27,7 +27,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private boolean madoku$applyConfiguredSleepTime(BedRule bedRule, Level level, BlockPos sleepingPos) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
-		return SleepManager.shouldAllowBedSleepByTime(bedRule, level, player);
+		return TimeSleepManager.shouldAllowBedSleepByTime(bedRule, level, player);
 	}
 
 	@Inject(
@@ -36,7 +36,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private void madoku$recordSleepStart(BlockPos sleepingPos, CallbackInfoReturnable<Either<Player.BedSleepingProblem, Unit>> cir) {
 		if (cir.getReturnValue() != null && cir.getReturnValue().right().isPresent()) {
-			SleepManager.onSleepStarted((ServerPlayer) (Object) this);
+		TimeSleepManager.onSleepStarted((ServerPlayer) (Object) this);
 		}
 	}
 

@@ -1,4 +1,4 @@
-package madoku.craft.network;
+package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -7,19 +7,18 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-public record MadokuLevelUpPayload(String statId) implements CustomPacketPayload {
-	public static final CustomPacketPayload.Type<MadokuLevelUpPayload> TYPE =
+public record LevelUpPayloadManager(String statId) implements CustomPacketPayload {
+	public static final CustomPacketPayload.Type<LevelUpPayloadManager> TYPE =
 		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_level_up"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, MadokuLevelUpPayload> CODEC =
+	public static final StreamCodec<RegistryFriendlyByteBuf, LevelUpPayloadManager> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.STRING_UTF8,
-			MadokuLevelUpPayload::statId,
-			MadokuLevelUpPayload::new
+			LevelUpPayloadManager::statId,
+			LevelUpPayloadManager::new
 		);
 
 	@Override
-	public Type<MadokuLevelUpPayload> type() {
+	public Type<LevelUpPayloadManager> type() {
 		return TYPE;
 	}
 }
-

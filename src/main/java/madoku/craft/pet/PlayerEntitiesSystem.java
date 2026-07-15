@@ -13,8 +13,7 @@ import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.mixin.MobTargetSelectorAccessor;
-import madoku.craft.network.PetAbilityHudSync;
-import madoku.craft.network.PetSoundStateSync;
+import madoku.craft.api.sync.SyncPlayerManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -909,7 +908,8 @@ public final class PlayerEntitiesSystem {
 					continue;
 				}
 				PetRule rule = resolvePetRule(pet);
-				PetSoundStateSync.send(player, pet.getUUID(), rule == null ? "" : rule.itemId);
+				SyncPlayerManager.send(player, new PetSoundStatePayloadManager(
+					pet.getUUID().toString(), rule == null ? "" : rule.itemId));
 			}
 		}
 	}
@@ -919,7 +919,8 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 		for (ServerPlayer onlinePlayer : server.getPlayerList().getPlayers()) {
-			PetSoundStateSync.send(onlinePlayer, petId, itemId);
+			SyncPlayerManager.send(onlinePlayer, new PetSoundStatePayloadManager(
+				petId.toString(), itemId == null ? "" : itemId));
 		}
 	}
 
@@ -2516,7 +2517,7 @@ public final class PlayerEntitiesSystem {
 			if (player == null) {
 				continue;
 			}
-			PetAbilityHudSync.send(player, currentAbilityCooldowns(playerId));
+			SyncPlayerManager.send(player, PetAbilityHudPayloadManager.fromArray(currentAbilityCooldowns(playerId)));
 		}
 	}
 

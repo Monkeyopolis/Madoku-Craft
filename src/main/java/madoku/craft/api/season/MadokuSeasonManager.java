@@ -2,7 +2,9 @@ package madoku.craft.api.season;
 
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
+import madoku.craft.api.sync.SyncWorldManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -13,6 +15,9 @@ import java.util.function.Consumer;
 /** Orchestrator and public entry point for the Madoku Season subsystem. */
 public final class MadokuSeasonManager {
 	private static volatile SeasonState lastDebugState;
+	private static String lastBroadcastSeason = "";
+	private static double lastBroadcastTemperatureOffset;
+	private static double lastBroadcastHumidityOffset;
 
 	private MadokuSeasonManager() { }
 
@@ -23,6 +28,12 @@ public final class MadokuSeasonManager {
 		SeasonConfigManager.initialize();
 		SeasonBiomeClimateManager.initialize();
 		SeasonEnvironmentTransitionManager.initialize();
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			SeasonPayloadManager payload = currentSyncPayload(server);
+			if (payload != null) {
+				SyncWorldManager.send(handler.player, payload);
+			}
+		});
 		emitDebug("initialize", builder -> builder
 			.field("enabled", isEnabled())
 			.field("season-length-days", SeasonConfigManager.getSettings().seasonLengthDays()));
@@ -32,6 +43,9 @@ public final class MadokuSeasonManager {
 		SeasonEnvironmentTransitionManager.reset();
 		SeasonBiomeClimateManager.reset();
 		lastDebugState = null;
+		lastBroadcastSeason = "";
+		lastBroadcastTemperatureOffset = 0.0;
+		lastBroadcastHumidityOffset = 0.0;
 		emitDebug("reset", builder -> builder
 			.field("enabled", isEnabled())
 			.field("season-length-days", SeasonConfigManager.getSettings().seasonLengthDays()));
@@ -83,6 +97,87 @@ public final class MadokuSeasonManager {
 	}
 	public static void onServerTick(MinecraftServer server) {
 		if (server != null) currentState(server.overworld());
+	}
+
+	public static void broadcastWorldSeasonNow(MinecraftServer server) {
+		int sent = broadcastWorldSeason(server, true);
+		emitSyncDebug("broadcast-now", sent);
+	}
+
+	public static void broadcastWorldSeasonIfChanged(MinecraftServer server) {
+		int sent = broadcastWorldSeason(server, false);
+		if (sent > 0) {
+			emitSyncDebug("broadcast-changed", sent);
+		}
+	}
+
+	private static int broadcastWorldSeason(MinecraftServer server, boolean force) {
+		if (server == null) {
+			return 0;
+		}
+		if (!isEnabled()) {
+			return broadcastSeasonCleared(server, force);
+		}
+
+		SeasonPayloadManager payload = currentSyncPayload(server);
+		if (payload == null) {
+			return 0;
+		}
+		if (!force && payload.season().equals(lastBroadcastSeason)
+			&& Double.compare(payload.temperatureOffset(), lastBroadcastTemperatureOffset) == 0
+			&& Double.compare(payload.humidityOffset(), lastBroadcastHumidityOffset) == 0) {
+			return 0;
+		}
+
+		int sent = SyncWorldManager.broadcast(server, payload);
+		lastBroadcastSeason = payload.season();
+		lastBroadcastTemperatureOffset = payload.temperatureOffset();
+		lastBroadcastHumidityOffset = payload.humidityOffset();
+		return sent;
+	}
+
+	private static int broadcastSeasonCleared(MinecraftServer server, boolean force) {
+		if (!force && lastBroadcastSeason.isEmpty()) {
+			return 0;
+		}
+		int sent = SyncWorldManager.broadcast(server, new SeasonPayloadManager("", 0.0, 0.0));
+		lastBroadcastSeason = "";
+		lastBroadcastTemperatureOffset = 0.0;
+		lastBroadcastHumidityOffset = 0.0;
+		return sent;
+	}
+
+	private static SeasonPayloadManager currentSyncPayload(MinecraftServer server) {
+		if (!isEnabled()) {
+			return null;
+		}
+		ServerLevel world = server == null ? null : server.overworld();
+		String season = getCurrentSeasonId(world);
+		if (season == null || season.isBlank()) {
+			return null;
+		}
+		return new SeasonPayloadManager(
+			season,
+			SeasonEnvironmentTransitionManager.getTemperatureOffset(),
+			SeasonEnvironmentTransitionManager.getHumidityOffset());
+	}
+
+	private static void emitSyncDebug(String subject, int playersSent) {
+		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-manager", "sync", subject)) {
+			return;
+		}
+		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
+			"season.sync",
+			MadokuMetaDataManager.SEASON.mainSystem(),
+			"season-manager",
+			"sync",
+			subject
+		).side(MadokuDebugManager.Side.SERVER)
+			.tick(MadokuTimeManager.getGameplayTicks())
+			.subject(subject)
+			.field("season", lastBroadcastSeason)
+			.field("players-sent", playersSent);
+		builder.log();
 	}
 
 	private static void emitDebug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {

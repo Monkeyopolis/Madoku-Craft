@@ -8,8 +8,11 @@ import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import madoku.craft.api.sync.SyncWorldManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -35,12 +38,15 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 public final class MadokuRegionalDifficultyManager {
@@ -65,6 +71,7 @@ public final class MadokuRegionalDifficultyManager {
 	private static volatile boolean timeTaskScheduled = false;
 	private static volatile long cachedTimeDayCount = Long.MIN_VALUE;
 	private static volatile int cachedTimeAdjustment = 0;
+	private static final Map<UUID, PlayerDifficultyState> LAST_SYNC_STATE_BY_PLAYER = new HashMap<>();
 
 	private MadokuRegionalDifficultyManager() {
 	}
@@ -72,6 +79,9 @@ public final class MadokuRegionalDifficultyManager {
 	public static void initialize() {
 		loadConfig();
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MadokuRegionalDifficultyManager::runTimeTask);
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+			syncDifficultyToPlayer(server, handler.player, true)
+		);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -80,6 +90,7 @@ public final class MadokuRegionalDifficultyManager {
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
+		LAST_SYNC_STATE_BY_PLAYER.clear();
 		refreshCachedTimeAdjustment(server, snapshot);
 		timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		MadokuSchedulerManager.clearQueuedRequests(timeSchedulerId);
@@ -96,6 +107,76 @@ public final class MadokuRegionalDifficultyManager {
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
+		LAST_SYNC_STATE_BY_PLAYER.clear();
+	}
+
+	public static void broadcastDifficultyNow(MinecraftServer server) {
+		broadcastDifficulty(server, true);
+	}
+
+	public static void broadcastDifficultyIfChanged(MinecraftServer server) {
+		broadcastDifficulty(server, false);
+	}
+
+	private static void broadcastDifficulty(MinecraftServer server, boolean force) {
+		if (server == null) {
+			return;
+		}
+
+		Set<UUID> activePlayers = new HashSet<>();
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			activePlayers.add(player.getUUID());
+			syncDifficultyToPlayer(server, player, force);
+		}
+		LAST_SYNC_STATE_BY_PLAYER.keySet().removeIf(uuid -> !activePlayers.contains(uuid));
+	}
+
+	private static void syncDifficultyToPlayer(MinecraftServer server, ServerPlayer player, boolean force) {
+		if (server == null || player == null) {
+			return;
+		}
+
+		UUID playerId = player.getUUID();
+		PlayerDifficultyState previous = LAST_SYNC_STATE_BY_PLAYER.get(playerId);
+		PlayerDifficultyState currentKey = captureSyncStateKey(player);
+		if (currentKey == null || (!force && previous != null && previous.sameKey(currentKey))) {
+			return;
+		}
+
+		int difficultyLevel = resolveHudDifficultyLevel(player);
+		if (force || previous == null || previous.difficultyLevel() != difficultyLevel) {
+			SyncWorldManager.send(player, new DifficultyPayloadManager(difficultyLevel));
+		}
+		LAST_SYNC_STATE_BY_PLAYER.put(playerId, currentKey.withDifficultyLevel(difficultyLevel));
+	}
+
+	private static PlayerDifficultyState captureSyncStateKey(ServerPlayer player) {
+		if (!(player.level() instanceof ServerLevel level)) {
+			return null;
+		}
+		BlockPos pos = player.blockPosition();
+		int chunkX = pos.getX() >> 4;
+		int chunkZ = pos.getZ() >> 4;
+		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
+			return null;
+		}
+		int timeAdjustment = resolveCurrentTimeAdjustment(level);
+		String levelId = level.dimension().identifier().toString();
+		return new PlayerDifficultyState(levelId, packChunk(chunkX, chunkZ), timeAdjustment, 1);
+	}
+
+	private static long packChunk(int chunkX, int chunkZ) {
+		return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
+	}
+
+	private record PlayerDifficultyState(String levelId, long chunkPos, int timeAdjustment, int difficultyLevel) {
+		private boolean sameKey(PlayerDifficultyState other) {
+			return other != null && chunkPos == other.chunkPos && timeAdjustment == other.timeAdjustment && levelId.equals(other.levelId);
+		}
+
+		private PlayerDifficultyState withDifficultyLevel(int level) {
+			return new PlayerDifficultyState(levelId, chunkPos, timeAdjustment, Math.max(1, level));
+		}
 	}
 
 	public static boolean isEnabled() {

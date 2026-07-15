@@ -45,13 +45,20 @@ public final class MadokuMetaDataManager {
 			),
 			group(
 				"sleep-manager",
-				entriesFromClass(madoku.craft.api.time.SleepManager.class)
+				entriesFromClass(madoku.craft.api.time.TimeSleepManager.class)
 			)
 		),
 		subSystem(
 			"scheduler-manager",
 			entriesFromClass(madoku.craft.api.scheduler.MadokuSchedulerManager.class),
 			group("scheduler-runtime-manager", entriesFromClass("madoku.craft.api.scheduler.SchedulerRuntimeManager"))
+		),
+		subSystem(
+			"sync-manager",
+			entriesFromClass(madoku.craft.api.sync.MadokuSyncManager.class),
+			group("sync-global-manager", entriesFromClass(madoku.craft.api.sync.SyncGlobalManager.class)),
+			group("sync-world-manager", entriesFromClass(madoku.craft.api.sync.SyncWorldManager.class)),
+			group("sync-player-manager", entriesFromClass(madoku.craft.api.sync.SyncPlayerManager.class))
 		)
 	);
 
@@ -83,12 +90,13 @@ public final class MadokuMetaDataManager {
 	public static final MainSystemMetadata SEASON = mainSystem(
 		"season",
 		subSystem("season-manager", entriesFromClass(madoku.craft.api.season.MadokuSeasonManager.class),
-			group("season-config-manager", entriesFromClass(madoku.craft.api.season.SeasonConfigManager.class)), group("lifecycle", entry("state"))),
+			group("season-config-manager", entriesFromClass(madoku.craft.api.season.SeasonConfigManager.class)),
+			group("lifecycle", entry("state")),
+			group("sync", entry("broadcast-now"), entry("broadcast-changed"))),
 		subSystem("season-biome-climate-manager", entriesFromClass(madoku.craft.api.season.SeasonBiomeClimateManager.class),
 			group("biome-climate-config-manager", entriesFromClass(madoku.craft.api.season.BiomeClimateConfigManager.class)), group("lifecycle", entry("state"))),
 		subSystem("season-environment-transition-manager", entriesFromClass(madoku.craft.api.season.SeasonEnvironmentTransitionManager.class),
-			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state"))),
-		subSystem("season-sync", entriesFromClass(madoku.craft.network.WorldSeasonSync.class))
+			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
 	);
 
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(

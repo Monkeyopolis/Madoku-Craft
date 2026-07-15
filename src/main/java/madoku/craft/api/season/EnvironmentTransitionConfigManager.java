@@ -55,10 +55,10 @@ public final class EnvironmentTransitionConfigManager {
 		temperature.put("fall", new Adjustment("subtraction", 6.0));
 		temperature.put("winter", new Adjustment("subtraction", 9.0));
 		LinkedHashMap<String, Adjustment> humidity = new LinkedHashMap<>();
-		humidity.put("spring", new Adjustment("subtraction", 6.0));
-		humidity.put("summer", new Adjustment("subtraction", 9.0));
-		humidity.put("fall", new Adjustment("addition", 6.0));
-		humidity.put("winter", new Adjustment("addition", 9.0));
+		humidity.put("spring", new Adjustment("addition", 9.0));
+		humidity.put("summer", new Adjustment("addition", 6.0));
+		humidity.put("fall", new Adjustment("subtraction", 6.0));
+		humidity.put("winter", new Adjustment("subtraction", 9.0));
 		return new Settings(true, true, true, true, true, temperature, humidity, 7, 4);
 	}
 

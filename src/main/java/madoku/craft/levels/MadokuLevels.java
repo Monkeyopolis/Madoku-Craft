@@ -12,12 +12,10 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.network.MadokuLevelUpPayload;
-import madoku.craft.network.MadokuLevelsPayload;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import madoku.craft.api.sync.SyncPlayerManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -79,9 +77,7 @@ public final class MadokuLevels {
 		}
 
 		loadStaticConfig();
-		PayloadTypeRegistry.clientboundPlay().register(MadokuLevelsPayload.TYPE, MadokuLevelsPayload.CODEC);
-		PayloadTypeRegistry.serverboundPlay().register(MadokuLevelUpPayload.TYPE, MadokuLevelUpPayload.CODEC);
-		ServerPlayNetworking.registerGlobalReceiver(MadokuLevelUpPayload.TYPE, (payload, context) ->
+		ServerPlayNetworking.registerGlobalReceiver(LevelUpPayloadManager.TYPE, (payload, context) ->
 			handleLevelUpRequest(context.player(), payload.statId())
 		);
 		ServerPlayerEvents.JOIN.register(MadokuLevels::handlePlayerJoin);
@@ -167,17 +163,21 @@ public final class MadokuLevels {
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {
-		if (server == null || DIRTY_PLAYERS.isEmpty()) {
+		if (server == null || DIRTY_PLAYERS.isEmpty() || !SyncPlayerManager.shouldFlushDirtySyncs(server)) {
 			return;
 		}
 
 		Set<UUID> syncedPlayers = new HashSet<>();
 		for (UUID playerId : DIRTY_PLAYERS) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player == null || !ServerPlayNetworking.canSend(player, MadokuLevelsPayload.TYPE)) {
+			if (player == null) {
 				continue;
 			}
-			ServerPlayNetworking.send(player, createPayload(player));
+			LevelsPayloadManager payload = createPayload(player);
+			if (!SyncPlayerManager.canSend(player, payload)) {
+				continue;
+			}
+			SyncPlayerManager.send(player, payload);
 			syncedPlayers.add(playerId);
 		}
 
@@ -324,14 +324,14 @@ public final class MadokuLevels {
 		return (int) Math.round(MadokuLevelStat.PLAYER_HUNGER.valueAtLevel(hungerStatLevel));
 	}
 
-	private static MadokuLevelsPayload createPayload(ServerPlayer player) {
+	private static LevelsPayloadManager createPayload(ServerPlayer player) {
 		PlayerState state = ensurePlayerState(player);
 		boolean useAttributesContainer = useAttributesContainer();
 		List<MadokuLevelStat> visibleStats = visibleStats();
 		int effectiveLevel = Math.min(state.level, maxPlayerLevel());
 		int effectiveCurrentXp = state.level >= maxPlayerLevel() ? 0 : state.currentXp;
 		int effectiveRequiredXp = requiredXpForLevel(effectiveLevel);
-		return new MadokuLevelsPayload(
+		return new LevelsPayloadManager(
 			player.getName().getString(),
 			effectiveLevel,
 			effectiveCurrentXp,

@@ -79,7 +79,7 @@ public final class TimeManager {
 		observeGameplayTicks(getGameplayTicks());
 		long observedDayTime = overworld.getOverworldClockTime();
 		observeWorldTime(observedDayTime);
-		SleepManager.onWorldTimeAdvanced(server, observedDayTime);
+		TimeSleepManager.onWorldTimeAdvanced(server, observedDayTime);
 
 		if (!isEnabled()) {
 			return;
@@ -130,7 +130,7 @@ public final class TimeManager {
 			: TimeConfigManager.getNightMinutes() * TimeConfigManager.getSeasonalNightMultiplier(seasonId);
 		long segmentWorldTicks = daytime ? resolveDayWorldTickSpan() : resolveNightWorldTickSpan();
 		double baseRate = resolveDesiredTicksPerServerTick(segmentMinutes, segmentWorldTicks);
-		double sleepMultiplier = Math.max(1L, SleepManager.getCachedTickIncrement());
+		double sleepMultiplier = Math.max(1L, TimeSleepManager.getCachedTickIncrement());
 		double resolvedRate = baseRate * sleepMultiplier;
 		if (!Double.isFinite(resolvedRate) || resolvedRate <= 0.0D) {
 			emitTimeDebug("resolveWorldClockRate", builder -> builder
@@ -415,4 +415,3 @@ public final class TimeManager {
 		builder.log();
 	}
 }
-

@@ -1,8 +1,11 @@
 package madoku.craft.api.time;
 
+import madoku.craft.api.sync.SyncWorldManager;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.clock.ClockTimeMarker;
 
 /** Runtime API subsystem orchestrating the time runtime, sleep, and time configuration groups. */
@@ -10,6 +13,8 @@ public final class MadokuTimeManager {
 	public static final long TICKS_PER_SECOND = TimeManager.TICKS_PER_SECOND;
 	public static final long SECONDS_PER_MINUTE = TimeManager.SECONDS_PER_MINUTE;
 	public static final long MINECRAFT_TICKS_PER_CYCLE = TimeManager.MINECRAFT_TICKS_PER_CYCLE;
+	private static long lastSyncDay = -1L;
+	private static long lastSyncTotalMinutes = -1L;
 
 	private MadokuTimeManager() {
 	}
@@ -17,12 +22,20 @@ public final class MadokuTimeManager {
 	public static void initialize() {
 		TimeConfigManager.initialize();
 		TimeManager.initialize();
-		SleepManager.reset();
+		TimeSleepManager.reset();
+		resetSyncState();
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			TimePayloadManager payload = currentSyncPayload(server);
+			if (payload != null) {
+				SyncWorldManager.send(handler.player, payload);
+			}
+		});
 	}
 
 	public static void reset() {
 		TimeManager.reset();
-		SleepManager.reset();
+		TimeSleepManager.reset();
+		resetSyncState();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -135,5 +148,47 @@ public final class MadokuTimeManager {
 
 	public static int getCycleMinutes(long absoluteDayTime) {
 		return TimeManager.getCycleMinutes(absoluteDayTime);
+	}
+
+	public static void broadcastWorldTimeNow(MinecraftServer server) {
+		broadcastWorldTime(server, true);
+	}
+
+	public static void broadcastWorldTimeIfChanged(MinecraftServer server) {
+		broadcastWorldTime(server, false);
+	}
+
+	private static void broadcastWorldTime(MinecraftServer server, boolean force) {
+		TimePayloadManager payload = currentSyncPayload(server);
+		if (payload == null || server == null) {
+			return;
+		}
+
+		long totalMinutes = (long) payload.hour() * 60L + payload.minute();
+		if (!force && payload.day() == lastSyncDay && totalMinutes == lastSyncTotalMinutes) {
+			return;
+		}
+
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			SyncWorldManager.send(player, payload);
+		}
+		lastSyncDay = payload.day();
+		lastSyncTotalMinutes = totalMinutes;
+	}
+
+	private static void resetSyncState() {
+		lastSyncDay = -1L;
+		lastSyncTotalMinutes = -1L;
+	}
+
+	private static TimePayloadManager currentSyncPayload(MinecraftServer server) {
+		if (server == null || server.overworld() == null) {
+			return null;
+		}
+
+		long dayTime = server.overworld().getOverworldClockTime();
+		long day = getDay(dayTime);
+		int totalMinutes = getTotalMinutes(dayTime);
+		return new TimePayloadManager(day, totalMinutes / 60, totalMinutes % 60);
 	}
 }

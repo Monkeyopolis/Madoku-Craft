@@ -7,8 +7,8 @@ import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.debug.MadokuDebugManager;
+import madoku.craft.api.sync.SyncPlayerManager;
 import madoku.craft.levels.MadokuLevels;
-import madoku.craft.network.HungerHudSync;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -891,7 +891,10 @@ public final class MadokuHungerManager {
 			&& state.lastSyncedMaxHunger == maxHungerPoints) {
 			return;
 		}
-		if (!HungerHudSync.send(player, displayCurrentHunger, displayPendingHunger, maxHungerPoints)) {
+		if (!SyncPlayerManager.send(player, new HungerPayloadManager(
+			Math.max(0, displayCurrentHunger),
+			Math.max(0, displayPendingHunger),
+			Math.max(1, maxHungerPoints)))) {
 			return;
 		}
 		state.lastSyncedCurrentHunger = displayCurrentHunger;
