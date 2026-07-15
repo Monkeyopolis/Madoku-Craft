@@ -49,7 +49,7 @@ public final class RecipesConfigManager {
 		ConfigSmeltingManager.initialize();
 		ConfigBlastingManager.initialize();
 		ConfigSmokingManager.initialize();
-		ConfigCampireManager.initialize();
+		ConfigCampfireManager.initialize();
 		ConfigStonecuttingManager.initialize();
 		initialized = true;
 	}
@@ -60,7 +60,7 @@ public final class RecipesConfigManager {
 		ConfigSmeltingManager.reset();
 		ConfigBlastingManager.reset();
 		ConfigSmokingManager.reset();
-		ConfigCampireManager.reset();
+		ConfigCampfireManager.reset();
 		ConfigStonecuttingManager.reset();
 		initialized = false;
 	}
