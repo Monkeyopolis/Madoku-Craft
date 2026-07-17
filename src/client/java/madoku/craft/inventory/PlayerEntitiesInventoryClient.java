@@ -8,7 +8,6 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -229,7 +228,7 @@ public final class PlayerEntitiesInventoryClient {
 		int iconX = recipeButton.getX() + (recipeButton.getWidth() - RECIPE_BUTTON_ICON_SIZE) / 2;
 		int iconY = recipeButton.getY() + (recipeButton.getHeight() - RECIPE_BUTTON_ICON_SIZE) / 2;
 
-		((GuiGraphics) graphics).blit(
+		((net.minecraft.client.gui.GuiGraphics) graphics).blit(
 			RenderPipelines.GUI_TEXTURED,
 			texture,
 			iconX,
@@ -244,7 +243,7 @@ public final class PlayerEntitiesInventoryClient {
 	}
 
 	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, Object graphics) {
-		GuiGraphics guiGraphics = (GuiGraphics) graphics;
+		net.minecraft.client.gui.GuiGraphics guiGraphics = (net.minecraft.client.gui.GuiGraphics) graphics;
 		for (int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX;
 			slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT;
 			slotIndex++) {

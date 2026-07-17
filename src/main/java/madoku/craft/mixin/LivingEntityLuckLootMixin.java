@@ -1,20 +1,80 @@
 package madoku.craft.mixin;
 
-import madoku.craft.luck.MadokuLuck;
+import madoku.craft.loot.system.MadokuLootTableEntities;
+import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootTable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityLuckLootMixin {
+	@Inject(
+		method = "dropFromLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;ZLnet/minecraft/resources/ResourceKey;Ljava/util/function/Consumer;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$applyManagedMobDrops(
+		ServerLevel level,
+		DamageSource damageSource,
+		boolean causedByPlayer,
+		ResourceKey<LootTable> lootTableKey,
+		Consumer<ItemStack> consumer,
+		CallbackInfo ci
+	) {
+		LivingEntity livingEntity = (LivingEntity) (Object) this;
+		if (livingEntity == null || level == null || consumer == null || livingEntity.level().isClientSide()) {
+			return;
+		}
+		if (!MadokuMobManager.isEnabled()) {
+			return;
+		}
+
+		String configuredReference = "";
+		if (livingEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
+			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(livingEntity)) {
+				return;
+			}
+			configuredReference = MadokuMobManager.resolveBeeMobDropsConfigReference(livingEntity);
+		} else if (isZombieType(livingEntity.getType())) {
+			if (!MadokuMobManager.isZombieCustomMobDropsEnabled(livingEntity)) {
+				return;
+			}
+			configuredReference = MadokuMobManager.resolveZombieMobDropsConfigReference(livingEntity);
+		} else {
+			return;
+		}
+
+		List<ItemStack> generated = MadokuLootTableEntities.generateManagedLootForReference(
+			configuredReference,
+			resolveLootPlayer(damageSource),
+			level.getRandom()
+		);
+		if (generated == null) {
+			return;
+		}
+		for (ItemStack stack : generated) {
+			if (stack != null && !stack.isEmpty()) {
+				consumer.accept(stack);
+			}
+		}
+		ci.cancel();
+	}
+
 	@ModifyVariable(
 		method = "dropFromLootTable(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;ZLnet/minecraft/resources/ResourceKey;Ljava/util/function/Consumer;)V",
 		at = @At("HEAD"),
@@ -28,12 +88,40 @@ public abstract class LivingEntityLuckLootMixin {
 		boolean causedByPlayer,
 		ResourceKey<LootTable> lootTableKey
 	) {
-		return MadokuLuck.wrapMobDeathLootConsumer(
+		LivingEntity livingEntity = (LivingEntity) (Object) this;
+		Consumer<ItemStack> normalizedConsumer = stack -> {
+			consumer.accept(stack);
+		};
+
+		return MadokuLuckManager.wrapMobDeathLootConsumer(
 			level,
-			(LivingEntity) (Object) this,
+			livingEntity,
 			damageSource,
 			causedByPlayer,
-			consumer
+			normalizedConsumer
 		);
 	}
+
+	private static boolean isZombieType(EntityType<?> type) {
+		return type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE
+			|| type == madoku.craft.entity.MadokuEntityTypes.HUSK
+			|| type == madoku.craft.entity.MadokuEntityTypes.DROWNED
+			|| type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER;
+	}
+
+	private static ServerPlayer resolveLootPlayer(DamageSource source) {
+		if (source == null) {
+			return null;
+		}
+		Entity attacker = source.getEntity();
+		if (attacker instanceof ServerPlayer serverPlayer) {
+			return serverPlayer;
+		}
+		Entity direct = source.getDirectEntity();
+		if (direct instanceof ServerPlayer serverPlayer) {
+			return serverPlayer;
+		}
+		return null;
+	}
 }
+

@@ -1,5 +1,6 @@
 package madoku.craft.mixin;
 
+import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.util.RandomSource;
@@ -20,6 +21,9 @@ public class ItemInputRarityMixin {
 		boolean checkOverstack,
 		CallbackInfoReturnable<ItemStack> cir
 	) {
-		MadokuRarity.applyGeneratedRarity(cir.getReturnValue(), RandomSource.create());
+		ItemStack stack = cir.getReturnValue();
+		MadokuRarity.applyGeneratedRarity(stack, RandomSource.create());
+		PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
 	}
 }
+

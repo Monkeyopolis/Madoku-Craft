@@ -10,3 +10,4 @@ public interface BatTargetAccessor {
 	@Accessor("targetPosition")
 	void madokuCraft$setTargetPosition(BlockPos targetPosition);
 }
+

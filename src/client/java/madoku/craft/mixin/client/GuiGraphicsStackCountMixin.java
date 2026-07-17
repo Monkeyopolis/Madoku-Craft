@@ -37,17 +37,17 @@ public abstract class GuiGraphicsStackCountMixin {
 		boolean shadow
 	) {
 		if (!shouldScale(text)) {
-			this.drawString(font, text, x, y, color, shadow);
+			drawString(font, text, x, y, color, shadow);
 			return;
 		}
 
 		int width = font.width(text);
-		this.pose.pushMatrix();
-		this.pose.translate((float) (x + width), (float) y);
-		this.pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE);
-		this.pose.translate((float) (-x - width), (float) (-y));
-		this.drawString(font, text, x, y, color, shadow);
-		this.pose.popMatrix();
+		pose.pushMatrix();
+		pose.translate((float) (x + width), (float) y);
+		pose.scale(STACK_COUNT_SCALE, STACK_COUNT_SCALE);
+		pose.translate((float) (-x - width), (float) (-y));
+		drawString(font, text, x, y, color, shadow);
+		pose.popMatrix();
 	}
 
 	private static boolean shouldScale(String text) {

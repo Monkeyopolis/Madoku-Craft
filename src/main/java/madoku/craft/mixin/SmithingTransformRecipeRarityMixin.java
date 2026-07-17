@@ -22,3 +22,4 @@ public class SmithingTransformRecipeRarityMixin {
 		cir.setReturnValue(upgradedResult);
 	}
 }
+

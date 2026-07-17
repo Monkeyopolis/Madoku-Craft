@@ -5,15 +5,15 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
-import madoku.craft.clock.MadokuTicks;
-import madoku.craft.config.StaticJsonSystem;
-import madoku.craft.data.MadokuData;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.api.data.DataPlayerManager;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -32,13 +32,10 @@ public final class MadokuItemStack {
 
 	private static final String ITEMSTACK_CONFIG_FOLDER_NAME = "madoku-craft-stacks";
 	private static final String ITEMSTACK_CONFIG_FILE_NAME = "madoku-stacks";
-	private static final String DATA_FOLDER_NAME = "madoku-craft-stacks";
 	private static final String DATA_FILE_NAME = "madoku-stacks";
 	private static final String DATA_KEPT_STACKS_KEY = "kept_stacks";
 	private static final String DATA_ENTRY_SLOT_KEY = "slot";
 	private static final String DATA_ENTRY_STACK_KEY = "stack";
-	private static final String DATA_ENTRY_COUNT_KEY = "count";
-	private static final long AUTOSAVE_INTERVAL_TICKS = 60L * 20L;
 
 	private static final MadokuItemStackConfig configuration = new MadokuItemStackConfig();
 	private static final Map<UUID, List<KeptStack>> keptStacksByPlayer = new HashMap<>();
@@ -61,17 +58,18 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		MadokuData.createWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
-		JsonObject data = MadokuData.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
+		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, DATA_KEPT_STACKS_KEY, "uuid");
 		applyPersistedData(server, data);
-		lastAutosaveBucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
+		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
-		long bucket = Math.floorDiv(MadokuTicks.getGameplayTicks(), AUTOSAVE_INTERVAL_TICKS);
+		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
+		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -82,11 +80,11 @@ public final class MadokuItemStack {
 		if (server == null) {
 			return;
 		}
-		MadokuData.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData(server));
+		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData(server), DATA_KEPT_STACKS_KEY, "uuid");
 	}
 
 	public static boolean isEnabled() {
-		return configuration.enableFeature;
+		return configuration.enabled;
 	}
 
 	public static boolean usesManagedDeathDrop() {
@@ -102,7 +100,7 @@ public final class MadokuItemStack {
 	}
 
 	public static int getMaxStackCap() {
-		return MadokuItemStackConfig.MAX_STACK_CAP;
+		return MadokuItemStackConfig.MAX_STACK_RUNTIME_CAP;
 	}
 
 	public static int adjustStackLimit(int originalLimit) {
@@ -139,6 +137,32 @@ public final class MadokuItemStack {
 		}
 
 		return DataResult.success(value);
+	}
+
+	public static String formatCompactStackCount(int count) {
+		if (count < 1000) {
+			return Integer.toString(count);
+		}
+		return formatCompactValue(count);
+	}
+
+	private static String formatCompactValue(long value) {
+		if (value >= 1_000_000L) {
+			return formatCompactUnit(value, 1_000_000L, "M");
+		}
+		return formatCompactUnit(value, 1_000L, "K");
+	}
+
+	private static String formatCompactUnit(long value, long unit, String suffix) {
+		long whole = value / unit;
+		if (whole >= 10L) {
+			return whole + suffix;
+		}
+		long tenth = ((value % unit) * 10L) / unit;
+		if (tenth <= 0L) {
+			return whole + suffix;
+		}
+		return whole + "." + tenth + suffix;
 	}
 
 	public static boolean handleInventoryDrop(Inventory inventory) {
@@ -183,14 +207,7 @@ public final class MadokuItemStack {
 
 		inventory.setChanged();
 		savePersistedData(player.level().getServer());
-		emitDeathDropHandled(player, dropCount, keptStacks.size());
 		return true;
-	}
-
-	private static JsonObject createDefaultData() {
-		JsonObject root = new JsonObject();
-		root.add(DATA_KEPT_STACKS_KEY, new JsonObject());
-		return root;
 	}
 
 	private static void applyPersistedData(MinecraftServer server, JsonObject data) {
@@ -236,7 +253,8 @@ public final class MadokuItemStack {
 				}
 
 				int slot = slotElement.getAsInt();
-				ItemStack stack = decodeStoredStack(ops, entryObject, stackElement);
+				DataResult<ItemStack> decoded = ItemStack.CODEC.parse(ops, stackElement);
+				ItemStack stack = decoded.result().orElse(ItemStack.EMPTY);
 				if (stack.isEmpty()) {
 					continue;
 				}
@@ -250,78 +268,61 @@ public final class MadokuItemStack {
 	}
 
 	private static JsonObject toPersistedData(MinecraftServer server) {
-		JsonObject root = new JsonObject();
-		JsonObject keptRoot = new JsonObject();
-		if (server == null) {
-			root.add(DATA_KEPT_STACKS_KEY, keptRoot);
-			return root;
-		}
-
-		RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
-		for (Map.Entry<UUID, List<KeptStack>> entry : keptStacksByPlayer.entrySet()) {
-			UUID playerId = entry.getKey();
-			List<KeptStack> keptStacks = entry.getValue();
-			if (playerId == null || keptStacks == null || keptStacks.isEmpty()) {
-				continue;
-			}
-
-			JsonArray encodedStacks = new JsonArray();
-			for (KeptStack keptStack : keptStacks) {
-				if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
-					continue;
-				}
-				JsonElement stackElement = encodeStoredStack(ops, keptStack.stack());
-				if (stackElement == null) {
+		JSONFormatManager.ObjectBuilder keptRoot = JSONFormatManager.object();
+		if (server != null) {
+			RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, server.registryAccess());
+			for (Map.Entry<UUID, List<KeptStack>> entry : keptStacksByPlayer.entrySet()) {
+				UUID playerId = entry.getKey();
+				List<KeptStack> keptStacks = entry.getValue();
+				if (playerId == null || keptStacks == null || keptStacks.isEmpty()) {
 					continue;
 				}
 
-				JsonObject encodedEntry = new JsonObject();
-				encodedEntry.addProperty(DATA_ENTRY_SLOT_KEY, keptStack.slot());
-				encodedEntry.addProperty(DATA_ENTRY_COUNT_KEY, keptStack.stack().getCount());
-				encodedEntry.add(DATA_ENTRY_STACK_KEY, stackElement);
-				encodedStacks.add(encodedEntry);
-			}
+				JSONFormatManager.ArrayBuilder encodedStacks = JSONFormatManager.array();
+				for (KeptStack keptStack : keptStacks) {
+					if (keptStack == null || keptStack.stack() == null || keptStack.stack().isEmpty()) {
+						continue;
+					}
+					DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, keptStack.stack());
+					JsonElement stackElement = encoded.result().orElse(null);
+					if (stackElement == null) {
+						continue;
+					}
 
-			if (encodedStacks.size() > 0) {
-				keptRoot.add(playerId.toString(), encodedStacks);
+					encodedStacks.object(encodedEntry -> encodedEntry
+						.put(DATA_ENTRY_SLOT_KEY, keptStack.slot())
+						.put(DATA_ENTRY_STACK_KEY, stackElement));
+				}
+
+				JsonArray encodedArray = encodedStacks.build();
+				if (!encodedArray.isEmpty()) {
+					keptRoot.put(playerId.toString(), encodedArray);
+				}
 			}
 		}
 
-		root.add(DATA_KEPT_STACKS_KEY, keptRoot);
-		return root;
+		return JSONFormatManager.object()
+			.put(DATA_KEPT_STACKS_KEY, keptRoot.build())
+			.build();
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = MadokuItemStackConfig.buildItemStackDefaults();
 		try {
-			Path directory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
+			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ITEMSTACK_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(directory, ITEMSTACK_CONFIG_FILE_NAME);
-			JsonObject root = StaticJsonSystem.ensureManagedFile(configFile, defaults);
+			JSONFormatManager.ManagedDocument document = JSONFormatManager.readManagedDocument(configFile);
+			JsonObject root = document.data();
+			JsonObject general = document.settings();
+			configuration.enabled = readBoolean(general, "enabled", true);
 			boolean changed = configuration.updateItemStack(root);
-			if (changed) {
-				StaticJsonSystem.writeManagedFile(configFile, root, defaults);
+			general.addProperty("enabled", configuration.enabled);
+			if (changed || !root.equals(document.data()) || !general.equals(document.settings())) {
+				JSONFormatManager.writeManagedDocument(configFile, root, general, JSONTypeManager.STATIC_CONFIG);
 			}
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			configuration.resetToDefaults();
 			LOGGER.error("Failed to load MadokuItemStack config; using defaults.", exception);
 		}
-	}
-
-	private static void emitConfigLoaded() {
-		String metricId = "itemstack.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
-			return;
-		}
-
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
-			.side(MadokuDebug.Side.SERVER)
-			.subject("itemstack:global")
-			.field("enabled", configuration.enableFeature)
-			.field("stack_limit", configuration.customStackAmount)
-			.field("death_drop_enabled", configuration.deathDropEnabled)
-			.field("death_drop_percent", configuration.deathDropStackPercent)
-			.log();
 	}
 
 	private static void onAfterRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
@@ -335,10 +336,6 @@ public final class MadokuItemStack {
 		}
 
 		Inventory inventory = newPlayer.getInventory();
-		int restored = 0;
-		int inserted = 0;
-		int dropped = 0;
-
 		for (KeptStack entry : keptStacks) {
 			ItemStack stack = entry.stack();
 			if (stack.isEmpty()) {
@@ -348,23 +345,16 @@ public final class MadokuItemStack {
 			int slot = entry.slot();
 			if (slot >= 0 && slot < inventory.getContainerSize() && inventory.getItem(slot).isEmpty()) {
 				inventory.setItem(slot, stack);
-				restored++;
 				continue;
 			}
 
-			if (inventory.add(stack)) {
-				inserted++;
-			} else {
-				ItemEntity droppedEntity = newPlayer.drop(stack, true, false);
-				if (droppedEntity != null) {
-					dropped++;
-				}
+			if (!inventory.add(stack)) {
+				newPlayer.drop(stack, true, false);
 			}
 		}
 
 		inventory.setChanged();
 		savePersistedData(newPlayer.level().getServer());
-		emitRespawnRestore(newPlayer, restored, inserted, dropped);
 	}
 
 	private static ServerPlayer resolveServerPlayer(Inventory inventory) {
@@ -412,35 +402,7 @@ public final class MadokuItemStack {
 		}
 	}
 
-	private static void emitDeathDropHandled(ServerPlayer player, int droppedStacks, int keptStacks) {
-		String metricId = "itemstack.death_drop_handled";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
-			return;
-		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
-			.side(MadokuDebug.Side.SERVER)
-			.subject("player:" + player.getUUID())
-			.world(player.level().dimension().toString())
-			.field("dropped_stacks", droppedStacks)
-			.field("kept_stacks", keptStacks)
-			.field("drop_percent", configuration.deathDropStackPercent)
-			.log();
-	}
 
-	private static void emitRespawnRestore(ServerPlayer player, int restored, int inserted, int dropped) {
-		String metricId = "itemstack.death_restore";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
-			return;
-		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
-			.side(MadokuDebug.Side.SERVER)
-			.subject("player:" + player.getUUID())
-			.world(player.level().dimension().toString())
-			.field("restored_to_slot", restored)
-			.field("restored_by_insert", inserted)
-			.field("forced_drop", dropped)
-			.log();
-	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
@@ -453,33 +415,23 @@ public final class MadokuItemStack {
 		return directory.resolve(normalized);
 	}
 
-	private static ItemStack decodeStoredStack(RegistryOps<JsonElement> ops, JsonObject entryObject, JsonElement stackElement) {
-		DataResult<ItemStack> decoded = ItemStack.CODEC.parse(ops, stackElement);
-		ItemStack stack = decoded.result().orElse(ItemStack.EMPTY);
-		if (stack.isEmpty()) {
-			return ItemStack.EMPTY;
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		if (root == null || key == null || key.isBlank()) {
+			return fallback;
 		}
-
-		int storedCount = stack.getCount();
-		JsonElement countElement = entryObject.get(DATA_ENTRY_COUNT_KEY);
-		if (countElement != null && countElement.isJsonPrimitive() && countElement.getAsJsonPrimitive().isNumber()) {
-			storedCount = countElement.getAsInt();
+		JsonElement element = root.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
+			return fallback;
 		}
-
-		stack.setCount(Math.max(1, storedCount));
-		return stack;
-	}
-
-	private static JsonElement encodeStoredStack(RegistryOps<JsonElement> ops, ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return null;
+		try {
+			return element.getAsBoolean();
+		} catch (RuntimeException exception) {
+			return fallback;
 		}
-
-		int safeCount = Math.max(1, Math.min(stack.getCount(), 99));
-		DataResult<JsonElement> encoded = ItemStack.CODEC.encodeStart(ops, stack.copyWithCount(safeCount));
-		return encoded.result().orElse(null);
 	}
 
 	private record KeptStack(int slot, ItemStack stack) {
 	}
 }
+
+

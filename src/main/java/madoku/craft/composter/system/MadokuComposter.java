@@ -2,8 +2,8 @@ package madoku.craft.composter.system;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.config.StaticJsonSystem;
-import madoku.craft.debug.MadokuDebug;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.item.system.MadokuItemConfig;
 import net.minecraft.world.item.Item;
@@ -36,7 +36,7 @@ public final class MadokuComposter {
 		if (!isEnabled() || item == null) {
 			return false;
 		}
-		return MadokuItem.hasSecondaryCategory(item, MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER);
+		return MadokuItem.hasCategory(item, MadokuItemConfig.CATEGORY_COMPOSTER);
 	}
 
 	public static boolean isComposterItem(ItemStack stack) {
@@ -60,13 +60,12 @@ public final class MadokuComposter {
 		try {
 			if (!MadokuItem.isEnabled()) {
 				enabled = false;
-				emitConfigLoaded();
 				return;
 			}
 
-			Path rootDirectory = StaticJsonSystem.getOrCreateGlobalSystemDirectory(COMPOSTER_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(COMPOSTER_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, COMPOSTER_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = StaticJsonSystem.ensureManagedFile(
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 				settingsFile,
 				MadokuComposterConfig.buildComposterSystemDefaults()
 			);
@@ -77,7 +76,6 @@ public final class MadokuComposter {
 			);
 
 			enabled = composterEnabled;
-			emitConfigLoaded();
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
 			LOGGER.error("Failed to load MadokuComposter folder config; disabling custom composter rules.", exception);
@@ -95,18 +93,6 @@ public final class MadokuComposter {
 		return element.getAsBoolean();
 	}
 
-	private static void emitConfigLoaded() {
-		String metricId = "composter.config_loaded";
-		if (!MadokuDebug.shouldEmit(MadokuDebug.Domain.ITEM, metricId)) {
-			return;
-		}
-		MadokuDebug.event(metricId, MadokuDebug.Domain.ITEM)
-			.side(MadokuDebug.Side.SERVER)
-			.subject("composter:global")
-			.field("enabled", enabled)
-			.log();
-	}
-
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
 		if (normalized.isEmpty()) {
@@ -118,3 +104,4 @@ public final class MadokuComposter {
 		return directory.resolve(normalized);
 	}
 }
+

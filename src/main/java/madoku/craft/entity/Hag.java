@@ -1,7 +1,7 @@
 package madoku.craft.entity;
 
 import madoku.craft.pet.PlayerEntitiesSystem;
-import madoku.craft.time.MadokuTime;
+import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -190,11 +190,11 @@ public class Hag extends Witch implements Merchant {
 	private long currentOfferWeek() {
 		long absoluteDayTime;
 		if (this.level() instanceof ServerLevel serverLevel) {
-			absoluteDayTime = MadokuTime.getCurrentAbsoluteDayTime(serverLevel);
+			absoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(serverLevel);
 		} else {
 			absoluteDayTime = this.level().getDayTime();
 		}
-		long day = Math.max(0L, MadokuTime.getDay(absoluteDayTime));
+		long day = Math.max(0L, MadokuTimeManager.getDay(absoluteDayTime));
 		return Math.floorDiv(day, TRADE_REFRESH_DAYS);
 	}
 
@@ -254,7 +254,7 @@ public class Hag extends Witch implements Merchant {
 		int emeraldCost = petSystemEnabled ? emeraldCost(item) : DEFAULT_SPAWN_EGG_EMERALD_COST;
 		ItemStack resultStack = new ItemStack(item);
 		if (petSystemEnabled) {
-			PlayerEntitiesSystem.applyAbilityLore(resultStack);
+			PlayerEntitiesSystem.applySupportedSpawnEggLore(resultStack);
 		}
 		return new MerchantOffer(
 			new ItemCost(Items.EGG, eggCost),
@@ -267,13 +267,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private int rarityWeight(Item item) {
-		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 1;
-			case PET_RARITY_EPIC -> 4;
-			case PET_RARITY_RARE -> 10;
-			case PET_RARITY_COMMON -> 25;
-			default -> 25;
-		};
+		return PlayerEntitiesSystem.petTradeRarityWeight(petRarity(item));
 	}
 
 	private int eggCost(Item item) {
@@ -300,3 +294,4 @@ public class Hag extends Witch implements Merchant {
 		return PlayerEntitiesSystem.petRarity(new ItemStack(item));
 	}
 }
+

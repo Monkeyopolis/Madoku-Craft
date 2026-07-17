@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobCreeper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.Creeper;
@@ -27,6 +27,8 @@ public abstract class CreeperExplosionMixin {
 		float power,
 		Level.ExplosionInteraction interaction
 	) {
-		MadokuMob.applyCreeperExplosionOverride((Creeper) (Object) this, level, source, x, y, z, power, interaction);
+		MadokuMobCreeper.applyExplosionOverride((Creeper) (Object) this, level, source, x, y, z, power, interaction);
 	}
 }
+
+

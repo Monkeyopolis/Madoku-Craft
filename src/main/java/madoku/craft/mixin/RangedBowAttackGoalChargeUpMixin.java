@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobSkeleton;
 import net.minecraft.world.entity.ai.goal.RangedBowAttackGoal;
 import net.minecraft.world.entity.monster.Monster;
 import org.spongepowered.asm.mixin.Final;
@@ -24,10 +24,12 @@ public abstract class RangedBowAttackGoalChargeUpMixin {
 	)
 	private int madokuCraft$applySkeletonChargeUpTicks(Monster attacker) {
 		int vanillaTicks = attacker.getTicksUsingItem();
-		int chargeUpTicks = MadokuMob.resolveSkeletonChargeUpTicks(attacker);
+		int chargeUpTicks = MadokuMobSkeleton.resolveBowChargeUpTicks(attacker);
 		if (chargeUpTicks <= 0 || chargeUpTicks == 20) {
 			return vanillaTicks;
 		}
 		return (int) Math.floor((vanillaTicks * 20.0D) / chargeUpTicks);
 	}
 }
+
+

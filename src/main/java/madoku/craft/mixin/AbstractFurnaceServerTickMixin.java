@@ -1,6 +1,5 @@
 package madoku.craft.mixin;
 
-import madoku.craft.debug.MadokuDebug;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -27,16 +26,9 @@ public abstract class AbstractFurnaceServerTickMixin {
 			if (currentTotal > 0 && desiredTotal > 0 && currentTotal != desiredTotal) {
 				((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$setCookingTotalTime(desiredTotal);
 				furnace.setChanged();
-				if (MadokuDebug.shouldEmit(MadokuDebug.Domain.SMELTING, "smelting.cook_time_sync")) {
-					MadokuDebug.event("smelting.cook_time_sync", MadokuDebug.Domain.SMELTING)
-						.side(MadokuDebug.Side.SERVER)
-						.subject("furnace:" + furnace.getClass().getSimpleName())
-						.field("current_ticks", currentTotal)
-						.field("desired_ticks", desiredTotal)
-						.log();
-				}
 			}
 		}
 		MadokuSmeltingManager.onFurnaceServerTick(level, blockPos, blockState, furnace);
 	}
 }
+

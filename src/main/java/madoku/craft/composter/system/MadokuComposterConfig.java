@@ -1,6 +1,7 @@
 package madoku.craft.composter.system;
 
 import com.google.gson.JsonObject;
+import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.item.system.MadokuItemConfig;
 
 import java.util.LinkedHashMap;
@@ -9,8 +10,8 @@ import java.util.Map;
 
 public final class MadokuComposterConfig {
 	public static final String FIELD_COMPOSTER_SYSTEM_ENABLED = "composterSystemEnabled";
-	public static final String FIELD_ITEM_ID = "item_id";
-	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
+	public static final String FIELD_ITEM_ID = "item-id";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
@@ -19,9 +20,9 @@ public final class MadokuComposterConfig {
 	}
 
 	public static JsonObject buildComposterSystemDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_COMPOSTER_SYSTEM_ENABLED, true);
-		return defaults;
+		return JSONFormatManager.object()
+			.put(FIELD_COMPOSTER_SYSTEM_ENABLED, true)
+			.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultComposterFileDefaults(boolean farmingSystemEnabled) {
@@ -44,8 +45,8 @@ public final class MadokuComposterConfig {
 		JsonObject defaults = MadokuItemConfig.buildBaseDefaults(
 			itemId,
 			stackValue,
-			MadokuItemConfig.PRIMARY_CATEGORY_MISC,
-			MadokuItemConfig.SECONDARY_CATEGORY_COMPOSTER
+			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_COMPOSTER, 100),
+			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_MISC, 90)
 		);
 		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment));
 		return defaults;
@@ -192,3 +193,4 @@ public final class MadokuComposterConfig {
 		return fileKey.trim().toLowerCase(Locale.ROOT);
 	}
 }
+

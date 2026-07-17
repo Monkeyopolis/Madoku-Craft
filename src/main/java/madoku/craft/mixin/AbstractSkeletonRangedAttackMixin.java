@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.RangedBowAttackGoal;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
@@ -20,7 +20,7 @@ public abstract class AbstractSkeletonRangedAttackMixin {
 	@Inject(method = "performRangedAttack", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyCustomRangedAttack(LivingEntity target, float pullProgress, CallbackInfo ci) {
 		AbstractSkeleton skeleton = (AbstractSkeleton) (Object) this;
-		if (MadokuMob.applyCustomSkeletonRangedAttack(skeleton, target, pullProgress)) {
+		if (MadokuMobManager.applyCustomSkeletonRangedAttack(skeleton, target, pullProgress)) {
 			ci.cancel();
 		}
 	}
@@ -28,9 +28,11 @@ public abstract class AbstractSkeletonRangedAttackMixin {
 	@Inject(method = "reassessWeaponGoal", at = @At("TAIL"))
 	private void madokuCraft$applyCustomAttackInterval(CallbackInfo ci) {
 		AbstractSkeleton skeleton = (AbstractSkeleton) (Object) this;
-		int intervalTicks = MadokuMob.resolveSkeletonRangedAttackIntervalTicks(skeleton);
+		int intervalTicks = MadokuMobManager.resolveSkeletonRangedAttackIntervalTicks(skeleton);
 		if (intervalTicks > 0 && bowGoal != null) {
 			bowGoal.setMinAttackInterval(intervalTicks);
 		}
 	}
 }
+
+

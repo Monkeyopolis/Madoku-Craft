@@ -5,6 +5,7 @@ import madoku.craft.pet.PlayerEntitiesInventory;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -19,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Player.class)
 public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHolder {
 	@Unique
-	private final PlayerEntitiesInventory madokuCraft$playerEntitiesInventory = new PlayerEntitiesInventory();
+	private final PlayerEntitiesInventory madokuCraft$playerEntitiesInventory = madokuCraft$createPlayerEntitiesInventory();
 
 	@Override
 	public PlayerEntitiesInventory madokuCraft$getPlayerEntitiesInventory() {
@@ -44,27 +45,25 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 
 	@Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
 	private void madokuCraft$loadPlayerEntities(ValueInput input, CallbackInfo ci) {
-		for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
-			String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
-			if (itemId.isBlank()) {
-				itemId = input.getStringOr(madokuCraft$legacySlotKey(slot), "");
-			}
-			if (itemId.isBlank()) {
-				madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
-				continue;
-			}
+		madokuCraft$playerEntitiesInventory.runBulkUpdate(() -> {
+			for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
+				String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
+				if (itemId.isBlank()) {
+					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					continue;
+				}
 
-			Identifier identifier = Identifier.tryParse(itemId);
-			Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
-			if (item == null) {
-				madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
-				continue;
-			}
+				Identifier identifier = Identifier.tryParse(itemId);
+				Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
+				if (item == null) {
+					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					continue;
+				}
 
-			ItemStack stack = new ItemStack(item);
-			madokuCraft$playerEntitiesInventory.setItem(slot, PlayerEntitiesSystem.isValidPlayerEntity(stack) ? stack : ItemStack.EMPTY);
-		}
-		madokuCraft$playerEntitiesInventory.setChanged();
+				ItemStack stack = new ItemStack(item);
+				madokuCraft$playerEntitiesInventory.setItem(slot, PlayerEntitiesSystem.isValidPlayerEntity(stack) ? stack : ItemStack.EMPTY);
+			}
+		});
 	}
 
 	@Unique
@@ -73,7 +72,14 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 	}
 
 	@Unique
-	private static String madokuCraft$legacySlotKey(int slot) {
-		return PlayerEntitiesSystem.legacySaveKey() + "." + slot;
+	private PlayerEntitiesInventory madokuCraft$createPlayerEntitiesInventory() {
+		PlayerEntitiesInventory inventory = new PlayerEntitiesInventory();
+		inventory.setChangeListener(() -> {
+			if ((Object) this instanceof ServerPlayer serverPlayer) {
+				PlayerEntitiesSystem.onPlayerEntitiesInventoryChanged(serverPlayer);
+			}
+		});
+		return inventory;
 	}
 }
+

@@ -20,7 +20,7 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 
 	@Inject(method = "handleSetCreativeModeSlot", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleCreativePetSlots(ServerboundSetCreativeModeSlotPacket packet, CallbackInfo ci) {
-		if (player == null || packet == null) {
+		if (player == null || packet == null || !player.isCreative()) {
 			return;
 		}
 
@@ -40,9 +40,38 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 
 		int petSlot = slotNum - PlayerEntitiesSystem.FIRST_SLOT_INDEX;
 		ItemStack packetStack = packet.itemStack();
-		ItemStack resolved = PlayerEntitiesSystem.isValidPlayerEntity(packetStack)
-			? packetStack.copyWithCount(1)
-			: ItemStack.EMPTY;
+		ItemStack beforeSlotStack = inventory.getItem(petSlot).copy();
+		ItemStack resolved = ItemStack.EMPTY;
+		boolean validPacketStack = false;
+		if (packetStack.isEmpty()) {
+			if (beforeSlotStack.isEmpty()) {
+				madokuCraft$resyncMenus();
+				ci.cancel();
+				return;
+			}
+
+			inventory.setItem(petSlot, ItemStack.EMPTY);
+			inventory.setChanged();
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		validPacketStack = PlayerEntitiesSystem.isValidPlayerEntity(packetStack);
+		if (!validPacketStack) {
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
+
+		// Creative packet ordering does not reliably preserve carried stack state.
+		// Trust validated packet stack for this custom slot; client-side mixin gates intent.
+		resolved = packetStack.copyWithCount(1);
+		if (ItemStack.isSameItemSameComponents(beforeSlotStack, resolved) && beforeSlotStack.getCount() == resolved.getCount()) {
+			madokuCraft$resyncMenus();
+			ci.cancel();
+			return;
+		}
 
 		inventory.setItem(petSlot, resolved);
 		inventory.setChanged();
@@ -52,4 +81,16 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 		}
 		ci.cancel();
 	}
+
+	private void madokuCraft$resyncMenus() {
+		if (player == null) {
+			return;
+		}
+		player.inventoryMenu.broadcastChanges();
+		if (player.containerMenu != null && player.containerMenu != player.inventoryMenu) {
+			player.containerMenu.broadcastChanges();
+		}
+	}
 }
+
+

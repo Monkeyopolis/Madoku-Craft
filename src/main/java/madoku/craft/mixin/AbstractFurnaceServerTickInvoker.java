@@ -19,3 +19,4 @@ public interface AbstractFurnaceServerTickInvoker {
 		throw new AssertionError("Invoker not transformed");
 	}
 }
+

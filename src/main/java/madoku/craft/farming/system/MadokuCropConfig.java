@@ -1,7 +1,8 @@
 package madoku.craft.farming.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,14 +11,10 @@ import java.util.Map;
 
 public final class MadokuCropConfig {
 	public static final String FIELD_CROP_ID = "cropId";
-	public static final String FIELD_CROP_BLOCK_ID = "cropBlockId";
 	public static final String FIELD_MATURE_BLOCK_ID = "matureBlockId";
-	public static final String FIELD_PLANTING_ITEM_ID = "plantingItemId";
-	public static final String FIELD_HARVEST_ITEM_ID = "harvestItemId";
-	public static final String FIELD_SECONDARY_HARVEST_ITEM_ID = "secondaryHarvestItemId";
-	public static final String FIELD_SECONDARY_MIN_HARVEST_COUNT = "secondaryMinHarvestCount";
-	public static final String FIELD_SECONDARY_MAX_HARVEST_COUNT = "secondaryMaxHarvestCount";
-	public static final String FIELD_GROWTH_MINECRAFT_DAYS = "growthMinecraftDays";
+	public static final String FIELD_MIN_HARVEST_SEEDS = "min-harvest-seeds";
+	public static final String FIELD_MAX_HARVEST_SEEDS = "max-harvest-seeds";
+	public static final String FIELD_GROWTH_TIME = "growth-time";
 	public static final String FIELD_MIN_HARVEST_COUNT = "minHarvestCount";
 	public static final String FIELD_MAX_HARVEST_COUNT = "maxHarvestCount";
 	public static final String FIELD_PLANTING_BLOCKED_SEASONS = "plantingBlockedSeasons";
@@ -199,35 +196,34 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
-		JsonObject root = new JsonObject();
-		root.addProperty(FIELD_CROP_ID, normalizeRegistryId(cropId));
-		root.addProperty(FIELD_CROP_BLOCK_ID, normalizeRegistryId(cropBlockId));
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
+			.put(FIELD_CROP_ID, normalizeRegistryId(cropId))
+			.put(FIELD_GROWTH_TIME, growthMinecraftDays)
+			.put(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount))
+			.put(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
+
 		String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
 		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizeRegistryId(cropBlockId))) {
-			root.addProperty(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
+			root.put(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
 		}
-		root.addProperty(FIELD_PLANTING_ITEM_ID, normalizeRegistryId(plantingItemId));
-		root.addProperty(FIELD_HARVEST_ITEM_ID, normalizeRegistryId(harvestItemId));
+
 		String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
 		if (!normalizedSecondaryHarvestItemId.isEmpty()) {
-			root.addProperty(FIELD_SECONDARY_HARVEST_ITEM_ID, normalizedSecondaryHarvestItemId);
-			root.addProperty(FIELD_SECONDARY_MIN_HARVEST_COUNT, Math.max(0, secondaryMinHarvestCount));
-			root.addProperty(FIELD_SECONDARY_MAX_HARVEST_COUNT, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
+			root.put(FIELD_MIN_HARVEST_SEEDS, Math.max(0, secondaryMinHarvestCount));
+			root.put(FIELD_MAX_HARVEST_SEEDS, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
 		}
-		root.addProperty(FIELD_GROWTH_MINECRAFT_DAYS, growthMinecraftDays);
-		root.addProperty(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount));
-		root.addProperty(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
-		JsonArray seasons = new JsonArray();
+
+		JSONFormatManager.ArrayBuilder seasons = JSONFormatManager.array();
 		if (blockedSeasons != null) {
 			for (String season : blockedSeasons) {
 				String normalized = normalizeSeasonId(season);
-					if (!normalized.isEmpty()) {
-						seasons.add(normalized);
-					}
+				if (!normalized.isEmpty()) {
+					seasons.add(normalized);
 				}
 			}
-		root.add(FIELD_PLANTING_BLOCKED_SEASONS, seasons);
-		return root;
+		}
+		root.put(FIELD_PLANTING_BLOCKED_SEASONS, seasons.build());
+		return root.build();
 	}
 
 	public static String normalizeRegistryId(String value) {
@@ -248,3 +244,4 @@ public final class MadokuCropConfig {
 		return value.trim().toLowerCase(Locale.ROOT);
 	}
 }
+

@@ -31,3 +31,4 @@ public abstract class InventoryMenuRarityMixin {
 		MadokuRarity.deliverCraftExtras(serverPlayer, extras);
 	}
 }
+

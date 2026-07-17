@@ -35,3 +35,4 @@ public class ResultSlotRarityMixin {
 		madokuCraft$pendingCraftExtras = List.of();
 	}
 }
+

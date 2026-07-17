@@ -14,3 +14,4 @@ public class ItemStackDurabilityLoreMixin {
 		MadokuRarity.updateDurabilityLore((ItemStack) (Object) this);
 	}
 }
+

@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.time.MadokuSleep;
+import madoku.craft.api.time.TimeSleepManager;
 import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -22,6 +22,7 @@ public abstract class PlayerSleepTickMixin {
 		if (level.isClientSide()) {
 			return bedRule.canSleep(level);
 		}
-		return MadokuSleep.shouldAllowBedSleepByTime(bedRule, level, (Player) (Object) this);
+		return TimeSleepManager.shouldKeepSleepingWhileForwarding(bedRule, level, (Player) (Object) this);
 	}
 }
+

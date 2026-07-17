@@ -35,3 +35,4 @@ final class MadokuArmorProfile {
 		return armorToughness != null;
 	}
 }
+

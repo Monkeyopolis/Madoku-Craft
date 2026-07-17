@@ -2,44 +2,45 @@ package madoku.craft.item.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public final class MadokuItemConfig {
-	public static final String FIELD_ITEM_SYSTEM_ENABLED = "itemSystemEnabled";
-	public static final String FIELD_ITEM_ID = "item_id";
-	public static final String FIELD_PRIMARY_CATEGORY = "primary_category";
-	public static final String FIELD_SECONDARY_CATEGORIES = "secondary_categories";
+	public static final String FIELD_ITEM_ID = "item-id";
+	public static final String FIELD_FUEL_ENABLED = "fuel-enabled";
+	public static final String FIELD_MISC_ENABLED = "misc-enabled";
+	public static final String FIELD_FARMING_ENABLED = "farming-enabled";
+	public static final String FIELD_COMPOSTER_ENABLED = "composter-enabled";
+	public static final String FIELD_TOOL_ENABLED = "tool-enabled";
+	public static final String FIELD_ARMOR_ENABLED = "armor-enabled";
+	public static final String FIELD_CATEGORY = "categories";
+	public static final String FIELD_CATEGORY_NAME = "category";
+	public static final String FIELD_CATEGORY_WEIGHT = "weight";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
 
-	public static final String PRIMARY_CATEGORY_FUEL = "fuel";
-	public static final String PRIMARY_CATEGORY_MISC = "misc";
-	public static final String PRIMARY_CATEGORY_TOOL = "tool";
-	public static final String PRIMARY_CATEGORY_ARMOR = "armor";
-	public static final String SECONDARY_CATEGORY_COMPOSTER = "composter";
-	public static final String SECONDARY_CATEGORY_FARMING = "farming";
-	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter_adjustment";
+	public static final String CATEGORY_FUEL = "fuel";
+	public static final String CATEGORY_MISC = "misc";
+	public static final String CATEGORY_TOOL = "tool";
+	public static final String CATEGORY_ARMOR = "armor";
+	public static final String CATEGORY_COMPOSTER = "composter";
+	public static final String CATEGORY_FARMING = "farming";
+	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
 
-	public static final String FIELD_FUEL_TICKS = "fuel_ticks";
+	public static final String FIELD_FUEL_TICKS = "fuel-ticks";
 	public static final String FIELD_DURABILITY = "durability";
-	public static final String FIELD_ATTACK_DAMAGE = "attack_damage";
-	public static final String FIELD_ATTACK_SPEED = "attack_speed";
-	public static final String FIELD_MINING_SPEED = "mining_speed";
-	public static final String FIELD_MATERIAL_LEVEL = "material_level";
+	public static final String FIELD_ATTACK_DAMAGE = "attack-damage";
+	public static final String FIELD_ATTACK_SPEED = "attack-speed";
+	public static final String FIELD_MINING_SPEED = "mining-speed";
+	public static final String FIELD_MATERIAL_LEVEL = "material-level";
 	public static final String FIELD_ARMOR = "armor";
-	public static final String FIELD_ARMOR_TOUGHNESS = "armor_toughness";
-	public static final String FIELD_REACH_MIN = "reach_min";
-	public static final String FIELD_REACH_MAX = "reach_max";
-	public static final String FIELD_REACH_MIN_CREATIVE = "reach_min_creative";
-	public static final String FIELD_REACH_MAX_CREATIVE = "reach_max_creative";
-	public static final String FIELD_REACH_HITBOX_MARGIN = "reach_hitbox_margin";
-	public static final String FIELD_REACH_MOB_FACTOR = "reach_mob_factor";
+	public static final String FIELD_ARMOR_TOUGHNESS = "armor-toughness";
+	public static final String FIELD_REACH_MIN = "reach-min";
+	public static final String FIELD_REACH_MAX = "reach-max";
 
 	public static final int TOOL_INT_UNSET = -1;
 	public static final double TOOL_DOUBLE_UNSET = -1.0d;
@@ -47,10 +48,15 @@ public final class MadokuItemConfig {
 	private MadokuItemConfig() {
 	}
 
-	public static JsonObject buildItemSystemDefaults() {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ITEM_SYSTEM_ENABLED, true);
-		return defaults;
+	public static JsonObject buildCategoryFeatureDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_FUEL_ENABLED, true)
+			.put(FIELD_MISC_ENABLED, true)
+			.put(FIELD_FARMING_ENABLED, true)
+			.put(FIELD_COMPOSTER_ENABLED, true)
+			.put(FIELD_TOOL_ENABLED, true)
+			.put(FIELD_ARMOR_ENABLED, true)
+			.build();
 	}
 
 	public static Map<String, JsonObject> buildDefaultFuelFileDefaults() {
@@ -137,23 +143,31 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks, String stackValue) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_FUEL);
-		defaults.addProperty(FIELD_FUEL_TICKS, fuelTicks);
-		return defaults;
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_FUEL, 100)))
+			.put(FIELD_FUEL_TICKS, fuelTicks)
+			.build();
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
 		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
 		if ("minecraft:bone_meal".equals(normalizedItemId)) {
-			return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC, SECONDARY_CATEGORY_FARMING);
+			return buildBaseDefaults(itemId, stackValue, category(CATEGORY_MISC, 100), category(CATEGORY_FARMING, 75));
 		}
-		return buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC);
+		return buildBaseDefaults(itemId, stackValue, category(CATEGORY_MISC, 100));
 	}
 
 	public static JsonObject buildFarmingItemDefaults(String itemId, String stackValue) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_MISC, SECONDARY_CATEGORY_FARMING, SECONDARY_CATEGORY_COMPOSTER);
-		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, defaultComposterAdjustmentForFarmingItem(itemId));
-		return defaults;
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(
+				itemId,
+				stackValue,
+				category(CATEGORY_FARMING, 100),
+				category(CATEGORY_COMPOSTER, 90),
+				category(CATEGORY_MISC, 80)
+			))
+			.put(FIELD_COMPOSTER_ADJUSTMENT, defaultComposterAdjustmentForFarmingItem(itemId))
+			.build();
 	}
 
 	public static JsonObject buildToolItemDefaults(String itemId) {
@@ -177,13 +191,14 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_TOOL);
-		defaults.addProperty(FIELD_DURABILITY, durability);
-		defaults.addProperty(FIELD_ATTACK_DAMAGE, attackDamage);
-		defaults.addProperty(FIELD_ATTACK_SPEED, attackSpeed);
-		defaults.addProperty(FIELD_MINING_SPEED, miningSpeed);
-		defaults.addProperty(FIELD_MATERIAL_LEVEL, materialLevel);
-		return defaults;
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_TOOL, 100)))
+			.put(FIELD_DURABILITY, durability)
+			.put(FIELD_ATTACK_DAMAGE, attackDamage)
+			.put(FIELD_ATTACK_SPEED, attackSpeed)
+			.put(FIELD_MINING_SPEED, miningSpeed)
+			.put(FIELD_MATERIAL_LEVEL, materialLevel)
+			.build();
 	}
 
 	public static JsonObject buildSpearItemDefaults(String itemId) {
@@ -195,10 +210,6 @@ public final class MadokuItemConfig {
 			TOOL_INT_UNSET,
 			1.0d,
 			4.5d,
-			1.0d,
-			4.5d,
-			0.3d,
-			1.0d,
 			STACK_SINGLE
 		);
 	}
@@ -211,24 +222,17 @@ public final class MadokuItemConfig {
 		int materialLevel,
 		double reachMin,
 		double reachMax,
-		double reachMinCreative,
-		double reachMaxCreative,
-		double reachHitboxMargin,
-		double reachMobFactor,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_TOOL);
-		defaults.addProperty(FIELD_DURABILITY, durability);
-		defaults.addProperty(FIELD_ATTACK_DAMAGE, attackDamage);
-		defaults.addProperty(FIELD_ATTACK_SPEED, attackSpeed);
-		defaults.addProperty(FIELD_MATERIAL_LEVEL, materialLevel);
-		defaults.addProperty(FIELD_REACH_MIN, reachMin);
-		defaults.addProperty(FIELD_REACH_MAX, reachMax);
-		defaults.addProperty(FIELD_REACH_MIN_CREATIVE, reachMinCreative);
-		defaults.addProperty(FIELD_REACH_MAX_CREATIVE, reachMaxCreative);
-		defaults.addProperty(FIELD_REACH_HITBOX_MARGIN, reachHitboxMargin);
-		defaults.addProperty(FIELD_REACH_MOB_FACTOR, reachMobFactor);
-		return defaults;
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_TOOL, 100)))
+			.put(FIELD_DURABILITY, durability)
+			.put(FIELD_ATTACK_DAMAGE, attackDamage)
+			.put(FIELD_ATTACK_SPEED, attackSpeed)
+			.put(FIELD_MATERIAL_LEVEL, materialLevel)
+			.put(FIELD_REACH_MIN, reachMin)
+			.put(FIELD_REACH_MAX, reachMax)
+			.build();
 	}
 
 	public static JsonObject buildArmorItemDefaults(String itemId) {
@@ -248,56 +252,88 @@ public final class MadokuItemConfig {
 		double armorToughness,
 		String stackValue
 	) {
-		JsonObject defaults = buildBaseDefaults(itemId, stackValue, PRIMARY_CATEGORY_ARMOR);
-		defaults.addProperty(FIELD_DURABILITY, durability);
-		defaults.addProperty(FIELD_ARMOR, armor);
-		defaults.addProperty(FIELD_ARMOR_TOUGHNESS, armorToughness);
-		return defaults;
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(itemId, stackValue, category(CATEGORY_ARMOR, 100)))
+			.put(FIELD_DURABILITY, durability)
+			.put(FIELD_ARMOR, armor)
+			.put(FIELD_ARMOR_TOUGHNESS, armorToughness)
+			.build();
 	}
 
-	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory) {
-		return buildBaseDefaults(itemId, stackValue, primaryCategory, new String[0]);
+	public static JsonObject buildBaseDefaults(String itemId, String stackValue, CategoryWeight... categories) {
+		return JSONFormatManager.object()
+			.put(FIELD_ITEM_ID, itemId == null ? "" : itemId)
+			.put(FIELD_CATEGORY, buildCategoryArray(categories))
+			.put(FIELD_STACK, normalizeStackValue(stackValue))
+			.build();
 	}
 
-	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String primaryCategory, String... secondaryCategories) {
-		JsonObject defaults = new JsonObject();
-		defaults.addProperty(FIELD_ITEM_ID, itemId == null ? "" : itemId);
-		defaults.addProperty(FIELD_PRIMARY_CATEGORY, normalizeCategoryValue(primaryCategory));
-		defaults.add(FIELD_SECONDARY_CATEGORIES, buildSecondaryCategoriesArray(primaryCategory, secondaryCategories));
-		defaults.addProperty(FIELD_STACK, normalizeStackValue(stackValue));
-		return defaults;
+	public static CategoryWeight category(String category, int weight) {
+		return new CategoryWeight(category, weight);
+	}
+
+	private static JsonArray buildCategoryArray(CategoryWeight... categoryWeights) {
+		JSONFormatManager.ArrayBuilder categoryArray = JSONFormatManager.array();
+		if (categoryWeights == null || categoryWeights.length == 0) {
+			categoryArray.add(newCategoryEntry(CATEGORY_MISC, 100));
+			return categoryArray.build();
+		}
+
+		Map<String, Integer> normalizedCategories = new LinkedHashMap<>();
+		for (CategoryWeight categoryWeight : categoryWeights) {
+			if (categoryWeight == null) {
+				continue;
+			}
+			String normalizedCategory = normalizeCategoryValue(categoryWeight.category());
+			int normalizedWeight = Math.max(0, categoryWeight.weight());
+			if (normalizedCategory.isEmpty() || normalizedWeight <= 0) {
+				continue;
+			}
+			Integer existingWeight = normalizedCategories.get(normalizedCategory);
+			if (existingWeight == null || normalizedWeight > existingWeight) {
+				normalizedCategories.put(normalizedCategory, normalizedWeight);
+			}
+		}
+
+		if (normalizedCategories.isEmpty()) {
+			categoryArray.add(newCategoryEntry(CATEGORY_MISC, 100));
+			return categoryArray.build();
+		}
+
+		for (Map.Entry<String, Integer> entry : normalizedCategories.entrySet()) {
+			categoryArray.add(newCategoryEntry(entry.getKey(), entry.getValue()));
+		}
+
+		return categoryArray.build();
+	}
+
+	private static JsonObject newCategoryEntry(String category, int weight) {
+		return JSONFormatManager.object()
+			.put(FIELD_CATEGORY_NAME, category)
+			.put(FIELD_CATEGORY_WEIGHT, Math.max(1, weight))
+			.build();
 	}
 
 	private static String normalizeCategoryValue(String rawCategoryValue) {
-		String normalized = normalizeCategoryKey(rawCategoryValue);
-		return normalized.isEmpty() ? PRIMARY_CATEGORY_MISC : normalized;
-	}
-
-	private static JsonArray buildSecondaryCategoriesArray(String primaryCategory, String... secondaryCategories) {
-		JsonArray categories = new JsonArray();
-		if (secondaryCategories == null || secondaryCategories.length == 0) {
-			return categories;
-		}
-
-		String normalizedPrimaryCategory = normalizeCategoryKey(primaryCategory);
-		Set<String> normalizedCategories = new LinkedHashSet<>();
-		for (String secondaryCategory : secondaryCategories) {
-			String normalizedCategory = normalizeCategoryKey(secondaryCategory);
-			if (normalizedCategory.isEmpty() || normalizedCategory.equals(normalizedPrimaryCategory)) {
-				continue;
-			}
-			normalizedCategories.add(normalizedCategory);
-		}
-
-		for (String secondaryCategory : normalizedCategories) {
-			categories.add(secondaryCategory);
-		}
-
-		return categories;
-	}
-
-	private static String normalizeCategoryKey(String rawCategoryValue) {
 		return rawCategoryValue == null ? "" : rawCategoryValue.trim().toLowerCase(Locale.ROOT);
+	}
+
+	public static final class CategoryWeight {
+		private final String category;
+		private final int weight;
+
+		private CategoryWeight(String category, int weight) {
+			this.category = category;
+			this.weight = weight;
+		}
+
+		public String category() {
+			return category;
+		}
+
+		public int weight() {
+			return weight;
+		}
 	}
 
 	private static String defaultStackForItem(String itemId) {
@@ -486,10 +522,6 @@ public final class MadokuItemConfig {
 					materialLevel[index],
 					1.0d,
 					4.5d,
-					1.0d,
-					4.5d,
-					0.3d,
-					1.0d,
 					STACK_SINGLE
 				)
 			);
@@ -559,3 +591,4 @@ public final class MadokuItemConfig {
 	}
 
 }
+

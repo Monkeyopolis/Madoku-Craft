@@ -1,8 +1,8 @@
 package madoku.craft.mixin;
 
 import madoku.craft.difficulty.system.DifficultyScaledMob;
-import madoku.craft.difficulty.system.MadokuDifficulty;
-import madoku.craft.mob.system.MadokuMob;
+import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
+import madoku.craft.mob.system.MadokuMobManager;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
@@ -33,11 +33,11 @@ public abstract class MobDifficultySpawnMixin implements DifficultyScaledMob {
 		SpawnGroupData spawnGroupData,
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
-		if (MadokuMob.isEnabled()) {
+		if (MadokuMobManager.isEnabled()) {
 			return;
 		}
 		Mob mob = (Mob) (Object) this;
-		MadokuDifficulty.applySpawnScalingIfUnscaled(mob, world);
+		MadokuRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
 	}
 
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
@@ -60,3 +60,6 @@ public abstract class MobDifficultySpawnMixin implements DifficultyScaledMob {
 		madokuCraft$spawnDifficultyAdjustment = Math.max(0, adjustment);
 	}
 }
+
+
+

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "madoku-craft:block/nether_iron_ore"
+  }
+}
