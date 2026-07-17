@@ -228,6 +228,18 @@ public final class MadokuItem {
 		return enabled;
 	}
 
+	public static void applyProfilesToFreshStack(ItemStack stack) {
+		if (!enabled || stack == null || stack.isEmpty()) {
+			return;
+		}
+
+		Item item = stack.getItem();
+		MadokuArmorProfile armorProfile = armorProfilesByItem.get(item);
+		if (armorProfile != null) {
+			applyArmorProfileToStack(stack, item, armorProfile);
+		}
+	}
+
 	public static int applySingleStackRule(ItemStack stack, int currentLimit) {
 		if (!enabled || stack == null || stack.isEmpty()) {
 			return currentLimit;
@@ -1397,6 +1409,32 @@ public final class MadokuItem {
 		if (changed) {
 			((ItemComponentsAccessor) (Object) item).madokuCraft$setComponents(builder.build());
 		}
+	}
+
+	private static void applyArmorProfileToStack(ItemStack stack, Item item, MadokuArmorProfile profile) {
+		if (stack == null || stack.isEmpty() || item == null || profile == null) {
+			return;
+		}
+
+		if (profile.hasDurability()) {
+			stack.set(DataComponents.MAX_DAMAGE, profile.durability());
+		}
+
+		ItemAttributeModifiers baseAttributes = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		ItemAttributeModifiers attributes = baseAttributes != null
+			? baseAttributes
+			: getDefaultAttributeModifiers(item);
+		ItemAttributeModifiers updatedAttributes = applyArmorStats(attributes, profile);
+		if (updatedAttributes != null && !Objects.equals(baseAttributes, updatedAttributes)) {
+			stack.set(DataComponents.ATTRIBUTE_MODIFIERS, updatedAttributes);
+		}
+	}
+
+	private static ItemAttributeModifiers getDefaultAttributeModifiers(Item item) {
+		if (item == null) {
+			return null;
+		}
+		return item.components().get(DataComponents.ATTRIBUTE_MODIFIERS);
 	}
 
 	private static ItemAttributeModifiers applyArmorStats(ItemAttributeModifiers current, MadokuArmorProfile profile) {
