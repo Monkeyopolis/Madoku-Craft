@@ -1085,6 +1085,10 @@ public final class MadokuHud {
 		return total < Math.max(1, serverHungerMax);
 	}
 
+	public static boolean shouldIgnoreVanillaFoodUpdate() {
+		return !settings.enabled && hasServerHunger;
+	}
+
 	public static void stabilizeVanillaFoodAfterClientConsume() {
 		syncVanillaFoodFromServerSnapshotIfNeeded();
 	}

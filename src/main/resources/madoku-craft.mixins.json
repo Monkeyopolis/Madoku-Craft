@@ -108,6 +108,7 @@
     "client.CreativeModeInventoryScreenPetSlotMixin",
     "client.CreativeModeSlotWrapperAccessor",
     "client.ClientLevelTimeMixin",
+    "client.ClientPacketListenerFoodMixin",
     "client.GuiAccessor",
     "client.GuiGraphicsRarityOverlayMixin",
     "client.GuiGraphicsStackCountMixin",
