@@ -1,19 +1,11 @@
-package madoku.craft;
+package madoku.craft.hud;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.pet.PlayerEntitiesHolder;
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSystem;
-import madoku.craft.mixin.client.GuiAccessor;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
-import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.mixin.client.GuiAccessor;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudStatusBarHeightRegistry;
@@ -29,27 +21,13 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.item.ItemStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.List;
 import java.util.Locale;
 
-public final class MadokuHud {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHud.class);
-	private static final Identifier MADOKU_HUD_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_hud");
-	private static final Identifier MADOKU_ABILITY_HUD_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_ability_hud");
-	private static final Identifier ABILITY_SLOT_TEXTURE = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "textures/gui/interface/ability_slot.png");
-	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
+public final class HudAttributesManager {
 	private static final RenderPipeline HEART_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
 	private static final Identifier HEART_EMPTY_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container");
 	private static final Identifier HEART_EMPTY_BLINKING_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_blinking");
 	private static final Identifier HEART_EMPTY_HARDCORE_TEXTURE = Identifier.withDefaultNamespace("hud/heart/container_hardcore");
@@ -78,8 +56,6 @@ public final class MadokuHud {
 	private static final Identifier OXYGEN_POPPING_TEXTURE = Identifier.withDefaultNamespace("hud/air_bursting");
 	private static final Identifier OXYGEN_FULL_TEXTURE = Identifier.withDefaultNamespace("hud/air");
 	private static final Identifier LUCK_HUD_TEXTURE = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "textures/icons/hud-luck.png");
-	private static final int WORLD_X = 4;
-	private static final int WORLD_Y = 4;
 	private static final int HEART_SIZE = 9;
 	private static final int HEART_TEXT_SPACING = 2;
 	private static final int FOOD_SIZE = 9;
@@ -104,177 +80,48 @@ public final class MadokuHud {
 	private static final int VANILLA_MAX_AIR_SUPPLY_TICKS = 300;
 	private static final int TICKS_PER_SECOND = 20;
 	private static final int OXYGEN_POP_TICKS_PER_SECOND_LOSS = 2;
-	private static final float WORLD_HUD_SCALE = 0.8F;
 	private static final float HEALTH_TEXT_SCALE = 0.8F;
 	private static final float HUNGER_TEXT_SCALE = 0.8F;
 	private static final float ARMOR_TEXT_SCALE = 0.8F;
 	private static final float OXYGEN_TEXT_SCALE = 0.8F;
-	private static final int HOTBAR_HALF_WIDTH = 91;
-	private static final int HOTBAR_SLOT_ROW_HEIGHT = 22;
-	private static final int OFFHAND_SLOT_WIDTH = 29;
-	private static final int OFFHAND_TO_ABILITY_SPACING = 7;
-	private static final int ABILITY_SLOT_SIZE = 16;
-	private static final int ABILITY_SLOT_SPACING = 1;
-	private static final int ABILITY_SLOT_Y_OFFSET = (HOTBAR_SLOT_ROW_HEIGHT - ABILITY_SLOT_SIZE) / 2;
-	private static final int ABILITY_ITEM_RENDER_SIZE = 12;
-	private static final float ABILITY_ITEM_SCALE = 0.75F;
-	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
-	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.75F;
-	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
-	private static final int ABILITY_COOLDOWN_TEXT_Y_SPACING = 2;
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
 	private static final float ARMOR_STEP = 0.25F;
-	private static final boolean DEFAULT_HUD_ENABLED = true;
-	private static final boolean DEFAULT_WORLD_HUD_ENABLED = true;
-	private static final boolean DEFAULT_HEALTH_HUD_ENABLED = true;
-	private static final boolean DEFAULT_HUNGER_HUD_ENABLED = true;
-	private static final boolean DEFAULT_ARMOR_HUD_ENABLED = true;
-	private static final boolean DEFAULT_OXYGEN_HUD_ENABLED = true;
-	private static final boolean DEFAULT_SEASON_HUD_ENABLED = true;
-	private static final String HUD_CONFIG_FOLDER_NAME = "madoku-craft-hud";
-	private static final String HUD_CONFIG_FILE_NAME = "madoku-hud";
-	private static volatile boolean initialized = false;
-	private static volatile Settings settings = Settings.defaults();
-	private static volatile long serverDay = 0L;
-	private static volatile int serverHour = 6;
-	private static volatile int serverMinute = 0;
-	private static volatile boolean hasServerTime = false;
-	private static volatile int serverDifficulty = 1;
-	private static volatile boolean hasServerDifficulty = false;
-	private static volatile String serverSeason = "spring";
-	private static volatile boolean hasServerSeason = false;
-	private static volatile int serverHungerCurrent = 0;
-	private static volatile int serverHungerPending = 0;
-	private static volatile int serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
-	private static volatile boolean hasServerHunger = false;
-	private static final long[] petAbilityCooldownEndTicks = new long[PlayerEntitiesSystem.SLOT_COUNT];
 	private static volatile int cachedAirSupply = 300;
 	private static volatile int cachedMaxAirSupply = 300;
 	private static volatile int cachedOxygenPoints = 10;
 	private static volatile int previousDisplayedOxygenSeconds = -1;
-	private static volatile int oxygenPopTicksRemaining = 0;
+	private static volatile int oxygenPopTicksRemaining;
 	private static volatile long lastOxygenStateUpdateTick = Long.MIN_VALUE;
 
-	private MadokuHud() {
+	private HudAttributesManager() {
 	}
 
 	public static void initialize() {
-		if (initialized) {
-			return;
-		}
-		loadClientConfig();
-		initialized = true;
-		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, MADOKU_HUD_ID, MadokuHud::renderWorldHud);
-		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, MADOKU_ABILITY_HUD_ID, MadokuHud::renderAbilityHud);
-		HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, oldElement -> (context, tickCounter) ->
-			renderHealthHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, oldElement -> (context, tickCounter) ->
-			renderHungerHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.ARMOR_BAR, oldElement -> (context, tickCounter) ->
-			renderArmorHud(context, tickCounter, oldElement)
-		);
-		HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, oldElement -> (context, tickCounter) ->
-			renderOxygenHud(context, tickCounter, oldElement)
-		);
+		HudElementRegistry.replaceElement(VanillaHudElements.HEALTH_BAR, oldElement -> (context, tickCounter) -> renderHealthHud(context, tickCounter, oldElement));
+		HudElementRegistry.replaceElement(VanillaHudElements.FOOD_BAR, oldElement -> (context, tickCounter) -> renderHungerHud(context, tickCounter, oldElement));
+		HudElementRegistry.replaceElement(VanillaHudElements.ARMOR_BAR, oldElement -> (context, tickCounter) -> renderArmorHud(context, tickCounter, oldElement));
+		HudElementRegistry.replaceElement(VanillaHudElements.AIR_BAR, oldElement -> (context, tickCounter) -> renderOxygenHud(context, tickCounter, oldElement));
 	}
 
-	private static void renderWorldHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
-		if (!settings.enabled || !settings.worldHudEnabled) {
-			return;
-		}
-
-		Minecraft client = Minecraft.getInstance();
-		ClientLevel level = client.level;
-		LocalPlayer player = client.player;
-		if (level == null || player == null) {
-			return;
-		}
-
-		long day;
-		int hour;
-		int minute;
-
-		if (hasServerTime) {
-			day = serverDay;
-			hour = serverHour;
-			minute = serverMinute;
-		} else {
-			long dayTime = level.getOverworldClockTime();
-			day = MadokuTimeManager.getDay(dayTime);
-			int totalMinutes = MadokuTimeManager.getTotalMinutes(dayTime);
-			hour = totalMinutes / 60;
-			minute = totalMinutes % 60;
-		}
-
-		drawScaledString(context, client, "Day: " + displayDay(day), WORLD_X, WORLD_Y, COLOR);
-		int lineIndex = 1;
-		drawScaledString(context, client, "Time: " + hour + ":" + twoDigits(minute), WORLD_X, lineOffset(client, lineIndex++), COLOR);
-		drawScaledString(context, client, "Biome: " + getBiomeDisplayName(player, level), WORLD_X, lineOffset(client, lineIndex++), COLOR);
-		drawScaledString(context, client, "Difficulty: " + getDifficultyDisplayText(), WORLD_X, lineOffset(client, lineIndex++), COLOR);
-		if (settings.seasonHudEnabled && MadokuSeasonManager.isEnabled() && hasServerSeason) {
-			drawScaledString(context, client, "Season: " + getSeasonDisplayText(), WORLD_X, lineOffset(client, lineIndex), COLOR);
-		}
+	public static void reset() {
+		clearOxygenHudState();
 	}
 
-	private static void renderAbilityHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
-		if (!settings.enabled) {
-			return;
-		}
-
-		Minecraft client = Minecraft.getInstance();
-		LocalPlayer player = client.player;
-		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
-			return;
-		}
-		if (!(player instanceof PlayerEntitiesHolder holder)) {
-			return;
-		}
-
-		PlayerEntitiesInventory inventory = holder.madokuCraft$getPlayerEntitiesInventory();
-		if (inventory == null) {
-			return;
-		}
-
-		int slotY = context.guiHeight() - HOTBAR_SLOT_ROW_HEIGHT + ABILITY_SLOT_Y_OFFSET;
-		List<Integer> visibleSlots = visibleAbilitySlots(inventory);
-		if (visibleSlots.isEmpty()) {
-			return;
-		}
-
-		int[] slotXs = computeAbilitySlotXs(context, player, visibleSlots.size());
-		for (int index = 0; index < visibleSlots.size(); index++) {
-			int slot = visibleSlots.get(index);
-			int slotX = slotXs[index];
-			context.blit(
-				ABILITY_SLOT_PIPELINE,
-				ABILITY_SLOT_TEXTURE,
-				slotX,
-				slotY,
-				0.0F,
-				0.0F,
-				ABILITY_SLOT_SIZE,
-				ABILITY_SLOT_SIZE,
-				ABILITY_SLOT_TEXTURE_SIZE,
-				ABILITY_SLOT_TEXTURE_SIZE
-			);
-
-			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty()) {
-				continue;
-			}
-
-			int itemOffset = (ABILITY_SLOT_SIZE - ABILITY_ITEM_RENDER_SIZE) / 2;
-			int itemX = slotX + itemOffset;
-			int itemY = slotY + itemOffset;
-			renderScaledAbilityItem(context, stack, itemX, itemY);
-			renderAbilityCooldownOverlay(context, client, stack, slot, slotX, slotY, itemX, itemY);
-		}
+	public static void stabilizeVanillaFoodAfterClientConsume() {
+		HudPayloadManager.stabilizeVanillaFoodAfterClientConsume();
 	}
 
-	private static void renderHealthHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
+	static void clearOxygenHudState() {
+		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(null));
+		cachedAirSupply = cachedMaxAirSupply;
+		cachedOxygenPoints = 10;
+		previousDisplayedOxygenSeconds = -1;
+		oxygenPopTicksRemaining = 0;
+		lastOxygenStateUpdateTick = Long.MIN_VALUE;
+	}
+
+	static void renderHealthHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
@@ -289,7 +136,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.enabled || !settings.healthHudEnabled) {
+		if (!HudConfigManager.isEnabled() || !HudConfigManager.isEnabled("health")) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -346,7 +193,7 @@ public final class MadokuHud {
 		context.pose().popMatrix();
 	}
 
-	private static void renderHungerHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
+	static void renderHungerHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
@@ -361,7 +208,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.enabled || !settings.hungerHudEnabled) {
+		if (!HudConfigManager.isEnabled() || !HudConfigManager.isEnabled("hunger")) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -376,14 +223,14 @@ public final class MadokuHud {
 		int currentHunger;
 		int maxHunger;
 		int pendingHunger;
-		if (hasServerHunger) {
-			maxHunger = Math.max(1, serverHungerMax);
-			currentHunger = clampInt(serverHungerCurrent, 0, maxHunger);
-			pendingHunger = Math.max(0, serverHungerPending);
+		if (HudPayloadManager.hasServerHunger()) {
+			maxHunger = Math.max(1, HudPayloadManager.getServerHungerMax());
+			currentHunger = MadokuHudManager.clamp(HudPayloadManager.getServerHungerCurrent(), 0, maxHunger);
+			pendingHunger = Math.max(0, HudPayloadManager.getServerHungerPending());
 		} else {
-			int vanillaFoodLevel = clampInt(player.getFoodData().getFoodLevel(), 0, VANILLA_MAX_FOOD_LEVEL);
+			int vanillaFoodLevel = MadokuHudManager.clamp(player.getFoodData().getFoodLevel(), 0, VANILLA_MAX_FOOD_LEVEL);
 			maxHunger = fallbackMax;
-			currentHunger = clampInt(Math.round((vanillaFoodLevel / (float) VANILLA_MAX_FOOD_LEVEL) * maxHunger), 0, maxHunger);
+			currentHunger = MadokuHudManager.clamp(Math.round((vanillaFoodLevel / (float) VANILLA_MAX_FOOD_LEVEL) * maxHunger), 0, maxHunger);
 			pendingHunger = 0;
 		}
 		float hungerPercent = currentHunger / (float) Math.max(1, maxHunger);
@@ -414,7 +261,7 @@ public final class MadokuHud {
 			context.pose().popMatrix();
 		}
 
-	private static void renderArmorHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
+	static void renderArmorHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
@@ -429,7 +276,7 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.enabled || !settings.armorHudEnabled) {
+		if (!HudConfigManager.isEnabled() || !HudConfigManager.isEnabled("armor")) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
@@ -471,7 +318,7 @@ public final class MadokuHud {
 			context.pose().popMatrix();
 		}
 
-	private static void renderOxygenHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
+	static void renderOxygenHud(GuiGraphicsExtractor context, DeltaTracker tickCounter, HudElement oldElement) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
 		ClientLevel level = client.level;
@@ -486,15 +333,21 @@ public final class MadokuHud {
 			return;
 		}
 
-		if (!settings.enabled || !settings.oxygenHudEnabled) {
+		if (!HudConfigManager.isEnabled()) {
+			oldElement.extractRenderState(context, tickCounter);
+			return;
+		}
+		boolean oxygenEnabled = HudConfigManager.isEnabled("oxygen");
+		boolean luckEnabled = HudConfigManager.isEnabled("luck") && MadokuLuckManager.isEnabled();
+		if (!oxygenEnabled && !luckEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;
 		}
 
 		updateOxygenState(player, level.getGameTime());
 
-		boolean shouldRenderOxygen = cachedAirSupply < cachedMaxAirSupply || player.isEyeInFluid(FluidTags.WATER);
-		if (!shouldRenderOxygen && !MadokuLuckManager.isEnabled()) {
+		boolean shouldRenderOxygen = oxygenEnabled && (cachedAirSupply < cachedMaxAirSupply || player.isEyeInFluid(FluidTags.WATER));
+		if (!shouldRenderOxygen && !luckEnabled) {
 			return;
 		}
 
@@ -537,74 +390,6 @@ public final class MadokuHud {
 		context.pose().popMatrix();
 	}
 
-	private static int lineOffset(Minecraft client, int lines) {
-		int lineStep = Math.round((client.font.lineHeight + 4) * WORLD_HUD_SCALE);
-		return WORLD_Y + (lineStep * lines);
-	}
-
-	private static void drawScaledString(GuiGraphicsExtractor context, Minecraft client, String text, int x, int y, int color) {
-		context.pose().pushMatrix();
-		context.pose().translate(x, y);
-		context.pose().scale(WORLD_HUD_SCALE, WORLD_HUD_SCALE);
-		context.text(client.font, text, 0, 0, color, true);
-		context.pose().popMatrix();
-	}
-
-	private static String twoDigits(int value) {
-		return value < 10 ? "0" + value : Integer.toString(value);
-	}
-
-	private static String getBiomeDisplayName(LocalPlayer player, ClientLevel level) {
-		return level.getBiome(player.blockPosition())
-			.unwrapKey()
-			.map(key -> biomeIdentifierToName(key.identifier()))
-			.orElse("Unknown");
-	}
-
-	private static String biomeIdentifierToName(Identifier biomeIdentifier) {
-		String normalized = biomeIdentifier.getPath().replace('_', ' ').replace('/', ' ');
-		String[] words = normalized.split(" ");
-		StringBuilder builder = new StringBuilder();
-		for (String word : words) {
-			if (word.isEmpty()) {
-				continue;
-			}
-			if (!builder.isEmpty()) {
-				builder.append(' ');
-			}
-			builder.append(Character.toUpperCase(word.charAt(0)));
-			if (word.length() > 1) {
-				builder.append(word.substring(1));
-			}
-		}
-		return builder.isEmpty() ? "Unknown" : builder.toString();
-	}
-
-	private static long displayDay(long rawDay) {
-		return Math.max(0L, rawDay);
-	}
-
-	private static String getDifficultyDisplayText() {
-		if (!hasServerDifficulty) {
-			return "1";
-		}
-		return Integer.toString(Math.max(1, serverDifficulty));
-	}
-
-	private static String getSeasonDisplayText() {
-		if (!hasServerSeason) {
-			return "Unknown";
-		}
-		return capitalizeWord(serverSeason);
-	}
-
-	private static String capitalizeWord(String value) {
-		if (value == null || value.isBlank()) {
-			return "Unknown";
-		}
-		String normalized = value.trim().toLowerCase(Locale.ROOT);
-		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
-	}
 
 	private static boolean isBlinking(Gui gui, int ticks) {
 		long healthBlinkTime = ((GuiAccessor) gui.hud).madokuCraft$getHealthBlinkTime();
@@ -653,116 +438,6 @@ public final class MadokuHud {
 
 	private static int getScaledTextWidth(Minecraft client, String text, float scale) {
 		return Math.round(client.font.width(text) * scale);
-	}
-
-	private static List<Integer> visibleAbilitySlots(PlayerEntitiesInventory inventory) {
-		List<Integer> visible = new java.util.ArrayList<>(PlayerEntitiesSystem.SLOT_COUNT);
-		for (int slot = 0; slot < Math.min(PlayerEntitiesSystem.SLOT_COUNT, inventory.getContainerSize()); slot++) {
-			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty() || !PlayerEntitiesSystem.hasAbility(stack)) {
-				continue;
-			}
-			visible.add(slot);
-		}
-		return visible;
-	}
-
-	private static void renderAbilityCooldownOverlay(
-		GuiGraphicsExtractor context,
-		Minecraft client,
-		ItemStack stack,
-		int slot,
-		int slotX,
-		int slotY,
-		int itemX,
-		int itemY
-	) {
-		if (client == null || client.level == null || stack == null || stack.isEmpty()) {
-			return;
-		}
-
-		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(client.player, slot, stack);
-		if (totalCooldownTicks <= 0 || slot < 0 || slot >= petAbilityCooldownEndTicks.length) {
-			return;
-		}
-
-		long remainingTicks = Math.max(0L, petAbilityCooldownEndTicks[slot] - client.level.getGameTime());
-		if (remainingTicks <= 0L) {
-			return;
-		}
-
-		float cooldownPercent = Math.min(1.0F, remainingTicks / (float) totalCooldownTicks);
-		int overlayTop = itemY + net.minecraft.util.Mth.floor(ABILITY_ITEM_RENDER_SIZE * (1.0F - cooldownPercent));
-		int overlayBottom = overlayTop + net.minecraft.util.Mth.ceil(ABILITY_ITEM_RENDER_SIZE * cooldownPercent);
-		context.fill(RenderPipelines.GUI, itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
-		renderAbilityCooldownLabel(context, client, slotX, slotY, remainingTicks);
-	}
-
-	private static void renderAbilityCooldownLabel(
-		GuiGraphicsExtractor context,
-		Minecraft client,
-		int slotX,
-		int slotY,
-		long remainingTicks
-	) {
-		if (client == null || remainingTicks <= 0L) {
-			return;
-		}
-
-		String cooldownText = Integer.toString(Math.max(1, net.minecraft.util.Mth.ceil(remainingTicks / 20.0F)));
-		int textWidth = client.font.width(cooldownText);
-		float centerX = slotX + (ABILITY_SLOT_SIZE / 2.0F);
-		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
-		context.pose().pushMatrix();
-		context.pose().translate(centerX, textY);
-		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
-		context.text(
-			client.font,
-			cooldownText,
-			Math.round(-textWidth / 2.0F),
-			0,
-			ABILITY_COOLDOWN_TEXT_COLOR,
-			true
-		);
-		context.pose().popMatrix();
-	}
-
-	private static void renderScaledAbilityItem(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {
-		if (context == null || stack == null || stack.isEmpty()) {
-			return;
-		}
-		context.pose().pushMatrix();
-		context.pose().translate(x, y);
-		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE);
-		context.item(stack, 0, 0);
-		context.pose().popMatrix();
-	}
-
-	private static int[] computeAbilitySlotXs(GuiGraphicsExtractor context, LocalPlayer player, int slotCount) {
-		int[] xs = new int[Math.max(0, slotCount)];
-		if (slotCount <= 0) {
-			return xs;
-		}
-		int centerX = context.guiWidth() / 2;
-		boolean offhandOnLeft = player.getMainArm() == HumanoidArm.RIGHT;
-		boolean offhandVisible = player != null && !player.getOffhandItem().isEmpty();
-		int hotbarLeftEdge = centerX - HOTBAR_HALF_WIDTH;
-		int hotbarRightEdge = centerX + HOTBAR_HALF_WIDTH;
-		if (offhandOnLeft) {
-			int anchorX = offhandVisible ? hotbarLeftEdge - OFFHAND_SLOT_WIDTH : hotbarLeftEdge;
-			int startX = anchorX - OFFHAND_TO_ABILITY_SPACING - ABILITY_SLOT_SIZE;
-			for (int slot = 0; slot < xs.length; slot++) {
-				xs[slot] = startX - (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
-			}
-			return xs;
-		}
-
-		int anchorX = offhandVisible ? hotbarRightEdge + OFFHAND_SLOT_WIDTH : hotbarRightEdge;
-		int startX = anchorX + OFFHAND_TO_ABILITY_SPACING;
-		for (int slot = 0; slot < xs.length; slot++) {
-			xs[slot] = startX + (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
-		}
-		return xs;
 	}
 
 	private static int computeArmorY(GuiGraphicsExtractor context) {
@@ -909,7 +584,7 @@ public final class MadokuHud {
 		}
 		lastOxygenStateUpdateTick = gameTime;
 		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(player));
-		int observedAirSupply = clampInt(player.getAirSupply(), 0, Math.max(cachedMaxAirSupply, VANILLA_MAX_AIR_SUPPLY_TICKS));
+		int observedAirSupply = MadokuHudManager.clamp(player.getAirSupply(), 0, Math.max(cachedMaxAirSupply, VANILLA_MAX_AIR_SUPPLY_TICKS));
 		cachedAirSupply = decodeAirSupplyForDisplay(observedAirSupply, cachedMaxAirSupply);
 		cachedOxygenPoints = toOxygenPoints(cachedAirSupply, cachedMaxAirSupply);
 		int displayedSeconds = toDisplaySeconds(cachedAirSupply);
@@ -926,7 +601,7 @@ public final class MadokuHud {
 
 	private static int decodeAirSupplyForDisplay(int observedAirSupply, int maximumAirSupply) {
 		int safeMax = Math.max(1, maximumAirSupply);
-		int clampedObserved = clampInt(observedAirSupply, 0, safeMax);
+		int clampedObserved = MadokuHudManager.clamp(observedAirSupply, 0, safeMax);
 		if (safeMax <= VANILLA_MAX_AIR_SUPPLY_TICKS) {
 			return clampedObserved;
 		}
@@ -934,163 +609,18 @@ public final class MadokuHud {
 			return clampedObserved;
 		}
 		double ratio = clampedObserved / (double) VANILLA_MAX_AIR_SUPPLY_TICKS;
-		return clampInt((int) Math.round(ratio * safeMax), 0, safeMax);
-	}
-
-	private static int clampInt(int value, int min, int max) {
-		return Math.max(min, Math.min(max, value));
+		return MadokuHudManager.clamp((int) Math.round(ratio * safeMax), 0, safeMax);
 	}
 
 	private static int toVanillaFood(int hungerPoints, int maxHungerPoints) {
 		int safeMax = Math.max(1, maxHungerPoints);
-		int safeCurrent = clampInt(hungerPoints, 0, safeMax);
+		int safeCurrent = MadokuHudManager.clamp(hungerPoints, 0, safeMax);
 		double ratio = safeCurrent / (double) safeMax;
-		return clampInt((int) Math.round(ratio * VANILLA_MAX_FOOD_LEVEL), 0, VANILLA_MAX_FOOD_LEVEL);
+		return MadokuHudManager.clamp((int) Math.round(ratio * VANILLA_MAX_FOOD_LEVEL), 0, VANILLA_MAX_FOOD_LEVEL);
 	}
 
-	private static void loadClientConfig() {
-		JsonObject defaults = Settings.defaults().toConfigJson();
-		Settings fallback = Settings.defaults();
-
-		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(HUD_CONFIG_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, HUD_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
-			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
-			settings = loaded;
-		} catch (IOException | RuntimeException exception) {
-			settings = fallback;
-			LOGGER.error("Failed to load MadokuHud client config; using defaults.", exception);
-		}
-	}
-
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
-	}
-
-	private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
-		if (object == null || key == null || key.isBlank()) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
-			return fallback;
-		}
-		try {
-			return element.getAsBoolean();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	public static void setServerTime(long day, int hour, int minute) {
-		serverDay = day;
-		serverHour = hour;
-		serverMinute = minute;
-		hasServerTime = true;
-	}
-
-	public static void clearServerTime() {
-		hasServerTime = false;
-	}
-
-	public static void setServerDifficulty(int level) {
-		serverDifficulty = Math.max(1, level);
-		hasServerDifficulty = true;
-	}
-
-	public static void clearServerDifficulty() {
-		serverDifficulty = 1;
-		hasServerDifficulty = false;
-	}
-
-	public static void setServerSeason(String season) {
-		if (season == null || season.isBlank()) {
-			clearServerSeason();
-			return;
-		}
-		serverSeason = season == null ? "unknown" : season;
-		hasServerSeason = true;
-	}
-
-	public static boolean hasServerSeason() {
-		return hasServerSeason;
-	}
-
-	public static String getServerSeason() {
-		return serverSeason;
-	}
-
-	public static void clearServerSeason() {
-		serverSeason = "spring";
-		hasServerSeason = false;
-	}
-
-	public static void setPetAbilityCooldowns(int[] remainingTicks) {
-		Minecraft client = Minecraft.getInstance();
-		ClientLevel level = client.level;
-		long now = level == null ? 0L : level.getGameTime();
-		for (int slot = 0; slot < petAbilityCooldownEndTicks.length; slot++) {
-			int remaining = remainingTicks != null && slot < remainingTicks.length ? Math.max(0, remainingTicks[slot]) : 0;
-			petAbilityCooldownEndTicks[slot] = remaining <= 0 ? 0L : now + remaining;
-		}
-	}
-
-	public static void clearPetAbilityHudState() {
-		for (int slot = 0; slot < petAbilityCooldownEndTicks.length; slot++) {
-			petAbilityCooldownEndTicks[slot] = 0L;
-		}
-	}
-
-	public static void setServerHunger(int current, int pending, int max) {
-		serverHungerCurrent = Math.max(0, current);
-		serverHungerPending = Math.max(0, pending);
-		serverHungerMax = Math.max(1, max);
-		hasServerHunger = true;
-		syncVanillaFoodFromServerSnapshotIfNeeded();
-	}
-
-	public static void clearServerHunger() {
-		serverHungerCurrent = 0;
-		serverHungerPending = 0;
-		serverHungerMax = VANILLA_MAX_FOOD_LEVEL;
-		hasServerHunger = false;
-	}
-
-	public static void clearOxygenHudState() {
-		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(null));
-		cachedAirSupply = cachedMaxAirSupply;
-		cachedOxygenPoints = 10;
-		previousDisplayedOxygenSeconds = -1;
-		oxygenPopTicksRemaining = 0;
-		lastOxygenStateUpdateTick = Long.MIN_VALUE;
-	}
-
-	public static boolean canConsumeFoodClient(boolean ignoreHunger) {
-		if (ignoreHunger) {
-			return true;
-		}
-		if (!hasServerHunger) {
-			return true;
-		}
-		long total = (long) Math.max(0, serverHungerCurrent) + (long) Math.max(0, serverHungerPending);
-		return total < Math.max(1, serverHungerMax);
-	}
-
-	public static void stabilizeVanillaFoodAfterClientConsume() {
-		syncVanillaFoodFromServerSnapshotIfNeeded();
-	}
-
-	private static void syncVanillaFoodFromServerSnapshotIfNeeded() {
-		if (settings.enabled || !hasServerHunger) {
+	static void syncVanillaFoodFromServerSnapshotIfNeeded() {
+		if (HudConfigManager.isEnabled() || !HudPayloadManager.hasServerHunger()) {
 			return;
 		}
 
@@ -1100,79 +630,14 @@ public final class MadokuHud {
 			return;
 		}
 
-		int maxHunger = Math.max(1, serverHungerMax);
-		int currentHunger = clampInt(serverHungerCurrent, 0, maxHunger);
+		int maxHunger = Math.max(1, HudPayloadManager.getServerHungerMax());
+		int currentHunger = MadokuHudManager.clamp(HudPayloadManager.getServerHungerCurrent(), 0, maxHunger);
 		int vanillaFood = toVanillaFood(currentHunger, maxHunger);
 		if (player.getFoodData().getFoodLevel() != vanillaFood) {
 			player.getFoodData().setFoodLevel(vanillaFood);
 		}
 		if (player.getFoodData().getSaturationLevel() != 0.0f) {
 			player.getFoodData().setSaturation(0.0f);
-		}
-	}
-
-	private static final class Settings {
-		private final boolean enabled;
-		private final boolean worldHudEnabled;
-			private final boolean healthHudEnabled;
-			private final boolean hungerHudEnabled;
-			private final boolean armorHudEnabled;
-			private final boolean oxygenHudEnabled;
-			private final boolean seasonHudEnabled;
-
-			private Settings(
-				boolean enabled,
-				boolean worldHudEnabled,
-				boolean healthHudEnabled,
-				boolean hungerHudEnabled,
-				boolean armorHudEnabled,
-				boolean oxygenHudEnabled,
-				boolean seasonHudEnabled
-			) {
-				this.enabled = enabled;
-				this.worldHudEnabled = worldHudEnabled;
-				this.healthHudEnabled = healthHudEnabled;
-				this.hungerHudEnabled = hungerHudEnabled;
-				this.armorHudEnabled = armorHudEnabled;
-				this.oxygenHudEnabled = oxygenHudEnabled;
-				this.seasonHudEnabled = seasonHudEnabled;
-			}
-
-		private static Settings defaults() {
-			return new Settings(
-				DEFAULT_HUD_ENABLED,
-				DEFAULT_WORLD_HUD_ENABLED,
-				DEFAULT_HEALTH_HUD_ENABLED,
-				DEFAULT_HUNGER_HUD_ENABLED,
-				DEFAULT_ARMOR_HUD_ENABLED,
-				DEFAULT_OXYGEN_HUD_ENABLED,
-				DEFAULT_SEASON_HUD_ENABLED
-			);
-		}
-
-		private static Settings fromJson(JsonObject source) {
-			Settings defaults = defaults();
-			return new Settings(
-				getBoolean(source, "enabled", defaults.enabled),
-				getBoolean(source, "world-hud-enabled", getBoolean(source, "world_hud_enabled", defaults.worldHudEnabled)),
-				getBoolean(source, "health-hud-enabled", getBoolean(source, "health_hud_enabled", defaults.healthHudEnabled)),
-				getBoolean(source, "hunger-hud-enabled", getBoolean(source, "hunger_hud_enabled", defaults.hungerHudEnabled)),
-				getBoolean(source, "armor-hud-enabled", getBoolean(source, "armor_hud_enabled", defaults.armorHudEnabled)),
-				getBoolean(source, "oxygen-hud-enabled", getBoolean(source, "oxygen_hud_enabled", defaults.oxygenHudEnabled)),
-				getBoolean(source, "season-hud-enabled", getBoolean(source, "season_hud_enabled", defaults.seasonHudEnabled))
-			);
-		}
-
-		private JsonObject toConfigJson() {
-			return JSONFormatManager.object()
-				.put("enabled", enabled)
-				.put("world-hud-enabled", worldHudEnabled)
-				.put("health-hud-enabled", healthHudEnabled)
-				.put("hunger-hud-enabled", hungerHudEnabled)
-				.put("armor-hud-enabled", armorHudEnabled)
-				.put("oxygen-hud-enabled", oxygenHudEnabled)
-				.put("season-hud-enabled", seasonHudEnabled)
-				.build();
 		}
 	}
 }

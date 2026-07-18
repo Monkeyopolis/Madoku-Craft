@@ -1,6 +1,6 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.MadokuHud;
+import madoku.craft.hud.HudPayloadManager;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
@@ -28,7 +28,7 @@ public abstract class ItemFoodClientGateMixin {
 			return;
 		}
 
-		if (!MadokuHud.canConsumeFoodClient(false)) {
+		if (!HudPayloadManager.canConsumeFoodClient(false)) {
 			cir.setReturnValue(InteractionResult.FAIL);
 		}
 	}
@@ -46,6 +46,6 @@ public abstract class ItemFoodClientGateMixin {
 		if (stack == null || stack.get(DataComponents.FOOD) == null) {
 			return;
 		}
-		MadokuHud.stabilizeVanillaFoodAfterClientConsume();
+		HudPayloadManager.stabilizeVanillaFoodAfterClientConsume();
 	}
 }

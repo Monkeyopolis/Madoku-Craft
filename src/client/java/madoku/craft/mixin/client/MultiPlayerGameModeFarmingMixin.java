@@ -1,7 +1,7 @@
 package madoku.craft.mixin.client;
 
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.MadokuHud;
+import madoku.craft.hud.HudPayloadManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -44,15 +44,15 @@ public abstract class MultiPlayerGameModeFarmingMixin {
 			return;
 		}
 
-		if (!MadokuHud.hasServerSeason()) {
+		if (!HudPayloadManager.hasServerSeason()) {
 			return;
 		}
 
-		if (MadokuFarming.canPlantCrop(stack, MadokuHud.getServerSeason())) {
+		if (MadokuFarming.canPlantCrop(stack, HudPayloadManager.getServerSeason())) {
 			return;
 		}
 
-		player.sendOverlayMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, MadokuHud.getServerSeason())));
+		player.sendOverlayMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, HudPayloadManager.getServerSeason())));
 		cir.setReturnValue(InteractionResult.FAIL);
 	}
 }

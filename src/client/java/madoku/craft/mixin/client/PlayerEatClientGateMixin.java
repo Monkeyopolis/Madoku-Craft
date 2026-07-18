@@ -1,6 +1,6 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.MadokuHud;
+import madoku.craft.hud.HudPayloadManager;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class PlayerEatClientGateMixin {
 	@Inject(method = "canEat(Z)Z", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$gateClientCanEat(boolean ignoreHunger, CallbackInfoReturnable<Boolean> cir) {
-		if ((Object) this instanceof LocalPlayer && !MadokuHud.canConsumeFoodClient(ignoreHunger)) {
+		if ((Object) this instanceof LocalPlayer && !HudPayloadManager.canConsumeFoodClient(ignoreHunger)) {
 			cir.setReturnValue(false);
 		}
 	}

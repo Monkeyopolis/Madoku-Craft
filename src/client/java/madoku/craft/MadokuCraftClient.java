@@ -5,6 +5,9 @@ import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.inventory.PlayerEntitiesInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
+import madoku.craft.hud.HudAttributesManager;
+import madoku.craft.hud.HudPayloadManager;
+import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.api.season.SeasonPayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
@@ -27,7 +30,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		MadokuSyncManager.initializeClient();
-		MadokuHud.initialize();
+		MadokuHudManager.initialize();
 		MadokuEntitiesClient.initialize();
 		MadokuLevelsClient.initialize();
 		PlayerEntitiesInventoryClient.initialize();
@@ -41,37 +44,33 @@ public class MadokuCraftClient implements ClientModInitializer {
 			MadokuItem.applyConfiguredItemMetadata();
 			MadokuFarming.applyCropItemMetadata();
 		});
-		ClientPlayNetworking.registerGlobalReceiver(TimePayloadManager.TYPE, (payload, context) -> MadokuHud.setServerTime(payload.day(), payload.hour(), payload.minute()));
+		ClientPlayNetworking.registerGlobalReceiver(TimePayloadManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
 		ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE, (payload, context) ->
-			MadokuHud.setServerHunger(payload.current(), payload.pending(), payload.max())
+			HudPayloadManager.setServerHunger(payload.current(), payload.pending(), payload.max())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(DifficultyPayloadManager.TYPE, (payload, context) ->
-			MadokuHud.setServerDifficulty(payload.level())
+			HudPayloadManager.setServerDifficulty(payload.level())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(SeasonPayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> {
 				ClientSeasonalPrecipitationState.update(payload.season(), payload.temperatureOffset(), payload.humidityOffset());
 				ClientSeasonalPrecipitationState.refresh(context.client().level);
-				MadokuHud.setServerSeason(payload.season());
+				HudPayloadManager.setServerSeason(payload.season());
 			})
 		);
 		ClientPlayNetworking.registerGlobalReceiver(ItemProfilePayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetAbilityHudPayloadManager.TYPE, (payload, context) ->
-			MadokuHud.setPetAbilityCooldowns(payload.asArray())
+			HudPayloadManager.setPetAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetSoundStatePayloadManager.TYPE, (payload, context) ->
 			PetSoundState.set(parseUuid(payload.petUuid()), payload.itemId())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientSeasonalPrecipitationState.clear();
-			MadokuHud.clearServerTime();
-			MadokuHud.clearServerHunger();
-			MadokuHud.clearServerDifficulty();
-			MadokuHud.clearServerSeason();
-			MadokuHud.clearOxygenHudState();
-			MadokuHud.clearPetAbilityHudState();
+			HudPayloadManager.reset();
+			HudAttributesManager.reset();
 			PetSoundState.clear();
 		});
 	}

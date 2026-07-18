@@ -60,6 +60,19 @@ public final class ClientSeasonalPrecipitationState {
 			humidityOffset);
 	}
 
+	public static SeasonBiomeClimateManager.Climate resolveClimate(Biome biome) {
+		if (biome == null) {
+			return new SeasonBiomeClimateManager.Climate(0.0D, 0.0D);
+		}
+		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
+		if (climate == null) {
+			climate = SeasonBiomeClimateManager.nativeClimate(biome);
+		}
+		return new SeasonBiomeClimateManager.Climate(
+			climate.temperature() + temperatureOffset,
+			climate.humidity() + humidityOffset);
+	}
+
 	public static boolean isSynchronized() {
 		return !season.isBlank();
 	}
