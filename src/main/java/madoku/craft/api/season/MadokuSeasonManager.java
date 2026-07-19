@@ -19,6 +19,8 @@ public final class MadokuSeasonManager {
 	private static double lastBroadcastTemperatureOffset;
 	private static double lastBroadcastHumidityOffset;
 	private static String lastBroadcastWeatherCondition = "";
+	private static int lastBroadcastSeasonDay = -1;
+	private static int lastBroadcastSeasonLengthDays = -1;
 
 	private MadokuSeasonManager() { }
 
@@ -50,6 +52,8 @@ public final class MadokuSeasonManager {
 		lastBroadcastTemperatureOffset = 0.0;
 		lastBroadcastHumidityOffset = 0.0;
 		lastBroadcastWeatherCondition = "";
+		lastBroadcastSeasonDay = -1;
+		lastBroadcastSeasonLengthDays = -1;
 		emitDebug("reset", builder -> builder
 			.field("enabled", isEnabled())
 			.field("season-length-days", SeasonConfigManager.getSettings().seasonLengthDays()));
@@ -150,7 +154,9 @@ public final class MadokuSeasonManager {
 		if (!force && payload.season().equals(lastBroadcastSeason)
 			&& Double.compare(payload.temperatureOffset(), lastBroadcastTemperatureOffset) == 0
 			&& Double.compare(payload.humidityOffset(), lastBroadcastHumidityOffset) == 0
-			&& payload.weatherCondition().equals(lastBroadcastWeatherCondition)) {
+			&& payload.weatherCondition().equals(lastBroadcastWeatherCondition)
+			&& payload.seasonDay() == lastBroadcastSeasonDay
+			&& payload.seasonLengthDays() == lastBroadcastSeasonLengthDays) {
 			return 0;
 		}
 
@@ -159,6 +165,8 @@ public final class MadokuSeasonManager {
 		lastBroadcastTemperatureOffset = payload.temperatureOffset();
 		lastBroadcastHumidityOffset = payload.humidityOffset();
 		lastBroadcastWeatherCondition = payload.weatherCondition();
+		lastBroadcastSeasonDay = payload.seasonDay();
+		lastBroadcastSeasonLengthDays = payload.seasonLengthDays();
 		return sent;
 	}
 
@@ -166,11 +174,13 @@ public final class MadokuSeasonManager {
 		if (!force && lastBroadcastSeason.isEmpty()) {
 			return 0;
 		}
-		int sent = SyncWorldManager.broadcast(server, new SeasonPayloadManager("", 0.0, 0.0, ""));
+		int sent = SyncWorldManager.broadcast(server, new SeasonPayloadManager("", 0.0, 0.0, "", 0, 1));
 		lastBroadcastSeason = "";
 		lastBroadcastTemperatureOffset = 0.0;
 		lastBroadcastHumidityOffset = 0.0;
 		lastBroadcastWeatherCondition = "";
+		lastBroadcastSeasonDay = -1;
+		lastBroadcastSeasonLengthDays = -1;
 		return sent;
 	}
 
@@ -188,7 +198,9 @@ public final class MadokuSeasonManager {
 			season,
 			SeasonEnvironmentTransitionManager.getTemperatureOffset(),
 			SeasonEnvironmentTransitionManager.getHumidityOffset(),
-			condition == null ? "" : condition.id());
+			condition == null ? "" : condition.id(),
+			MadokuSeasonManager.getCurrentSeasonDay(),
+			SeasonConfigManager.getSettings().seasonLengthDays());
 	}
 
 	private static void emitSyncDebug(String subject, int playersSent) {

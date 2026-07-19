@@ -18,12 +18,10 @@ public final class SeasonEnvironmentTransitionManager {
 	private static final int HOT_BIOME_HUMIDITY_MIN = 70;
 	private static final int MINUTES_PER_DAY = 24 * 60;
 	private static final int[] DAILY_TEMPERATURE_MINUTES = {
-		0, 2 * 60, 4 * 60, 6 * 60, 8 * 60, 10 * 60,
-		12 * 60, 14 * 60, 16 * 60, 18 * 60, 20 * 60, 22 * 60
+		0, 3 * 60, 6 * 60, 9 * 60, 12 * 60, 15 * 60, 18 * 60, 21 * 60
 	};
 	private static final double[] DAILY_TEMPERATURE_MODIFIERS = {
-		-0.25D, -0.125D, 0.0D, 0.10D, 0.15D, 0.20D,
-		0.25D, 0.125D, 0.0D, -0.10D, -0.15D, -0.20D
+		-0.20D, -0.05D, 0.10D, 0.15D, 0.20D, 0.05D, -0.10D, -0.15D
 	};
 	private static volatile double temperatureOffset;
 	private static volatile double humidityOffset;

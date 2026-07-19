@@ -15,6 +15,8 @@ public final class HudPayloadManager {
 	private static volatile int serverDifficulty = 1;
 	private static volatile boolean hasServerDifficulty;
 	private static volatile String serverSeason = "spring";
+	private static volatile int serverSeasonDay;
+	private static volatile int serverSeasonLengthDays = 28;
 	private static volatile boolean hasServerSeason;
 	private static volatile int serverHungerCurrent;
 	private static volatile int serverHungerPending;
@@ -75,16 +77,27 @@ public final class HudPayloadManager {
 			return;
 		}
 		serverSeason = season;
+		serverSeasonDay = 0;
+		serverSeasonLengthDays = 28;
 		hasServerSeason = true;
 	}
 
 	public static void clearServerSeason() {
 		serverSeason = "spring";
+		serverSeasonDay = 0;
+		serverSeasonLengthDays = 28;
 		hasServerSeason = false;
 	}
 
 	public static boolean hasServerSeason() { return hasServerSeason; }
 	public static String getServerSeason() { return serverSeason; }
+	public static int getServerSeasonDay() { return serverSeasonDay; }
+	public static int getServerSeasonLengthDays() { return serverSeasonLengthDays; }
+
+	public static void setServerSeasonProgress(int seasonDay, int seasonLengthDays) {
+		serverSeasonDay = Math.max(0, seasonDay);
+		serverSeasonLengthDays = Math.max(1, seasonLengthDays);
+	}
 
 	public static void setServerHunger(int current, int pending, int max) {
 		serverHungerCurrent = Math.max(0, current);

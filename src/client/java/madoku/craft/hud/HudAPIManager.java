@@ -81,10 +81,10 @@ public final class HudAPIManager {
 		SeasonBiomeClimateManager.Climate climate = ClientSeasonalPrecipitationState.resolveClimate(level.getBiome(player.blockPosition()).value());
 		int line = 0;
 		if (HudConfigManager.isEnabled("day")) drawWorldLine(context, client, "Day", Long.toString(displayDay(day)), line++, COLOR);
-		if (HudConfigManager.isEnabled("time")) drawWorldLine(context, client, "Time", hour + ":" + twoDigits(minute), line++, HudConfigManager.isColored("time") ? timeColor(hour) : COLOR);
+		if (HudConfigManager.isEnabled("time")) drawWorldLine(context, client, "Time", hour + ":" + twoDigits(minute), line++, HudConfigManager.isColored("time") ? timeColor((hour * 60) + minute) : COLOR);
 		if (HudConfigManager.isEnabled("season") && HudPayloadManager.hasServerSeason()) {
 			String season = getSeasonDisplayText();
-			drawWorldLine(context, client, "Season", season, line++, HudConfigManager.isColored("season") ? seasonColor(season) : COLOR);
+			drawWorldLine(context, client, "Season", season, line++, HudConfigManager.isColored("season") ? seasonColor(season, HudPayloadManager.getServerSeasonDay(), HudPayloadManager.getServerSeasonLengthDays()) : COLOR);
 		}
 		if (HudConfigManager.isEnabled("temperature")) drawWorldLine(context, client, "Temperature", formatClimate(climate.temperature()), line++, HudConfigManager.isColored("temperature") ? temperatureColor(climate.temperature()) : COLOR);
 		if (HudConfigManager.isEnabled("humidity")) drawWorldLine(context, client, "Humidity", formatClimate(climate.humidity()), line++, HudConfigManager.isColored("humidity") ? humidityColor(climate.humidity()) : COLOR);
@@ -106,15 +106,32 @@ public final class HudAPIManager {
 		return Integer.toString((int) Math.round(value));
 	}
 
-	private static int timeColor(int hour) {
-		if (hour >= 6 && hour < 12) return 0xFFFFF2A6;
-		if (hour >= 12 && hour < 18) return 0xFFFFB347;
-		if (hour >= 18) return 0xFF8EC8FF;
-		return 0xFF243B80;
+	private static int timeColor(int totalMinutes) {
+		int minutes = Math.floorMod(totalMinutes, 24 * 60);
+		if (minutes < 6 * 60) {
+			return interpolateColor(0xFF243B80, 0xFFFFF2A6, minutes / (6.0D * 60.0D));
+		}
+		if (minutes < 12 * 60) {
+			return interpolateColor(0xFFFFF2A6, 0xFFFFB347, (minutes - 6 * 60) / (6.0D * 60.0D));
+		}
+		if (minutes < 18 * 60) {
+			return interpolateColor(0xFFFFB347, 0xFF8EC8FF, (minutes - 12 * 60) / (6.0D * 60.0D));
+		}
+		return interpolateColor(0xFF8EC8FF, 0xFF243B80, (minutes - 18 * 60) / (6.0D * 60.0D));
 	}
 
-	private static int seasonColor(String season) {
-		return switch (season == null ? "" : season.toLowerCase(Locale.ROOT)) {
+	private static int seasonColor(String season, int seasonDay, int seasonLengthDays) {
+		String current = season == null ? "" : season.toLowerCase(Locale.ROOT);
+		int currentColor = seasonPaletteColor(current);
+		int nextColor = seasonPaletteColor(nextSeason(current));
+		if (currentColor == COLOR || nextColor == COLOR) {
+			return currentColor;
+		}
+		return interpolateColor(currentColor, nextColor, seasonDay / (double) Math.max(1, seasonLengthDays - 1));
+	}
+
+	private static int seasonPaletteColor(String season) {
+		return switch (season) {
 			case "spring" -> 0xFFFF9ECF;
 			case "summer" -> 0xFFFFD34E;
 			case "fall" -> 0xFFFF7043;
@@ -123,22 +140,43 @@ public final class HudAPIManager {
 		};
 	}
 
+	private static String nextSeason(String season) {
+		return switch (season) {
+			case "spring" -> "summer";
+			case "summer" -> "fall";
+			case "fall" -> "winter";
+			case "winter" -> "spring";
+			default -> "";
+		};
+	}
+
 	private static int temperatureColor(double value) {
-		if (value <= 30.0D) return 0xFF5AA9FF;
-		if (value < 70.0D) return 0xFF55C878;
-		return 0xFFFF5A5A;
+		if (value <= 50.0D) return interpolateColor(0xFF5AA9FF, 0xFF55C878, (value - 30.0D) / 20.0D);
+		return interpolateColor(0xFF55C878, 0xFFFF5A5A, (value - 50.0D) / 20.0D);
 	}
 
 	private static int humidityColor(double value) {
-		if (value <= 30.0D) return 0xFFFF5A5A;
-		if (value < 70.0D) return 0xFF55C878;
-		return 0xFF5AA9FF;
+		if (value <= 50.0D) return interpolateColor(0xFFFF5A5A, 0xFF55C878, (value - 30.0D) / 20.0D);
+		return interpolateColor(0xFF55C878, 0xFF5AA9FF, (value - 50.0D) / 20.0D);
 	}
 
 	private static int difficultyColor(int value) {
-		if (value <= 3) return 0xFF55C878;
-		if (value <= 7) return 0xFFFFD34E;
-		return 0xFFFF5A5A;
+		if (value <= 5) return interpolateColor(0xFF55C878, 0xFFFFD34E, (value - 3.0D) / 2.0D);
+		return interpolateColor(0xFFFFD34E, 0xFFFF5A5A, (value - 5.0D) / 3.0D);
+	}
+
+	private static int interpolateColor(int first, int second, double progress) {
+		double clamped = Math.max(0.0D, Math.min(1.0D, progress));
+		double smooth = clamped * clamped * (3.0D - (2.0D * clamped));
+		int alpha = interpolateChannel((first >>> 24) & 0xFF, (second >>> 24) & 0xFF, smooth);
+		int red = interpolateChannel((first >>> 16) & 0xFF, (second >>> 16) & 0xFF, smooth);
+		int green = interpolateChannel((first >>> 8) & 0xFF, (second >>> 8) & 0xFF, smooth);
+		int blue = interpolateChannel(first & 0xFF, second & 0xFF, smooth);
+		return (alpha << 24) | (red << 16) | (green << 8) | blue;
+	}
+
+	private static int interpolateChannel(int first, int second, double progress) {
+		return (int) Math.round(first + ((second - first) * progress));
 	}
 
 

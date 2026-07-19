@@ -61,18 +61,18 @@ public final class BiomeClimateConfigManager {
 	public static Settings defaults() {
 		LinkedHashMap<String, Climate> biomes = new LinkedHashMap<>();
 		String[] values = {
-			"deep-frozen-ocean,0,100", "frozen-ocean,0,100", "deep-cold-ocean,40,100", "cold-ocean,40,100",
-			"ocean,50,100", "deep-ocean,50,100", "lukewarm-ocean,60,100", "deep-lukewarm-ocean,60,100",
-			"warm-ocean,70,100", "mushroom-fields,50,70", "frozen-peaks,0,70", "jagged-peaks,0,20",
-			"stony-peaks,30,70", "meadow,50,50", "cherry-grove,50,50", "grove,10,90", "snowy-slopes,10,40",
-			"windswept-hills,30,40", "windswept-gravelly-hills,40,30", "windswept-forest,50,50", "forest,50,50",
-			"flower-forest,60,60", "taiga,40,40", "old-growth-pine-taiga,40,60", "old-growth-spruce-taiga,60,40",
-			"snowy-taiga,20,40", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,70,100",
-			"pale-garden,70,70", "jungle,50,90", "bamboo-jungle,90,90", "sparse-jungle,60,50", "river,50,70",
-			"frozen-river,10,70", "swamp,70,90", "beach,60,70", "snowy-beach,20,60", "stony-shore,40,60",
-			"plains,50,50", "sunflower-plains,60,60", "snowy-plains,50,20", "ice-spikes,0,60", "desert,90,10",
-			"savanna,70,10", "savanna-plateau,80,30", "windswept-savanna,60,20", "badlands,100,20",
-			"wooded-badlands,80,40", "eroded-badlands,100,0"
+			"deep-frozen-ocean,-10,110", "frozen-ocean,0,110", "deep-cold-ocean,10,110", "cold-ocean,20,110",
+			"ocean,40,110", "deep-ocean,30,110", "lukewarm-ocean,60,110", "deep-lukewarm-ocean,50,110",
+			"warm-ocean,70,110", "mushroom-fields,50,70", "frozen-peaks,-10,70", "jagged-peaks,0,50",
+			"stony-peaks,10,30", "meadow,50,50", "cherry-grove,50,50", "grove,10,90", "snowy-slopes,0,60",
+			"windswept-hills,40,40", "windswept-gravelly-hills,50,30", "windswept-forest,50,50", "forest,50,50",
+			"flower-forest,60,60", "taiga,40,40", "old-growth-pine-taiga,30,60", "old-growth-spruce-taiga,30,40",
+			"snowy-taiga,20,50", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,80,110",
+			"pale-garden,70,70", "jungle,90,90", "bamboo-jungle,110,110", "sparse-jungle,70,70", "river,50,70",
+			"frozen-river,0,70", "swamp,90,110", "beach,60,70", "snowy-beach,20,70", "stony-shore,40,60",
+			"plains,50,50", "sunflower-plains,60,60", "snowy-plains,10,30", "ice-spikes,-10,60", "desert,100,0",
+			"savanna,90,50", "savanna-plateau,80,30", "windswept-savanna,70,10", "badlands,100,10",
+			"wooded-badlands,90,30", "eroded-badlands,110,-10"
 		};
 		for (String value : values) {
 			String[] parts = value.split(",");
