@@ -75,7 +75,13 @@ public final class BiomeTemperatureColorMixin {
 	private static int temperatureColor(int biomeColor, double temperature, boolean leaves) {
 		double value = Math.max(0.0D, Math.min(100.0D, temperature));
 		int baseColor = baseTemperatureColor(biomeColor, value);
-		return seasonTemperatureColor(baseColor, ClientSeasonalPrecipitationState.getSeason(), value, leaves);
+		return seasonalTemperatureColor(
+			baseColor,
+			ClientSeasonalPrecipitationState.getSeason(),
+			value,
+			ClientSeasonalPrecipitationState.getSeasonDayValue(),
+			ClientSeasonalPrecipitationState.getSeasonLengthDays(),
+			leaves);
 	}
 
 	private static int baseTemperatureColor(int biomeColor, double temperature) {
@@ -91,7 +97,32 @@ public final class BiomeTemperatureColorMixin {
 		return interpolateColor(vibrantColor, dryColor, (temperature - 69.0D) / 31.0D);
 	}
 
-	private static int seasonTemperatureColor(int baseColor, String season, double temperature, boolean leaves) {
+	private static int seasonalTemperatureColor(
+		int baseColor,
+		String season,
+		double temperature,
+		double seasonDay,
+		int seasonLengthDays,
+		boolean leaves
+	) {
+		int currentColor = seasonTemperatureTargetColor(baseColor, season, temperature, leaves);
+		int safeLength = Math.max(1, seasonLengthDays);
+		double safeDay = Math.max(0.0D, Math.min(safeLength - 1, seasonDay));
+		int peakStartDay = Math.max(0, (safeLength / 2) - 1);
+		int peakEndDay = Math.min(safeLength - 1, safeLength / 2);
+		double peakSpan = Math.max(1.0D, safeLength - 1.0D);
+		if (safeDay < peakStartDay) {
+			int previousColor = seasonTemperatureTargetColor(baseColor, previousSeason(season), temperature, leaves);
+			return interpolateColor(previousColor, currentColor, (safeDay + (safeLength - peakEndDay)) / peakSpan);
+		}
+		if (safeDay > peakEndDay) {
+			int nextColor = seasonTemperatureTargetColor(baseColor, nextSeason(season), temperature, leaves);
+			return interpolateColor(currentColor, nextColor, (safeDay - peakEndDay) / peakSpan);
+		}
+		return currentColor;
+	}
+
+	private static int seasonTemperatureTargetColor(int baseColor, String season, double temperature, boolean leaves) {
 		double normalizedTemperature = temperature / 100.0D;
 		double tintInfluence = leaves ? LEAF_COLOR_INFLUENCE : SEASON_TINT_INFLUENCE;
 		return switch (season == null ? "" : season.toLowerCase(java.util.Locale.ROOT)) {
@@ -109,6 +140,26 @@ public final class BiomeTemperatureColorMixin {
 				tintInfluence);
 			case "winter" -> blendColors(baseColor, WHITE_COLOR, (1.0D - normalizedTemperature) * tintInfluence);
 			default -> baseColor;
+		};
+	}
+
+	private static String nextSeason(String season) {
+		return switch (season == null ? "" : season.toLowerCase(java.util.Locale.ROOT)) {
+			case "spring" -> "summer";
+			case "summer" -> "fall";
+			case "fall" -> "winter";
+			case "winter" -> "spring";
+			default -> "";
+		};
+	}
+
+	private static String previousSeason(String season) {
+		return switch (season == null ? "" : season.toLowerCase(java.util.Locale.ROOT)) {
+			case "spring" -> "winter";
+			case "summer" -> "spring";
+			case "fall" -> "summer";
+			case "winter" -> "fall";
+			default -> "";
 		};
 	}
 
