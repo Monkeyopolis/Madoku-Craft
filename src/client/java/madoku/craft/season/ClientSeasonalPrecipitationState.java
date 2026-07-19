@@ -15,6 +15,8 @@ import java.util.Map;
 
 public final class ClientSeasonalPrecipitationState {
 	private static volatile String season = "";
+	private static volatile int seasonDay;
+	private static volatile int seasonLengthDays = 28;
 	private static volatile double temperatureOffset;
 	private static volatile double humidityOffset;
 	private static volatile String weatherCondition = "";
@@ -24,11 +26,33 @@ public final class ClientSeasonalPrecipitationState {
 	private ClientSeasonalPrecipitationState() {
 	}
 
-	public static void update(String season, double temperatureOffset, double humidityOffset, String weatherCondition) {
+	public static void update(String season, double temperatureOffset, double humidityOffset, String weatherCondition, int seasonDay, int seasonLengthDays) {
 		ClientSeasonalPrecipitationState.season = season == null ? "" : season;
+		ClientSeasonalPrecipitationState.seasonDay = Math.max(0, seasonDay);
+		ClientSeasonalPrecipitationState.seasonLengthDays = Math.max(1, seasonLengthDays);
 		ClientSeasonalPrecipitationState.temperatureOffset = temperatureOffset;
 		ClientSeasonalPrecipitationState.humidityOffset = humidityOffset;
 		ClientSeasonalPrecipitationState.weatherCondition = weatherCondition == null ? "" : weatherCondition;
+	}
+
+	public static String getSeason() {
+		return season;
+	}
+
+	public static double getSeasonProgress() {
+		return Math.max(0.0D, Math.min(1.0D, seasonDay / (double) Math.max(1, seasonLengthDays - 1)));
+	}
+
+	public static int getSeasonDay() {
+		return seasonDay;
+	}
+
+	public static int getSeasonLengthDays() {
+		return seasonLengthDays;
+	}
+
+	public static double getSeasonDayValue() {
+		return seasonDay;
 	}
 
 	public static void refresh(ClientLevel clientLevel) {
@@ -81,6 +105,17 @@ public final class ClientSeasonalPrecipitationState {
 			climate.humidity() + humidityOffset);
 	}
 
+	public static double resolveSeasonalTemperature(Biome biome) {
+		if (biome == null) {
+			return 0.0D;
+		}
+		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
+		if (climate == null) {
+			climate = SeasonBiomeClimateManager.nativeClimate(biome);
+		}
+		return climate.temperature() + temperatureOffset;
+	}
+
 	private static long currentAbsoluteDayTime() {
 		ClientLevel clientLevel = level;
 		return clientLevel == null ? 0L : clientLevel.getOverworldClockTime();
@@ -117,6 +152,8 @@ public final class ClientSeasonalPrecipitationState {
 
 	public static void clear() {
 		season = "";
+		seasonDay = 0;
+		seasonLengthDays = 28;
 		temperatureOffset = 0.0;
 		humidityOffset = 0.0;
 		weatherCondition = "";

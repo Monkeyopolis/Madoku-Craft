@@ -21,6 +21,7 @@ public final class EnvironmentTransitionConfigManager {
 	public static final String CONFIG_FILE_NAME = "environment-transition";
 	public static final String FIELD_TRANSITION_WEATHER = "transition-weather";
 	public static final String FIELD_TRANSITION_WATER = "transition-water";
+	public static final String FIELD_TRANSITION_COLOR = "transition-color";
 	public static final String FIELD_SEASON_TRANSITIONS = "season-transitions";
 	public static final String FIELD_TEMPERATURE = "temperature";
 	public static final String FIELD_HUMIDITY = "humidity";
@@ -59,7 +60,7 @@ public final class EnvironmentTransitionConfigManager {
 		humidity.put("summer", new Adjustment("addition", 6.0));
 		humidity.put("fall", new Adjustment("subtraction", 6.0));
 		humidity.put("winter", new Adjustment("subtraction", 9.0));
-		return new Settings(true, true, true, true, true, temperature, humidity, 7, 4);
+		return new Settings(true, true, true, true, true, true, temperature, humidity, 7, 4);
 	}
 
 	public static JsonObject buildDefaultsJson() { return toJson(defaults()); }
@@ -69,6 +70,7 @@ public final class EnvironmentTransitionConfigManager {
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.object(FIELD_TRANSITION_WEATHER, b -> b.put(FIELD_ENABLED, safe.weatherEnabled()))
 			.object(FIELD_TRANSITION_WATER, b -> b.put(FIELD_ENABLED, safe.waterEnabled()))
+			.object(FIELD_TRANSITION_COLOR, b -> b.put(FIELD_ENABLED, safe.transitionColorEnabled()))
 			.object(FIELD_SEASON_TRANSITIONS, b -> {
 				b.put(FIELD_ENABLED, safe.seasonTransitionsEnabled());
 				b.object(FIELD_TEMPERATURE, t -> writeSeasonAdjustments(t, safe.temperatureAdjustments(), safe.temperatureEnabled()));
@@ -94,6 +96,7 @@ public final class EnvironmentTransitionConfigManager {
 		return new Settings(
 			readBoolean(object(source, FIELD_TRANSITION_WEATHER), FIELD_ENABLED, true),
 			readBoolean(object(source, FIELD_TRANSITION_WATER), FIELD_ENABLED, true),
+			readBoolean(object(source, FIELD_TRANSITION_COLOR), FIELD_ENABLED, true),
 			readBoolean(transitions, FIELD_ENABLED, true), readBoolean(temperature, FIELD_ENABLED, true), readBoolean(humidity, FIELD_ENABLED, true),
 			readAdjustments(temperature, fallback.temperatureAdjustments()), readAdjustments(humidity, fallback.humidityAdjustments()),
 			Math.max(1, readInt(rates, FIELD_TIME_RATE, fallback.timeRateDays())),
@@ -144,6 +147,7 @@ public final class EnvironmentTransitionConfigManager {
 			.field("config-file", CONFIG_FILE_NAME + ".json")
 			.field("weather-enabled", settings.weatherEnabled())
 			.field("water-enabled", settings.waterEnabled())
+			.field("transition-color-enabled", settings.transitionColorEnabled())
 			.field("season-transitions-enabled", settings.seasonTransitionsEnabled())
 			.field("temperature-enabled", settings.temperatureEnabled())
 			.field("humidity-enabled", settings.humidityEnabled())
@@ -166,7 +170,7 @@ public final class EnvironmentTransitionConfigManager {
 		if (customizer != null) customizer.accept(builder);
 		builder.log();
 	}
-	public record Settings(boolean weatherEnabled, boolean waterEnabled, boolean seasonTransitionsEnabled, boolean temperatureEnabled, boolean humidityEnabled, Map<String, Adjustment> temperatureAdjustments, Map<String, Adjustment> humidityAdjustments, int timeRateDays, int adjustmentCount) {
+	public record Settings(boolean weatherEnabled, boolean waterEnabled, boolean transitionColorEnabled, boolean seasonTransitionsEnabled, boolean temperatureEnabled, boolean humidityEnabled, Map<String, Adjustment> temperatureAdjustments, Map<String, Adjustment> humidityAdjustments, int timeRateDays, int adjustmentCount) {
 		public Settings { temperatureAdjustments = Map.copyOf(temperatureAdjustments == null ? Map.of() : temperatureAdjustments); humidityAdjustments = Map.copyOf(humidityAdjustments == null ? Map.of() : humidityAdjustments); timeRateDays = Math.max(1, timeRateDays); adjustmentCount = Math.max(0, adjustmentCount); }
 	}
 }
