@@ -2,6 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.api.season.SeasonWeatherManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -23,10 +24,17 @@ public abstract class LevelSeasonalPrecipitationMixin {
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
 		if (!MadokuSeasonManager.isEnabled()
-			|| !SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
 			|| !((Object) this instanceof ServerLevel serverLevel)
-			|| pos == null
-			|| !serverLevel.isRaining()) {
+			|| pos == null) {
+			return;
+		}
+
+		if (SeasonWeatherManager.isEnabled()) {
+			if (!SeasonWeatherManager.isPrecipitating(serverLevel)) {
+				cir.setReturnValue(Biome.Precipitation.NONE);
+				return;
+			}
+		} else if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled() || !serverLevel.isRaining()) {
 			return;
 		}
 		cir.setReturnValue(MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos));

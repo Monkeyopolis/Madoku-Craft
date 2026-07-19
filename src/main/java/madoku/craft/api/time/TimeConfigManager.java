@@ -7,6 +7,7 @@ import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonConfigManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,17 +87,11 @@ public final class TimeConfigManager {
 	}
 
 	public static double getSeasonalDayMultiplier(String seasonId) {
-		if (!isSeasonalChangesActive()) {
-			return 1.0D;
-		}
-		return resolveSeasonAdjustment(seasonId).day();
+		return resolveEffectiveSeasonAdjustment(seasonId).day();
 	}
 
 	public static double getSeasonalNightMultiplier(String seasonId) {
-		if (!isSeasonalChangesActive()) {
-			return 1.0D;
-		}
-		return resolveSeasonAdjustment(seasonId).night();
+		return resolveEffectiveSeasonAdjustment(seasonId).night();
 	}
 
 	public static long getSeasonalCycleTicks(String seasonId) {
@@ -276,6 +271,31 @@ public final class TimeConfigManager {
 		if (!isSeasonalChangesActive()) {
 			return TimeAdjustmentSettings.defaults(1.0D, 1.0D);
 		}
+		return resolveConfiguredSeasonAdjustment(seasonId, seasonalChanges);
+	}
+
+	private static TimeAdjustmentSettings resolveEffectiveSeasonAdjustment(String seasonId) {
+		TimeAdjustmentSettings current = resolveSeasonAdjustment(seasonId);
+		if (!isSeasonalChangesActive()) {
+			return current;
+		}
+
+		MadokuSeasonManager.SeasonState state = MadokuSeasonManager.getCurrentState();
+		if (state == null || !normalizeSeasonId(state.season().id()).equals(normalizeSeasonId(seasonId))) {
+			return current;
+		}
+
+		TimeAdjustmentSettings next = resolveSeasonAdjustment(nextSeason(state.season()).id());
+		double progress = resolveSeasonBoundaryProgress(state);
+		return new TimeAdjustmentSettings(
+			interpolateSeasonValue(current.day(), next.day(), progress),
+			interpolateSeasonValue(current.night(), next.night(), progress));
+	}
+
+	private static TimeAdjustmentSettings resolveConfiguredSeasonAdjustment(
+		String seasonId,
+		SeasonalChangesSettings seasonalChanges
+	) {
 		return switch (normalizeSeasonId(seasonId)) {
 			case FIELD_SUMMER -> seasonalChanges.summer().timeAdjustment();
 			case FIELD_FALL -> seasonalChanges.fall().timeAdjustment();
@@ -283,6 +303,23 @@ public final class TimeConfigManager {
 			case FIELD_SPRING -> seasonalChanges.spring().timeAdjustment();
 			default -> seasonalChanges.spring().timeAdjustment();
 		};
+	}
+
+	private static double resolveSeasonBoundaryProgress(MadokuSeasonManager.SeasonState state) {
+		int seasonLengthDays = Math.max(1, SeasonConfigManager.getSettings().seasonLengthDays());
+		double progress = state.seasonDay() / (double) Math.max(1, seasonLengthDays - 1);
+		return Math.max(0.0D, Math.min(1.0D, progress));
+	}
+
+	private static double interpolateSeasonValue(double start, double end, double progress) {
+		double clampedProgress = Math.max(0.0D, Math.min(1.0D, progress));
+		double smoothProgress = clampedProgress * clampedProgress * (3.0D - 2.0D * clampedProgress);
+		return start + (end - start) * smoothProgress;
+	}
+
+	private static MadokuSeasonManager.Season nextSeason(MadokuSeasonManager.Season season) {
+		MadokuSeasonManager.Season[] seasons = MadokuSeasonManager.Season.values();
+		return seasons[(season.ordinal() + 1) % seasons.length];
 	}
 
 	private static String normalizeSeasonId(String seasonId) {
@@ -406,9 +443,9 @@ public final class TimeConfigManager {
 		private static SeasonalChangesSettings defaults() {
 			return new SeasonalChangesSettings(
 				true,
-				SeasonSettings.defaults(1.0D, 1.0D),
+				SeasonSettings.defaults(1.1D, 0.9D),
 				SeasonSettings.defaults(1.25D, 0.75D),
-				SeasonSettings.defaults(1.0D, 1.0D),
+				SeasonSettings.defaults(0.9D, 1.1D),
 				SeasonSettings.defaults(0.75D, 1.25D)
 			);
 		}

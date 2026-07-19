@@ -18,6 +18,7 @@ public final class MadokuSeasonManager {
 	private static String lastBroadcastSeason = "";
 	private static double lastBroadcastTemperatureOffset;
 	private static double lastBroadcastHumidityOffset;
+	private static String lastBroadcastWeatherCondition = "";
 
 	private MadokuSeasonManager() { }
 
@@ -28,6 +29,7 @@ public final class MadokuSeasonManager {
 		SeasonConfigManager.initialize();
 		SeasonBiomeClimateManager.initialize();
 		SeasonEnvironmentTransitionManager.initialize();
+		SeasonWeatherManager.initialize();
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			SeasonPayloadManager payload = currentSyncPayload(server);
 			if (payload != null) {
@@ -41,11 +43,13 @@ public final class MadokuSeasonManager {
 
 	public static void reset() {
 		SeasonEnvironmentTransitionManager.reset();
+		SeasonWeatherManager.reset();
 		SeasonBiomeClimateManager.reset();
 		lastDebugState = null;
 		lastBroadcastSeason = "";
 		lastBroadcastTemperatureOffset = 0.0;
 		lastBroadcastHumidityOffset = 0.0;
+		lastBroadcastWeatherCondition = "";
 		emitDebug("reset", builder -> builder
 			.field("enabled", isEnabled())
 			.field("season-length-days", SeasonConfigManager.getSettings().seasonLengthDays()));
@@ -64,7 +68,10 @@ public final class MadokuSeasonManager {
 		SeasonBiomeClimateManager.Climate climate = SeasonBiomeClimateManager.resolve(level, pos);
 		String season = getCurrentSeasonId(level);
 		return new SeasonBiomeClimateManager.Climate(
-			SeasonEnvironmentTransitionManager.adjustTemperature(climate.temperature(), season),
+			SeasonEnvironmentTransitionManager.adjustTemperature(
+				climate.temperature(),
+				season,
+				MadokuTimeManager.getCurrentAbsoluteDayTime(level)),
 			SeasonEnvironmentTransitionManager.adjustHumidity(climate.humidity(), season));
 	}
 
@@ -74,7 +81,16 @@ public final class MadokuSeasonManager {
 
 	public static Biome.Precipitation resolveSeasonalPrecipitation(ServerLevel level, BlockPos pos) {
 		if (level == null || pos == null) return Biome.Precipitation.NONE;
-		return SeasonEnvironmentTransitionManager.resolvePrecipitation(SeasonBiomeClimateManager.resolve(level, pos), getCurrentSeasonId(level));
+		if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
+			Biome biome = level.getBiome(pos).value();
+			return SeasonEnvironmentTransitionManager.resolvePrecipitation(biome, getCurrentSeasonId(level));
+		}
+		return SeasonEnvironmentTransitionManager.resolvePrecipitation(
+			SeasonBiomeClimateManager.resolve(level, pos),
+			getCurrentSeasonId(level),
+			SeasonEnvironmentTransitionManager.getTemperatureOffset(),
+			SeasonEnvironmentTransitionManager.getHumidityOffset(),
+			MadokuTimeManager.getCurrentAbsoluteDayTime(level));
 	}
 
 	public static boolean shouldSeasonFreezeAt(ServerLevel level, Biome biome, BlockPos pos) {
@@ -88,6 +104,7 @@ public final class MadokuSeasonManager {
 	public static void onServerStarted(MinecraftServer server) {
 		if (server != null) {
 			SeasonBiomeClimateManager.onServerStarted(server);
+			SeasonWeatherManager.onServerStarted(server);
 			emitDebug("server-started", builder -> builder
 			.field("enabled", isEnabled())
 			.field("season", getCurrentSeasonId(server.overworld()))
@@ -96,7 +113,14 @@ public final class MadokuSeasonManager {
 		}
 	}
 	public static void onServerTick(MinecraftServer server) {
-		if (server != null) currentState(server.overworld());
+		if (server != null) {
+			currentState(server.overworld());
+		}
+	}
+
+	/** Runs before Vanilla's level weather tick so the current Madoku state is authoritative for this frame. */
+	public static void onServerStartTick(MinecraftServer server) {
+		if (server != null) SeasonWeatherManager.onServerTick(server);
 	}
 
 	public static void broadcastWorldSeasonNow(MinecraftServer server) {
@@ -125,7 +149,8 @@ public final class MadokuSeasonManager {
 		}
 		if (!force && payload.season().equals(lastBroadcastSeason)
 			&& Double.compare(payload.temperatureOffset(), lastBroadcastTemperatureOffset) == 0
-			&& Double.compare(payload.humidityOffset(), lastBroadcastHumidityOffset) == 0) {
+			&& Double.compare(payload.humidityOffset(), lastBroadcastHumidityOffset) == 0
+			&& payload.weatherCondition().equals(lastBroadcastWeatherCondition)) {
 			return 0;
 		}
 
@@ -133,6 +158,7 @@ public final class MadokuSeasonManager {
 		lastBroadcastSeason = payload.season();
 		lastBroadcastTemperatureOffset = payload.temperatureOffset();
 		lastBroadcastHumidityOffset = payload.humidityOffset();
+		lastBroadcastWeatherCondition = payload.weatherCondition();
 		return sent;
 	}
 
@@ -140,10 +166,11 @@ public final class MadokuSeasonManager {
 		if (!force && lastBroadcastSeason.isEmpty()) {
 			return 0;
 		}
-		int sent = SyncWorldManager.broadcast(server, new SeasonPayloadManager("", 0.0, 0.0));
+		int sent = SyncWorldManager.broadcast(server, new SeasonPayloadManager("", 0.0, 0.0, ""));
 		lastBroadcastSeason = "";
 		lastBroadcastTemperatureOffset = 0.0;
 		lastBroadcastHumidityOffset = 0.0;
+		lastBroadcastWeatherCondition = "";
 		return sent;
 	}
 
@@ -156,10 +183,12 @@ public final class MadokuSeasonManager {
 		if (season == null || season.isBlank()) {
 			return null;
 		}
+		SeasonWeatherManager.WeatherCondition condition = SeasonWeatherManager.getCurrentCondition();
 		return new SeasonPayloadManager(
 			season,
 			SeasonEnvironmentTransitionManager.getTemperatureOffset(),
-			SeasonEnvironmentTransitionManager.getHumidityOffset());
+			SeasonEnvironmentTransitionManager.getHumidityOffset(),
+			condition == null ? "" : condition.id());
 	}
 
 	private static void emitSyncDebug(String subject, int playersSent) {

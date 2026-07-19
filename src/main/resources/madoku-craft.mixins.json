@@ -113,6 +113,7 @@
     "client.GuiGraphicsRarityOverlayMixin",
     "client.GuiGraphicsStackCountMixin",
     "client.InventoryScreenLabelMixin",
+    "client.LevelSeasonalWeatherClientMixin",
     "client.ItemFoodClientGateMixin",
     "client.MerchantScreenAccessor",
     "client.MultiPlayerGameModeFarmingMixin",

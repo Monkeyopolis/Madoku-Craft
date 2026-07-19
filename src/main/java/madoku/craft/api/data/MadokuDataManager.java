@@ -12,12 +12,14 @@ public final class MadokuDataManager {
 	public static void initialize() {
 		DataSaveCoordinatorManager.initialize();
 		DataSystemsManager.initialize();
+		DataWorldManager.initialize();
 		DataWorldChunkManager.initialize();
 		DataPlayerManager.initialize();
 		initialized = true;
 	}
 
 	public static void reset() {
+		DataWorldManager.reset();
 		DataWorldChunkManager.reset();
 		DataPlayerManager.reset();
 		DataSystemsManager.reset();
@@ -30,11 +32,13 @@ public final class MadokuDataManager {
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
+		DataWorldManager.loadPersistedData(server);
 		DataWorldChunkManager.loadPersistedData(server);
 		DataPlayerManager.loadPersistedData(server);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		DataWorldManager.onServerStarted(server);
 		DataWorldChunkManager.onServerStarted(server);
 		DataPlayerManager.onServerStarted(server);
 	}

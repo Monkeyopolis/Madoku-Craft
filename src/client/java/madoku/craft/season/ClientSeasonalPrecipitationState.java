@@ -17,16 +17,18 @@ public final class ClientSeasonalPrecipitationState {
 	private static volatile String season = "";
 	private static volatile double temperatureOffset;
 	private static volatile double humidityOffset;
+	private static volatile String weatherCondition = "";
 	private static volatile ClientLevel level;
 	private static volatile Map<Biome, SeasonBiomeClimateManager.Climate> climates = Map.of();
 
 	private ClientSeasonalPrecipitationState() {
 	}
 
-	public static void update(String season, double temperatureOffset, double humidityOffset) {
+	public static void update(String season, double temperatureOffset, double humidityOffset, String weatherCondition) {
 		ClientSeasonalPrecipitationState.season = season == null ? "" : season;
 		ClientSeasonalPrecipitationState.temperatureOffset = temperatureOffset;
 		ClientSeasonalPrecipitationState.humidityOffset = humidityOffset;
+		ClientSeasonalPrecipitationState.weatherCondition = weatherCondition == null ? "" : weatherCondition;
 	}
 
 	public static void refresh(ClientLevel clientLevel) {
@@ -49,6 +51,9 @@ public final class ClientSeasonalPrecipitationState {
 		if (biome == null || season.isBlank()) {
 			return Biome.Precipitation.NONE;
 		}
+		if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
+			return SeasonEnvironmentTransitionManager.resolvePrecipitation(biome, season);
+		}
 		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
 		if (climate == null) {
 			climate = SeasonBiomeClimateManager.nativeClimate(biome);
@@ -57,7 +62,8 @@ public final class ClientSeasonalPrecipitationState {
 			climate,
 			season,
 			temperatureOffset,
-			humidityOffset);
+			humidityOffset,
+			currentAbsoluteDayTime());
 	}
 
 	public static SeasonBiomeClimateManager.Climate resolveClimate(Biome biome) {
@@ -69,18 +75,51 @@ public final class ClientSeasonalPrecipitationState {
 			climate = SeasonBiomeClimateManager.nativeClimate(biome);
 		}
 		return new SeasonBiomeClimateManager.Climate(
-			climate.temperature() + temperatureOffset,
+			SeasonEnvironmentTransitionManager.adjustTemperatureByTime(
+				climate.temperature() + temperatureOffset,
+				currentAbsoluteDayTime()),
 			climate.humidity() + humidityOffset);
+	}
+
+	private static long currentAbsoluteDayTime() {
+		ClientLevel clientLevel = level;
+		return clientLevel == null ? 0L : clientLevel.getOverworldClockTime();
 	}
 
 	public static boolean isSynchronized() {
 		return !season.isBlank();
 	}
 
+	public static boolean isPrecipitating() {
+		ClientLevel clientLevel = level;
+		if (clientLevel == null) return false;
+		if (!isWeatherAuthoritative()) return clientLevel.isRaining();
+		return isPrecipitatingCondition();
+	}
+
+	public static float resolveRainLevel(float vanillaLevel) {
+		if (!isWeatherAuthoritative()) return vanillaLevel;
+		return isPrecipitatingCondition() ? 1.0F : 0.0F;
+	}
+
+	public static float resolveThunderLevel(float vanillaLevel) {
+		if (!isWeatherAuthoritative()) return vanillaLevel;
+		return "thunderstorm-weather".equals(weatherCondition) ? 1.0F : 0.0F;
+	}
+
+	private static boolean isWeatherAuthoritative() {
+		return !season.isBlank() && !weatherCondition.isBlank();
+	}
+
+	private static boolean isPrecipitatingCondition() {
+		return "rain-weather".equals(weatherCondition) || "thunderstorm-weather".equals(weatherCondition);
+	}
+
 	public static void clear() {
 		season = "";
 		temperatureOffset = 0.0;
 		humidityOffset = 0.0;
+		weatherCondition = "";
 		level = null;
 		climates = Map.of();
 	}

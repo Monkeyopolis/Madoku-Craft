@@ -19,9 +19,10 @@ public final class MadokuMetaDataManager {
 		"api",
 		subSystem("metadata-manager", entriesFromClass(madoku.craft.api.metadata.MadokuMetaDataManager.class)),
 		subSystem("debug-manager", entriesFromClass(madoku.craft.api.debug.MadokuDebugManager.class)),
-			subSystem(
+		 subSystem(
 			"data-manager",
 			entriesFromClass(madoku.craft.api.data.MadokuDataManager.class),
+			group("data-world-manager", entriesFromClass(madoku.craft.api.data.DataWorldManager.class)),
 			group("data-world-chunk-manager", entriesFromClass(madoku.craft.api.data.DataWorldChunkManager.class)),
 			group("data-player-manager", entriesFromClass(madoku.craft.api.data.DataPlayerManager.class)),
 			group("data-systems-manager", entriesFromClass(madoku.craft.api.data.DataSystemsManager.class))
@@ -96,7 +97,10 @@ public final class MadokuMetaDataManager {
 		subSystem("season-biome-climate-manager", entriesFromClass(madoku.craft.api.season.SeasonBiomeClimateManager.class),
 			group("biome-climate-config-manager", entriesFromClass(madoku.craft.api.season.BiomeClimateConfigManager.class)), group("lifecycle", entry("state"))),
 		subSystem("season-environment-transition-manager", entriesFromClass(madoku.craft.api.season.SeasonEnvironmentTransitionManager.class),
-			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state")))
+			group("environment-transition-config-manager", entriesFromClass(madoku.craft.api.season.EnvironmentTransitionConfigManager.class)), group("lifecycle", entry("state"))),
+		subSystem("season-weather-manager", entriesFromClass(madoku.craft.api.season.SeasonWeatherManager.class),
+			group("weather-config-manager", entriesFromClass(madoku.craft.api.season.WeatherConfigManager.class)),
+			group("lifecycle", entry("initialize"), entry("reset"), entry("server-started"), entry("condition-ended"), entry("condition-selected")))
 	);
 
 	public static final MainSystemMetadata ATTRIBUTES = mainSystem(

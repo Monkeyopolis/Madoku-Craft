@@ -53,7 +53,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		);
 		ClientPlayNetworking.registerGlobalReceiver(SeasonPayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> {
-				ClientSeasonalPrecipitationState.update(payload.season(), payload.temperatureOffset(), payload.humidityOffset());
+				ClientSeasonalPrecipitationState.update(payload.season(), payload.temperatureOffset(), payload.humidityOffset(), payload.weatherCondition());
 				ClientSeasonalPrecipitationState.refresh(context.client().level);
 				HudPayloadManager.setServerSeason(payload.season());
 			})

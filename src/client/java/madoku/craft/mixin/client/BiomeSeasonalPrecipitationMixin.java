@@ -20,7 +20,8 @@ public abstract class BiomeSeasonalPrecipitationMixin {
 		int seaLevel,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
-		if (!ClientSeasonalPrecipitationState.isSynchronized()) {
+		if (!ClientSeasonalPrecipitationState.isSynchronized()
+			|| !ClientSeasonalPrecipitationState.isPrecipitating()) {
 			return;
 		}
 		Biome.Precipitation precipitation = ClientSeasonalPrecipitationState.resolve((Biome) (Object) this);

@@ -124,6 +124,7 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerTickEvents.START_SERVER_TICK.register(TimeSleepManager::refreshTickIncrement);
+		ServerTickEvents.START_SERVER_TICK.register(MadokuSeasonManager::onServerStartTick);
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			long tickIncrement = TimeSleepManager.getCachedTickIncrement();

@@ -145,6 +145,8 @@ public final class DataSaveCoordinatorManager {
 		}
 		if (shutdown) MadokuChunkDataManager.savePersistedData(server);
 		else MadokuChunkDataManager.autosavePersistedData(server);
+		if (shutdown) DataWorldManager.savePersistedData(server);
+		else DataWorldManager.autosavePersistedData(server);
 		DataWorldChunkManager.savePersistedData(server);
 		DataPlayerManager.savePersistedData(server);
 		lastMetrics = new SaveMetrics(reason, DIRTY_CHUNKS.get(),
