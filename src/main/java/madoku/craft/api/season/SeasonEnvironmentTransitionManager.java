@@ -18,10 +18,10 @@ public final class SeasonEnvironmentTransitionManager {
 	private static final int HOT_BIOME_HUMIDITY_MIN = 70;
 	private static final int MINUTES_PER_DAY = 24 * 60;
 	private static final int[] DAILY_TEMPERATURE_MINUTES = {
-		0, 3 * 60, 6 * 60, 9 * 60, 12 * 60, 15 * 60, 18 * 60, 21 * 60
+		0, 1 * 60, 5 * 60, 7 * 60, 11 * 60, 13 * 60, 17 * 60, 19 * 60, 23 * 60
 	};
 	private static final double[] DAILY_TEMPERATURE_MODIFIERS = {
-		-0.20D, -0.05D, 0.10D, 0.15D, 0.20D, 0.05D, -0.10D, -0.15D
+		-0.20D, -0.20D, 0.0D, 0.0D, 0.20D, 0.20D, 0.0D, 0.0D, -0.20D
 	};
 	private static volatile double temperatureOffset;
 	private static volatile double humidityOffset;
@@ -177,7 +177,11 @@ public final class SeasonEnvironmentTransitionManager {
 	}
 
 	private static double resolveDailyTemperatureModifier(long absoluteDayTime) {
-		int minutes = MadokuTimeManager.getTotalMinutes(absoluteDayTime);
+		return resolveDailyTemperatureModifierAtMinutes(MadokuTimeManager.getTotalMinutes(absoluteDayTime));
+	}
+
+	public static double resolveDailyTemperatureModifierAtMinutes(int totalMinutes) {
+		int minutes = Math.floorMod(totalMinutes, MINUTES_PER_DAY);
 		for (int index = 0; index < DAILY_TEMPERATURE_MINUTES.length - 1; index++) {
 			int startMinute = DAILY_TEMPERATURE_MINUTES[index];
 			int endMinute = DAILY_TEMPERATURE_MINUTES[index + 1];
@@ -194,6 +198,25 @@ public final class SeasonEnvironmentTransitionManager {
 			DAILY_TEMPERATURE_MODIFIERS[DAILY_TEMPERATURE_MODIFIERS.length - 1],
 			DAILY_TEMPERATURE_MODIFIERS[0],
 			(minutes - startMinute) / (double) (MINUTES_PER_DAY - startMinute));
+	}
+
+	public static double resolveSeasonalTransitionProgress(int seasonDay, int seasonLengthDays) {
+		EnvironmentTransitionConfigManager.Settings settings = EnvironmentTransitionConfigManager.getSettings();
+		int safeLength = Math.max(1, seasonLengthDays);
+		int safeDay = Math.max(0, Math.min(safeLength - 1, seasonDay));
+		int adjustmentCount = Math.max(1, settings.adjustmentCount());
+		int timeRateDays = Math.max(1, settings.timeRateDays());
+		int availableStages = Math.min(
+			adjustmentCount,
+			Math.max(1, ((safeLength - 1) / timeRateDays) + 1));
+		int stage = Math.min(availableStages - 1, safeDay / timeRateDays);
+		int stageStartDay = Math.min(stage * timeRateDays, safeLength - 1);
+		int stageEndDay = stage == availableStages - 1
+			? safeLength - 1
+			: Math.min(stageStartDay + timeRateDays - 1, safeLength - 1);
+		double progress = (safeDay - stageStartDay) / (double) Math.max(1, stageEndDay - stageStartDay);
+		double smoothed = interpolateModifier(0.0D, 1.0D, progress);
+		return Math.max(0.0D, Math.min(1.0D, (stage + smoothed) / (double) availableStages));
 	}
 
 	private static double interpolateModifier(double start, double end, double progress) {

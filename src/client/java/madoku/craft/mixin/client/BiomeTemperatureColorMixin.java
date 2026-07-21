@@ -1,6 +1,7 @@
 package madoku.craft.mixin.client;
 
 import madoku.craft.api.season.EnvironmentTransitionConfigManager;
+import madoku.craft.color.ClientColorContext;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BiomeColors;
@@ -17,12 +18,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(BiomeColors.class)
 public final class BiomeTemperatureColorMixin {
-	private static final double LEAF_COLOR_INFLUENCE = 0.75D;
-	private static final double TEMPERATURE_BASE_INFLUENCE = 0.5D;
-	private static final double SEASON_TINT_INFLUENCE = 0.6D;
+	private static final double LIGHT_GREY_MAX_TEMPERATURE = 5.0D;
+	private static final double PEAK_VIBRANCY_MIN_TEMPERATURE = 45.0D;
+	private static final double PEAK_VIBRANCY_MAX_TEMPERATURE = 55.0D;
+	private static final double DARK_GREY_MIN_TEMPERATURE = 95.0D;
+	private static final double VIBRANCY_COLOR_INFLUENCE = 0.2D;
+	private static final double LEAF_VIBRANCY_COLOR_INFLUENCE = 0.3D;
+	private static final double SEASON_COLOR_MIN_INFLUENCE = 0.3D;
+	private static final double SEASON_COLOR_MAX_INFLUENCE = 0.7D;
+	private static final double LEAF_SEASON_COLOR_MIN_INFLUENCE = 0.5D;
+	private static final double LEAF_SEASON_COLOR_MAX_INFLUENCE = 0.9D;
+	private static final double BIOME_COLOR_INFLUENCE = 0.2D;
+	private static final double LEAF_BIOME_COLOR_INFLUENCE = 0.3D;
+	private static final double SODIUM_LEAF_EDGE_ORIGINAL_COLOR_INFLUENCE = 0.3D;
+	private static final double SODIUM_NON_LEAF_EDGE_ORIGINAL_COLOR_INFLUENCE = 0.7D;
 	private static final int WHITE_COLOR = 0xFFFFFFFF;
-	private static final int COLD_BASE_TINT = 0xFFA6B5C2;
-	private static final int DRY_BASE_TINT = 0xFFC8B477;
+	private static final int LIGHT_GREY_COLOR = 0xFFD8D8D8;
+	private static final int DARK_GREY_COLOR = 0xFF4A4A4A;
 	@Inject(method = "getAverageGrassColor", at = @At("RETURN"), cancellable = true)
 	private static void madokuCraft$transitionGrassColor(BlockAndTintGetter level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
 		applyTemperatureColor(level, pos, cir);
@@ -40,16 +52,25 @@ public final class BiomeTemperatureColorMixin {
 
 		Block block = level.getBlockState(pos).getBlock();
 		Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
-		if (!isTransitionTarget(blockId) || !ClientSeasonalPrecipitationState.isSynchronized()) {
+		Boolean forcedLeaves = ClientColorContext.forcedLeaves();
+		boolean sampledTarget = isTransitionTarget(blockId);
+		if (!ClientSeasonalPrecipitationState.isSynchronized()
+			|| (forcedLeaves == null && !sampledTarget)) {
 			return;
 		}
-		boolean leaves = blockId.getPath().endsWith("_leaves");
+		boolean leaves = forcedLeaves != null ? forcedLeaves : blockId.getPath().endsWith("_leaves");
 		Minecraft client = Minecraft.getInstance();
 		Biome biome = client.level == null ? null : client.level.getBiome(pos).value();
 		int resolvedColor = temperatureColor(
 			cir.getReturnValue(),
 			ClientSeasonalPrecipitationState.resolveSeasonalTemperature(biome),
 			leaves);
+		if (forcedLeaves != null && !sampledTarget) {
+			resolvedColor = blendColors(
+				resolvedColor,
+				cir.getReturnValue(),
+				leaves ? SODIUM_LEAF_EDGE_ORIGINAL_COLOR_INFLUENCE : SODIUM_NON_LEAF_EDGE_ORIGINAL_COLOR_INFLUENCE);
+		}
 		cir.setReturnValue(resolvedColor);
 	}
 
@@ -74,73 +95,188 @@ public final class BiomeTemperatureColorMixin {
 
 	private static int temperatureColor(int biomeColor, double temperature, boolean leaves) {
 		double value = Math.max(0.0D, Math.min(100.0D, temperature));
-		int baseColor = baseTemperatureColor(biomeColor, value);
-		return seasonalTemperatureColor(
-			baseColor,
+		int vibrancyColor = baseTemperatureColor(biomeColor, value);
+		int seasonalColor = seasonalTemperatureColor(
 			ClientSeasonalPrecipitationState.getSeason(),
 			value,
 			ClientSeasonalPrecipitationState.getSeasonDayValue(),
 			ClientSeasonalPrecipitationState.getSeasonLengthDays(),
 			leaves);
+		return blendColorLayers(
+			biomeColor,
+			vibrancyColor,
+			seasonalColor,
+			seasonalColorInfluence(ClientSeasonalPrecipitationState.getSeason(), value, leaves),
+			leaves);
 	}
 
 	private static int baseTemperatureColor(int biomeColor, double temperature) {
-		int coldColor = blendColors(biomeColor, COLD_BASE_TINT, TEMPERATURE_BASE_INFLUENCE);
-		int vibrantColor = biomeColor;
-		int dryColor = blendColors(biomeColor, DRY_BASE_TINT, TEMPERATURE_BASE_INFLUENCE);
-		if (temperature <= 30.0D) {
-			return coldColor;
+		if (temperature <= LIGHT_GREY_MAX_TEMPERATURE) {
+			return LIGHT_GREY_COLOR;
 		}
-		if (temperature <= 69.0D) {
-			return interpolateColor(coldColor, vibrantColor, (temperature - 30.0D) / 39.0D);
+		if (temperature < PEAK_VIBRANCY_MIN_TEMPERATURE) {
+			double progress = smoothTemperatureProgress(
+				(temperature - LIGHT_GREY_MAX_TEMPERATURE)
+					/ (PEAK_VIBRANCY_MIN_TEMPERATURE - LIGHT_GREY_MAX_TEMPERATURE));
+			int desaturatedColor = adjustSaturation(biomeColor, progress);
+			return blendColors(
+				LIGHT_GREY_COLOR,
+				desaturatedColor,
+				progress);
 		}
-		return interpolateColor(vibrantColor, dryColor, (temperature - 69.0D) / 31.0D);
+		if (temperature <= PEAK_VIBRANCY_MAX_TEMPERATURE) {
+			return biomeColor;
+		}
+		if (temperature < DARK_GREY_MIN_TEMPERATURE) {
+			double progress = smoothTemperatureProgress(
+				(temperature - PEAK_VIBRANCY_MAX_TEMPERATURE)
+					/ (DARK_GREY_MIN_TEMPERATURE - PEAK_VIBRANCY_MAX_TEMPERATURE));
+			int desaturatedColor = adjustSaturation(biomeColor, 1.0D - progress);
+			return blendColors(
+				desaturatedColor,
+				DARK_GREY_COLOR,
+				progress);
+		}
+		return DARK_GREY_COLOR;
+	}
+
+	private static double smoothTemperatureProgress(double progress) {
+		double clamped = Math.max(0.0D, Math.min(1.0D, progress));
+		return clamped * clamped * (3.0D - (2.0D * clamped));
+	}
+
+	private static int adjustSaturation(int color, double saturationInfluence) {
+		double red = ((color >>> 16) & 0xFF) / 255.0D;
+		double green = ((color >>> 8) & 0xFF) / 255.0D;
+		double blue = (color & 0xFF) / 255.0D;
+		double maximum = Math.max(red, Math.max(green, blue));
+		double minimum = Math.min(red, Math.min(green, blue));
+		double delta = maximum - minimum;
+		double saturation = maximum <= 0.0D ? 0.0D : delta / maximum;
+		double hue = 0.0D;
+		if (delta > 0.0D) {
+			if (maximum == red) {
+				hue = ((green - blue) / delta) % 6.0D;
+			} else if (maximum == green) {
+				hue = ((blue - red) / delta) + 2.0D;
+			} else {
+				hue = ((red - green) / delta) + 4.0D;
+			}
+			hue /= 6.0D;
+			if (hue < 0.0D) hue += 1.0D;
+		}
+		double scaledSaturation = saturation * Math.max(0.0D, Math.min(1.0D, saturationInfluence));
+		double channel = maximum * (1.0D - scaledSaturation);
+		double chroma = maximum * scaledSaturation;
+		double hueChannel = chroma * (1.0D - Math.abs((hue * 6.0D % 2.0D) - 1.0D));
+		double outputRed;
+		double outputGreen;
+		double outputBlue;
+		switch ((int) Math.floor(hue * 6.0D) % 6) {
+			case 0 -> { outputRed = chroma; outputGreen = hueChannel; outputBlue = 0.0D; }
+			case 1 -> { outputRed = hueChannel; outputGreen = chroma; outputBlue = 0.0D; }
+			case 2 -> { outputRed = 0.0D; outputGreen = chroma; outputBlue = hueChannel; }
+			case 3 -> { outputRed = 0.0D; outputGreen = hueChannel; outputBlue = chroma; }
+			case 4 -> { outputRed = hueChannel; outputGreen = 0.0D; outputBlue = chroma; }
+			default -> { outputRed = chroma; outputGreen = 0.0D; outputBlue = hueChannel; }
+		}
+		int redChannel = interpolateChannel(0, 255, outputRed + channel);
+		int greenChannel = interpolateChannel(0, 255, outputGreen + channel);
+		int blueChannel = interpolateChannel(0, 255, outputBlue + channel);
+		return 0xFF000000 | (redChannel << 16) | (greenChannel << 8) | blueChannel;
 	}
 
 	private static int seasonalTemperatureColor(
-		int baseColor,
 		String season,
 		double temperature,
 		double seasonDay,
 		int seasonLengthDays,
 		boolean leaves
 	) {
-		int currentColor = seasonTemperatureTargetColor(baseColor, season, temperature, leaves);
+		int currentColor = seasonTemperatureTargetColor(season, temperature, leaves);
 		int safeLength = Math.max(1, seasonLengthDays);
 		double safeDay = Math.max(0.0D, Math.min(safeLength - 1, seasonDay));
 		int peakStartDay = Math.max(0, (safeLength / 2) - 1);
 		int peakEndDay = Math.min(safeLength - 1, safeLength / 2);
 		double peakSpan = Math.max(1.0D, safeLength - 1.0D);
 		if (safeDay < peakStartDay) {
-			int previousColor = seasonTemperatureTargetColor(baseColor, previousSeason(season), temperature, leaves);
+			int previousColor = seasonTemperatureTargetColor(previousSeason(season), temperature, leaves);
 			return interpolateColor(previousColor, currentColor, (safeDay + (safeLength - peakEndDay)) / peakSpan);
 		}
 		if (safeDay > peakEndDay) {
-			int nextColor = seasonTemperatureTargetColor(baseColor, nextSeason(season), temperature, leaves);
+			int nextColor = seasonTemperatureTargetColor(nextSeason(season), temperature, leaves);
 			return interpolateColor(currentColor, nextColor, (safeDay - peakEndDay) / peakSpan);
 		}
 		return currentColor;
 	}
 
-	private static int seasonTemperatureTargetColor(int baseColor, String season, double temperature, boolean leaves) {
+	private static int seasonTemperatureTargetColor(String season, double temperature, boolean leaves) {
 		double normalizedTemperature = temperature / 100.0D;
-		double tintInfluence = leaves ? LEAF_COLOR_INFLUENCE : SEASON_TINT_INFLUENCE;
+		double lowTemperatureTint = lowTemperatureTint(normalizedTemperature);
+		double highTemperatureTint = 1.0D - lowTemperatureTint;
 		return switch (season == null ? "" : season.toLowerCase(java.util.Locale.ROOT)) {
-			case "spring" -> blendColors(
-				baseColor,
-				leaves ? 0xFF0F6B35 : 0xFF168A3B,
-				(1.0D - normalizedTemperature) * tintInfluence);
-			case "summer" -> blendColors(
-				baseColor,
-				interpolateColor(0xFF55A64A, leaves ? 0xFF7D9E25 : 0xFFD0C63A, normalizedTemperature),
-				normalizedTemperature * tintInfluence);
-			case "fall" -> blendColors(
-				baseColor,
-				interpolateColor(leaves ? 0xFFB51C2C : 0xFFC42A2A, 0xFFE07A2F, normalizedTemperature),
-				tintInfluence);
-			case "winter" -> blendColors(baseColor, WHITE_COLOR, (1.0D - normalizedTemperature) * tintInfluence);
-			default -> baseColor;
+			case "spring" -> leaves ? 0xFF0F6B35 : 0xFF168A3B;
+			case "summer" -> interpolateColor(0xFF55A64A, leaves ? 0xFF7D9E25 : 0xFFD0C63A, highTemperatureTint);
+			case "fall" -> leaves
+				? interpolateColor(0xFFB51C2C, 0xFFE07A2F, highTemperatureTint)
+				: interpolateColor(0xFFE07A2F, 0xFFF2A23A, highTemperatureTint);
+			case "winter" -> WHITE_COLOR;
+			default -> 0xFF808080;
 		};
+	}
+
+	private static double seasonalColorInfluence(String season, double temperature, boolean leaves) {
+		double normalizedTemperature = temperature / 100.0D;
+		double lowTemperatureTint = lowTemperatureTint(normalizedTemperature);
+		double strength = switch (season == null ? "" : season.toLowerCase(java.util.Locale.ROOT)) {
+			case "spring", "summer" -> 1.0D - lowTemperatureTint;
+			case "fall", "winter" -> lowTemperatureTint;
+			default -> -1.0D;
+		};
+		if (strength < 0.0D) return 0.0D;
+		double minimum = leaves ? LEAF_SEASON_COLOR_MIN_INFLUENCE : SEASON_COLOR_MIN_INFLUENCE;
+		double maximum = leaves ? LEAF_SEASON_COLOR_MAX_INFLUENCE : SEASON_COLOR_MAX_INFLUENCE;
+		return minimum + ((maximum - minimum) * strength);
+	}
+
+	private static int blendColorLayers(
+		int biomeColor,
+		int vibrancyColor,
+		int seasonalColor,
+		double seasonalInfluence,
+		boolean leaves
+	) {
+		double biomeInfluence = leaves ? LEAF_BIOME_COLOR_INFLUENCE : BIOME_COLOR_INFLUENCE;
+		double vibrancyInfluence = leaves ? LEAF_VIBRANCY_COLOR_INFLUENCE : VIBRANCY_COLOR_INFLUENCE;
+		double totalInfluence = biomeInfluence + vibrancyInfluence + seasonalInfluence;
+		int red = weightedChannel(biomeColor, vibrancyColor, seasonalColor, biomeInfluence, vibrancyInfluence, seasonalInfluence, totalInfluence, 16);
+		int green = weightedChannel(biomeColor, vibrancyColor, seasonalColor, biomeInfluence, vibrancyInfluence, seasonalInfluence, totalInfluence, 8);
+		int blue = weightedChannel(biomeColor, vibrancyColor, seasonalColor, biomeInfluence, vibrancyInfluence, seasonalInfluence, totalInfluence, 0);
+		return 0xFF000000 | (red << 16) | (green << 8) | blue;
+	}
+
+	private static int weightedChannel(
+		int first,
+		int second,
+		int third,
+		double firstInfluence,
+		double secondInfluence,
+		double thirdInfluence,
+		double totalInfluence,
+		int shift
+	) {
+		double value = (((first >>> shift) & 0xFF) * firstInfluence)
+			+ (((second >>> shift) & 0xFF) * secondInfluence)
+			+ (((third >>> shift) & 0xFF) * thirdInfluence);
+		return (int) Math.round(value / totalInfluence);
+	}
+
+	private static double lowTemperatureTint(double normalizedTemperature) {
+		if (normalizedTemperature <= 0.10D) return 1.0D;
+		if (normalizedTemperature >= 0.90D) return 0.0D;
+		double progress = (normalizedTemperature - 0.10D) / 0.80D;
+		double smooth = progress * progress * (3.0D - (2.0D * progress));
+		return 1.0D - smooth;
 	}
 
 	private static String nextSeason(String season) {

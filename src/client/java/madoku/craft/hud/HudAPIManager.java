@@ -3,6 +3,7 @@ package madoku.craft.hud;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
+import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.pet.PlayerEntitiesHolder;
 import madoku.craft.pet.PlayerEntitiesInventory;
@@ -108,16 +109,15 @@ public final class HudAPIManager {
 
 	private static int timeColor(int totalMinutes) {
 		int minutes = Math.floorMod(totalMinutes, 24 * 60);
-		if (minutes < 6 * 60) {
-			return interpolateColor(0xFF243B80, 0xFFFFF2A6, minutes / (6.0D * 60.0D));
-		}
-		if (minutes < 12 * 60) {
-			return interpolateColor(0xFFFFF2A6, 0xFFFFB347, (minutes - 6 * 60) / (6.0D * 60.0D));
-		}
-		if (minutes < 18 * 60) {
-			return interpolateColor(0xFFFFB347, 0xFF8EC8FF, (minutes - 12 * 60) / (6.0D * 60.0D));
-		}
-		return interpolateColor(0xFF8EC8FF, 0xFF243B80, (minutes - 18 * 60) / (6.0D * 60.0D));
+		if (minutes < 1 * 60) return 0xFF243B80;
+		if (minutes < 5 * 60) return interpolateColor(0xFF243B80, 0xFFFFF2A6, (minutes - 1 * 60) / (4.0D * 60.0D));
+		if (minutes < 7 * 60) return 0xFFFFF2A6;
+		if (minutes < 11 * 60) return interpolateColor(0xFFFFF2A6, 0xFFFFB347, (minutes - 7 * 60) / (4.0D * 60.0D));
+		if (minutes < 13 * 60) return 0xFFFFB347;
+		if (minutes < 17 * 60) return interpolateColor(0xFFFFB347, 0xFF8EC8FF, (minutes - 13 * 60) / (4.0D * 60.0D));
+		if (minutes < 19 * 60) return 0xFF8EC8FF;
+	if (minutes < 23 * 60) return interpolateColor(0xFF8EC8FF, 0xFF243B80, (minutes - 19 * 60) / (4.0D * 60.0D));
+		return 0xFF243B80;
 	}
 
 	private static int seasonColor(String season, int seasonDay, int seasonLengthDays) {
@@ -127,7 +127,10 @@ public final class HudAPIManager {
 		if (currentColor == COLOR || nextColor == COLOR) {
 			return currentColor;
 		}
-		return interpolateColor(currentColor, nextColor, seasonDay / (double) Math.max(1, seasonLengthDays - 1));
+		return interpolateColor(
+			currentColor,
+			nextColor,
+			SeasonEnvironmentTransitionManager.resolveSeasonalTransitionProgress(seasonDay, seasonLengthDays));
 	}
 
 	private static int seasonPaletteColor(String season) {
@@ -151,13 +154,20 @@ public final class HudAPIManager {
 	}
 
 	private static int temperatureColor(double value) {
-		if (value <= 50.0D) return interpolateColor(0xFF5AA9FF, 0xFF55C878, (value - 30.0D) / 20.0D);
-		return interpolateColor(0xFF55C878, 0xFFFF5A5A, (value - 50.0D) / 20.0D);
+		return climateColor(value, 0xFF5AA9FF, 0xFF55C878, 0xFFFF5A5A);
 	}
 
 	private static int humidityColor(double value) {
-		if (value <= 50.0D) return interpolateColor(0xFFFF5A5A, 0xFF55C878, (value - 30.0D) / 20.0D);
-		return interpolateColor(0xFF55C878, 0xFF5AA9FF, (value - 50.0D) / 20.0D);
+		return climateColor(value, 0xFFFF5A5A, 0xFF55C878, 0xFF5AA9FF);
+	}
+
+	private static int climateColor(double value, int lowColor, int peakColor, int highColor) {
+		double clamped = Math.max(0.0D, Math.min(100.0D, value));
+		if (clamped <= 5.0D) return lowColor;
+		if (clamped < 45.0D) return interpolateColor(lowColor, peakColor, (clamped - 5.0D) / 40.0D);
+		if (clamped <= 55.0D) return peakColor;
+		if (clamped < 95.0D) return interpolateColor(peakColor, highColor, (clamped - 55.0D) / 40.0D);
+		return highColor;
 	}
 
 	private static int difficultyColor(int value) {
