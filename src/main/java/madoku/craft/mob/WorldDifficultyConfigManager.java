@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,7 +22,7 @@ public final class WorldDifficultyConfigManager {
 		RULES.clear();
 		enabled = false;
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MobConfigManager.WORLD_DIFFICULTY_SYSTEM_FOLDER);
+			Path directory = MobConfigManager.getOrCreateMobRootDirectory();
 			JsonObject root = JSONFormatManager.ensureManagedFile(
 				directory.resolve(MobConfigManager.WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
 				MobConfigManager.buildWorldDifficultyDefaults(),

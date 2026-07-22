@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.sync.SyncWorldManager;
@@ -385,9 +384,10 @@ public final class MobRegionalDifficultyManager {
 
 	private static void loadConfig() {
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MobConfigManager.REGIONAL_DIFFICULTY_SYSTEM_FOLDER);
+			Path rootDirectory = MobConfigManager.getOrCreateMobSystemDirectory(MobConfigManager.REGIONAL_DIFFICULTY_SYSTEM_FOLDER);
+			Path mobsRootDirectory = MobConfigManager.getOrCreateMobRootDirectory();
 			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
-				rootDirectory.resolve(MobConfigManager.REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
+				mobsRootDirectory.resolve(MobConfigManager.REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
 				RegionalDifficultyConfigManager.buildSettingsDefaults()
 			);
 			JsonObject biomes = JSONFormatManager.ensureManagedFile(

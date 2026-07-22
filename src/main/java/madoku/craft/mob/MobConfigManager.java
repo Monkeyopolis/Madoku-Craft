@@ -19,7 +19,6 @@ public final class MobConfigManager {
 	public static final String CONFIG_ROOT = "madoku-craft";
 	public static final String MOBS_SYSTEM_FOLDER = "madoku-craft-mobs";
 	public static final String ENTITIES_SYSTEM_FOLDER = "madoku-entities";
-	public static final String WORLD_DIFFICULTY_SYSTEM_FOLDER = "madoku-world-difficulty";
 	public static final String REGIONAL_DIFFICULTY_SYSTEM_FOLDER = "madoku-regional-difficulty";
 	public static final String MOBS_SETTINGS_FILE = "madoku-mobs";
 	public static final String ENTITIES_SETTINGS_FILE = "madoku-entities";
@@ -88,6 +87,8 @@ public final class MobConfigManager {
 	public static final String FIELD_CHARGE_INTERVAL = "charge-interval";
 	public static final String FIELD_SPAWN_RULES = "mob-spawn-rules";
 	public static final String FIELD_MOB_COMPONENTS = "mob-components";
+	public static final String FIELD_MOB_BABY = "mob-baby";
+	public static final String FIELD_AGEABLE = "ageable";
 	public static final String FIELD_MOB_WEAPON = "mob-weapon";
 	public static final String FIELD_MOB_EFFECT = "mob-effect";
 	public static final String FIELD_MOB_DROPS = "mob-drops";
@@ -112,8 +113,6 @@ public final class MobConfigManager {
 	public static final String FIELD_MOB = "mob";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
 	public static final String FIELD_OVERRIDE_GOALS = "override-goals";
-	public static final String FIELD_MOB_VARIANT = "mob-variant";
-	public static final String FIELD_MOB_BABY = "mob-baby";
 	public static final String FIELD_DEFAULT_GROUP = "default";
 	public static final String FIELD_BABY_GROUP = "baby";
 	public static final String FIELD_ADULT_GROUP = "adult";
@@ -124,6 +123,7 @@ public final class MobConfigManager {
 	public static final String FIELD_CHESTPLATE = "chestplate";
 	public static final String FIELD_LEGGINGS = "leggings";
 	public static final String FIELD_BOOTS = "boots";
+	public static final double DEFAULT_MOB_BABY_DURATION_SECONDS = 1200.0D;
 
 	public static final String FIELD_CREEPER = "creeper";
 	public static final String FIELD_CHARGED_CREEPER = "charged-creeper";
@@ -132,7 +132,7 @@ public final class MobConfigManager {
 	public static final String FIELD_GREIF_POWER = "greif-power";
 	public static final String FIELD_FUSE_LENGTH = "fuse-length";
 
-	public static final List<String> MOB_STATS_OPTIONAL_ENTRIES = List.of(
+	public static final List<String> MOB_COMPONENTS_OPTIONAL_ENTRIES = List.of(
 		FIELD_HEALTH,
 		FIELD_ARMOR,
 		FIELD_DAMAGE,
@@ -149,9 +149,11 @@ public final class MobConfigManager {
 		FIELD_CHARGE_INTERVAL,
 		FIELD_MOB_DROPS,
 		FIELD_MOB_WEAPON,
+		FIELD_WEAPON_DAMAGE,
 		FIELD_MOB_EFFECT,
 		FIELD_EXPLOSION_POWER,
-		FIELD_FUSE_LENGTH
+		FIELD_FUSE_LENGTH,
+		FIELD_MOB_BABY
 	);
 
 	public static final List<String> MOB_SPAWN_RULES_OPTIONAL_ENTRIES = List.of(
@@ -201,20 +203,20 @@ public final class MobConfigManager {
 				null
 			);
 			JSONFormatManager.ensureManagedFile(
-				ensureDirectory(root.resolve(ENTITIES_SYSTEM_FOLDER)).resolve(ENTITIES_SETTINGS_FILE + ".json"),
+				mobsDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json"),
 				buildEntitySystemDefaults(),
 				JSONTypeManager.STATIC_CONFIG,
 				null
 			);
 			JSONFormatManager.ensureManagedFile(
-				ensureDirectory(root.resolve(WORLD_DIFFICULTY_SYSTEM_FOLDER)).resolve(WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
+				mobsDirectory.resolve(WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
 				buildWorldDifficultyDefaults(),
 				JSONTypeManager.STATIC_CONFIG,
 				null
 			);
-			Path regionalDirectory = ensureDirectory(root.resolve(REGIONAL_DIFFICULTY_SYSTEM_FOLDER));
+			Path regionalDirectory = ensureDirectory(mobsDirectory.resolve(REGIONAL_DIFFICULTY_SYSTEM_FOLDER));
 			JSONFormatManager.ensureManagedFile(
-				regionalDirectory.resolve(REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
+				mobsDirectory.resolve(REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
 				buildRegionalDifficultyDefaults(),
 				JSONTypeManager.STATIC_CONFIG,
 				null
@@ -238,7 +240,7 @@ public final class MobConfigManager {
 				null
 			);
 			JSONFormatManager.ensureManagedFolder(
-				ensureDirectory(mobsDirectory.resolve(ENTITY_FILES_FOLDER)),
+				ensureDirectory(mobsDirectory.resolve(ENTITIES_SYSTEM_FOLDER).resolve(ENTITY_FILES_FOLDER)),
 				buildNewEntityDefaults(),
 				MobConfigManager::buildNewDynamicEntityDefaults,
 				(fileKey, ignored) -> true,
@@ -259,6 +261,23 @@ public final class MobConfigManager {
 		}
 	}
 
+	static Path getOrCreateMobSystemDirectory(String systemFolder) throws IOException {
+		Path mobsDirectory = ensureDirectory(
+			MadokuJSONManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
+		);
+		return ensureDirectory(mobsDirectory.resolve(systemFolder));
+	}
+
+	static Path getOrCreateMobRootDirectory() throws IOException {
+		return ensureDirectory(
+			MadokuJSONManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
+		);
+	}
+
+	private static Path getOrCreateEntityDirectory() throws IOException {
+		return ensureDirectory(getOrCreateMobRootDirectory().resolve(ENTITIES_SYSTEM_FOLDER));
+	}
+
 	public static synchronized void reset() {
 		initialized = false;
 		runtimeConfig = RuntimeConfig.disabled();
@@ -273,11 +292,11 @@ public final class MobConfigManager {
 	}
 
 	private static void loadRuntimeConfig() throws IOException {
-		Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MOBS_SYSTEM_FOLDER);
-		Path settingsFile = rootDirectory.resolve(MOBS_SETTINGS_FILE + ".json");
-		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildMobSystemDefaults());
+		Path mobsRootDirectory = getOrCreateMobRootDirectory();
+		Path settingsFile = mobsRootDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json");
+		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildEntitySystemDefaults());
 		boolean enabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
-		Path mobsDirectory = rootDirectory.resolve(ENTITY_FILES_FOLDER);
+		Path mobsDirectory = getOrCreateEntityDirectory().resolve(ENTITY_FILES_FOLDER);
 		Map<String, JsonObject> files = new LinkedHashMap<>();
 		if (Files.isDirectory(mobsDirectory)) {
 			try (var stream = Files.list(mobsDirectory)) {
@@ -346,6 +365,12 @@ public final class MobConfigManager {
 		String mobId = key.contains(":")
 			? key
 			: "hag".equals(key) ? "madoku-craft:hag" : "minecraft:" + key.replace('-', '_');
+		JsonObject entityVariant = buildEntityVariantDefaults(key);
+		if (List.of(FILE_BOGGED, FILE_DROWNED, FILE_HUSK, FILE_PARCHED, FILE_SKELETON, FILE_STRAY,
+			FILE_WITHER_SKELETON, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key)) {
+			entityVariant.getAsJsonObject(FIELD_MOB_COMPONENTS).addProperty(FIELD_WEAPON_DAMAGE, false);
+		}
+		addMobBabyComponent(entityVariant, List.of(FILE_BEE, FILE_DROWNED, FILE_HUSK, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key));
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -357,12 +382,352 @@ public final class MobConfigManager {
 				.put(FIELD_CUSTOM_MOB_DROPS, true)
 				.put(FIELD_WORLD_DIFFICULTY_SCALING, true)
 				.put(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, true)
-				.object(key, variant -> variant
-					.object(FIELD_SPAWN_RULES, ignored -> { })
-					.object(FIELD_MOB_COMPONENTS, ignored -> { })
-					.object(FIELD_MOB_BEHAVIORS, ignored -> { })
-					.object(FIELD_MOB_GOALS, ignored -> { })))
+				.put(key, entityVariant))
 			.build();
+	}
+
+	private static void addMobBabyComponent(JsonObject variant, boolean ageable) {
+		if (variant == null) {
+			return;
+		}
+		JsonObject components = variant.getAsJsonObject(FIELD_MOB_COMPONENTS);
+		if (components == null) {
+			return;
+		}
+		JsonObject mobBaby = new JsonObject();
+		JsonObject ageableGroup = new JsonObject();
+		ageableGroup.addProperty(FIELD_ENABLED, ageable);
+		ageableGroup.addProperty(FIELD_DURATION, ageable ? DEFAULT_MOB_BABY_DURATION_SECONDS : 0.0D);
+		mobBaby.add(FIELD_AGEABLE, ageableGroup);
+		components.add(FIELD_MOB_BABY, mobBaby);
+	}
+
+	private static JsonObject buildEntityVariantDefaults(String key) {
+		return switch (key) {
+			case FILE_BEE -> buildBeeDefaults();
+			case FILE_BOGGED -> buildBowSkeletonVariantDefaults(12.0D, 2.0D, 0.27D, 1.0D, 7, 4.0D, "minecraft:poison", "minecraft-equipment-bogged.json", "minecraft-entities-bogged.json", "bogged-jockey");
+			case FILE_CAVE_SPIDER -> buildCaveSpiderVariantDefaults();
+			case FILE_CREEPER -> buildCreeperVariantDefaults();
+			case FILE_DROWNED -> buildDrownedVariantDefaults();
+			case FILE_HAG -> buildVariant(
+				buildComponents(40.0D, 1.0D, null, 0.25D, null, null, 0.2D, null, 11, null, null, null, null, null, null, null, 0, null, null, null),
+				new JsonObject(), new JsonObject(), new JsonObject());
+			case FILE_HUSK -> buildHuskVariantDefaults();
+			case FILE_PARCHED -> buildBowSkeletonVariantDefaults(12.0D, 2.0D, 0.27D, 1.0D, 7, 4.0D, "minecraft:slowness", "minecraft-equipment-parched.json", "minecraft-entities-parched.json", "parched-jockey");
+			case FILE_SKELETON -> buildSkeletonVariantDefaults();
+			case FILE_SPIDER -> buildSpiderVariantDefaults();
+			case FILE_STRAY -> buildBowSkeletonVariantDefaults(12.0D, 2.0D, 0.27D, 1.0D, 7, 4.0D, "minecraft:weakness", "minecraft-equipment-stray.json", "minecraft-entities-stray.json", "stray-jockey");
+			case FILE_WITHER_SKELETON -> buildWitherSkeletonVariantDefaults();
+			case FILE_ZOMBIE -> buildZombieVariantDefaults();
+			case FILE_ZOMBIE_VILLAGER -> buildZombieVillagerVariantDefaults();
+			default -> buildVariant(new JsonObject(), new JsonObject(), new JsonObject(), new JsonObject());
+		};
+	}
+
+	private static JsonObject buildVariant(JsonObject components, JsonObject spawnRules, JsonObject behaviors, JsonObject goals) {
+		JsonObject variant = new JsonObject();
+		variant.add(FIELD_SPAWN_RULES, spawnRules == null ? new JsonObject() : spawnRules);
+		variant.add(FIELD_MOB_COMPONENTS, components == null ? new JsonObject() : components);
+		variant.add(FIELD_MOB_BEHAVIORS, behaviors == null ? new JsonObject() : behaviors);
+		variant.add(FIELD_MOB_GOALS, goals == null ? new JsonObject() : goals);
+		return variant;
+	}
+
+	private static JsonObject buildComponents(
+		Double health, Double armor, Double damage, Double movementSpeed, Double swimmingSpeed,
+		Double flyingSpeed, Double knockbackResistance, Double scale, Integer experienceDrop,
+		Double rangedDamage, Double attackAccuracy, Double attackInterval, Double chargeInterval,
+		String mobDrops, String weapon, String effect, int effectDuration, Double trueDamage,
+		Double explosionPower, Double fuseLength
+	) {
+		JsonObject components = buildMobComponentsDefaults(
+			health, armor, damage, movementSpeed, swimmingSpeed, flyingSpeed, knockbackResistance,
+			scale, experienceDrop, rangedDamage, attackAccuracy, attackInterval, chargeInterval, mobDrops
+		);
+		if (weapon != null) components.add(FIELD_MOB_WEAPON, buildMobWeaponDefaults(weapon));
+		if (effect != null) components.add(FIELD_MOB_EFFECT, buildMobEffectDefaults(effect, effectDuration));
+		if (trueDamage != null) components.addProperty(FIELD_TRUE_DAMAGE, trueDamage);
+		if (explosionPower != null) components.addProperty(FIELD_EXPLOSION_POWER, explosionPower);
+		if (fuseLength != null) components.addProperty(FIELD_FUSE_LENGTH, fuseLength);
+		return components;
+	}
+
+	private static JsonObject buildSpawnRules(double weight) {
+		JsonObject rules = new JsonObject();
+		rules.addProperty(FIELD_SPAWN_WEIGHT, weight);
+		return rules;
+	}
+
+	private static JsonObject buildSpawnRules(double weight, String equipmentReference) {
+		JsonObject rules = buildSpawnRules(weight);
+		if (equipmentReference != null) {
+			JsonObject equipment = new JsonObject();
+			equipment.addProperty(FIELD_ENABLED, true);
+			equipment.addProperty(FIELD_MOB_EQUIPMENT, equipmentReference);
+			equipment.addProperty(FIELD_EQUIPMENT_CHANCE, 10.0D);
+			rules.add(FIELD_EQUIPMENT_SET, equipment);
+		}
+		return rules;
+	}
+
+	private static JsonObject buildGoals(String... keys) {
+		JsonObject goals = new JsonObject();
+		if (keys == null) return goals;
+		for (String key : keys) {
+			int priority = "hurt-by-target".equals(key) ? 1 : "target-player".equals(key) ? 2 : "trident-attack".equals(key) ? 3 : 4;
+			int cooldown = "melee-attack".equals(key) || "ranged-attack".equals(key) || "trident-attack".equals(key) ? 20 : 0;
+			addMobGoal(goals, key, true, priority, 100.0D, cooldown);
+		}
+		return goals;
+	}
+
+	private static JsonObject buildBehavior(boolean canPickUpLoot, boolean bowAttack, boolean tridentAttack, boolean retaliate) {
+		JsonObject behavior = new JsonObject();
+		if (canPickUpLoot) behavior.addProperty(FIELD_CAN_PICK_UP_LOOT, true);
+		if (bowAttack) behavior.addProperty(FIELD_BOW_ATTACK, true);
+		if (tridentAttack) behavior.addProperty(FIELD_TRIDENT_ATTACK, true);
+		if (retaliate) behavior.addProperty(FIELD_RETALIATE_WHEN_HURT, true);
+		behavior.addProperty(FIELD_CALLS_REINFORCEMENTS_WHEN_HURT, false);
+		return behavior;
+	}
+
+	private static JsonObject buildBeeDefaults() {
+		JsonObject pollination = new JsonObject();
+		pollination.addProperty(FIELD_ENABLED, true);
+		pollination.addProperty("nectar-total-charges", 10);
+		pollination.addProperty("search-duration-ticks", 1200);
+		pollination.addProperty("search-radius-horizontal", 12);
+		pollination.addProperty("search-radius-vertical", 4);
+		pollination.addProperty("crop-reach-distance-sqr", 0.5D);
+		pollination.addProperty("crop-reservation-ttl-ticks", 50);
+		pollination.addProperty("move-speed-modifier", 1.0D);
+		pollination.addProperty("arrival-threshold", 0.1D);
+		pollination.addProperty("position-change-chance", 10);
+		pollination.addProperty("hover-height-within-crop", 0.5D);
+		pollination.addProperty("hover-pos-offset", 0.33333334D);
+		pollination.addProperty("charge-interval-ticks", 20);
+		pollination.addProperty("charges-spend-divisor", 2);
+		pollination.addProperty("growth-percent-per-charge", 2.0D);
+		JsonObject behavior = new JsonObject();
+		behavior.add(FIELD_POLLINATE_CROPS, pollination);
+		JsonObject variant = buildVariant(
+			buildComponents(10.0D, null, 2.0D, 0.30D, null, 0.60D, null, 0.5D, null, null, null, null, null, "minecraft-entities-bee.json", null, "minecraft:poison", 60, null, null, null),
+			buildSpawnRules(100.0D), behavior, buildGoals("breed", "hurt-by-target", "become-angry-target")
+		);
+		variant.add("adult", buildVariant(buildComponents(null, null, null, null, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null), buildSpawnRules(80.0D), new JsonObject(), new JsonObject()));
+		variant.add("baby", buildVariant(
+			buildComponents(5.0D, null, null, 0.25D, null, 0.0D, null, 0.45D, 1, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(20.0D), new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildBowSkeletonVariantDefaults(
+		double health, double damage, double movementSpeed, double scale, int experienceDrop,
+		double rangedDamage, String effect, String equipmentReference, String mobDrops, String jockeyKey
+	) {
+		JsonObject variant = buildVariant(
+			buildComponents(health, null, damage, movementSpeed, null, null, null, scale, experienceDrop,
+				rangedDamage, 0.7D, 20.0D, 10.0D, mobDrops, "minecraft:bow", effect, 15, null, null, null),
+			buildSpawnRules(90.0D, equipmentReference), buildBehavior(false, true, false, false),
+			buildGoals("hurt-by-target", "target-player", "ranged-attack")
+		);
+		variant.add(jockeyKey, buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", jockeyKey), new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildJockeySpawnRules(double weight, String mountType, String jockeyKey) {
+		JsonObject jockey = new JsonObject();
+		jockey.addProperty(FIELD_ENABLED, true);
+		JsonObject passenger = new JsonObject();
+		JsonObject passengerMob = new JsonObject();
+		String passengerType = jockeyKey.replace("-jockey", "");
+		passengerMob.addProperty(FIELD_ADULT_GROUP, "minecraft:" + passengerType.replace('-', '_'));
+		passenger.add(FIELD_MOB, passengerMob);
+		passenger.addProperty(FIELD_MAIN_HAND, "minecraft:bow");
+		jockey.add(FIELD_JOCKEY_PASSENGER, passenger);
+		JsonObject mount = new JsonObject();
+		JsonObject mountMob = new JsonObject();
+		mountMob.addProperty(FIELD_ADULT_GROUP, mountType);
+		mount.add(FIELD_MOB, mountMob);
+		jockey.add(FIELD_JOCKEY_MOUNT, mount);
+		JsonObject rules = buildSpawnRules(weight);
+		rules.add(FIELD_MOB_JOCKEY, jockey);
+		return rules;
+	}
+
+	private static JsonObject buildCaveSpiderVariantDefaults() {
+		return buildVariant(
+			buildComponents(12.0D, null, 5.0D, 0.27D, null, null, null, 0.5D, 7, null, null, null, null,
+				"minecraft-entities-cave-spider.json", null, "minecraft:poison", 15, null, null, null),
+			buildSpawnRules(100.0D), buildBehavior(false, false, false, true),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+	}
+
+	private static JsonObject buildCreeperVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(12.0D, 1.0D, null, 0.27D, null, null, 0.10D, 1.0D, 7, null, null, null, null, null, null, null, 0, null, 3.0D, 30.0D),
+			buildSpawnRules(90.0D), buildCreeperBehavior(0.4D, 0.4D),
+			buildGoals("ranged-attack", "target-player", "hurt-by-target")
+		);
+		variant.add("charged-creeper", buildVariant(
+			buildComponents(12.0D, 1.0D, null, 0.30D, null, null, 0.20D, 1.0D, 11, null, null, null, null, null, null, null, 0, null, 5.0D, 25.0D),
+			buildSpawnRules(10.0D), buildCreeperBehavior(0.6D, 0.6D),
+			buildGoals("ranged-attack", "target-player", "hurt-by-target")
+		));
+		return variant;
+	}
+
+	private static JsonObject buildCreeperBehavior(double destructionChance, double griefPower) {
+		JsonObject behavior = new JsonObject();
+		JsonObject explode = new JsonObject();
+		explode.addProperty(FIELD_ENABLED, true);
+		explode.addProperty(FIELD_DESTRUCTION_CHANCE, destructionChance);
+		explode.addProperty(FIELD_GREIF_POWER, griefPower);
+		behavior.add(FIELD_MOB_EXPLODE, explode);
+		return behavior;
+	}
+
+	private static JsonObject buildDrownedVariantDefaults() {
+		JsonObject melee = buildVariant(
+			buildComponents(20.0D, null, 5.0D, 0.24D, 0.012D, null, null, 1.0D, 7, null, null, null, null,
+				"minecraft-entities-drowned.json", null, null, 0, null, null, null),
+			buildSpawnRules(90.0D, "minecraft-equipment-drowned.json"), buildBehavior(true, false, false, false),
+			buildGoals("hurt-by-target", "target-player")
+		);
+		melee.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		melee.add("baby", buildVariant(
+			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, null, null, null, null, "minecraft-entities-drowned.json", null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+		JsonObject ranged = buildVariant(
+			buildComponents(null, null, null, 0.24D, 0.012D, null, null, null, null, 9.0D, 0.8D, 30.0D, 15.0D,
+				"minecraft-entities-drowned.json", "minecraft:trident", null, 0, null, null, null),
+			buildSpawnRules(10.0D, "minecraft-equipment-drowned.json"), buildBehavior(true, false, true, false),
+			buildGoals("trident-attack", "hurt-by-target", "target-player")
+		);
+		ranged.add("adult", buildVariant(
+			buildComponents(20.0D, null, 5.0D, null, null, null, null, 1.0D, 7, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		ranged.add("baby", buildVariant(
+			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, 4.5D, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+		melee.add("ranged-drowned", ranged);
+		return melee;
+	}
+
+	private static JsonObject buildHuskVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(28.0D, 2.0D, 7.0D, 0.18D, null, null, 0.4D, 1.0D, 7, null, null, null, null,
+				"minecraft-entities-husk.json", null, "minecraft:slowness", 15, null, null, null),
+			buildSpawnRules(90.0D, "minecraft-equipment-husk.json"), buildBehavior(true, false, false, false),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		variant.add("baby", buildVariant(
+			buildComponents(14.0D, 1.0D, 3.5D, null, null, null, 0.2D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildSkeletonVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(16.0D, null, null, 0.24D, null, null, null, 1.0D, 7, 5.0D, 0.7D, 20.0D, 10.0D,
+				"minecraft-entities-skeleton.json", "minecraft:bow", null, 0, null, null, null),
+			buildSpawnRules(80.0D, "minecraft-equipment-skeleton.json"), buildBehavior(false, true, false, false),
+			buildGoals("hurt-by-target", "target-player", "ranged-attack")
+		);
+		JsonObject meleeComponents = buildComponents(20.0D, null, 5.0D, 0.24D, null, null, null, 1.0D, 7, null, null, null, null,
+			"minecraft-entities-skeleton.json", "empty", null, 0, 1.0D, null, null);
+		variant.add("melee-skeleton", buildVariant(meleeComponents, buildSpawnRules(10.0D, "minecraft-equipment-skeleton.json"), new JsonObject(), buildGoals("hurt-by-target", "target-player", "melee-attack")));
+		variant.add("skeleton-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", "skeleton"), new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildSpiderVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(16.0D, null, 4.0D, 0.30D, null, null, null, 0.5D, 7, null, null, null, null,
+				"minecraft-entities-spider.json", null, null, 0, null, null, null),
+			buildSpawnRules(80.0D), buildBehavior(false, false, false, true),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+		JsonObject alternative = new JsonObject();
+		alternative.addProperty(FIELD_ENABLED, true);
+		alternative.addProperty(FIELD_MOB, "minecraft:cave_spider");
+		JsonObject caveSpiderRules = buildSpawnRules(10.0D);
+		caveSpiderRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
+		variant.add("cave-spider", buildVariant(new JsonObject(), caveSpiderRules, new JsonObject(), new JsonObject()));
+		variant.add("spider-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", "spider"), new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildWitherSkeletonVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(20.0D, null, 7.0D, 0.25D, null, null, null, 1.0D, 11, 6.0D, 0.7D, 20.0D, 10.0D,
+				"minecraft-entities-wither-skeleton.json", "minecraft:bow", "minecraft:wither", 15, null, null, null),
+			buildSpawnRules(90.0D, "minecraft-equipment-wither-skeleton.json"), buildBehavior(false, true, false, false),
+			buildGoals("hurt-by-target", "target-player", "ranged-attack")
+		);
+		variant.add("melee-wither-skeleton", buildVariant(
+			buildComponents(20.0D, null, 7.0D, 0.25D, null, null, null, 1.0D, 11, null, null, null, null,
+				"minecraft-entities-wither-skeleton.json", "minecraft:netherite_sword", "minecraft:wither", 15, null, null, null),
+			buildSpawnRules(10.0D, "minecraft-equipment-wither-skeleton.json"), new JsonObject(), buildGoals("hurt-by-target", "target-player", "melee-attack")));
+		return variant;
+	}
+
+	private static JsonObject buildZombieVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(24.0D, 1.0D, 6.0D, 0.21D, null, null, 0.2D, 1.0D, 7, null, null, null, null,
+				"minecraft-entities-zombie.json", null, null, 0, null, null, null),
+			buildSpawnRules(80.0D, "minecraft-equipment-zombie.json"), buildBehavior(false, false, false, false),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		variant.add("baby", buildVariant(
+			buildComponents(12.0D, 0.0D, 3.0D, 0.21D, null, null, 0.0D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject()));
+		variant.add("zombie-jockey", buildVariant(new JsonObject(), buildZombieJockeySpawnRules(), new JsonObject(), new JsonObject()));
+		JsonObject alternative = new JsonObject();
+		alternative.addProperty(FIELD_ENABLED, true);
+		alternative.addProperty(FIELD_MOB, "minecraft:zombie_villager");
+		JsonObject villagerRules = buildSpawnRules(10.0D);
+		villagerRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
+		variant.add("zombie-villager", buildVariant(new JsonObject(), villagerRules, new JsonObject(), new JsonObject()));
+		return variant;
+	}
+
+	private static JsonObject buildZombieJockeySpawnRules() {
+		JsonObject rules = buildSpawnRules(10.0D);
+		JsonObject jockey = new JsonObject();
+		jockey.addProperty(FIELD_ENABLED, true);
+		JsonObject passenger = new JsonObject();
+		JsonObject passengerMob = new JsonObject();
+		passengerMob.addProperty(FIELD_ADULT_GROUP, "minecraft:zombie");
+		passengerMob.addProperty(FIELD_BABY_GROUP, "minecraft:zombie");
+		passenger.add(FIELD_MOB, passengerMob);
+		passenger.addProperty(FIELD_MAIN_HAND, "minecraft:stone_spear");
+		jockey.add(FIELD_JOCKEY_PASSENGER, passenger);
+		JsonObject mount = new JsonObject();
+		JsonObject mountMob = new JsonObject();
+		mountMob.addProperty(FIELD_ADULT_GROUP, "minecraft:zombie_horse");
+		mountMob.addProperty(FIELD_BABY_GROUP, "minecraft:chicken");
+		mount.add(FIELD_MOB, mountMob);
+		jockey.add(FIELD_JOCKEY_MOUNT, mount);
+		rules.add(FIELD_MOB_JOCKEY, jockey);
+		return rules;
+	}
+
+	private static JsonObject buildZombieVillagerVariantDefaults() {
+		JsonObject variant = buildVariant(
+			buildComponents(20.0D, null, 5.0D, 0.24D, null, null, null, 1.0D, 7, null, null, null, null,
+				"minecraft-entities-zombie-villager.json", null, null, 0, null, null, null),
+			buildSpawnRules(100.0D, "minecraft-equipment-zombie-villager.json"), buildBehavior(false, false, false, false),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		variant.add("baby", buildVariant(
+			buildComponents(10.0D, null, 2.5D, 0.24D, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+		return variant;
 	}
 
 	private static JsonObject buildNewDynamicScalingDefaults(String fileKey) {
@@ -430,7 +795,7 @@ public final class MobConfigManager {
 		return buildNewDynamicEntityDefaults(fileKey);
 	}
 
-	static JsonObject buildMobStatsDefaults(
+	static JsonObject buildMobComponentsDefaults(
 		Double health,
 		Double armor,
 		Double damage,
@@ -439,7 +804,7 @@ public final class MobConfigManager {
 		Double scale,
 		Integer experienceDrop
 	) {
-		return buildMobStatsDefaults(
+		return buildMobComponentsDefaults(
 			health,
 			armor,
 			damage,
@@ -457,7 +822,7 @@ public final class MobConfigManager {
 		);
 	}
 
-	static JsonObject buildMobStatsDefaults(
+	static JsonObject buildMobComponentsDefaults(
 		Double health,
 		Double armor,
 		Double damage,
@@ -658,7 +1023,7 @@ public final class MobConfigManager {
 
 	public static List<String> getOptionalEntriesForContainer(String containerKey) {
 		if (FIELD_MOB_COMPONENTS.equals(containerKey)) {
-			return MOB_STATS_OPTIONAL_ENTRIES;
+			return MOB_COMPONENTS_OPTIONAL_ENTRIES;
 		}
 		if (FIELD_SPAWN_RULES.equals(containerKey)) {
 			return MOB_SPAWN_RULES_OPTIONAL_ENTRIES;
@@ -727,4 +1092,3 @@ public final class MobConfigManager {
 		}
 	}
 }
-

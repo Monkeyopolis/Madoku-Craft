@@ -85,7 +85,6 @@ public final class EntitySpawnRulesManager {
 	public static void applyAfterVanilla(Mob mob, ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason) {
 		if (mob == null || world == null || difficulty == null || spawnReason == null || !MobEntityManager.isEnabled()) return;
 		EntityComponentsManager.applyConfiguredComponents(mob, MobEntityManager.resolveConfiguredEntityVariantForRuntime(mob));
-		EntityComponentsManager.applyWorldDifficultyScaling(mob);
 		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			EntityBehaviorsManager.BeeBehavior.applySpawnOverrides(mob, world);
 			return;

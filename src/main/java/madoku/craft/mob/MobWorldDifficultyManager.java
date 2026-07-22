@@ -32,4 +32,9 @@ public final class MobWorldDifficultyManager {
 		};
 		return WorldDifficultyConfigManager.resolveAddition(attribute, baseValue, level);
 	}
+
+	public static double resolveValue(String attribute, double baseValue, Difficulty difficulty, boolean hardcore) {
+		double sanitizedBase = Math.max(0.0D, baseValue);
+		return Math.max(0.0D, sanitizedBase + resolveAddition(attribute, sanitizedBase, difficulty, hardcore));
+	}
 }

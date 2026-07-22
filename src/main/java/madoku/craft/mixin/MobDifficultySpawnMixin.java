@@ -24,6 +24,9 @@ public abstract class MobDifficultySpawnMixin implements MobEntityManager.Diffic
 	@Unique
 	private int madokuCraft$spawnDifficultyAdjustment;
 
+	@Unique
+	private boolean madokuCraft$worldDifficultyScalingApplied;
+
 	@Inject(method = "finalizeSpawn", at = @At("RETURN"))
 	private void madokuCraft$applySpawnDifficultyScaling(
 		ServerLevelAccessor world,
@@ -36,7 +39,9 @@ public abstract class MobDifficultySpawnMixin implements MobEntityManager.Diffic
 			return;
 		}
 		Mob mob = (Mob) (Object) this;
-		MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+		if (MobEntityManager.isRegionalDifficultyScalingEnabledForRuntime(mob)) {
+			MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+		}
 	}
 
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
@@ -57,6 +62,16 @@ public abstract class MobDifficultySpawnMixin implements MobEntityManager.Diffic
 	@Override
 	public void madokuCraft$setSpawnDifficultyAdjustment(int adjustment) {
 		madokuCraft$spawnDifficultyAdjustment = Math.max(0, adjustment);
+	}
+
+	@Override
+	public boolean madokuCraft$isWorldDifficultyScalingApplied() {
+		return madokuCraft$worldDifficultyScalingApplied;
+	}
+
+	@Override
+	public void madokuCraft$setWorldDifficultyScalingApplied(boolean applied) {
+		madokuCraft$worldDifficultyScalingApplied = applied;
 	}
 }
 

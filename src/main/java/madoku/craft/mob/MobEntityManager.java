@@ -67,24 +67,18 @@ public final class MobEntityManager {
 		int madokuCraft$getSpawnDifficultyAdjustment();
 
 		void madokuCraft$setSpawnDifficultyAdjustment(int adjustment);
+
+		boolean madokuCraft$isWorldDifficultyScalingApplied();
+
+		void madokuCraft$setWorldDifficultyScalingApplied(boolean applied);
 	}
 	private static final String TASK_TYPE_MOB_RUNTIME_TICK = "mob_runtime_tick";
 	private static final String MOB_SCHEDULER_OWNER_ID = "madoku-mob-runtime";
-	private static final double HEALTH_DIFFICULTY_STEP = 4.0D;
-	private static final double MOVEMENT_SPEED_DIFFICULTY_STEP = 0.01D;
-	private static final double DAMAGE_DIFFICULTY_STEP = 1.0D;
-	private static final double ARMOR_DIFFICULTY_STEP = 0.5D;
-	private static final double KNOCKBACK_RESISTANCE_DIFFICULTY_STEP = 0.1D;
-	private static final double SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP = 2.0D;
-	private static final double RANGED_DAMAGE_DIFFICULTY_STEP = 1.0D;
-	private static final double CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP = 1.0D;
 	private static final double CREEPER_POWER_PER_DAMAGE = 0.2D;
 	private static final double MIN_HOMING_SPEED = 0.75D;
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
 	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
-	private static final String BEE_VARIANT_TAG_PREFIX = "madoku-craft.bee.variant:";
-	private static final String BEE_VARIANT_DEFAULT_KEY = "default";
 	private static final String FIELD_FLYING_SPEED = MobConfigManager.FIELD_FLYING_SPEED;
 
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
@@ -95,6 +89,7 @@ public final class MobEntityManager {
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingZombieReplacement> PENDING_ZOMBIE_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
+	private static final Map<UUID, Boolean> CONFIGURED_MOB_BABY_STATES = new ConcurrentHashMap<>();
 
 	private static volatile String runtimeSchedulerId = "";
 	private static volatile boolean runtimeTaskScheduled = false;
@@ -113,16 +108,24 @@ public final class MobEntityManager {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
 			if (entity instanceof LivingEntity livingEntity && !PlayerEntitiesSystem.isManagedPet(livingEntity)) {
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
+				EntityComponentsManager.applyMobBabyComponent(livingEntity);
+				if (livingEntity instanceof AgeableMob ageableMob
+					&& ageableMob.isBaby()
+					&& EntityComponentsManager.resolveMobBabySettings(livingEntity).configured()) {
+					requestRuntimeProcessing(world.getServer(), resolveRuntimeProcessingInterval(world.getServer()));
+				}
 				applyDifficultyScalingAfterMobOverrides(livingEntity, world, reappliedMobOverrides);
 			}
 		});
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.remove(entity.getUUID());
+			CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 			cleanupEntityState(entity);
 		});
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		MadokuSchedulerManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
 		runtimeSchedulerId = "";
 		runtimeTaskScheduled = false;
 		HOMING_ARROWS.clear();
@@ -133,6 +136,7 @@ public final class MobEntityManager {
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
+		CONFIGURED_MOB_BABY_STATES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();
 		EntityBehaviorsManager.SkeletonBehavior.resetRuntimeState();
 		EntityBehaviorsManager.WitherSkeletonBehavior.resetRuntimeState();
@@ -141,14 +145,15 @@ public final class MobEntityManager {
 		EntityBehaviorsManager.ParchedBehavior.resetRuntimeState();
 		runtimeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		MadokuSchedulerManager.clearQueuedRequests(runtimeSchedulerId);
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	public static void onServerStopped() {
+		MadokuSchedulerManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
 		runtimeSchedulerId = "";
 		runtimeTaskScheduled = false;
 		HOMING_ARROWS.clear();
@@ -159,6 +164,7 @@ public final class MobEntityManager {
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
+		CONFIGURED_MOB_BABY_STATES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();
 		EntityBehaviorsManager.SkeletonBehavior.resetRuntimeState();
 		EntityBehaviorsManager.WitherSkeletonBehavior.resetRuntimeState();
@@ -186,6 +192,8 @@ public final class MobEntityManager {
 		EntitySpawnReason spawnReason
 	) {
 		EntitySpawnRulesManager.applyAfterVanilla(mob, world, difficulty, spawnReason);
+		EntityComponentsManager.applyMobBabyComponent(mob);
+		EntityComponentsManager.applyWorldDifficultyScaling(mob);
 	}
 	public static void applyZombieSpawnOverrides(
 		Zombie zombie,
@@ -277,7 +285,7 @@ public final class MobEntityManager {
 		}
 		PENDING_ZOMBIE_REPLACEMENTS.put(zombie.getUUID(), new PendingZombieReplacement(replacementType, spawnReason));
 		MinecraftServer server = resolveServer(zombie);
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	static void queueCaveSpiderReplacement(Spider spider, EntitySpawnReason spawnReason) {
@@ -286,7 +294,7 @@ public final class MobEntityManager {
 		}
 		PENDING_CAVE_SPIDER_REPLACEMENTS.put(spider.getUUID(), spawnReason);
 		MinecraftServer server = resolveServer(spider);
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	static void queueSpiderJockeyReplacement(Spider spider, EntitySpawnReason spawnReason) {
@@ -295,7 +303,7 @@ public final class MobEntityManager {
 		}
 		PENDING_SPIDER_JOCKEY_REPLACEMENTS.put(spider.getUUID(), spawnReason);
 		MinecraftServer server = resolveServer(spider);
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	public static boolean applySpiderSpawnOverrides(
@@ -438,7 +446,7 @@ public final class MobEntityManager {
 		if (runtimeRoot.entrySet().isEmpty()) {
 			return;
 		}
-		MobEffectInstance configuredEffect = resolveConfiguredMobEffectInstance(readMobStatsRoot(runtimeRoot), null);
+		MobEffectInstance configuredEffect = resolveConfiguredMobEffectInstance(readMobComponentsRoot(runtimeRoot), null);
 		if (configuredEffect != null) {
 			target.addEffect(configuredEffect, skeleton);
 		}
@@ -489,7 +497,7 @@ public final class MobEntityManager {
 		double homingSpeed = Math.max(MIN_HOMING_SPEED, arrow.getDeltaMovement().length());
 		arrow.setNoGravity(true);
 		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	public static void clearProjectileHoming(AbstractArrow arrow) {
@@ -529,7 +537,7 @@ public final class MobEntityManager {
 		arrow.setNoGravity(true);
 		arrow.addTag(HOMING_PROJECTILE_TAG);
 		HOMING_ARROWS.put(arrow.getUUID(), new HomingArrowState(target.getUUID(), homingSpeed, HOMING_LIFETIME_TICKS));
-		requestRuntimeProcessing(level.getServer(), 1L);
+		requestRuntimeProcessing(level.getServer(), resolveRuntimeProcessingInterval(level.getServer()));
 		shooter.level().addFreshEntity(arrow);
 		return true;
 	}
@@ -674,7 +682,12 @@ public final class MobEntityManager {
 			entity,
 			resolveConfiguredEntityVariantForRuntime(entity)
 		);
-		return configuredComponentsApplied || applyConfiguredLoadedEntityRules(entity);
+		boolean configuredLoadedRulesApplied = applyConfiguredLoadedEntityRules(entity);
+		EntityComponentsManager.applyMobBabyComponent(entity);
+		if ((configuredComponentsApplied || configuredLoadedRulesApplied) && entity instanceof MobEntityManager.DifficultyState state) {
+			state.madokuCraft$setWorldDifficultyScalingApplied(false);
+		}
+		return configuredComponentsApplied || configuredLoadedRulesApplied;
 	}
 
 	private static boolean applyConfiguredLoadedEntityRules(LivingEntity entity) {
@@ -729,18 +742,30 @@ public final class MobEntityManager {
 	}
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
-		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob) || level == null || !MobRegionalDifficultyManager.isEnabled() || PlayerEntitiesSystem.isManagedPet(entity)) {
+		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob) || level == null || PlayerEntitiesSystem.isManagedPet(entity)) {
 			return;
 		}
-		if (!isRegionalDifficultyScalingEnabledForMob(entity)) {
-			return;
-		}
-		if (loadedMobOverridesApplied && mob instanceof DifficultyState scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
-			MobRegionalDifficultyManager.reapplySpawnScalingFromStoredAdjustment(mob);
-		} else {
-			MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, level);
+		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForMob(entity)) {
+			if (loadedMobOverridesApplied && mob instanceof DifficultyState scaledMob && scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
+				MobRegionalDifficultyManager.reapplySpawnScalingFromStoredAdjustment(mob);
+			} else {
+				MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, level);
+			}
 		}
 		applyLoadedEntityDifficultyScaling(entity);
+	}
+
+	public static boolean isRegionalDifficultyScalingEnabledForRuntime(Mob mob) {
+		return mob != null && isRegionalDifficultyScalingEnabledForMob(mob);
+	}
+
+	static double resolveWorldDifficultyValueForRuntime(LivingEntity entity, String attribute, double baseValue) {
+		if (entity == null || !EntityConfigManager.isWorldDifficultyScalingEnabled(
+			resolveMobFileConfigRootForRuntime(resolveRuntimeMobFileKey(entity)))) {
+			return Math.max(0.0D, baseValue);
+		}
+		boolean hardcore = entity.level().getServer() != null && entity.level().getServer().isHardcore();
+		return MobWorldDifficultyManager.resolveValue(attribute, baseValue, entity.level().getDifficulty(), hardcore);
 	}
 
 	private static void applyLoadedEntityDifficultyScaling(LivingEntity entity) {
@@ -766,9 +791,6 @@ public final class MobEntityManager {
 				return;
 			}
 			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
-			if (isMobFileEnabled(MobConfigManager.FILE_SPIDER)) {
-				applyUniversalDifficultyStatsForRuntime(spider, root);
-			}
 			return;
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
@@ -800,10 +822,7 @@ public final class MobEntityManager {
 			return;
 		}
 		if (entity.getType() == MadokuEntities.HAG) {
-			JsonObject root = resolveHagDefaultGroup(root(MobConfigManager.FILE_HAG));
-			if (isMobFileEnabled(MobConfigManager.FILE_HAG)) {
-				applyUniversalDifficultyStatsForRuntime(entity, root);
-			}
+			return;
 		}
 	}
 
@@ -818,18 +837,13 @@ public final class MobEntityManager {
 		JsonObject creeperRoot = readObject(root, MobConfigManager.FIELD_CREEPER);
 		JsonObject creeperVariant = readObject(creeperRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
 		JsonObject chargedVariant = readObject(creeperRoot, MobConfigManager.FIELD_CHARGED_CREEPER);
-		SpawnWeightPair shifted = resolveDifficultyShiftedSpawnWeights(
-			readSpawnRuleDouble(creeperVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D),
-			readSpawnRuleDouble(chargedVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D),
-			difficulty.getDifficulty(),
-			isHardcoreWorld(creeper.level()),
-			SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP
-		);
-		double total = shifted.regularWeight + shifted.specialWeight;
+		double regularWeight = Math.max(0.0D, readSpawnRuleDouble(creeperVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D));
+		double specialWeight = Math.max(0.0D, readSpawnRuleDouble(chargedVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D));
+		double total = regularWeight + specialWeight;
 		if (total <= 0.0D) {
 			return;
 		}
-		boolean charged = (world.getRandom().nextDouble() * total) >= shifted.regularWeight;
+		boolean charged = (world.getRandom().nextDouble() * total) >= regularWeight;
 		if (charged) {
 			creeper.getEntityData().set(CreeperPoweredAccessor.madokuCraft$getDataIsPowered(), true);
 		}
@@ -873,7 +887,7 @@ public final class MobEntityManager {
 		if (resolved.entrySet().isEmpty() || !readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true)) {
 			return false;
 		}
-		return applyUniversalDifficultyStatsForRuntime(entity, resolved);
+		return false;
 	}
 
 	static JsonObject resolveBeeBehaviorRoot(LivingEntity entity) {
@@ -926,8 +940,8 @@ public final class MobEntityManager {
 		}
 		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
 		JsonObject resolvedBeeRoot = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
-		JsonObject statsRoot = readMobStatsRoot(resolvedBeeRoot);
-		return readString(statsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
+		JsonObject componentsRoot = readMobComponentsRoot(resolvedBeeRoot);
+		return readString(componentsRoot, MobConfigManager.FIELD_MOB_DROPS, "");
 	}
 
 	public static JsonObject resolveBeeRootForRuntime(LivingEntity entity) {
@@ -946,7 +960,7 @@ public final class MobEntityManager {
 		if (resolvedBeeRoot.entrySet().isEmpty()) {
 			return fallbackEffect;
 		}
-		return resolveConfiguredMobEffectInstance(readMobStatsRoot(resolvedBeeRoot), fallbackEffect);
+		return resolveConfiguredMobEffectInstance(readMobComponentsRoot(resolvedBeeRoot), fallbackEffect);
 	}
 
 	public static boolean isZombieCustomMobDropsEnabled(LivingEntity entity) {
@@ -1027,7 +1041,7 @@ public final class MobEntityManager {
 		}
 		JsonObject root = resolveHagDefaultGroup(root(MobConfigManager.FILE_HAG));
 		if (isMobFileEnabled(MobConfigManager.FILE_HAG)) {
-			applyUniversalStats(mob, root);
+			applyUniversalBaseStatsForRuntime(mob, root);
 		}
 	}
 
@@ -1039,157 +1053,7 @@ public final class MobEntityManager {
 		if (!overrideStats) {
 			return false;
 		}
-		return applyUniversalStats(entity, resolvedRoot);
-	}
-
-	private static boolean applyUniversalStats(LivingEntity entity, JsonObject root) {
-		if (entity == null || root == null) {
-			return false;
-		}
-		boolean modified = false;
-		double oldMaxHealth = entity.getMaxHealth();
-		boolean hardcore = isHardcoreWorld(entity.level());
-		JsonObject statsRoot = readMobStatsRoot(root);
-		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-		boolean difficultyScalingEnabled = readBoolean(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING, false);
-		modified |= setBaseValueIfPresent(
-			entity,
-			Attributes.MAX_HEALTH,
-			resolveScaledStat(
-				readOptionalPositive(statsRoot, MobConfigManager.FIELD_HEALTH),
-				entity.level().getDifficulty(),
-				hardcore,
-				HEALTH_DIFFICULTY_STEP,
-				0.0D,
-				difficultyScalingEnabled,
-				difficultyScale,
-				MobConfigManager.FIELD_HEALTH
-			)
-		);
-		modified |= setBaseValueIfPresent(
-			entity,
-			Attributes.ARMOR,
-			resolveUniversalBaseStat(
-				readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_ARMOR),
-				entity.level().getDifficulty(),
-				hardcore,
-				ARMOR_DIFFICULTY_STEP,
-				0.0D
-			)
-		);
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.ATTACK_DAMAGE,
-				resolveScaledStat(
-					readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_DAMAGE),
-					entity.level().getDifficulty(),
-					hardcore,
-					DAMAGE_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_DAMAGE
-				)
-			);
-		modified |= setBaseValueIfPresent(
-			entity,
-			Attributes.MOVEMENT_SPEED,
-			resolveScaledStat(
-				readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED),
-					entity.level().getDifficulty(),
-					hardcore,
-					MOVEMENT_SPEED_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-				MobConfigManager.FIELD_MOVEMENT_SPEED
-			)
-		);
-		if (entity instanceof Drowned) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.WATER_MOVEMENT_EFFICIENCY,
-				resolveScaledStat(
-					readOptionalPositive(statsRoot, MobConfigManager.FIELD_SWIMMING_SPEED),
-					entity.level().getDifficulty(),
-					hardcore,
-					MOVEMENT_SPEED_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_SWIMMING_SPEED
-				)
-			);
-		}
-		modified |= setBaseValueIfPresent(
-			entity,
-			Attributes.FLYING_SPEED,
-			resolveScaledStat(
-				readOptionalPositive(statsRoot, FIELD_FLYING_SPEED),
-				entity.level().getDifficulty(),
-				hardcore,
-				MOVEMENT_SPEED_DIFFICULTY_STEP,
-				0.0D,
-				difficultyScalingEnabled,
-				difficultyScale,
-				MobConfigManager.FIELD_FLYING_SPEED
-			)
-		);
-		modified |= setBaseValueIfPresent(
-			entity,
-			Attributes.KNOCKBACK_RESISTANCE,
-			resolveUniversalBaseStat(
-				clampOptional(readOptionalDouble(statsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D),
-				entity.level().getDifficulty(),
-				hardcore,
-				KNOCKBACK_RESISTANCE_DIFFICULTY_STEP,
-				0.0D
-			)
-		);
-		Double baseScale = readOptionalPositive(statsRoot, MobConfigManager.FIELD_SCALE);
-		Double resolvedScale = baseScale;
-		if (baseScale != null) {
-			if (difficultyScalingEnabled) {
-				Double perStep = readOptionalDouble(difficultyScale, MobConfigManager.FIELD_SCALE);
-				if (perStep != null) {
-					resolvedScale = resolveDifficultyAdjustedPercentValue(
-						entity.level().getDifficulty(),
-						hardcore,
-						baseScale,
-						perStep,
-						0.01D
-					);
-				}
-			}
-		}
-		boolean scaleApplied = setBaseValueIfPresent(entity, Attributes.SCALE, resolvedScale);
-		modified |= scaleApplied;
-		Integer baseExperienceDrop = readOptionalIntNonNegative(statsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
-		if (baseExperienceDrop != null) {
-			int resolvedExperienceDrop = baseExperienceDrop;
-			if (difficultyScalingEnabled) {
-				Double perStep = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_EXPERIENCE_DROP);
-				if (perStep != null) {
-					resolvedExperienceDrop = (int) Math.round(
-						resolveDifficultyAdjustedPercentValue(
-							entity.level().getDifficulty(),
-							hardcore,
-							baseExperienceDrop,
-							perStep,
-							0.0D
-						)
-					);
-				}
-			}
-			applyExperienceDrop(entity, Math.max(0, resolvedExperienceDrop));
-		}
-		modified |= applyConfiguredMobWeapon(entity, root);
-		rescaleCurrentHealth(entity, oldMaxHealth);
-		return modified;
-	}
-
-	static boolean applyUniversalStatsForRuntime(LivingEntity entity, JsonObject root) {
-		return applyUniversalStats(entity, root);
+		return applyUniversalBaseStatsForRuntime(entity, resolvedRoot);
 	}
 
 	static boolean applyUniversalBaseStatsForRuntime(LivingEntity entity, JsonObject root) {
@@ -1198,189 +1062,24 @@ public final class MobEntityManager {
 		}
 		boolean modified = false;
 		double oldMaxHealth = entity.getMaxHealth();
-		JsonObject statsRoot = readMobStatsRoot(root);
-		modified |= setBaseValueIfPresent(entity, Attributes.MAX_HEALTH, readOptionalPositive(statsRoot, MobConfigManager.FIELD_HEALTH));
-		modified |= setBaseValueIfPresent(entity, Attributes.ARMOR, readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_ARMOR));
-		modified |= setBaseValueIfPresent(entity, Attributes.ATTACK_DAMAGE, readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_DAMAGE));
-		modified |= setBaseValueIfPresent(entity, Attributes.MOVEMENT_SPEED, readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED));
-		modified |= setBaseValueIfPresent(entity, Attributes.FLYING_SPEED, readOptionalPositive(statsRoot, FIELD_FLYING_SPEED));
+		JsonObject componentsRoot = readMobComponentsRoot(root);
+		modified |= setBaseValueIfPresent(entity, Attributes.MAX_HEALTH, readOptionalPositive(componentsRoot, MobConfigManager.FIELD_HEALTH));
+		modified |= setBaseValueIfPresent(entity, Attributes.ARMOR, readOptionalNonNegative(componentsRoot, MobConfigManager.FIELD_ARMOR));
+		modified |= setBaseValueIfPresent(entity, Attributes.ATTACK_DAMAGE, readOptionalNonNegative(componentsRoot, MobConfigManager.FIELD_DAMAGE));
+		modified |= setBaseValueIfPresent(entity, Attributes.MOVEMENT_SPEED, readOptionalPositive(componentsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED));
+		modified |= setBaseValueIfPresent(entity, Attributes.FLYING_SPEED, readOptionalPositive(componentsRoot, FIELD_FLYING_SPEED));
 		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.KNOCKBACK_RESISTANCE,
-			clampOptional(readOptionalDouble(statsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D)
+			clampOptional(readOptionalDouble(componentsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D)
 		);
-		Double baseScale = readOptionalPositive(statsRoot, MobConfigManager.FIELD_SCALE);
+		Double baseScale = readOptionalPositive(componentsRoot, MobConfigManager.FIELD_SCALE);
 		if (baseScale != null) {
 			modified |= setBaseValue(entity, Attributes.SCALE, baseScale);
 		}
-		Integer baseExperienceDrop = readOptionalIntNonNegative(statsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
+		Integer baseExperienceDrop = readOptionalIntNonNegative(componentsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
 		if (baseExperienceDrop != null) {
-			applyExperienceDrop(entity, Math.max(0, baseExperienceDrop));
-			modified = true;
-		}
-		modified |= applyConfiguredMobWeapon(entity, root);
-		rescaleCurrentHealth(entity, oldMaxHealth);
-		return modified;
-	}
-
-	static boolean applyUniversalDifficultyStatsForRuntime(LivingEntity entity, JsonObject root) {
-		if (entity == null || root == null) {
-			return false;
-		}
-		boolean modified = false;
-		double oldMaxHealth = entity.getMaxHealth();
-		boolean hardcore = isHardcoreWorld(entity.level());
-		JsonObject statsRoot = readMobStatsRoot(root);
-		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-		boolean difficultyScalingEnabled = readBoolean(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING, false);
-		Double baseHealth = readOptionalPositive(statsRoot, MobConfigManager.FIELD_HEALTH);
-		if (baseHealth != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.MAX_HEALTH,
-				resolveScaledStat(
-					readAttributeBaseValue(entity, Attributes.MAX_HEALTH),
-					entity.level().getDifficulty(),
-					hardcore,
-					HEALTH_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_HEALTH
-				)
-			);
-		}
-		Double baseArmor = readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_ARMOR);
-		if (baseArmor != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.ARMOR,
-				resolveUniversalBaseStat(
-					readAttributeBaseValue(entity, Attributes.ARMOR),
-					entity.level().getDifficulty(),
-					hardcore,
-					ARMOR_DIFFICULTY_STEP,
-					0.0D
-				)
-			);
-		}
-		Double baseDamage = readOptionalNonNegative(statsRoot, MobConfigManager.FIELD_DAMAGE);
-		if (baseDamage != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.ATTACK_DAMAGE,
-				resolveScaledStat(
-					readAttributeBaseValue(entity, Attributes.ATTACK_DAMAGE),
-					entity.level().getDifficulty(),
-					hardcore,
-					DAMAGE_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_DAMAGE
-				)
-			);
-		}
-		Double baseMovementSpeed = readOptionalPositive(statsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED);
-		if (baseMovementSpeed != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.MOVEMENT_SPEED,
-				resolveScaledStat(
-					readAttributeBaseValue(entity, Attributes.MOVEMENT_SPEED),
-					entity.level().getDifficulty(),
-					hardcore,
-					MOVEMENT_SPEED_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_MOVEMENT_SPEED
-				)
-			);
-		}
-		if (entity instanceof Drowned) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.WATER_MOVEMENT_EFFICIENCY,
-				resolveScaledStat(
-					readOptionalPositive(statsRoot, MobConfigManager.FIELD_SWIMMING_SPEED),
-					entity.level().getDifficulty(),
-					hardcore,
-					MOVEMENT_SPEED_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_SWIMMING_SPEED
-				)
-			);
-		}
-		Double baseFlyingSpeed = readOptionalPositive(statsRoot, FIELD_FLYING_SPEED);
-		if (baseFlyingSpeed != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.FLYING_SPEED,
-				resolveScaledStat(
-					readAttributeBaseValue(entity, Attributes.FLYING_SPEED),
-					entity.level().getDifficulty(),
-					hardcore,
-					MOVEMENT_SPEED_DIFFICULTY_STEP,
-					0.0D,
-					difficultyScalingEnabled,
-					difficultyScale,
-					MobConfigManager.FIELD_FLYING_SPEED
-				)
-			);
-		}
-		Double baseKnockbackResistance = clampOptional(readOptionalDouble(statsRoot, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE), 0.0D, 1.0D);
-		if (baseKnockbackResistance != null) {
-			modified |= setBaseValueIfPresent(
-				entity,
-				Attributes.KNOCKBACK_RESISTANCE,
-				resolveUniversalBaseStat(
-					readAttributeBaseValue(entity, Attributes.KNOCKBACK_RESISTANCE),
-					entity.level().getDifficulty(),
-					hardcore,
-					KNOCKBACK_RESISTANCE_DIFFICULTY_STEP,
-					0.0D
-				)
-			);
-		}
-		Double baseScale = readOptionalPositive(statsRoot, MobConfigManager.FIELD_SCALE);
-		if (baseScale != null) {
-			Double resolvedScale = readAttributeBaseValue(entity, Attributes.SCALE);
-			if (difficultyScalingEnabled) {
-				Double perStep = readOptionalDouble(difficultyScale, MobConfigManager.FIELD_SCALE);
-				if (perStep != null) {
-					resolvedScale = resolveDifficultyAdjustedPercentValue(
-						entity.level().getDifficulty(),
-						hardcore,
-						Math.max(0.0D, resolvedScale),
-						perStep,
-						0.01D
-					);
-				}
-			}
-			modified |= setBaseValueIfPresent(entity, Attributes.SCALE, resolvedScale);
-		}
-		Integer baseExperienceDrop = readOptionalIntNonNegative(statsRoot, MobConfigManager.FIELD_EXPERIENCE_DROP);
-		if (baseExperienceDrop != null) {
-			int currentExperienceDrop = resolveMobExperienceDrop(entity);
-			int resolvedExperienceDrop = currentExperienceDrop;
-			if (difficultyScalingEnabled) {
-				Double perStep = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_EXPERIENCE_DROP);
-				if (perStep != null) {
-					resolvedExperienceDrop = (int) Math.round(
-						resolveDifficultyAdjustedPercentValue(
-							entity.level().getDifficulty(),
-							hardcore,
-							currentExperienceDrop,
-							perStep,
-							0.0D
-						)
-					);
-				}
-			}
-			applyExperienceDrop(entity, Math.max(0, resolvedExperienceDrop));
+			applyExperienceDropForRuntime(entity, Math.max(0, baseExperienceDrop));
 			modified = true;
 		}
 		modified |= applyConfiguredMobWeapon(entity, root);
@@ -1397,7 +1096,7 @@ public final class MobEntityManager {
 			return false;
 		}
 		JsonObject variant = resolveCreeperRuntimeVariantRoot(creeper, root);
-		Double explosionPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
+		Double explosionPower = readOptionalDouble(readMobComponentsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
 		if (explosionPower == null) {
 			return false;
 		}
@@ -1413,9 +1112,9 @@ public final class MobEntityManager {
 		if (variant.entrySet().isEmpty()) {
 			return false;
 		}
-		modified |= applyUniversalStats(creeper, variant);
+		modified |= applyUniversalBaseStatsForRuntime(creeper, variant);
 		CreeperAccessor accessor = (CreeperAccessor) creeper;
-		Double fuseLength = readOptionalPositive(readMobStatsRoot(variant), MobConfigManager.FIELD_FUSE_LENGTH);
+		Double fuseLength = readOptionalPositive(readMobComponentsRoot(variant), MobConfigManager.FIELD_FUSE_LENGTH);
 		if (fuseLength != null) {
 			int fuse = Math.max(1, (int) Math.round(fuseLength));
 			accessor.madokuCraft$setMaxSwell(fuse);
@@ -1426,7 +1125,7 @@ public final class MobEntityManager {
 				accessor.madokuCraft$setOldSwell(fuse);
 			}
 		}
-		Double explosionPower = readOptionalDouble(readMobStatsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
+		Double explosionPower = readOptionalDouble(readMobComponentsRoot(variant), MobConfigManager.FIELD_EXPLOSION_POWER);
 		if (explosionPower != null) {
 			double resolvedPower = resolveCreeperExplosionPower(creeper, root, variant, explosionPower);
 			int radius = Math.max(0, (int) Math.round(resolvedPower));
@@ -1487,41 +1186,16 @@ public final class MobEntityManager {
 		if (creeper == null || fileRoot == null || variantRoot == null || variantRoot.entrySet().isEmpty()) {
 			return explosionPower;
 		}
-		JsonObject statsRoot = readMobStatsRoot(variantRoot);
-		Double configuredPower = readOptionalDouble(statsRoot, MobConfigManager.FIELD_EXPLOSION_POWER);
+		JsonObject componentsRoot = readMobComponentsRoot(variantRoot);
+		Double configuredPower = readOptionalDouble(componentsRoot, MobConfigManager.FIELD_EXPLOSION_POWER);
 		if (configuredPower != null) {
 			explosionPower = Math.max(0.0D, configuredPower);
 		}
-		JsonObject difficultyScale = readObject(fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-		boolean difficultyScalingEnabled = readBoolean(fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING, false);
-		if (difficultyScalingEnabled) {
-			Double perStep = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_EXPLOSION_POWER);
-			if (perStep != null) {
-				explosionPower = resolveDifficultyAdjustedPercentValue(
-					creeper.level().getDifficulty(),
-					isHardcoreWorld(creeper.level()),
-					explosionPower,
-					perStep,
-					0.0D
-				);
-			} else {
-				explosionPower = resolveDifficultyAdjustedValue(
-					creeper.level().getDifficulty(),
-					isHardcoreWorld(creeper.level()),
-					explosionPower,
-					CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
-					0.0D
-				);
-			}
-		} else {
-			explosionPower = resolveDifficultyAdjustedValue(
-				creeper.level().getDifficulty(),
-				isHardcoreWorld(creeper.level()),
-				explosionPower,
-				CREEPER_EXPLOSION_POWER_DIFFICULTY_STEP,
-				0.0D
-			);
-		}
+		explosionPower = resolveWorldDifficultyValueForRuntime(
+			creeper,
+			MobConfigManager.FIELD_EXPLOSION_POWER,
+			explosionPower
+		);
 		return Math.max(0.0D, explosionPower + MobRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper, explosionPower));
 	}
 
@@ -1556,13 +1230,13 @@ public final class MobEntityManager {
 		mob.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
 	}
 
-	private static void applyExperienceDrop(LivingEntity entity, Integer experienceDrop) {
+	static void applyExperienceDropForRuntime(LivingEntity entity, Integer experienceDrop) {
 		if (entity instanceof Mob mob && experienceDrop != null) {
 			((MobExperienceAccessor) mob).madokuCraft$setXpReward(Math.max(0, experienceDrop));
 		}
 	}
 
-	private static int resolveMobExperienceDrop(LivingEntity entity) {
+	static int resolveMobExperienceDropForRuntime(LivingEntity entity) {
 		if (entity instanceof Mob mob) {
 			return ((MobExperienceAccessor) mob).madokuCraft$getXpReward();
 		}
@@ -1621,6 +1295,7 @@ public final class MobEntityManager {
 		EntityBehaviorsManager.BoggedBehavior.onEntityCleanup(entity);
 		EntityBehaviorsManager.ParchedBehavior.onEntityCleanup(entity);
 		EntityBehaviorsManager.BeeBehavior.onEntityCleanup(entity);
+		CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 	}
 
 	private static void runRuntimeTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
@@ -1639,14 +1314,59 @@ public final class MobEntityManager {
 			MobConfigManager.isEnabled(),
 			isMobFileEnabled(MobConfigManager.FILE_BEE)
 		);
+		boolean mobBabyRuntimeActive = tickConfiguredMobBabyStates();
 		if (!MANAGED_MOB_ARROWS.isEmpty()
 			|| !HOMING_ARROWS.isEmpty()
 			|| !PENDING_SPIDER_JOCKEY_REPLACEMENTS.isEmpty()
 			|| !PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()
 			|| !PENDING_ZOMBIE_REPLACEMENTS.isEmpty()
-			|| beeRuntimeActive) {
-			requestRuntimeProcessing(server, 1L);
+			|| beeRuntimeActive
+			|| mobBabyRuntimeActive) {
+			requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 		}
+	}
+
+	private static boolean tickConfiguredMobBabyStates() {
+		boolean active = false;
+		for (Entity entity : TRACKED_ENTITIES.values()) {
+			if (!(entity instanceof AgeableMob ageableMob)
+				|| !(entity instanceof LivingEntity livingEntity)
+				|| !entity.isAlive()
+				|| PlayerEntitiesSystem.isManagedPet(livingEntity)) {
+				continue;
+			}
+			EntityComponentsManager.MobBabySettings settings = EntityComponentsManager.resolveMobBabySettings(livingEntity);
+			if (!settings.configured()) {
+				CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
+				continue;
+			}
+			boolean baby = ageableMob.isBaby();
+			Boolean previousBaby = CONFIGURED_MOB_BABY_STATES.put(entity.getUUID(), baby);
+			if (baby) {
+				active = true;
+				if (previousBaby == null) {
+					EntityComponentsManager.applyMobBabyComponent(livingEntity);
+				}
+				if (!settings.ageable()) {
+					ageableMob.setAge(AgeableMob.BABY_START_AGE);
+				}
+			} else if (Boolean.TRUE.equals(previousBaby)) {
+				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
+				if (livingEntity.level() instanceof ServerLevel level) {
+					applyDifficultyScalingAfterMobOverrides(livingEntity, level, reappliedMobOverrides);
+				}
+			}
+		}
+		return active;
+	}
+
+	private static long resolveRuntimeProcessingInterval(MinecraftServer server) {
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+			server,
+			MOB_SCHEDULER_OWNER_ID,
+			1L,
+			5L
+		);
 	}
 
 	private static void requestRuntimeProcessing(MinecraftServer server, long delayTicks) {
@@ -1892,7 +1612,7 @@ public final class MobEntityManager {
 			return;
 		}
 		MANAGED_MOB_ARROWS.put(arrow.getUUID(), MOB_ARROW_LIFETIME_TICKS);
-		requestRuntimeProcessing(server, 1L);
+		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	static void trackManagedMobArrowForRuntime(AbstractArrow arrow, MinecraftServer server) {
@@ -1931,11 +1651,11 @@ public final class MobEntityManager {
 	}
 
 	private static boolean hasTrueDamageConfigured(LivingEntity attacker) {
-		JsonObject statsRoot = readMobStatsRoot(resolveMobAttackRoot(attacker));
-		if (statsRoot.entrySet().isEmpty()) {
+		JsonObject componentsRoot = readMobComponentsRoot(resolveMobAttackRoot(attacker));
+		if (componentsRoot.entrySet().isEmpty()) {
 			return false;
 		}
-		JsonElement element = statsRoot.get(MobConfigManager.FIELD_TRUE_DAMAGE);
+		JsonElement element = componentsRoot.get(MobConfigManager.FIELD_TRUE_DAMAGE);
 		if (element == null || element.isJsonNull() || !element.isJsonPrimitive()) {
 			return false;
 		}
@@ -2033,41 +1753,6 @@ public final class MobEntityManager {
 		return null;
 	}
 
-	private static Double resolveUniversalBaseStat(
-		Double baseValue,
-		Difficulty difficulty,
-		boolean hardcore,
-		double step,
-		double minimum
-	) {
-		if (baseValue == null) {
-			return null;
-		}
-		return Math.max(minimum, baseValue);
-	}
-
-	private static Double resolveScaledStat(
-		Double baseValue,
-		Difficulty difficulty,
-		boolean hardcore,
-		double fallbackStep,
-		double minimum,
-		boolean difficultyScalingEnabled,
-		JsonObject difficultyScaleRoot,
-		String scalingKey
-	) {
-		if (baseValue == null) {
-			return null;
-		}
-		if (difficultyScalingEnabled) {
-			Double perStep = readOptionalNonNegative(difficultyScaleRoot, scalingKey);
-			if (perStep != null) {
-				return resolveDifficultyAdjustedPercentValue(difficulty, hardcore, baseValue, perStep, minimum);
-			}
-		}
-		return Math.max(minimum, baseValue);
-	}
-
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
 		double resolved = Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
 		return roundDifficultyScaleValue(baseValue, resolved);
@@ -2079,30 +1764,15 @@ public final class MobEntityManager {
 		return roundDifficultyScaleValue(baseValue, resolved);
 	}
 
-	private static double resolveScaledRangedDamage(double base, Difficulty difficulty, boolean hardcore) {
-		return resolveDifficultyAdjustedValue(difficulty, hardcore, Math.max(0.0D, base), RANGED_DAMAGE_DIFFICULTY_STEP, 0.0D);
-	}
-
 	private static double resolveSkeletonRangedDamage(AbstractSkeleton skeleton, JsonObject root) {
 		if (skeleton == null) {
 			return 0.0D;
 		}
-		JsonObject difficultyScale = readObject(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-		double rangedDamage = resolveScaledRangedDamage(
-			readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D),
-			skeleton.level().getDifficulty(),
-			isHardcoreWorld(skeleton.level())
+		double rangedDamage = MobEntityManager.resolveWorldDifficultyValueForRuntime(
+			skeleton,
+			MobConfigManager.FIELD_RANGED_DAMAGE,
+			readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D)
 		);
-		Double rangedDamageScale = readOptionalNonNegative(difficultyScale, MobConfigManager.FIELD_RANGED_DAMAGE);
-		if (rangedDamageScale != null) {
-			rangedDamage = resolveDifficultyAdjustedPercentValue(
-				skeleton.level().getDifficulty(),
-				isHardcoreWorld(skeleton.level()),
-				rangedDamage,
-				rangedDamageScale,
-				0.0D
-			);
-		}
 		return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
 	}
 
@@ -2118,61 +1788,16 @@ public final class MobEntityManager {
 		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
 	}
 
-	private static SpawnWeightPair resolveDifficultyShiftedSpawnWeights(
-		double regularWeight,
-		double specialWeight,
-		Difficulty difficulty,
-		boolean hardcore,
-		double difficultyStep
-	) {
-		double regular = Math.max(0.0D, regularWeight);
-		double special = Math.max(0.0D, specialWeight);
-		if (difficulty == null) {
-			return new SpawnWeightPair(regular, special);
-		}
-		double shift = Math.max(0.0D, difficultyStep) * resolveDifficultyTier(difficulty, hardcore);
-		if (shift > 0.0D) {
-			double transferred = Math.min(shift, regular);
-			regular -= transferred;
-			special += transferred;
-		} else if (shift < 0.0D) {
-			double transferred = Math.min(-shift, special);
-			special -= transferred;
-			regular += transferred;
-		}
-		return new SpawnWeightPair(regular, special);
-	}
-
-	private static double resolveBabyChance(double adultWeight, double babyWeight, Difficulty difficulty, boolean hardcore) {
-		SpawnWeightPair shifted = resolveDifficultyShiftedSpawnWeights(adultWeight, babyWeight, difficulty, hardcore, SPECIAL_SPAWN_WEIGHT_DIFFICULTY_STEP);
-		double total = shifted.regularWeight + shifted.specialWeight;
-		return total <= 0.0D ? 0.05D : Mth.clamp(shifted.specialWeight / total, 0.0D, 1.0D);
-	}
-
-	static double resolveZombieBabyChanceForRuntime(
-		double adultWeight,
-		double babyWeight,
-		DifficultyInstance difficulty,
-		Zombie zombie
-	) {
-		return resolveAgeVariantChanceForRuntime(adultWeight, babyWeight, difficulty, zombie);
-	}
-
 	static double resolveAgeVariantChanceForRuntime(
 		double adultWeight,
 		double babyWeight,
 		DifficultyInstance difficulty,
 		LivingEntity entity
 	) {
-		if (difficulty == null || entity == null) {
-			return 0.0D;
-		}
-		return resolveBabyChance(
-			adultWeight,
-			babyWeight,
-			difficulty.getDifficulty(),
-			isHardcoreWorld(entity.level())
-		);
+		double adult = Math.max(0.0D, adultWeight);
+		double baby = Math.max(0.0D, babyWeight);
+		double total = adult + baby;
+		return total <= 0.0D ? 0.0D : Mth.clamp(baby / total, 0.0D, 1.0D);
 	}
 
 	private static boolean isHardcoreWorld(Level level) {
@@ -2319,7 +1944,7 @@ public final class MobEntityManager {
 		if (variant.entrySet().isEmpty()) {
 			return fallbackEffect;
 		}
-		return resolveConfiguredMobEffectInstance(readMobStatsRoot(variant), fallbackEffect);
+		return resolveConfiguredMobEffectInstance(readMobComponentsRoot(variant), fallbackEffect);
 	}
 
 	private static JsonObject zombieAdultRoot(JsonObject root) {
@@ -2372,15 +1997,15 @@ public final class MobEntityManager {
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
-	private static JsonObject readMobStatsRoot(JsonObject root) {
+	private static JsonObject readMobComponentsRoot(JsonObject root) {
 		return readObject(root, MobConfigManager.FIELD_MOB_COMPONENTS);
 	}
 
-	private static MobEffectInstance resolveConfiguredMobEffectInstance(JsonObject statsRoot, MobEffectInstance fallbackEffect) {
-		if (statsRoot == null || statsRoot.entrySet().isEmpty() || fallbackEffect == null) {
+	private static MobEffectInstance resolveConfiguredMobEffectInstance(JsonObject componentsRoot, MobEffectInstance fallbackEffect) {
+		if (componentsRoot == null || componentsRoot.entrySet().isEmpty() || fallbackEffect == null) {
 			return fallbackEffect;
 		}
-		JsonObject mobEffectRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_EFFECT);
+		JsonObject mobEffectRoot = readObject(componentsRoot, MobConfigManager.FIELD_MOB_EFFECT);
 		if (mobEffectRoot.entrySet().isEmpty()) {
 			return fallbackEffect;
 		}
@@ -2559,83 +2184,11 @@ public final class MobEntityManager {
 		if (beeRoot.entrySet().isEmpty()) {
 			return new JsonObject();
 		}
-		JsonObject baseVariantRoot = resolveBeeVariantRoot(entity, beeFileRoot, beeRoot, random, spawnContext);
-		JsonObject resolvedAgeRoot = resolveBeeAgeRoot(entity, beeFileRoot, baseVariantRoot, random, spawnContext);
-		if (resolvedAgeRoot.entrySet().isEmpty()) {
-			return mergeBeeMobSettings(beeRoot, baseVariantRoot);
-		}
-		return mergeBeeMobSettings(beeRoot, resolvedAgeRoot);
-	}
-
-	private static JsonObject resolveBeeVariantRoot(
-		LivingEntity entity,
-		JsonObject beeFileRoot,
-		JsonObject beeRoot,
-		RandomSource random,
-		boolean spawnContext
-	) {
-		JsonObject defaultGroup = readObject(beeRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		if (defaultGroup.entrySet().isEmpty()) {
-			return beeRoot;
-		}
-		boolean overrideSpawnRules = readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
-		boolean variantEnabled = readBoolean(beeFileRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
-		if (!variantEnabled) {
-			clearBeeVariantTag(entity);
-			return defaultGroup;
-		}
-
-		String storedVariant = readStoredBeeVariantKey(entity);
-		if (!storedVariant.isBlank()) {
-			if (BEE_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-				return defaultGroup;
-			}
-			JsonObject knownVariant = resolveBeeVariantRootByKey(beeRoot, storedVariant);
-			if (!knownVariant.entrySet().isEmpty()) {
-				return knownVariant;
-			}
-		}
-		if (!overrideSpawnRules) {
-			return defaultGroup;
-		}
-
-		String selectedVariant = selectBeeVariantKey(beeRoot, random);
-		if (selectedVariant.isBlank()) {
-			selectedVariant = BEE_VARIANT_DEFAULT_KEY;
-		}
-		writeBeeVariantTag(entity, selectedVariant);
-		if (BEE_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
-			return defaultGroup;
-		}
-		JsonObject selected = resolveBeeVariantRootByKey(beeRoot, selectedVariant);
-		if (!selected.entrySet().isEmpty()) {
-			return selected;
-		}
-		if (!spawnContext) {
-			clearBeeVariantTag(entity);
-		}
-		return defaultGroup;
-	}
-
-	private static JsonObject resolveBeeAgeRoot(
-		LivingEntity entity,
-		JsonObject beeFileRoot,
-		JsonObject baseVariantRoot,
-		RandomSource random,
-		boolean spawnContext
-	) {
-		if (baseVariantRoot == null || baseVariantRoot.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject adult = readObject(baseVariantRoot, MobConfigManager.FIELD_ADULT_GROUP);
-		JsonObject baby = readObject(baseVariantRoot, MobConfigManager.FIELD_BABY_GROUP);
-		if (adult.entrySet().isEmpty() && baby.entrySet().isEmpty()) {
-			return baseVariantRoot;
-		}
-		boolean babyEnabled = readBoolean(beeFileRoot, MobConfigManager.FIELD_MOB_BABY, true);
-		boolean overrideSpawnRules = readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 		boolean isBaby = entity instanceof AgeableMob ageableMob && ageableMob.isBaby();
-		if (entity instanceof AgeableMob ageableMob && spawnContext && babyEnabled && overrideSpawnRules && random != null) {
+		if (spawnContext && readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
+			&& entity instanceof AgeableMob ageableMob && random != null) {
+			JsonObject adult = resolveAgeVariantRoot(beeRoot, false);
+			JsonObject baby = resolveAgeVariantRoot(beeRoot, true);
 			double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0D));
 			double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
 			double total = adultWeight + babyWeight;
@@ -2644,96 +2197,7 @@ public final class MobEntityManager {
 				ageableMob.setBaby(isBaby);
 			}
 		}
-		return resolveAgeVariantRoot(baseVariantRoot, isBaby);
-	}
-
-	private static String selectBeeVariantKey(JsonObject beeRoot, RandomSource random) {
-		return selectWeightedVariantKey(
-			beeRoot,
-			random,
-			MobConfigManager.FIELD_DEFAULT_GROUP,
-			BEE_VARIANT_DEFAULT_KEY,
-			MobEntityManager::isReservedBeeGroupKey,
-			variantRoot -> resolveBeeVariantSpawnWeight(variantRoot, 0.0D)
-		);
-	}
-
-	private static JsonObject resolveBeeVariantRootByKey(JsonObject beeRoot, String variantKey) {
-		return resolveVariantRootByKey(beeRoot, variantKey, MobConfigManager.FIELD_DEFAULT_GROUP, MobEntityManager::isReservedBeeGroupKey);
-	}
-
-	private static boolean isReservedBeeGroupKey(String normalizedKey) {
-		if (normalizedKey == null || normalizedKey.isBlank()) {
-			return true;
-		}
-		return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-			|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
-	}
-
-	private static double resolveBeeVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-		return resolveVariantSpawnWeight(variantRoot, fallback);
-	}
-
-	private static String readStoredBeeVariantKey(LivingEntity entity) {
-		if (entity == null) {
-			return "";
-		}
-		for (String tag : entity.entityTags()) {
-			if (tag == null || !tag.startsWith(BEE_VARIANT_TAG_PREFIX)) {
-				continue;
-			}
-			String raw = tag.substring(BEE_VARIANT_TAG_PREFIX.length());
-			String normalized = normalizeKey(raw);
-			if (!normalized.isBlank()) {
-				return normalized;
-			}
-		}
-		return "";
-	}
-
-	private static void writeBeeVariantTag(LivingEntity entity, String variantKey) {
-		if (entity == null || variantKey == null || variantKey.isBlank()) {
-			return;
-		}
-		clearBeeVariantTag(entity);
-		entity.addTag(BEE_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
-	}
-
-	private static void clearBeeVariantTag(LivingEntity entity) {
-		if (entity == null) {
-			return;
-		}
-		String existing = null;
-		for (String tag : entity.entityTags()) {
-			if (tag != null && tag.startsWith(BEE_VARIANT_TAG_PREFIX)) {
-				existing = tag;
-				break;
-			}
-		}
-		if (existing != null) {
-			entity.removeTag(existing);
-		}
-	}
-
-	private static JsonObject mergeBeeMobSettings(JsonObject beeRoot, JsonObject groupRoot) {
-		if (groupRoot == null) {
-			return new JsonObject();
-		}
-		JsonObject merged = groupRoot.deepCopy();
-		if (beeRoot != null) {
-			if (!merged.has(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING) && beeRoot.has(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING)) {
-				merged.add(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING, beeRoot.get(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING).deepCopy());
-			}
-			if (!merged.has(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING) && beeRoot.has(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING)) {
-				merged.add(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING, beeRoot.get(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING).deepCopy());
-			}
-			if (!merged.has(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW) && beeRoot.has(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW)) {
-				merged.add(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, beeRoot.get(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW).deepCopy());
-			}
-		}
-		return merged;
+		return resolveAgeVariantRoot(beeRoot, isBaby);
 	}
 
 	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {
@@ -2764,7 +2228,7 @@ public final class MobEntityManager {
 	}
 
 	private static double readMobStatDouble(JsonObject root, String key, double fallback) {
-		return readDouble(readMobStatsRoot(root), key, fallback);
+		return readDouble(readMobComponentsRoot(root), key, fallback);
 	}
 
 	private static double readSpawnRuleDouble(JsonObject root, String key, double fallback) {
@@ -2931,8 +2395,8 @@ public final class MobEntityManager {
 		if (!(entity instanceof Mob mob) || root == null || root.entrySet().isEmpty()) {
 			return false;
 		}
-		JsonObject statsRoot = readMobStatsRoot(root);
-		JsonObject weaponRoot = readObject(statsRoot, MobConfigManager.FIELD_MOB_WEAPON);
+		JsonObject componentsRoot = readMobComponentsRoot(root);
+		JsonObject weaponRoot = readObject(componentsRoot, MobConfigManager.FIELD_MOB_WEAPON);
 		if (weaponRoot.entrySet().isEmpty()) {
 			return false;
 		}
@@ -3008,7 +2472,6 @@ public final class MobEntityManager {
 	}
 
 	private record HomingArrowState(UUID targetUuid, double speed, int remainingTicks) {}
-	private record SpawnWeightPair(double regularWeight, double specialWeight) {}
 	private record WeightedVariant(String key, double weight) {}
 
 }
