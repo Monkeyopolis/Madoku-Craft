@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -60,7 +60,8 @@ public final class WorldDifficultyConfigManager {
 		if (rule == null) return 0.0D;
 		return switch (rule.type()) {
 			case MobConfigManager.TYPE_FLAT -> rule.value() * difficultyLevel;
-			default -> Math.max(0.0D, baseValue) * rule.value() * difficultyLevel;
+			case MobConfigManager.TYPE_PERCENTAGE -> Math.max(0.0D, baseValue) * (rule.value() * difficultyLevel);
+			default -> 0.0D;
 		};
 	}
 

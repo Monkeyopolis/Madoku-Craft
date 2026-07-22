@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -40,6 +40,33 @@ public final class EntityConfigManager {
 		}
 	}
 
+	public static boolean isRegionalDifficultyScalingEnabled(JsonObject fileRoot) {
+		JsonElement entityElement = fileRoot == null ? null : fileRoot.get(MobConfigManager.FIELD_ENTITY);
+		if (entityElement == null || !entityElement.isJsonObject()) return true;
+		JsonElement enabled = entityElement.getAsJsonObject().get(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
+		try {
+			return enabled == null || enabled.getAsBoolean();
+		} catch (RuntimeException exception) {
+			return true;
+		}
+	}
+
+	static JsonElement resolveConfiguredElement(JsonObject root, String key) {
+		if (root == null || key == null) return null;
+		if (MobConfigManager.FIELD_DEFAULT_GROUP.equals(key)) {
+			if (root.has(MobConfigManager.FIELD_ENTITY)) {
+				return resolveDefaultVariant(root);
+			}
+			if (root.has(MobConfigManager.FIELD_MOB_COMPONENTS)
+				|| root.has(MobConfigManager.FIELD_MOB_BEHAVIORS)
+				|| root.has(MobConfigManager.FIELD_MOB_GOALS)
+				|| root.has(MobConfigManager.FIELD_SPAWN_RULES)) {
+				return root;
+			}
+		}
+		return root.get(key);
+	}
+
 	private static JsonObject resolveVariantPath(JsonObject entity, String variantKey) {
 		if (entity == null || entity.entrySet().isEmpty()) return new JsonObject();
 		List<String> path = splitPath(variantKey);
@@ -71,10 +98,21 @@ public final class EntityConfigManager {
 		return new JsonObject();
 	}
 
-	private static boolean isVariantKey(String key) {
-		return !MobConfigManager.FIELD_CUSTOM_MOB_DROPS.equals(key)
+	static boolean isVariantKey(String key) {
+		return !MobConfigManager.FIELD_ENABLED.equals(key)
+			&& !MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES.equals(key)
+			&& !MobConfigManager.FIELD_OVERRIDE_COMPONENTS.equals(key)
+			&& !MobConfigManager.FIELD_OVERRIDE_BEHAVIORS.equals(key)
+			&& !MobConfigManager.FIELD_OVERRIDE_GOALS.equals(key)
+			&& !MobConfigManager.FIELD_MOB_ID.equals(key)
+			&& !MobConfigManager.FIELD_ENTITY.equals(key)
+			&& !MobConfigManager.FIELD_CUSTOM_MOB_DROPS.equals(key)
 			&& !MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING.equals(key)
-			&& !MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW.equals(key);
+			&& !MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW.equals(key)
+			&& !MobConfigManager.FIELD_SPAWN_RULES.equals(key)
+			&& !MobConfigManager.FIELD_MOB_COMPONENTS.equals(key)
+			&& !MobConfigManager.FIELD_MOB_BEHAVIORS.equals(key)
+			&& !MobConfigManager.FIELD_MOB_GOALS.equals(key);
 	}
 
 	private static JsonObject readObject(JsonObject root, String key) {

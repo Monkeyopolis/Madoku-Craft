@@ -1,11 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.EntityBehaviorsManager;
+import madoku.craft.mob.EntityBehaviorsManager;
 
-import madoku.craft.mob.system.EntityBehaviorsManager.BoggedBehavior;
-import madoku.craft.mob.system.EntityBehaviorsManager.ParchedBehavior;
-import madoku.craft.mob.system.EntityBehaviorsManager.SkeletonBehavior;
-import madoku.craft.mob.system.EntityBehaviorsManager.StrayBehavior;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
 import org.spongepowered.asm.mixin.Mixin;

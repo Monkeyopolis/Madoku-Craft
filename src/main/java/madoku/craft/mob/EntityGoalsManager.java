@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

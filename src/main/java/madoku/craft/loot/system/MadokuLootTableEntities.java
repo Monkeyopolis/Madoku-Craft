@@ -7,7 +7,7 @@ import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.mob.system.MobEntityManager;
+import madoku.craft.mob.MobEntityManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.rarity.MadokuRarityTier;

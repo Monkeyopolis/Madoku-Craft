@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -626,30 +626,6 @@ public final class MobRegionalDifficultyManager {
 		);
 	}
 
-	private static boolean isSupportedBiomeRuleFile(String fileKey, JsonObject sourceRoot) {
-		return isRuleFileWithObjectField(sourceRoot, RegionalDifficultyConfigManager.FIELD_BIOME_LIST);
-	}
-
-	private static boolean isSupportedStructureRuleFile(String fileKey, JsonObject sourceRoot) {
-		return isRuleFileWithObjectField(sourceRoot, RegionalDifficultyConfigManager.FIELD_STRUCTURE_LIST);
-	}
-
-	private static boolean isSupportedTimeRuleFile(String fileKey, JsonObject sourceRoot) {
-		return sourceRoot != null;
-	}
-
-	private static boolean isSupportedMobScalingFile(String fileKey, JsonObject sourceRoot) {
-		return sourceRoot != null;
-	}
-
-	private static boolean isRuleFileWithObjectField(JsonObject sourceRoot, String fieldName) {
-		if (sourceRoot == null) {
-			return false;
-		}
-		JsonElement field = sourceRoot.get(fieldName);
-		return field != null && field.isJsonObject();
-	}
-
 	private static Identifier resolveBiomeId(ServerLevel world, net.minecraft.core.BlockPos pos) {
 		try {
 			Holder<Biome> biomeEntry = world.getBiome(pos);
@@ -1034,7 +1010,7 @@ public final class MobRegionalDifficultyManager {
 			return 0.0D;
 		}
 		double addition = switch (mode) {
-			case MULTIPLY -> safeBase * safeConfigured * totalAdjustment;
+			case PERCENTAGE -> safeBase * (safeConfigured * totalAdjustment);
 			case ADD -> safeConfigured * totalAdjustment;
 		};
 		return roundDifficultyScaleValue(safeBase, addition);
@@ -1181,8 +1157,8 @@ public final class MobRegionalDifficultyManager {
 		JsonObject statObject = statElement.getAsJsonObject();
 		String rawType = readString(statObject, RegionalDifficultyConfigManager.FIELD_SCALING_TYPE, "");
 		String normalized = rawType == null ? "" : rawType.trim().toLowerCase(Locale.ROOT);
-		if (RegionalDifficultyConfigManager.SCALING_TYPE_MULTIPLY.equals(normalized)) {
-			return ScalingMode.MULTIPLY;
+		if (RegionalDifficultyConfigManager.SCALING_TYPE_PERCENTAGE.equals(normalized)) {
+			return ScalingMode.PERCENTAGE;
 		}
 		if (RegionalDifficultyConfigManager.SCALING_TYPE_ADD.equals(normalized)) {
 			return ScalingMode.ADD;
@@ -1210,17 +1186,6 @@ public final class MobRegionalDifficultyManager {
 			return readFiniteDouble(statObject, RegionalDifficultyConfigManager.FIELD_SCALING_VALUE, fallback);
 		}
 		return fallback;
-	}
-
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Config file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
 	}
 
 	private record Snapshot(
@@ -1312,24 +1277,24 @@ public final class MobRegionalDifficultyManager {
 	) {
 		private static StatModes defaults() {
 			return new StatModes(
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY,
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE,
 				ScalingMode.ADD,
-				ScalingMode.MULTIPLY,
+				ScalingMode.PERCENTAGE,
 				ScalingMode.ADD,
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY,
-				ScalingMode.MULTIPLY
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE,
+				ScalingMode.PERCENTAGE
 			);
 		}
 	}
 
 	private enum ScalingMode {
 		ADD,
-		MULTIPLY
+		PERCENTAGE
 	}
 
 	private record ScalingApplication(
@@ -1382,11 +1347,6 @@ public final class MobRegionalDifficultyManager {
 		int defaultUnknownAdjustment,
 		Map<Identifier, Integer> adjustments
 	) {
-		private int resolveAdjustment(Identifier structureId) {
-			if (!enabled) return 0;
-			if (structureId == null) return defaultUnknownAdjustment;
-			return adjustments.getOrDefault(structureId, defaultUnknownAdjustment);
-		}
 	}
 
 	private record TimeState(

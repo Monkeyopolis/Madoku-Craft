@@ -1,8 +1,7 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.mob.system.MobRegionalDifficultyManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.mixin.CreeperAccessor;
@@ -675,10 +674,10 @@ public final class MobEntityManager {
 			entity,
 			resolveConfiguredEntityVariantForRuntime(entity)
 		);
-		return configuredComponentsApplied || applyLegacyLoadedEntityRules(entity);
+		return configuredComponentsApplied || applyConfiguredLoadedEntityRules(entity);
 	}
 
-	private static boolean applyLegacyLoadedEntityRules(LivingEntity entity) {
+	private static boolean applyConfiguredLoadedEntityRules(LivingEntity entity) {
 		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || PlayerEntitiesSystem.isManagedPet(entity)) {
 			return false;
 		}
@@ -980,28 +979,8 @@ public final class MobEntityManager {
 		if (entity == null) {
 			return false;
 		}
-		JsonObject regionalRoot = readObject(resolveRegionalDifficultyScalingRoot(entity), MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
-		if (regionalRoot.entrySet().isEmpty()) {
-			return true;
-		}
-		return readBoolean(regionalRoot, MobConfigManager.FIELD_ENABLED, true);
-	}
-
-	private static JsonObject resolveRegionalDifficultyScalingRoot(LivingEntity entity) {
-		if (entity == null) {
-			return new JsonObject();
-		}
-		if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
-			JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
-			return resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
-		}
-
 		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
-		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) {
-			return new JsonObject();
-		}
-
-		return fileMobRoot(fileKey);
+		return fileKey.isBlank() || EntityConfigManager.isRegionalDifficultyScalingEnabled(root(fileKey));
 	}
 
 	private static String resolveRegionalDifficultyMobFileKey(LivingEntity entity) {
@@ -2064,7 +2043,7 @@ public final class MobEntityManager {
 		if (baseValue == null) {
 			return null;
 		}
-		return resolveDifficultyAdjustedValue(difficulty, hardcore, baseValue, step, minimum);
+		return Math.max(minimum, baseValue);
 	}
 
 	private static Double resolveScaledStat(
@@ -2086,7 +2065,7 @@ public final class MobEntityManager {
 				return resolveDifficultyAdjustedPercentValue(difficulty, hardcore, baseValue, perStep, minimum);
 			}
 		}
-		return resolveDifficultyAdjustedValue(difficulty, hardcore, baseValue, fallbackStep, minimum);
+		return Math.max(minimum, baseValue);
 	}
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
@@ -2231,26 +2210,7 @@ public final class MobEntityManager {
 	}
 
 	private static JsonObject fileMobRoot(String fileKey) {
-		return readObject(root(fileKey), fileKey);
-	}
-
-	private static boolean shouldOverrideSkeletonSpawnRules(AbstractSkeleton skeleton) {
-		if (skeleton == null || !MobConfigManager.isEnabled()) {
-			return false;
-		}
-		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
-			return EntityBehaviorsManager.StrayBehavior.shouldOverrideSpawnRules(skeleton);
-		}
-		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
-			return EntityBehaviorsManager.BoggedBehavior.shouldOverrideSpawnRules(skeleton);
-		}
-		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
-			return EntityBehaviorsManager.ParchedBehavior.shouldOverrideSpawnRules(skeleton);
-		}
-		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
-			return EntityBehaviorsManager.WitherSkeletonBehavior.shouldOverrideSpawnRules(skeleton);
-		}
-		return EntityBehaviorsManager.SkeletonBehavior.shouldOverrideSpawnRules(skeleton);
+		return EntityConfigManager.resolveDefaultVariant(root(fileKey));
 	}
 
 	private static boolean isSupportedSkeletonRuntimeType(AbstractSkeleton skeleton) {
@@ -2408,7 +2368,7 @@ public final class MobEntityManager {
 		if (root == null || key == null) {
 			return new JsonObject();
 		}
-		JsonElement element = root.get(key);
+		JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
@@ -2508,6 +2468,9 @@ public final class MobEntityManager {
 				continue;
 			}
 			String key = normalizeKey(entry.getKey());
+			if (!EntityConfigManager.isVariantKey(key)) {
+				continue;
+			}
 			if (reservedKeyPredicate != null && reservedKeyPredicate.test(key)) {
 				continue;
 			}
@@ -2616,7 +2579,7 @@ public final class MobEntityManager {
 			return beeRoot;
 		}
 		boolean overrideSpawnRules = readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
-		boolean variantEnabled = readBoolean(beeFileRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+		boolean variantEnabled = readBoolean(beeFileRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 		if (!variantEnabled) {
 			clearBeeVariantTag(entity);
 			return defaultGroup;

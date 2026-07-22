@@ -7,7 +7,7 @@ import madoku.craft.api.time.TimeSleepManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.MadokuMobManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;

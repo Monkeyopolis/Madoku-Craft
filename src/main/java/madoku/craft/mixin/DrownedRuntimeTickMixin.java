@@ -1,8 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.EntityBehaviorsManager;
+import madoku.craft.mob.EntityBehaviorsManager;
 
-import madoku.craft.mob.system.EntityBehaviorsManager.DrownedBehavior;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.monster.zombie.Drowned;
 import org.spongepowered.asm.mixin.Mixin;

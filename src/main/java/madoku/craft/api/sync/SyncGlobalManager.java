@@ -5,7 +5,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.SeasonPayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
-import madoku.craft.mob.system.MobPayloadManager;
+import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.levels.LevelsPayloadManager;
 import madoku.craft.pet.PetAbilityHudPayloadManager;

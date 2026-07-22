@@ -1,8 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.EntityBehaviorsManager;
+import madoku.craft.mob.EntityBehaviorsManager;
 
-import madoku.craft.mob.system.EntityBehaviorsManager.BeeBehavior;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;

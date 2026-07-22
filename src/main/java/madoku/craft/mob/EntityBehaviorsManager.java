@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.UUID;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.mob.system.MobRegionalDifficultyManager;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
@@ -552,7 +551,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -973,7 +972,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 	
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearVariantTag(skeleton);
 				return defaultGroup;
@@ -1316,7 +1315,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -1640,16 +1639,14 @@ public final class EntityBehaviorsManager {
 			if (fileRoot == null || fileKey == null || fileKey.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = fileRoot.get(fileKey);
-			JsonObject mobRoot = element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
-			return readObject(mobRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			return EntityConfigManager.resolveDefaultVariant(fileRoot);
 		}
 	
 		private static JsonObject readObject(JsonObject parent, String key) {
 			if (parent == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = parent.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(parent, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -1999,7 +1996,7 @@ public final class EntityBehaviorsManager {
 				clearDrownedVariantTag(drowned);
 				return new JsonObject();
 			}
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearDrownedVariantTag(drowned);
 				return defaultGroup;
@@ -2608,7 +2605,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -3331,7 +3328,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -3642,7 +3639,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 	
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearVariantTag(skeleton);
 				return defaultGroup;
@@ -3985,7 +3982,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -4573,7 +4570,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 	
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearSkeletonVariantTag(skeleton);
 				return defaultGroup;
@@ -5144,7 +5141,7 @@ public final class EntityBehaviorsManager {
 			if (spiderRoot == null || spiderRoot.entrySet().isEmpty()) {
 				return false;
 			}
-			if (readBoolean(spiderRoot, MobConfigManager.FIELD_MOB_VARIANT, false)) {
+			if (readBoolean(spiderRoot, MobConfigManager.FIELD_MOB_VARIANT, true)) {
 				return true;
 			}
 			if (!readObject(spiderRoot, MobConfigManager.FIELD_DEFAULT_GROUP).entrySet().isEmpty()) {
@@ -5251,22 +5248,14 @@ public final class EntityBehaviorsManager {
 			if (fileRoot == null || fileKey == null || fileKey.isBlank()) {
 				return new JsonObject();
 			}
-			JsonObject mainRoot = readObject(fileRoot, "main");
-			if (!mainRoot.entrySet().isEmpty()) {
-				return mainRoot;
-			}
-			JsonElement element = fileRoot.get(fileKey);
-			if (element != null && element.isJsonObject()) {
-				return element.getAsJsonObject();
-			}
-			return fileRoot;
+			return EntityConfigManager.resolveDefaultVariant(fileRoot);
 		}
 	
 		private static JsonObject readObject(JsonObject parent, String key) {
 			if (parent == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = parent.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(parent, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -5548,7 +5537,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 	
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearVariantTag(skeleton);
 				return defaultGroup;
@@ -5891,7 +5880,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -6258,7 +6247,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 	
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearWitherSkeletonVariantTag(skeleton);
 				return defaultGroup;
@@ -6853,7 +6842,7 @@ public final class EntityBehaviorsManager {
 				clearZombieVariantTag(zombie);
 				return new JsonObject();
 			}
-			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, false);
+			boolean variantEnabled = readBoolean(fileConfigRoot, MobConfigManager.FIELD_MOB_VARIANT, true);
 			if (!variantEnabled) {
 				clearZombieVariantTag(zombie);
 				return defaultGroup;
@@ -7075,7 +7064,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
@@ -7494,7 +7483,7 @@ public final class EntityBehaviorsManager {
 			if (root == null || key == null || key.isBlank()) {
 				return new JsonObject();
 			}
-			JsonElement element = root.get(key);
+			JsonElement element = EntityConfigManager.resolveConfiguredElement(root, key);
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	

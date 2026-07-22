@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.metadata.MadokuMetaDataManager;
@@ -30,7 +30,7 @@ public final class MadokuMobManager {
 		);
 		MadokuMetaDataManager.registerMainSystem(metadata);
 		MadokuDebugManager.bootstrapMainSystem(metadata);
-		MadokuConfigManager.initialize();
+		MobConfigManager.initialize();
 		MobWorldDifficultyManager.initialize();
 		MobRegionalDifficultyManager.initialize();
 		MobEntityManager.initialize();
@@ -51,7 +51,7 @@ public final class MadokuMobManager {
 		MobEntityManager.onServerStopped();
 		MobRegionalDifficultyManager.onServerStopped();
 		MobWorldDifficultyManager.onServerStopped();
-		MadokuConfigManager.reset();
+		MobConfigManager.reset();
 	}
 
 	public static void broadcastDifficultyNow(MinecraftServer server) {

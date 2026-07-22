@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.Difficulty;

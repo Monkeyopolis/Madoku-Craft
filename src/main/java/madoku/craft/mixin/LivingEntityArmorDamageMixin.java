@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.attributes.armor.MadokuArmorManager;
-import madoku.craft.mob.system.MobEntityManager;
+import madoku.craft.mob.MobEntityManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.DamageTypeTags;

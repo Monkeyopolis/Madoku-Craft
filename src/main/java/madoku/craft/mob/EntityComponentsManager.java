@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -40,8 +40,6 @@ public final class EntityComponentsManager {
 		changed |= add(entity, Attributes.MOVEMENT_SPEED, MobConfigManager.FIELD_MOVEMENT_SPEED, hardcore);
 		changed |= add(entity, Attributes.FLYING_SPEED, MobConfigManager.FIELD_FLYING_SPEED, hardcore);
 		changed |= add(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, MobConfigManager.FIELD_SWIMMING_SPEED, hardcore);
-		changed |= add(entity, Attributes.ARMOR, MobConfigManager.FIELD_ARMOR, hardcore);
-		changed |= add(entity, Attributes.KNOCKBACK_RESISTANCE, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE, hardcore);
 		return changed;
 	}
 

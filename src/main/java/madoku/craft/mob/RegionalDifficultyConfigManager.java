@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
@@ -31,7 +31,7 @@ public final class RegionalDifficultyConfigManager {
 	public static final String FIELD_SCALING_TYPE = "type";
 	public static final String FIELD_SCALING_VALUE = "value";
 	public static final String SCALING_TYPE_ADD = "flat";
-	public static final String SCALING_TYPE_MULTIPLY = "percentage";
+	public static final String SCALING_TYPE_PERCENTAGE = "percentage";
 	public static final String FIELD_ADJUSTMENT = "adjustment";
 	public static final String FIELD_BIOME_LIST = "biome-list";
 	public static final String FIELD_STRUCTURE_LIST = "structure-list";
@@ -57,11 +57,11 @@ public final class RegionalDifficultyConfigManager {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.object(FIELD_DIFFICULTY_SCALING, scaling -> scaling
-				.put(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_HEALTH_INCREMENT))
-				.put(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_MOVEMENT_SPEED_INCREMENT))
-				.put(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_ARMOR_INCREMENT))
+				.put(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, DEFAULT_HEALTH_INCREMENT))
+				.put(FIELD_MOVEMENT_SPEED, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, DEFAULT_MOVEMENT_SPEED_INCREMENT))
+				.put(FIELD_ARMOR, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, DEFAULT_ARMOR_INCREMENT))
 				.put(FIELD_KNOCKBACK_RESISTANCE, buildScalingValueRule(SCALING_TYPE_ADD, DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT))
-				.put(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_MULTIPLY, DEFAULT_EXPERIENCE_DROP_INCREMENT)))
+				.put(FIELD_EXPERIENCE_DROP, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, DEFAULT_EXPERIENCE_DROP_INCREMENT)))
 			.build();
 	}
 
@@ -186,7 +186,7 @@ public final class RegionalDifficultyConfigManager {
 			knockbackResistance, experienceDrop, rangedDamage, attackAccuracy, explosionPower
 		);
 		if (attackAccuracy != null) {
-			root.add(FIELD_RANGED_ACCURACY, buildScalingValueRule(SCALING_TYPE_ADD, attackAccuracy));
+			root.add(FIELD_RANGED_ACCURACY, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, attackAccuracy));
 		}
 		return root;
 	}
@@ -213,24 +213,24 @@ public final class RegionalDifficultyConfigManager {
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_MOB_ID, normalizeMobId(mobId));
-		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_MOVEMENT_SPEED, movementSpeed, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_SWIMMING_SPEED, swimmingSpeed, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_FLYING_SPEED, flyingSpeed, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_SCALE, scale, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_ARMOR, armor, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_DAMAGE, damage, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_MOVEMENT_SPEED, movementSpeed, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_SWIMMING_SPEED, swimmingSpeed, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_FLYING_SPEED, flyingSpeed, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_SCALE, scale, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_ARMOR, armor, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_DAMAGE, damage, SCALING_TYPE_PERCENTAGE);
 		addScalingEntry(root, FIELD_KNOCKBACK_RESISTANCE, knockbackResistance, SCALING_TYPE_ADD);
-		addScalingEntry(root, FIELD_EXPERIENCE_DROP, experienceDrop, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_RANGED_DAMAGE, rangedDamage, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_RANGED_ACCURACY, attackAccuracy, SCALING_TYPE_MULTIPLY);
-		addScalingEntry(root, FIELD_EXPLOSION_POWER, explosionPower, SCALING_TYPE_MULTIPLY);
+		addScalingEntry(root, FIELD_EXPERIENCE_DROP, experienceDrop, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_RANGED_DAMAGE, rangedDamage, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_RANGED_ACCURACY, attackAccuracy, SCALING_TYPE_PERCENTAGE);
+		addScalingEntry(root, FIELD_EXPLOSION_POWER, explosionPower, SCALING_TYPE_PERCENTAGE);
 		return root.build();
 	}
 
 	public static JsonObject buildScalingValueRule(String type, double value) {
 		String normalized = type == null ? SCALING_TYPE_ADD : type.trim().toLowerCase(Locale.ROOT);
-		if (!SCALING_TYPE_ADD.equals(normalized) && !SCALING_TYPE_MULTIPLY.equals(normalized)) {
+		if (!SCALING_TYPE_ADD.equals(normalized) && !SCALING_TYPE_PERCENTAGE.equals(normalized)) {
 			normalized = SCALING_TYPE_ADD;
 		}
 		return JSONFormatManager.object()

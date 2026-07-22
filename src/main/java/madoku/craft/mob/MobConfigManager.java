@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 
@@ -242,14 +242,14 @@ public final class MobConfigManager {
 				buildNewEntityDefaults(),
 				MobConfigManager::buildNewDynamicEntityDefaults,
 				(fileKey, ignored) -> true,
-				(key, value) -> value
+				MobConfigManager::normalizeDynamicEntityEntry
 			);
 			JSONFormatManager.ensureManagedFolder(
 				ensureDirectory(regionalDirectory.resolve(REGIONAL_SCALING_FOLDER)),
 				Map.of(),
 				MobConfigManager::buildNewDynamicScalingDefaults,
 				(fileKey, ignored) -> true,
-				(key, value) -> value
+				MobConfigManager::normalizeDynamicScalingEntry
 			);
 			loadRuntimeConfig();
 			initialized = true;
@@ -385,6 +385,25 @@ public final class MobConfigManager {
 		return fileKey == null ? "" : fileKey.trim().toLowerCase();
 	}
 
+	private static com.google.gson.JsonElement normalizeDynamicEntityEntry(String key, com.google.gson.JsonElement value) {
+		if (key == null) return null;
+		return switch (key.trim().toLowerCase()) {
+			case FIELD_ENABLED, FIELD_OVERRIDE_SPAWN_RULES, FIELD_OVERRIDE_COMPONENTS, FIELD_OVERRIDE_BEHAVIORS,
+				FIELD_OVERRIDE_GOALS, FIELD_MOB_ID, FIELD_ENTITY -> value;
+			default -> null;
+		};
+	}
+
+	private static com.google.gson.JsonElement normalizeDynamicScalingEntry(String key, com.google.gson.JsonElement value) {
+		if (key == null) return null;
+		return switch (key.trim().toLowerCase()) {
+			case FIELD_ENABLED, FIELD_MOB_ID, FIELD_HEALTH, FIELD_MOVEMENT_SPEED, FIELD_SWIMMING_SPEED,
+				FIELD_FLYING_SPEED, FIELD_SCALE, FIELD_ARMOR, FIELD_DAMAGE, FIELD_KNOCKBACK_RESISTANCE,
+				FIELD_EXPERIENCE_DROP, FIELD_RANGED_DAMAGE, FIELD_EXPLOSION_POWER, "ranged-accuracy" -> value;
+			default -> null;
+		};
+	}
+
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
 		try {
 			return root != null && root.has(key) ? root.get(key).getAsBoolean() : fallback;
@@ -409,17 +428,6 @@ public final class MobConfigManager {
 
 	public static JsonObject buildDynamicMobDefaults(String fileKey) {
 		return buildNewDynamicEntityDefaults(fileKey);
-	}
-
-	private static JsonObject buildUniversalOnlyDefaults() {
-		return JSONFormatManager.object()
-			.put(FIELD_ENABLED, true)
-			.object(FIELD_MOB_COMPONENTS, builder -> {
-			})
-			.put(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults())
-			.put(FIELD_MOB_BEHAVIORS, buildMobBehaviorDefaults())
-			.put(FIELD_MOB_GOALS, buildMobGoalsDefaults())
-			.build();
 	}
 
 	static JsonObject buildMobStatsDefaults(

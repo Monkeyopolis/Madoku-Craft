@@ -11,7 +11,7 @@ import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.api.season.SeasonPayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
-import madoku.craft.difficulty.system.DifficultyPayloadManager;
+import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.pet.PetAbilityHudPayloadManager;
 import madoku.craft.pet.PetSoundStatePayloadManager;
@@ -48,7 +48,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE, (payload, context) ->
 			HudPayloadManager.setServerHunger(payload.current(), payload.pending(), payload.max())
 		);
-		ClientPlayNetworking.registerGlobalReceiver(DifficultyPayloadManager.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(MobPayloadManager.TYPE, (payload, context) ->
 			HudPayloadManager.setServerDifficulty(payload.level())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(SeasonPayloadManager.TYPE, (payload, context) ->

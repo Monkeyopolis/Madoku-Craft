@@ -11,7 +11,7 @@ import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
-import madoku.craft.mob.system.MobEntityManager;
+import madoku.craft.mob.MobEntityManager;
 import madoku.craft.mixin.MobTargetSelectorAccessor;
 import madoku.craft.api.sync.SyncPlayerManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;

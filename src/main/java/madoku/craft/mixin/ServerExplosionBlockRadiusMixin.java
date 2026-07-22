@@ -1,8 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.EntityBehaviorsManager;
+import madoku.craft.mob.EntityBehaviorsManager;
 
-import madoku.craft.mob.system.EntityBehaviorsManager.CreeperBehavior;
 import net.minecraft.world.level.ServerExplosion;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;

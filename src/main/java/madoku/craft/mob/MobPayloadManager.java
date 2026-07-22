@@ -1,4 +1,4 @@
-package madoku.craft.mob.system;
+package madoku.craft.mob;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;

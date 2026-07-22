@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MobRegionalDifficultyManager;
-import madoku.craft.mob.system.MobEntityManager;
+import madoku.craft.mob.MobRegionalDifficultyManager;
+import madoku.craft.mob.MobEntityManager;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
