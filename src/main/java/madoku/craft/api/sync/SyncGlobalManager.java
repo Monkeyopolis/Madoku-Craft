@@ -5,7 +5,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.SeasonPayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
-import madoku.craft.difficulty.system.DifficultyPayloadManager;
+import madoku.craft.mob.system.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.levels.LevelsPayloadManager;
 import madoku.craft.pet.PetAbilityHudPayloadManager;
@@ -96,7 +96,7 @@ public final class SyncGlobalManager {
 		registerClientbound(LevelsPayloadManager.Payload.TYPE, LevelsPayloadManager.Payload.CODEC);
 		registerClientbound(PetAbilityHudPayloadManager.TYPE, PetAbilityHudPayloadManager.CODEC);
 		registerClientbound(PetSoundStatePayloadManager.TYPE, PetSoundStatePayloadManager.CODEC);
-		registerClientbound(DifficultyPayloadManager.TYPE, DifficultyPayloadManager.CODEC);
+		registerClientbound(MobPayloadManager.TYPE, MobPayloadManager.CODEC);
 		registerClientbound(SeasonPayloadManager.TYPE, SeasonPayloadManager.CODEC);
 		registerClientbound(TimePayloadManager.TYPE, TimePayloadManager.CODEC);
 		registerServerbound(LevelsPayloadManager.LevelUpPayload.TYPE, LevelsPayloadManager.LevelUpPayload.CODEC);

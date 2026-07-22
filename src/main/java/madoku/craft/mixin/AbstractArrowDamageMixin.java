@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobEntityManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,18 +25,18 @@ public abstract class AbstractArrowDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedArrowDamage(Entity entity, DamageSource source, float originalDamage) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
-		if (MadokuMobManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
+		if (MobEntityManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
 			livingEntity.invulnerableTime = 0;
 			livingEntity.hurtTime = 0;
 		}
-		float resolvedDamage = MadokuMobManager.resolveProjectileDamageOverride(arrow, originalDamage);
+		float resolvedDamage = MobEntityManager.resolveProjectileDamageOverride(arrow, originalDamage);
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
-		if (hit && MadokuMobManager.isManagedHomingArrow(arrow)) {
-			MadokuMobManager.clearProjectileHoming(arrow);
+		if (hit && MobEntityManager.isManagedHomingArrow(arrow)) {
+			MobEntityManager.clearProjectileHoming(arrow);
 		}
-		MadokuMobManager.clearInvulnerabilityBypass(arrow);
+		MobEntityManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
-			MadokuMobManager.applySkeletonArrowHitEffect(livingEntity, arrow.getOwner());
+			MobEntityManager.applySkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}
 		return hit;
 	}
@@ -49,7 +49,7 @@ public abstract class AbstractArrowDamageMixin {
 		)
 	)
 	private void madokuCraft$skipHomingArrowKnockback(AbstractArrow arrow, LivingEntity target, DamageSource source) {
-		if (!MadokuMobManager.isManagedHomingArrow(arrow)) {
+		if (!MobEntityManager.isManagedHomingArrow(arrow)) {
 			this.doKnockback(target, source);
 		}
 	}

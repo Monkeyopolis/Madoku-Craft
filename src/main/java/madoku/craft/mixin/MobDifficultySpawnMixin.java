@@ -1,8 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.difficulty.system.DifficultyScaledMob;
-import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobRegionalDifficultyManager;
+import madoku.craft.mob.system.MobEntityManager;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
@@ -18,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Mob.class)
-public abstract class MobDifficultySpawnMixin implements DifficultyScaledMob {
+public abstract class MobDifficultySpawnMixin implements MobEntityManager.DifficultyState {
 	@Unique
 	private static final String MADOKU_CRAFT_DIFFICULTY_ADJUSTMENT_KEY = "madoku_craft_spawn_difficulty_adjustment";
 
@@ -33,11 +32,11 @@ public abstract class MobDifficultySpawnMixin implements DifficultyScaledMob {
 		SpawnGroupData spawnGroupData,
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
-		if (MadokuMobManager.isEnabled()) {
+		if (!MobEntityManager.isEnabled() || !MobRegionalDifficultyManager.isEnabled()) {
 			return;
 		}
 		Mob mob = (Mob) (Object) this;
-		MadokuRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+		MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
 	}
 
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))

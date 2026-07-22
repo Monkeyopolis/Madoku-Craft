@@ -3,13 +3,52 @@ package madoku.craft.mob.system;
 import com.google.gson.JsonObject;
 
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
+import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.loot.system.EquipmentConfigManager;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
 public final class MobConfigManager {
+	public static final String CONFIG_ROOT = "madoku-craft";
+	public static final String MOBS_SYSTEM_FOLDER = "madoku-craft-mobs";
+	public static final String ENTITIES_SYSTEM_FOLDER = "madoku-entities";
+	public static final String WORLD_DIFFICULTY_SYSTEM_FOLDER = "madoku-world-difficulty";
+	public static final String REGIONAL_DIFFICULTY_SYSTEM_FOLDER = "madoku-regional-difficulty";
+	public static final String MOBS_SETTINGS_FILE = "madoku-mobs";
+	public static final String ENTITIES_SETTINGS_FILE = "madoku-entities";
+	public static final String WORLD_DIFFICULTY_SETTINGS_FILE = "madoku-world-difficulty";
+	public static final String REGIONAL_DIFFICULTY_SETTINGS_FILE = "madoku-regional-difficulty";
+	public static final String ENTITY_FILES_FOLDER = "mobs";
+	public static final String REGIONAL_SCALING_FOLDER = "scaling";
+	public static final String REGIONAL_STRUCTURES_FILE = "structures";
+	public static final String REGIONAL_TIME_FILE = "time";
+	public static final String REGIONAL_BIOMES_FILE = "biomes";
+
+	public static final String FIELD_OVERRIDE_COMPONENTS = "override-components";
+	public static final String FIELD_OVERRIDE_BEHAVIORS = "override-behaviors";
+	public static final String FIELD_ENTITY = "entity";
+	public static final String FIELD_MOB_ID = "mob-id";
+	public static final String FIELD_WORLD_DIFFICULTY_SCALING = "world-difficulty-scaling";
+	public static final String FIELD_REGIONAL_DIFFICULTY_SCALING_NEW = "regional-difficulty-scaling";
+	public static final String FIELD_BIOME_LIST = "biome-list";
+	public static final String FIELD_STRUCTURE_LIST = "structure-list";
+	public static final String FIELD_DAY_LIST = "day-list";
+	public static final String FIELD_DAY_COUNT = "day-count";
+	public static final String FIELD_ADJUSTMENT = "adjustment";
+	public static final String FIELD_TYPE = "type";
+	public static final String FIELD_VALUE = "value";
+	public static final String TYPE_PERCENTAGE = "percentage";
+	public static final String TYPE_FLAT = "flat";
+	private static volatile boolean initialized;
+	private static volatile RuntimeConfig runtimeConfig = RuntimeConfig.disabled();
+
 	public static final String FIELD_ENABLED = "enabled";
 
 	public static final String FIELD_HEALTH = "health";
@@ -43,11 +82,12 @@ public final class MobConfigManager {
 	public static final String FIELD_BOW_ATTACK = "bow-attack";
 	public static final String FIELD_SPAWN_WEIGHT = "spawn-weight";
 	public static final String FIELD_RANGED_DAMAGE = "ranged-damage";
+	public static final String FIELD_EXPLOSION_POWER = "explosion-power";
 	public static final String FIELD_ATTACK_INTERVAL = "attack-interval";
 	public static final String FIELD_ATTACK_ACCURACY = "attack-accuracy";
 	public static final String FIELD_CHARGE_INTERVAL = "charge-interval";
 	public static final String FIELD_SPAWN_RULES = "mob-spawn-rules";
-	public static final String FIELD_MOB_STATS = "mob-stats";
+	public static final String FIELD_MOB_COMPONENTS = "mob-components";
 	public static final String FIELD_MOB_WEAPON = "mob-weapon";
 	public static final String FIELD_MOB_EFFECT = "mob-effect";
 	public static final String FIELD_MOB_DROPS = "mob-drops";
@@ -55,7 +95,7 @@ public final class MobConfigManager {
 	public static final String FIELD_EFFECT = "effect";
 	public static final String FIELD_DURATION = "duration";
 	public static final String FIELD_WEAPON_DAMAGE = "weapon-damage";
-	public static final String FIELD_MOB_BEHAVIOR = "mob-behavior";
+	public static final String FIELD_MOB_BEHAVIORS = "mob-behaviors";
 	public static final String FIELD_MOB_GOALS = "mob-goals";
 	public static final String FIELD_RETALIATE_WHEN_HURT = "retaliate-when-hurt";
 	public static final String FIELD_CALLS_REINFORCEMENTS_WHEN_HURT = "calls-reinforcements-when-hurt";
@@ -70,28 +110,13 @@ public final class MobConfigManager {
 	public static final String FIELD_MAIN_HAND = "main-hand";
 	public static final String FIELD_SPAWN_ALTERNATIVE_MOB = "spawn-alternative-mob";
 	public static final String FIELD_MOB = "mob";
-	public static final String FIELD_OVERRIDE_STATS = "override-stats";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
-	public static final String FIELD_OVERRIDE_BEHAVIOR = "override-behavior";
 	public static final String FIELD_OVERRIDE_GOALS = "override-goals";
 	public static final String FIELD_MOB_VARIANT = "mob-variant";
-	public static final String FIELD_SHARED_COMPONENTS = "shared-components";
 	public static final String FIELD_MOB_BABY = "mob-baby";
 	public static final String FIELD_DEFAULT_GROUP = "default";
 	public static final String FIELD_BABY_GROUP = "baby";
 	public static final String FIELD_ADULT_GROUP = "adult";
-	public static final String FIELD_DIFFICULTY_SCALING = "difficulty-scaling";
-	public static final String FIELD_DIFFICULTY_SCALE = "difficulty-scale";
-	public static final String FIELD_REGIONAL_DIFFICULTY_SCALING = "regional-difficulty-scaling";
-	public static final String FIELD_DIFFICULTY_SCALE_HEALTH = "health";
-	public static final String FIELD_DIFFICULTY_SCALE_DAMAGE = "damage";
-	public static final String FIELD_DIFFICULTY_SCALE_RANGED_DAMAGE = "ranged-damage";
-	public static final String FIELD_DIFFICULTY_SCALE_MOVEMENT_SPEED = "movement-speed";
-	public static final String FIELD_DIFFICULTY_SCALE_SWIMMING_SPEED = "swimming-speed";
-	public static final String FIELD_DIFFICULTY_SCALE_FLYING_SPEED = "flying_speed";
-	public static final String FIELD_DIFFICULTY_SCALE_EXPERIENCE_DROP = "experience-drop";
-	public static final String FIELD_DIFFICULTY_SCALE_SCALE = "scale";
-	public static final String FIELD_DIFFICULTY_SCALE_EXPLOSION_POWER = "explosion-power";
 	public static final String FIELD_PARTIAL_SET = "partial-set";
 	public static final String FIELD_HALF_SET = "half-set";
 	public static final String FIELD_FULL_SET = "full-set";
@@ -105,7 +130,6 @@ public final class MobConfigManager {
 	public static final String FIELD_MOB_EXPLODE = "mob-explode";
 	public static final String FIELD_DESTRUCTION_CHANCE = "destruction-chance";
 	public static final String FIELD_GREIF_POWER = "greif-power";
-	public static final String FIELD_EXPLOSION_POWER = "explosion-power";
 	public static final String FIELD_FUSE_LENGTH = "fuse-length";
 
 	public static final List<String> MOB_STATS_OPTIONAL_ENTRIES = List.of(
@@ -158,9 +182,215 @@ public final class MobConfigManager {
 		"target-player"
 	);
 
-	private static final Map<String, JsonObject> DEFAULT_FILE_DEFAULTS = buildDefaults();
+	private static final Map<String, JsonObject> DEFAULT_FILE_DEFAULTS = buildNewEntityDefaults();
 
 	private MobConfigManager() {
+	}
+
+	public static synchronized void initialize() {
+		if (initialized) {
+			return;
+		}
+		try {
+			Path root = MadokuJSONManager.getOrCreateGlobalRootDirectory();
+			Path mobsDirectory = ensureDirectory(root.resolve(MOBS_SYSTEM_FOLDER));
+			JSONFormatManager.ensureManagedFile(
+				mobsDirectory.resolve(MOBS_SETTINGS_FILE + ".json"),
+				buildMobSystemDefaults(),
+				JSONTypeManager.STATIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFile(
+				ensureDirectory(root.resolve(ENTITIES_SYSTEM_FOLDER)).resolve(ENTITIES_SETTINGS_FILE + ".json"),
+				buildEntitySystemDefaults(),
+				JSONTypeManager.STATIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFile(
+				ensureDirectory(root.resolve(WORLD_DIFFICULTY_SYSTEM_FOLDER)).resolve(WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
+				buildWorldDifficultyDefaults(),
+				JSONTypeManager.STATIC_CONFIG,
+				null
+			);
+			Path regionalDirectory = ensureDirectory(root.resolve(REGIONAL_DIFFICULTY_SYSTEM_FOLDER));
+			JSONFormatManager.ensureManagedFile(
+				regionalDirectory.resolve(REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
+				buildRegionalDifficultyDefaults(),
+				JSONTypeManager.STATIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFile(
+				regionalDirectory.resolve(REGIONAL_STRUCTURES_FILE + ".json"),
+				buildStructuresDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFile(
+				regionalDirectory.resolve(REGIONAL_TIME_FILE + ".json"),
+				buildTimeDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFile(
+				regionalDirectory.resolve(REGIONAL_BIOMES_FILE + ".json"),
+				buildBiomesDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				null
+			);
+			JSONFormatManager.ensureManagedFolder(
+				ensureDirectory(mobsDirectory.resolve(ENTITY_FILES_FOLDER)),
+				buildNewEntityDefaults(),
+				MobConfigManager::buildNewDynamicEntityDefaults,
+				(fileKey, ignored) -> true,
+				(key, value) -> value
+			);
+			JSONFormatManager.ensureManagedFolder(
+				ensureDirectory(regionalDirectory.resolve(REGIONAL_SCALING_FOLDER)),
+				Map.of(),
+				MobConfigManager::buildNewDynamicScalingDefaults,
+				(fileKey, ignored) -> true,
+				(key, value) -> value
+			);
+			loadRuntimeConfig();
+			initialized = true;
+		} catch (IOException | RuntimeException exception) {
+			runtimeConfig = RuntimeConfig.disabled();
+			initialized = false;
+		}
+	}
+
+	public static synchronized void reset() {
+		initialized = false;
+		runtimeConfig = RuntimeConfig.disabled();
+	}
+
+	public static boolean isEnabled() {
+		return runtimeConfig.enabled();
+	}
+
+	static Map<String, JsonObject> getRuntimeMobFiles() {
+		return runtimeConfig.files();
+	}
+
+	private static void loadRuntimeConfig() throws IOException {
+		Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MOBS_SYSTEM_FOLDER);
+		Path settingsFile = rootDirectory.resolve(MOBS_SETTINGS_FILE + ".json");
+		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildMobSystemDefaults());
+		boolean enabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
+		Path mobsDirectory = rootDirectory.resolve(ENTITY_FILES_FOLDER);
+		Map<String, JsonObject> files = new LinkedHashMap<>();
+		if (Files.isDirectory(mobsDirectory)) {
+			try (var stream = Files.list(mobsDirectory)) {
+				for (Path file : stream.filter(Files::isRegularFile).filter(path -> path.getFileName().toString().endsWith(".json")).toList()) {
+					String fileKey = file.getFileName().toString().substring(0, file.getFileName().toString().length() - 5).toLowerCase();
+					files.put(fileKey, JSONFormatManager.readManagedDocument(file).data());
+				}
+			}
+		}
+		runtimeConfig = enabled ? new RuntimeConfig(true, Map.copyOf(files)) : RuntimeConfig.disabled();
+		EquipmentConfigManager.reloadConfig();
+	}
+
+	private static Path ensureDirectory(Path path) throws IOException {
+		Files.createDirectories(path);
+		return path;
+	}
+
+	public static JsonObject buildEntitySystemDefaults() {
+		return JSONFormatManager.object().put(FIELD_ENABLED, true).build();
+	}
+
+	public static JsonObject buildWorldDifficultyDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.object(FIELD_WORLD_DIFFICULTY_SCALING, root -> root
+				.put(FIELD_HEALTH, buildScalingRule(TYPE_PERCENTAGE, 0.25D))
+				.put(FIELD_DAMAGE, buildScalingRule(TYPE_PERCENTAGE, 0.10D))
+				.put(FIELD_MOVEMENT_SPEED, buildScalingRule(TYPE_PERCENTAGE, 0.10D))
+				.put(FIELD_EXPERIENCE_DROP, buildScalingRule(TYPE_PERCENTAGE, 0.25D))
+				.put(FIELD_FLYING_SPEED, buildScalingRule(TYPE_PERCENTAGE, 0.10D))
+				.put(FIELD_EXPLOSION_POWER, buildScalingRule(TYPE_PERCENTAGE, 0.10D))
+				.put(FIELD_RANGED_DAMAGE, buildScalingRule(TYPE_PERCENTAGE, 0.10D))
+				.put(FIELD_SWIMMING_SPEED, buildScalingRule(TYPE_PERCENTAGE, 0.10D)))
+			.build();
+	}
+
+	public static JsonObject buildRegionalDifficultyDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.object(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, root -> root
+				.put(FIELD_HEALTH, buildScalingRule(TYPE_PERCENTAGE, 0.20D))
+				.put(FIELD_MOVEMENT_SPEED, buildScalingRule(TYPE_PERCENTAGE, 0.02D))
+				.put(FIELD_ARMOR, buildScalingRule(TYPE_PERCENTAGE, 0.02D))
+				.put(FIELD_KNOCKBACK_RESISTANCE, buildScalingRule(TYPE_FLAT, 0.02D))
+				.put(FIELD_EXPERIENCE_DROP, buildScalingRule(TYPE_PERCENTAGE, 0.10D)))
+			.build();
+	}
+
+	private static JsonObject buildScalingRule(String type, double value) {
+		return JSONFormatManager.object().put(FIELD_TYPE, type).put(FIELD_VALUE, value).build();
+	}
+
+	private static Map<String, JsonObject> buildNewEntityDefaults() {
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		for (String key : List.of(FILE_BEE, FILE_BOGGED, FILE_CAVE_SPIDER, FILE_CREEPER, FILE_DROWNED,
+			FILE_HAG, FILE_HUSK, FILE_PARCHED, FILE_SKELETON, FILE_SPIDER, FILE_STRAY,
+			FILE_WITHER_SKELETON, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER)) {
+			defaults.put(key, buildNewDynamicEntityDefaults(key));
+		}
+		return defaults;
+	}
+
+	public static JsonObject buildNewDynamicEntityDefaults(String fileKey) {
+		String key = normalizeFileKey(fileKey);
+		String mobId = key.contains(":")
+			? key
+			: "hag".equals(key) ? "madoku-craft:hag" : "minecraft:" + key.replace('-', '_');
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_OVERRIDE_SPAWN_RULES, true)
+			.put(FIELD_OVERRIDE_COMPONENTS, true)
+			.put(FIELD_OVERRIDE_BEHAVIORS, true)
+			.put(FIELD_OVERRIDE_GOALS, true)
+			.put(FIELD_MOB_ID, mobId)
+			.object(FIELD_ENTITY, entity -> entity
+				.put(FIELD_CUSTOM_MOB_DROPS, true)
+				.put(FIELD_WORLD_DIFFICULTY_SCALING, true)
+				.put(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, true)
+				.object(key, variant -> variant
+					.object(FIELD_SPAWN_RULES, ignored -> { })
+					.object(FIELD_MOB_COMPONENTS, ignored -> { })
+					.object(FIELD_MOB_BEHAVIORS, ignored -> { })
+					.object(FIELD_MOB_GOALS, ignored -> { })))
+			.build();
+	}
+
+	private static JsonObject buildNewDynamicScalingDefaults(String fileKey) {
+		return RegionalDifficultyConfigManager.buildDynamicMobScalingDefaults(fileKey);
+	}
+
+	public static JsonObject buildStructuresDefaults() {
+		return RegionalDifficultyStructuresManager.buildDefaults();
+	}
+
+	public static JsonObject buildBiomesDefaults() {
+		return RegionalDifficultyBiomesManager.buildDefaults();
+	}
+
+	public static JsonObject buildTimeDefaults() {
+		return RegionalDifficultyTimeManager.buildDefaults();
+	}
+
+	private static String normalizeFileKey(String fileKey) {
+		return fileKey == null ? "" : fileKey.trim().toLowerCase();
+	}
+
+	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
+		try {
+			return root != null && root.has(key) ? root.get(key).getAsBoolean() : fallback;
+		} catch (RuntimeException exception) {
+			return fallback;
+		}
 	}
 
 	public static JsonObject buildMobSystemDefaults() {
@@ -178,42 +408,16 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildDynamicMobDefaults(String fileKey) {
-		if (fileKey == null) {
-			return buildUniversalOnlyDefaults();
-		}
-		JsonObject known = DEFAULT_FILE_DEFAULTS.get(fileKey.trim().toLowerCase());
-		if (known != null) {
-			return known.deepCopy();
-		}
-		return buildUniversalOnlyDefaults();
-	}
-
-	private static Map<String, JsonObject> buildDefaults() {
-		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put(FILE_CREEPER, MobConfigCreeper.buildDefaults());
-		defaults.put(FILE_SKELETON, MobConfigSkeleton.buildDefaults());
-		defaults.put(FILE_STRAY, MobConfigStray.buildDefaults());
-		defaults.put(FILE_BOGGED, MobConfigBogged.buildDefaults());
-		defaults.put(FILE_PARCHED, MobConfigParched.buildDefaults());
-		defaults.put(FILE_SPIDER, MobConfigSpider.buildDefaults());
-		defaults.put(FILE_CAVE_SPIDER, MobConfigCaveSpider.buildDefaults());
-		defaults.put(FILE_ZOMBIE, MobConfigZombie.buildDefaults());
-		defaults.put(FILE_HUSK, MobConfigHusk.buildDefaults());
-		defaults.put(FILE_DROWNED, MobConfigDrowned.buildDefaults());
-		defaults.put(FILE_ZOMBIE_VILLAGER, MobConfigZombieVillager.buildDefaults());
-		defaults.put(FILE_WITHER_SKELETON, MobConfigWitherSkeleton.buildDefaults());
-		defaults.put(FILE_HAG, MobConfigHag.buildDefaults());
-		defaults.put(FILE_BEE, MobConfigBee.buildDefaults());
-		return defaults;
+		return buildNewDynamicEntityDefaults(fileKey);
 	}
 
 	private static JsonObject buildUniversalOnlyDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
-			.object(FIELD_MOB_STATS, builder -> {
+			.object(FIELD_MOB_COMPONENTS, builder -> {
 			})
 			.put(FIELD_SPAWN_RULES, buildMobSpawnRulesDefaults())
-			.put(FIELD_MOB_BEHAVIOR, buildMobBehaviorDefaults())
+			.put(FIELD_MOB_BEHAVIORS, buildMobBehaviorDefaults())
 			.put(FIELD_MOB_GOALS, buildMobGoalsDefaults())
 			.build();
 	}
@@ -352,9 +556,9 @@ public final class MobConfigManager {
 		if (mobRoot == null) {
 			return;
 		}
-		getOrCreateObject(mobRoot, FIELD_MOB_STATS);
+		getOrCreateObject(mobRoot, FIELD_MOB_COMPONENTS);
 		getOrCreateObject(mobRoot, FIELD_SPAWN_RULES);
-		getOrCreateObject(mobRoot, FIELD_MOB_BEHAVIOR);
+		getOrCreateObject(mobRoot, FIELD_MOB_BEHAVIORS);
 		getOrCreateObject(mobRoot, FIELD_MOB_GOALS);
 	}
 
@@ -445,13 +649,13 @@ public final class MobConfigManager {
 	}
 
 	public static List<String> getOptionalEntriesForContainer(String containerKey) {
-		if (FIELD_MOB_STATS.equals(containerKey)) {
+		if (FIELD_MOB_COMPONENTS.equals(containerKey)) {
 			return MOB_STATS_OPTIONAL_ENTRIES;
 		}
 		if (FIELD_SPAWN_RULES.equals(containerKey)) {
 			return MOB_SPAWN_RULES_OPTIONAL_ENTRIES;
 		}
-		if (FIELD_MOB_BEHAVIOR.equals(containerKey)) {
+		if (FIELD_MOB_BEHAVIORS.equals(containerKey)) {
 			return MOB_BEHAVIOR_OPTIONAL_ENTRIES;
 		}
 		if (FIELD_MOB_GOALS.equals(containerKey)) {
@@ -507,6 +711,12 @@ public final class MobConfigManager {
 		JsonObject created = new JsonObject();
 		parent.add(key, created);
 		return created;
+	}
+
+	private record RuntimeConfig(boolean enabled, Map<String, JsonObject> files) {
+		private static RuntimeConfig disabled() {
+			return new RuntimeConfig(false, Map.of());
+		}
 	}
 }
 

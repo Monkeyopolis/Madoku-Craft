@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobDrowned;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.DrownedBehavior;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.zombie.Drowned;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,9 +15,8 @@ public abstract class DrownedTargetingUnderwaterMixin {
 	@Inject(method = "okTarget", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyTargetingUnderwaterToggle(LivingEntity target, CallbackInfoReturnable<Boolean> cir) {
 		Drowned drowned = (Drowned) (Object) this;
-		if (!MadokuMobDrowned.shouldAllowUnderwaterTargeting(drowned, target)) {
+		if (!EntityBehaviorsManager.DrownedBehavior.shouldAllowUnderwaterTargeting(drowned, target)) {
 			cir.setReturnValue(false);
 		}
 	}
 }
-

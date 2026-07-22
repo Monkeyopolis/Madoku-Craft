@@ -2,7 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.loot.system.MadokuLootTableEntities;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobEntityManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -40,21 +40,21 @@ public abstract class LivingEntityLuckLootMixin {
 		if (livingEntity == null || level == null || consumer == null || livingEntity.level().isClientSide()) {
 			return;
 		}
-		if (!MadokuMobManager.isEnabled()) {
+		if (!MobEntityManager.isEnabled()) {
 			return;
 		}
 
 		String configuredReference = "";
 		if (livingEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
-			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(livingEntity)) {
+			if (!MobEntityManager.isBeeCustomMobDropsEnabled(livingEntity)) {
 				return;
 			}
-			configuredReference = MadokuMobManager.resolveBeeMobDropsConfigReference(livingEntity);
+			configuredReference = MobEntityManager.resolveBeeMobDropsConfigReference(livingEntity);
 		} else if (isZombieType(livingEntity.getType())) {
-			if (!MadokuMobManager.isZombieCustomMobDropsEnabled(livingEntity)) {
+			if (!MobEntityManager.isZombieCustomMobDropsEnabled(livingEntity)) {
 				return;
 			}
-			configuredReference = MadokuMobManager.resolveZombieMobDropsConfigReference(livingEntity);
+			configuredReference = MobEntityManager.resolveZombieMobDropsConfigReference(livingEntity);
 		} else {
 			return;
 		}

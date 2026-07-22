@@ -1,10 +1,10 @@
-package madoku.craft.difficulty.system;
+package madoku.craft.mob.system;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
@@ -41,7 +41,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,16 +48,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
-public final class MadokuRegionalDifficultyManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuRegionalDifficultyManager.class);
+public final class MobRegionalDifficultyManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MobRegionalDifficultyManager.class);
 
-	private static final String DIFFICULTY_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-regional-difficulty";
-	private static final String DIFFICULTY_CONFIG_SETTINGS_FILE_NAME = "madoku-regional-difficulty";
-	private static final String DIFFICULTY_CONFIG_RULES_FOLDER_NAME = "madoku-regional-difficulty";
-	private static final String DIFFICULTY_CONFIG_MOB_SCALING_FOLDER_NAME = "madoku-scaling";
-	private static final String BIOME_RULES_FOLDER_NAME = "biome-rules";
-	private static final String STRUCTURE_RULES_FOLDER_NAME = "structure-rules";
-	private static final String TIME_RULES_FOLDER_NAME = "time-rules";
 	private static final String TASK_TYPE_TIME_TICK = "difficulty_time_tick";
 	private static final String TIME_SCHEDULER_OWNER_ID = "madoku-regional-difficulty-time";
 	private static final long TIME_SCHEDULER_MIN_INTERVAL_TICKS = 5L;
@@ -73,12 +65,16 @@ public final class MadokuRegionalDifficultyManager {
 	private static volatile int cachedTimeAdjustment = 0;
 	private static final Map<UUID, PlayerDifficultyState> LAST_SYNC_STATE_BY_PLAYER = new HashMap<>();
 
-	private MadokuRegionalDifficultyManager() {
+	private MobRegionalDifficultyManager() {
 	}
 
 	public static void initialize() {
+		RegionalDifficultyConfigManager.initialize();
+		RegionalDifficultyStructuresManager.initialize();
+		RegionalDifficultyBiomesManager.initialize();
+		RegionalDifficultyTimeManager.initialize();
 		loadConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MadokuRegionalDifficultyManager::runTimeTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MobRegionalDifficultyManager::runTimeTask);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
 			syncDifficultyToPlayer(server, handler.player, true)
 		);
@@ -145,7 +141,7 @@ public final class MadokuRegionalDifficultyManager {
 
 		int difficultyLevel = resolveHudDifficultyLevel(player);
 		if (force || previous == null || previous.difficultyLevel() != difficultyLevel) {
-			SyncWorldManager.send(player, new DifficultyPayloadManager(difficultyLevel));
+			SyncWorldManager.send(player, new MobPayloadManager(difficultyLevel));
 		}
 		LAST_SYNC_STATE_BY_PLAYER.put(playerId, currentKey.withDifficultyLevel(difficultyLevel));
 	}
@@ -237,7 +233,7 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	public static void applySpawnScaling(Mob mob, ServerLevelAccessor worldAccess) {
-		if (mob == null || worldAccess == null || !(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (mob == null || worldAccess == null || !(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return;
 		}
 
@@ -276,14 +272,14 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	public static void applySpawnScalingIfUnscaled(Mob mob, ServerLevelAccessor worldAccess) {
-		if (!(mob instanceof DifficultyScaledMob scaledMob) || scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
+		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob) || scaledMob.madokuCraft$getSpawnDifficultyAdjustment() > 0) {
 			return;
 		}
 		applySpawnScaling(mob, worldAccess);
 	}
 
 	public static int ensureSpawnDifficultyAdjustment(Mob mob, ServerLevelAccessor worldAccess) {
-		if (mob == null || worldAccess == null || !(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (mob == null || worldAccess == null || !(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return 0;
 		}
 		scaledMob.madokuCraft$setSpawnDifficultyAdjustment(0);
@@ -311,7 +307,7 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	public static void reapplySpawnScalingFromStoredAdjustment(Mob mob) {
-		if (mob == null || !(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (mob == null || !(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return;
 		}
 		Snapshot config = snapshot;
@@ -332,7 +328,7 @@ public final class MadokuRegionalDifficultyManager {
 		if (mob == null || mob.getType() != madoku.craft.entity.MadokuEntityTypes.CREEPER || !snapshot.enabled()) {
 			return 0.0D;
 		}
-		if (!(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return 0.0D;
 		}
 		int totalAdjustment = Math.max(0, scaledMob.madokuCraft$getSpawnDifficultyAdjustment());
@@ -352,7 +348,7 @@ public final class MadokuRegionalDifficultyManager {
 		if (mob == null || !snapshot.enabled()) {
 			return sanitizedBase;
 		}
-		if (!(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return sanitizedBase;
 		}
 		int totalAdjustment = Math.max(0, scaledMob.madokuCraft$getSpawnDifficultyAdjustment());
@@ -372,7 +368,7 @@ public final class MadokuRegionalDifficultyManager {
 		if (mob == null || !snapshot.enabled()) {
 			return sanitizedBase;
 		}
-		if (!(mob instanceof DifficultyScaledMob scaledMob)) {
+		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return sanitizedBase;
 		}
 		int totalAdjustment = Math.max(0, scaledMob.madokuCraft$getSpawnDifficultyAdjustment());
@@ -389,89 +385,47 @@ public final class MadokuRegionalDifficultyManager {
 
 	private static void loadConfig() {
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(DIFFICULTY_CONFIG_ROOT_FOLDER_NAME);
-			Path settingsFile = resolveJsonFile(rootDirectory, DIFFICULTY_CONFIG_SETTINGS_FILE_NAME);
-				JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
-					settingsFile,
-					RegionalDifficultyConfigManager.buildSettingsDefaults()
-				);
-				JsonObject settingsScaling = readObject(settingsRoot, RegionalDifficultyConfigManager.FIELD_DIFFICULTY_SCALING);
-				double defaultHealthIncrement = readScalingValue(
-					settingsScaling,
-					RegionalDifficultyConfigManager.FIELD_HEALTH,
-					RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT
-				);
-				double defaultMovementSpeedIncrement = readScalingValue(
-					settingsScaling,
-					RegionalDifficultyConfigManager.FIELD_MOVEMENT_SPEED,
-					RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT
-				);
-				double defaultArmorIncrement = readScalingValue(
-					settingsScaling,
-					RegionalDifficultyConfigManager.FIELD_ARMOR,
-					RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT
-				);
-				double defaultDamageIncrement = readScalingValue(
-					settingsScaling,
-					RegionalDifficultyConfigManager.FIELD_DAMAGE,
-					RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT
-				);
-					double defaultKnockbackResistanceIncrement = readScalingValue(
-						settingsScaling,
-						RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE,
-						RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT
-					);
-					double defaultExperienceDropIncrement = readScalingValue(
-						settingsScaling,
-						RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP,
-						RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT
-					);
-
-			Path rulesDirectory = rootDirectory.resolve(DIFFICULTY_CONFIG_RULES_FOLDER_NAME);
-			Path biomeDirectory = rulesDirectory.resolve(BIOME_RULES_FOLDER_NAME);
-			Path structureDirectory = rulesDirectory.resolve(STRUCTURE_RULES_FOLDER_NAME);
-			Path timeDirectory = rulesDirectory.resolve(TIME_RULES_FOLDER_NAME);
-
-			Map<String, JsonObject> normalizedBiomes = JSONFormatManager.ensureManagedFolder(
-				biomeDirectory,
-				RegionalBiomeDifficultyConfigManager.buildDefaultFileDefaults(),
-				ignored -> RegionalBiomeDifficultyConfigManager.buildRuleDefaults(0, List.of()),
-				MadokuRegionalDifficultyManager::isSupportedBiomeRuleFile,
+			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(MobConfigManager.REGIONAL_DIFFICULTY_SYSTEM_FOLDER);
+			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
+				rootDirectory.resolve(MobConfigManager.REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
+				RegionalDifficultyConfigManager.buildSettingsDefaults()
+			);
+			JsonObject biomes = JSONFormatManager.ensureManagedFile(
+				rootDirectory.resolve(MobConfigManager.REGIONAL_BIOMES_FILE + ".json"),
+				MobConfigManager.buildBiomesDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				(key, value) -> value
+			);
+			JsonObject structures = JSONFormatManager.ensureManagedFile(
+				rootDirectory.resolve(MobConfigManager.REGIONAL_STRUCTURES_FILE + ".json"),
+				MobConfigManager.buildStructuresDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				(key, value) -> value
+			);
+			JsonObject time = JSONFormatManager.ensureManagedFile(
+				rootDirectory.resolve(MobConfigManager.REGIONAL_TIME_FILE + ".json"),
+				MobConfigManager.buildTimeDefaults(),
+				JSONTypeManager.DYNAMIC_CONFIG,
+				(key, value) -> value
+			);
+			JsonObject scaling = readObject(settingsRoot, RegionalDifficultyConfigManager.FIELD_DIFFICULTY_SCALING);
+			double defaultHealthIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_HEALTH, RegionalDifficultyConfigManager.DEFAULT_HEALTH_INCREMENT);
+			double defaultMovementSpeedIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_MOVEMENT_SPEED, RegionalDifficultyConfigManager.DEFAULT_MOVEMENT_SPEED_INCREMENT);
+			double defaultArmorIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_ARMOR, RegionalDifficultyConfigManager.DEFAULT_ARMOR_INCREMENT);
+			double defaultDamageIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_DAMAGE, RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT);
+			double defaultKnockbackResistanceIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT);
+			double defaultExperienceDropIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT);
+			Map<String, JsonObject> normalizedMobScaling = JSONFormatManager.ensureManagedFolder(
+				rootDirectory.resolve(MobConfigManager.REGIONAL_SCALING_FOLDER),
+				RegionalDifficultyConfigManager.buildDefaultMobScalingFileDefaults(defaultHealthIncrement, defaultMovementSpeedIncrement, defaultArmorIncrement, defaultDamageIncrement, defaultKnockbackResistanceIncrement, defaultExperienceDropIncrement),
+				RegionalDifficultyConfigManager::buildDynamicMobScalingDefaults,
+				(fileKey, sourceRoot) -> true,
 				null
 			);
-			Map<String, JsonObject> normalizedStructures = JSONFormatManager.ensureManagedFolder(
-				structureDirectory,
-				RegionalStructureDifficultyConfigManager.buildDefaultFileDefaults(),
-				ignored -> RegionalStructureDifficultyConfigManager.buildRuleDefaults(0, List.of()),
-				MadokuRegionalDifficultyManager::isSupportedStructureRuleFile,
-				null
-			);
-			Map<String, JsonObject> normalizedTime = JSONFormatManager.ensureManagedFolder(
-				timeDirectory,
-				RegionalTimeDifficultyConfigManager.buildDefaultFileDefaults(),
-				ignored -> RegionalTimeDifficultyConfigManager.buildRuleDefaults(0, RegionalDifficultyConfigManager.TIME_UNBOUNDED_MAX_DAY, 0),
-				MadokuRegionalDifficultyManager::isSupportedTimeRuleFile,
-				null
-			);
-				Map<String, JsonObject> normalizedMobScaling = JSONFormatManager.ensureManagedFolder(
-					rulesDirectory.resolve(DIFFICULTY_CONFIG_MOB_SCALING_FOLDER_NAME),
-					RegionalScalingConfigManager.buildDefaultMobScalingFileDefaults(
-						defaultHealthIncrement,
-						defaultMovementSpeedIncrement,
-						defaultArmorIncrement,
-						defaultDamageIncrement,
-						defaultKnockbackResistanceIncrement,
-						defaultExperienceDropIncrement
-					),
-					RegionalScalingConfigManager::buildDynamicMobScalingDefaults,
-					MadokuRegionalDifficultyManager::isSupportedMobScalingFile,
-					null
-				);
-
-			snapshot = buildSnapshot(settingsRoot, normalizedBiomes, normalizedStructures, normalizedTime, normalizedMobScaling);
+			snapshot = buildSnapshot(settingsRoot, Map.of("biomes", biomes), Map.of("structures", structures), Map.of("time", time), normalizedMobScaling);
 		} catch (IOException | RuntimeException exception) {
 			snapshot = Snapshot.disabled();
-			LOGGER.error("Failed to load MadokuRegionalDifficultyManager config; disabling difficulty scaling.", exception);
+			LOGGER.error("Failed to load MobRegionalDifficultyManager config; disabling difficulty scaling.", exception);
 		}
 	}
 
@@ -483,13 +437,10 @@ public final class MadokuRegionalDifficultyManager {
 		Map<String, JsonObject> mobScalingByFile
 	) {
 		boolean enabled = readBoolean(settingsRoot, RegionalDifficultyConfigManager.FIELD_ENABLED, true);
-		boolean biomesEnabled = readBoolean(settingsRoot, RegionalDifficultyConfigManager.FIELD_BIOMES_ENABLED, true);
-		boolean structuresEnabled = readBoolean(settingsRoot, RegionalDifficultyConfigManager.FIELD_STRUCTURES_ENABLED, true);
-		boolean timeEnabled = readBoolean(settingsRoot, RegionalDifficultyConfigManager.FIELD_TIME_ENABLED, true);
-		int defaultUnknownAdjustment = Math.max(
-			0,
-			readInt(settingsRoot, RegionalDifficultyConfigManager.FIELD_DEFAULT_UNKNOWN_ADJUSTMENT, RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT)
-		);
+		boolean biomesEnabled = true;
+		boolean structuresEnabled = true;
+		boolean timeEnabled = true;
+		int defaultUnknownAdjustment = 0;
 
 		JsonObject scaling = readObject(settingsRoot, RegionalDifficultyConfigManager.FIELD_DIFFICULTY_SCALING);
 			StatIncrements increments = new StatIncrements(
@@ -519,17 +470,17 @@ public final class MadokuRegionalDifficultyManager {
 		);
 		TimeScaling timeScaling = parseTimeScaling(timeRulesByFile, defaultUnknownAdjustment);
 		Map<String, ScalingProfile> mobScalingIncrements = parseMobScaling(mobScalingByFile, increments);
-		RegionalBiomeDifficultyRuntime biomeRuntime = new RegionalBiomeDifficultyRuntime(
+		BiomeState biomeRuntime = new BiomeState(
 			biomesEnabled,
 			defaultUnknownAdjustment,
 			Map.copyOf(biomeAdjustments)
 		);
-		RegionalStructureDifficultyRuntime structureRuntime = new RegionalStructureDifficultyRuntime(
+		StructureState structureRuntime = new StructureState(
 			structuresEnabled,
 			defaultUnknownAdjustment,
 			Map.copyOf(structureAdjustments)
 		);
-		RegionalTimeDifficultyRuntime timeRuntime = new RegionalTimeDifficultyRuntime(
+		TimeState timeRuntime = new TimeState(
 			timeEnabled,
 			timeScaling.toRuntimeTiers()
 		);
@@ -556,30 +507,20 @@ public final class MadokuRegionalDifficultyManager {
 				continue;
 			}
 
-			int adjustment = Math.max(0, readInt(root, RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultUnknownAdjustment));
-			Set<Identifier> ids = parseIdentifierList(root.get(listField));
-			for (Identifier id : ids) {
-				resolved.merge(id, adjustment, Math::max);
-			}
-		}
-		return resolved;
-	}
-
-	private static Set<Identifier> parseIdentifierList(JsonElement source) {
-		Set<Identifier> parsed = new LinkedHashSet<>();
-		if (!(source instanceof JsonArray array)) {
-			return parsed;
-		}
-		for (JsonElement entry : array) {
-			if (entry == null || !entry.isJsonPrimitive() || !entry.getAsJsonPrimitive().isString()) {
+			JsonElement listElement = root.get(listField);
+			if (listElement != null && listElement.isJsonObject()) {
+				for (Map.Entry<String, JsonElement> entry : listElement.getAsJsonObject().entrySet()) {
+					Identifier id = normalizeIdentifier(entry.getKey());
+					int adjustment = entry.getValue().isJsonObject()
+						? Math.max(0, readInt(entry.getValue().getAsJsonObject(), RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultUnknownAdjustment))
+						: defaultUnknownAdjustment;
+					if (id != null) resolved.merge(id, adjustment, Math::max);
+				}
 				continue;
 			}
-			Identifier identifier = normalizeIdentifier(entry.getAsString());
-			if (identifier != null) {
-				parsed.add(identifier);
-			}
+			continue;
 		}
-		return parsed;
+		return resolved;
 	}
 
 	private static TimeScaling parseTimeScaling(Map<String, JsonObject> timeRulesByFile, int defaultUnknownAdjustment) {
@@ -588,15 +529,29 @@ public final class MadokuRegionalDifficultyManager {
 			if (root == null) {
 				continue;
 			}
-			int adjustment = Math.max(0, readInt(root, RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultUnknownAdjustment));
-			int minDay = Math.max(0, readInt(root, RegionalDifficultyConfigManager.FIELD_MIN_DAY, 0));
-			int configuredMaxDay = readInt(root, RegionalDifficultyConfigManager.FIELD_MAX_DAY, RegionalDifficultyConfigManager.TIME_UNBOUNDED_MAX_DAY);
-			int maxDay = configuredMaxDay < 0 ? Integer.MAX_VALUE : Math.max(minDay, configuredMaxDay);
-			tiers.add(new TimeTier(minDay, maxDay, adjustment));
+			JsonElement dayList = root.get(MobConfigManager.FIELD_DAY_LIST);
+			if (dayList != null && dayList.isJsonObject()) {
+				int previousDay = 0;
+				for (JsonElement entry : dayList.getAsJsonObject().entrySet().stream().map(Map.Entry::getValue).toList()) {
+					if (!entry.isJsonObject()) continue;
+					JsonObject tier = entry.getAsJsonObject();
+					int minDay = Math.max(previousDay, readInt(tier, MobConfigManager.FIELD_DAY_COUNT, previousDay));
+					int adjustment = Math.max(0, readInt(tier, RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultUnknownAdjustment));
+					tiers.add(new TimeTier(minDay, Integer.MAX_VALUE, adjustment));
+					previousDay = minDay;
+				}
+				for (int index = 0; index < tiers.size(); index++) {
+					TimeTier current = tiers.get(index);
+					int maxDay = index + 1 < tiers.size() ? Math.max(current.minDay(), tiers.get(index + 1).minDay() - 1) : Integer.MAX_VALUE;
+					tiers.set(index, new TimeTier(current.minDay(), maxDay, current.adjustment()));
+				}
+				continue;
+			}
+			// The time file is intentionally dynamic, but its schema is always day-list.
 		}
 
 		if (tiers.isEmpty()) {
-			for (RegionalDifficultyConfigManager.TimeTierDefinition definition : RegionalTimeDifficultyConfigManager.defaultTimeTiers()) {
+			for (RegionalDifficultyTimeManager.TimeTierDefinition definition : RegionalDifficultyTimeManager.defaultTimeTiers()) {
 				int maxDay = definition.maxDay() < 0 ? Integer.MAX_VALUE : Math.max(definition.minDay(), definition.maxDay());
 				tiers.add(new TimeTier(Math.max(0, definition.minDay()), maxDay, Math.max(0, definition.adjustment())));
 			}
@@ -629,7 +584,7 @@ public final class MadokuRegionalDifficultyManager {
 
 			Identifier configuredMobId = normalizeIdentifier(readString(root, RegionalDifficultyConfigManager.FIELD_MOB_ID, ""));
 			if (configuredMobId != null) {
-				for (String alias : MadokuRegionalScalingManager.resolveMobScalingFileKeys(configuredMobId)) {
+				for (String alias : RegionalDifficultyConfigManager.resolveMobScalingFileKeys(configuredMobId)) {
 					if (!alias.isBlank()) {
 						resolved.put(alias, profile);
 					}
@@ -650,7 +605,7 @@ public final class MadokuRegionalDifficultyManager {
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, fallbackIncrements.knockbackResistance()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, fallbackIncrements.experienceDrop()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE, fallbackIncrements.rangedDamage()),
-			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY, fallbackIncrements.attackAccuracy()),
+			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_RANGED_ACCURACY, fallbackIncrements.attackAccuracy()),
 			readScalingValue(root, RegionalDifficultyConfigManager.FIELD_EXPLOSION_POWER, fallbackIncrements.explosionPower())
 		);
 	}
@@ -666,17 +621,17 @@ public final class MadokuRegionalDifficultyManager {
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, fallbackModes.knockbackResistanceMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, fallbackModes.experienceDropMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_RANGED_DAMAGE, fallbackModes.rangedDamageMode()),
-			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_ATTACK_ACCURACY, fallbackModes.attackAccuracyMode()),
+			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_RANGED_ACCURACY, fallbackModes.attackAccuracyMode()),
 			readScalingMode(root, RegionalDifficultyConfigManager.FIELD_EXPLOSION_POWER, fallbackModes.explosionPowerMode())
 		);
 	}
 
 	private static boolean isSupportedBiomeRuleFile(String fileKey, JsonObject sourceRoot) {
-		return isRuleFileWithArrayField(sourceRoot, RegionalDifficultyConfigManager.FIELD_BIOME_LIST);
+		return isRuleFileWithObjectField(sourceRoot, RegionalDifficultyConfigManager.FIELD_BIOME_LIST);
 	}
 
 	private static boolean isSupportedStructureRuleFile(String fileKey, JsonObject sourceRoot) {
-		return isRuleFileWithArrayField(sourceRoot, RegionalDifficultyConfigManager.FIELD_STRUCTURE_LIST);
+		return isRuleFileWithObjectField(sourceRoot, RegionalDifficultyConfigManager.FIELD_STRUCTURE_LIST);
 	}
 
 	private static boolean isSupportedTimeRuleFile(String fileKey, JsonObject sourceRoot) {
@@ -687,12 +642,12 @@ public final class MadokuRegionalDifficultyManager {
 		return sourceRoot != null;
 	}
 
-	private static boolean isRuleFileWithArrayField(JsonObject sourceRoot, String fieldName) {
+	private static boolean isRuleFileWithObjectField(JsonObject sourceRoot, String fieldName) {
 		if (sourceRoot == null) {
 			return false;
 		}
 		JsonElement field = sourceRoot.get(fieldName);
-		return field != null && field.isJsonArray();
+		return field != null && field.isJsonObject();
 	}
 
 	private static Identifier resolveBiomeId(ServerLevel world, net.minecraft.core.BlockPos pos) {
@@ -784,7 +739,7 @@ public final class MadokuRegionalDifficultyManager {
 			timeTaskScheduled = true;
 			return;
 		}
-		LOGGER.error("Failed to enqueue MadokuRegionalDifficultyManager time scheduler task.");
+		LOGGER.error("Failed to enqueue MobRegionalDifficultyManager time scheduler task.");
 	}
 
 	private static String ensureTimeSchedulerExists() {
@@ -823,7 +778,7 @@ public final class MadokuRegionalDifficultyManager {
 	private static StructureContext resolveStructureContext(
 		ServerLevel world,
 		net.minecraft.core.BlockPos pos,
-		RegionalStructureDifficultyRuntime structureRuntime
+		StructureState structureRuntime
 	) {
 		if (world == null || pos == null || structureRuntime == null || !structureRuntime.enabled()) {
 			return StructureContext.NONE;
@@ -1079,7 +1034,7 @@ public final class MadokuRegionalDifficultyManager {
 			return 0.0D;
 		}
 		double addition = switch (mode) {
-			case MULTIPLY -> safeBase * (safeConfigured / 100.0D) * totalAdjustment;
+			case MULTIPLY -> safeBase * safeConfigured * totalAdjustment;
 			case ADD -> safeConfigured * totalAdjustment;
 		};
 		return roundDifficultyScaleValue(safeBase, addition);
@@ -1125,6 +1080,9 @@ public final class MadokuRegionalDifficultyManager {
 		}
 		if (!normalized.contains(":")) {
 			normalized = "minecraft:" + normalized;
+		}
+		if (normalized.startsWith("minecraft:")) {
+			normalized = "minecraft:" + normalized.substring("minecraft:".length()).replace('-', '_');
 		}
 		return Identifier.tryParse(normalized);
 	}
@@ -1269,9 +1227,9 @@ public final class MadokuRegionalDifficultyManager {
 		boolean enabled,
 		StatIncrements increments,
 		StatModes globalModes,
-		RegionalBiomeDifficultyRuntime biomeRuntime,
-		RegionalStructureDifficultyRuntime structureRuntime,
-		RegionalTimeDifficultyRuntime timeRuntime,
+		BiomeState biomeRuntime,
+		StructureState structureRuntime,
+		TimeState timeRuntime,
 		Map<String, ScalingProfile> mobScalingIncrements
 	) {
 			private static Snapshot disabled() {
@@ -1279,9 +1237,9 @@ public final class MadokuRegionalDifficultyManager {
 						false,
 						new StatIncrements(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D),
 						StatModes.defaults(),
-						new RegionalBiomeDifficultyRuntime(false, RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT, Map.of()),
-						new RegionalStructureDifficultyRuntime(false, RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT, Map.of()),
-						RegionalTimeDifficultyRuntime.defaults(false),
+						new BiomeState(false, 0, Map.of()),
+						new StructureState(false, 0, Map.of()),
+						TimeState.defaults(false),
 				Map.of()
 			);
 		}
@@ -1290,7 +1248,7 @@ public final class MadokuRegionalDifficultyManager {
 				if (mob == null || mobScalingIncrements.isEmpty()) {
 					return new ResolvedIncrements(increments, globalModes, "global");
 				}
-			for (String key : MadokuRegionalScalingManager.resolveMobScalingFileKeys(mob.getType())) {
+			for (String key : RegionalDifficultyConfigManager.resolveMobScalingFileKeys(mob.getType())) {
 				ScalingProfile specific = mobScalingIncrements.get(key);
 				if (specific != null) {
 					return new ResolvedIncrements(specific.increments(), specific.modes(), key);
@@ -1394,10 +1352,10 @@ public final class MadokuRegionalDifficultyManager {
 	}
 
 	private record TimeScaling(List<TimeTier> tiers) {
-		private List<RegionalTimeDifficultyRuntime.TimeTier> toRuntimeTiers() {
-			List<RegionalTimeDifficultyRuntime.TimeTier> runtimeTiers = new ArrayList<>();
+		private List<TimeState.TimeTier> toRuntimeTiers() {
+			List<TimeState.TimeTier> runtimeTiers = new ArrayList<>();
 			for (TimeTier tier : tiers) {
-				runtimeTiers.add(new RegionalTimeDifficultyRuntime.TimeTier(tier.minDay(), tier.maxDay(), tier.adjustment()));
+				runtimeTiers.add(new TimeState.TimeTier(tier.minDay(), tier.maxDay(), tier.adjustment()));
 			}
 			return List.copyOf(runtimeTiers);
 		}
@@ -1406,6 +1364,59 @@ public final class MadokuRegionalDifficultyManager {
 		private record StructureContext(Identifier structureId, int adjustment) {
 			private static final StructureContext NONE = new StructureContext(null, 0);
 		}
+
+	private record BiomeState(
+		boolean enabled,
+		int defaultUnknownAdjustment,
+		Map<Identifier, Integer> adjustments
+	) {
+		private int resolveAdjustment(Identifier biomeId) {
+			if (!enabled) return 0;
+			if (biomeId == null) return defaultUnknownAdjustment;
+			return adjustments.getOrDefault(biomeId, defaultUnknownAdjustment);
+		}
+	}
+
+	private record StructureState(
+		boolean enabled,
+		int defaultUnknownAdjustment,
+		Map<Identifier, Integer> adjustments
+	) {
+		private int resolveAdjustment(Identifier structureId) {
+			if (!enabled) return 0;
+			if (structureId == null) return defaultUnknownAdjustment;
+			return adjustments.getOrDefault(structureId, defaultUnknownAdjustment);
+		}
+	}
+
+	private record TimeState(
+		boolean enabled,
+		List<TimeTier> tiers
+	) {
+		private static TimeState defaults(boolean enabled) {
+			List<TimeTier> defaults = new ArrayList<>();
+			for (RegionalDifficultyTimeManager.TimeTierDefinition definition : RegionalDifficultyTimeManager.defaultTimeTiers()) {
+				int maxDay = definition.maxDay() < 0 ? Integer.MAX_VALUE : Math.max(definition.minDay(), definition.maxDay());
+				defaults.add(new TimeTier(Math.max(0, definition.minDay()), maxDay, Math.max(0, definition.adjustment())));
+			}
+			return new TimeState(enabled, List.copyOf(defaults));
+		}
+
+		private int resolveAdjustment(long dayCount) {
+			if (!enabled) return 0;
+			long safeDayCount = Math.max(0L, dayCount);
+			for (TimeTier tier : tiers) {
+				if (tier.matches(safeDayCount)) return tier.adjustment();
+			}
+			return tiers.isEmpty() ? 0 : tiers.get(tiers.size() - 1).adjustment();
+		}
+
+		private record TimeTier(int minDay, int maxDay, int adjustment) {
+			private boolean matches(long dayCount) {
+				return dayCount >= minDay && dayCount <= maxDay;
+			}
+		}
+	}
 	}
 
 

@@ -7,7 +7,7 @@ import madoku.craft.api.time.TimeSleepManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.composter.system.MadokuComposter;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.difficulty.system.MadokuRegionalDifficultyManager;
+import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;
@@ -17,7 +17,6 @@ import madoku.craft.item.system.MadokuItem;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.mob.system.MadokuMobManager;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.loot.system.MadokuLootTableManager;
@@ -38,7 +37,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuAPIManager.initialize();
 		MadokuSmeltingManager.initialize();
 		MadokuLootTableManager.initialize();
-		MadokuRegionalDifficultyManager.initialize();
+		MadokuMobManager.initialize();
 		MadokuSeasonManager.initialize();
 		MadokuWorldgen.initialize();
 		MadokuEntities.initialize();
@@ -47,7 +46,6 @@ public class MadokuCraft implements ModInitializer {
 		MadokuComposter.initialize();
 		MadokuFarming.initialize();
 		MadokuEcosystemManager.initialize();
-		MadokuMobManager.initialize();
 		MadokuRarity.initialize();
 		MadokuItemStack.initialize();
 		MadokuAttributesManager.initialize();
@@ -93,9 +91,8 @@ public class MadokuCraft implements ModInitializer {
 			MadokuEntities.onServerStarted(server);
 			PlayerEntitiesSystem.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
-			MadokuRegionalDifficultyManager.onServerStarted(server);
 			MadokuTimeManager.broadcastWorldTimeNow(server);
-			MadokuRegionalDifficultyManager.broadcastDifficultyNow(server);
+			MadokuMobManager.broadcastDifficultyNow(server);
 			MadokuSeasonManager.broadcastWorldSeasonNow(server);
 		});
 
@@ -112,7 +109,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuAPIManager.reset();
 			MadokuChunkDataManager.reset();
 			MadokuSmeltingManager.onServerStopped();
-			MadokuRegionalDifficultyManager.onServerStopped();
 			MadokuMobManager.onServerStopped();
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
@@ -134,12 +130,11 @@ public class MadokuCraft implements ModInitializer {
 			MadokuFarming.onServerTickIncrement(server, tickIncrement);
 			MadokuAPIManager.autosavePersistedData(server);
 			MadokuSeasonManager.onServerTick(server);
-			MadokuRegionalDifficultyManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);
 			MadokuLevelsManager.flushDirtySyncs(server);
 			if (MadokuAPIManager.shouldRunWorldSync(server)) {
 				MadokuTimeManager.broadcastWorldTimeIfChanged(server);
-				MadokuRegionalDifficultyManager.broadcastDifficultyIfChanged(server);
+				MadokuMobManager.broadcastDifficultyIfChanged(server);
 				MadokuSeasonManager.broadcastWorldSeasonIfChanged(server);
 			}
 		});

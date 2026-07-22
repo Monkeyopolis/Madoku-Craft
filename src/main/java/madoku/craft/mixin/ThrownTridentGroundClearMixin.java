@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobDrowned;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.DrownedBehavior;
 import java.lang.reflect.Field;
 import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +15,7 @@ public abstract class ThrownTridentGroundClearMixin {
 	@Inject(method = "tick", at = @At("TAIL"))
 	private void madokuCraft$clearRangedDrownedTridents(CallbackInfo ci) {
 		ThrownTrident entity = (ThrownTrident) (Object) this;
-		int clearTicks = MadokuMobDrowned.resolveTridentGroundClearTicks(entity);
+		int clearTicks = EntityBehaviorsManager.DrownedBehavior.resolveTridentGroundClearTicks(entity);
 		if (clearTicks < 0) {
 			return;
 		}
@@ -39,4 +41,3 @@ public abstract class ThrownTridentGroundClearMixin {
 		return -1;
 	}
 }
-

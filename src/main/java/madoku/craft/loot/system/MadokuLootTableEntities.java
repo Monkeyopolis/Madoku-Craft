@@ -7,7 +7,7 @@ import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobEntityManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.rarity.MadokuRarityTier;
@@ -118,17 +118,17 @@ public final class MadokuLootTableEntities {
 		boolean zombieEntity = thisEntity != null && isZombieMobType(thisEntity.getType());
 		String zombieConfiguredReference = "";
 		boolean zombieCustomDropsEnabled = false;
-		if (thisEntity != null && thisEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE && MadokuMobManager.isEnabled()) {
-			if (!MadokuMobManager.isBeeCustomMobDropsEnabled(thisEntity)) {
+		if (thisEntity != null && thisEntity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE && MobEntityManager.isEnabled()) {
+			if (!MobEntityManager.isBeeCustomMobDropsEnabled(thisEntity)) {
 				return null;
 			}
-			String configuredReference = MadokuMobManager.resolveBeeMobDropsConfigReference(thisEntity);
+			String configuredReference = MobEntityManager.resolveBeeMobDropsConfigReference(thisEntity);
 			managed = resolveManagedTableByConfigReference(configuredReference);
 		}
-		if (managed == null && thisEntity != null && MadokuMobManager.isEnabled() && zombieEntity) {
-			zombieCustomDropsEnabled = MadokuMobManager.isZombieCustomMobDropsEnabled(thisEntity);
+		if (managed == null && thisEntity != null && MobEntityManager.isEnabled() && zombieEntity) {
+			zombieCustomDropsEnabled = MobEntityManager.isZombieCustomMobDropsEnabled(thisEntity);
 			if (zombieCustomDropsEnabled) {
-				zombieConfiguredReference = MadokuMobManager.resolveZombieMobDropsConfigReference(thisEntity);
+				zombieConfiguredReference = MobEntityManager.resolveZombieMobDropsConfigReference(thisEntity);
 				managed = resolveManagedTableByConfigReference(zombieConfiguredReference);
 			}
 		}

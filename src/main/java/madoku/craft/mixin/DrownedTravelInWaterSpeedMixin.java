@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobDrowned;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.DrownedBehavior;
 import net.minecraft.world.entity.monster.zombie.Drowned;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,7 +19,6 @@ public abstract class DrownedTravelInWaterSpeedMixin {
 		index = 0
 	)
 	private float madokuCraft$applySwimmingSpeed(float vanillaSpeed) {
-		return (float) MadokuMobDrowned.resolveSwimmingSpeedForRuntime((Drowned) (Object) this, vanillaSpeed);
+		return (float) EntityBehaviorsManager.DrownedBehavior.resolveSwimmingSpeedForRuntime((Drowned) (Object) this, vanillaSpeed);
 	}
 }
-

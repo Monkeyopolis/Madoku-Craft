@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobHusk;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.HuskBehavior;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,7 +25,6 @@ public abstract class HuskHungerEffectMixin {
 		MobEffectInstance effect,
 		Entity attacker
 	) {
-		return MadokuMobHusk.applyHungerAttackEffect((Husk) (Object) this, target, effect, attacker);
+		return EntityBehaviorsManager.HuskBehavior.applyHungerAttackEffect((Husk) (Object) this, target, effect, attacker);
 	}
 }
-

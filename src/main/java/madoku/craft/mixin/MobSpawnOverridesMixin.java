@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobEntityManager;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
@@ -36,7 +36,7 @@ public abstract class MobSpawnOverridesMixin {
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
 		Mob mob = (Mob) (Object) this;
-		if (MadokuMobManager.applyMobSpawnOverridesBeforeVanilla(mob, world, difficulty, spawnReason)) {
+		if (MobEntityManager.applyMobSpawnOverridesBeforeVanilla(mob, world, difficulty, spawnReason)) {
 			cir.setReturnValue(spawnGroupData);
 		}
 	}
@@ -49,7 +49,7 @@ public abstract class MobSpawnOverridesMixin {
 		SpawnGroupData spawnGroupData,
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
-		MadokuMobManager.applyMobSpawnOverridesAfterVanilla((Mob) (Object) this, world, difficulty, spawnReason);
+		MobEntityManager.applyMobSpawnOverridesAfterVanilla((Mob) (Object) this, world, difficulty, spawnReason);
 	}
 }
 

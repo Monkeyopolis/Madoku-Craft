@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobDrowned;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.DrownedBehavior;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.zombie.Drowned;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,7 +16,7 @@ public abstract class DrownedRangedTridentAttackMixin {
 	@Inject(method = "performRangedAttack", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyCustomTridentAttack(LivingEntity target, float pullProgress, CallbackInfo ci) {
 		Drowned drowned = (Drowned) (Object) this;
-		if (MadokuMobDrowned.applyRangedDrownedTridentAttack(drowned, target, pullProgress)) {
+		if (EntityBehaviorsManager.DrownedBehavior.applyRangedDrownedTridentAttack(drowned, target, pullProgress)) {
 			ci.cancel();
 		}
 	}
@@ -28,7 +30,6 @@ public abstract class DrownedRangedTridentAttackMixin {
 		index = 2
 	)
 	private int madokuCraft$applyTridentAttackInterval(int vanillaInterval) {
-		return MadokuMobDrowned.resolveTridentAttackIntervalTicks((Drowned) (Object) this);
+		return EntityBehaviorsManager.DrownedBehavior.resolveTridentAttackIntervalTicks((Drowned) (Object) this);
 	}
 }
-

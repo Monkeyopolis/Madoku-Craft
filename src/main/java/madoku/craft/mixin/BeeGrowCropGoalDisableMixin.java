@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobBee;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.BeeBehavior;
 import net.minecraft.world.entity.animal.bee.Bee;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,16 +19,15 @@ public abstract class BeeGrowCropGoalDisableMixin {
 
 	@Inject(method = "canBeeUse", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$disableVanillaGrowCropWhenPollinateCropsEnabled(CallbackInfoReturnable<Boolean> cir) {
-		if (MadokuMobBee.isPollinateCropsEnabled(this.this$0)) {
+		if (EntityBehaviorsManager.BeeBehavior.isPollinateCropsEnabled(this.this$0)) {
 			cir.setReturnValue(false);
 		}
 	}
 
 	@Inject(method = "canBeeContinueToUse", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$disableVanillaGrowCropContinuationWhenPollinateCropsEnabled(CallbackInfoReturnable<Boolean> cir) {
-		if (MadokuMobBee.isPollinateCropsEnabled(this.this$0)) {
+		if (EntityBehaviorsManager.BeeBehavior.isPollinateCropsEnabled(this.this$0)) {
 			cir.setReturnValue(false);
 		}
 	}
 }
-

@@ -1,6 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.mob.system.MadokuMobBee;
+import madoku.craft.mob.system.EntityBehaviorsManager;
+
+import madoku.craft.mob.system.EntityBehaviorsManager.BeeBehavior;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,7 +25,6 @@ public abstract class BeeStingEffectMixin {
 		MobEffectInstance effect,
 		Entity attacker
 	) {
-		return MadokuMobBee.applyStingingAttackEffect((Bee) (Object) this, target, effect, attacker);
+		return EntityBehaviorsManager.BeeBehavior.applyStingingAttackEffect((Bee) (Object) this, target, effect, attacker);
 	}
 }
-

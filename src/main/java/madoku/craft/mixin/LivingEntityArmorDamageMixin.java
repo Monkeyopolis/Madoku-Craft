@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.attributes.armor.MadokuArmorManager;
-import madoku.craft.mob.system.MadokuMobManager;
+import madoku.craft.mob.system.MobEntityManager;
 import madoku.craft.pet.PlayerEntitiesSystem;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.DamageTypeTags;
@@ -24,8 +24,8 @@ public abstract class LivingEntityArmorDamageMixin {
 	@Inject(method = "getDamageAfterArmorAbsorb", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$applyMadokuArmor(DamageSource source, float amount, CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;
-		boolean skeletonIgnoresArmor = MadokuMobManager.shouldSkeletonMeleeIgnoreArmor(source);
-		boolean mobIgnoresArmor = MadokuMobManager.shouldBypassArmorForMobDamage(source);
+		boolean skeletonIgnoresArmor = MobEntityManager.shouldSkeletonMeleeIgnoreArmor(source);
+		boolean mobIgnoresArmor = MobEntityManager.shouldBypassArmorForMobDamage(source);
 		boolean fallDamage = source != null && source.is(DamageTypeTags.IS_FALL);
 		boolean bypassesArmor = source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !fallDamage;
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
