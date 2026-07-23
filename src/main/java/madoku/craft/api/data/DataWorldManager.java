@@ -3,12 +3,9 @@ package madoku.craft.api.data;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +16,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /** Runtime group for indexed global world JSON data. */
 public final class DataWorldManager {
@@ -46,7 +42,6 @@ public final class DataWorldManager {
 		SYSTEM_DATA.clear();
 		dirty = false;
 		initialized = false;
-		emitDebug("reset", builder -> builder.field("systems", SYSTEM_DATA.size()));
 	}
 
 	public static boolean isInitialized() {
@@ -71,15 +66,11 @@ public final class DataWorldManager {
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load Madoku world data file {}", file, exception);
 		}
-		emitDebug("load-persisted-data", builder -> builder
-			.field("file", file.toString())
-			.field("systems", SYSTEM_DATA.size()));
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
 		if (server != null) {
 			DataSystemsManager.registerSystem("world-data");
-			emitDebug("on-server-started", builder -> builder.field("systems", SYSTEM_DATA.size()));
 		}
 	}
 
@@ -98,9 +89,6 @@ public final class DataWorldManager {
 		dirty = false;
 		Path file = resolveDataFile(server);
 		DataSaveCoordinatorManager.submit("world-data", file, () -> writeSnapshot(file, snapshot));
-		emitDebug("save-persisted-data", builder -> builder
-			.field("file", file.toString())
-			.field("systems", snapshot.size()));
 	}
 
 	public static JsonObject getSystemData(String systemId) {
@@ -157,20 +145,4 @@ public final class DataWorldManager {
 		return systemId == null ? "" : systemId.trim().toLowerCase(java.util.Locale.ROOT);
 	}
 
-	private static void emitDebug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.API.mainSystem(), "data-manager", "data-world-manager", subject)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
-			"api.data-world.lifecycle",
-			MadokuMetaDataManager.API.mainSystem(),
-			"data-manager",
-			"data-world-manager",
-			subject)
-			.side(MadokuDebugManager.Side.SERVER)
-			.tick(MadokuTimeManager.getGameplayTicks())
-			.subject(subject);
-		if (customizer != null) customizer.accept(builder);
-		builder.log();
-	}
 }

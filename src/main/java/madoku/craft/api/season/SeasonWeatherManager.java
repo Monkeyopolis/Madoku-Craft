@@ -3,24 +3,18 @@ package madoku.craft.api.season;
 import com.google.gson.JsonObject;
 import madoku.craft.api.data.DataSystemsManager;
 import madoku.craft.api.data.DataWorldManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.scheduler.SchedulerAdaptiveIntervalManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.saveddata.WeatherData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
-import java.util.function.Consumer;
 
 /** Owns the global Madoku seasonal weather condition and Vanilla weather state. */
 public final class SeasonWeatherManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(SeasonWeatherManager.class);
 	private static final long TICKS_PER_MINUTE = MadokuTimeManager.TICKS_PER_SECOND * MadokuTimeManager.SECONDS_PER_MINUTE;
 	private static final double NEUTRAL_HUMIDITY = 50.0D;
 	private static final String DATA_SYSTEM_ID = "season-weather";
@@ -49,7 +43,6 @@ public final class SeasonWeatherManager {
 	public static void initialize() {
 		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		WeatherConfigManager.initialize();
-		emitDebug("initialize", builder -> builder.field("enabled", isEnabled()));
 	}
 
 	public static void reset() {
@@ -61,7 +54,6 @@ public final class SeasonWeatherManager {
 		lastAppliedCondition = null;
 		nextAdaptivePollGameplayTick = -1L;
 		SchedulerAdaptiveIntervalManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
-		emitDebug("reset", builder -> builder.field("enabled", isEnabled()));
 	}
 
 	public static boolean isEnabled() {
@@ -93,9 +85,6 @@ public final class SeasonWeatherManager {
 		if (isEnabled()) {
 			applyCondition(server, currentCondition == null ? WeatherCondition.CLEAR : currentCondition, true);
 		}
-		emitDebug("server-started", builder -> builder
-			.field("enabled", isEnabled())
-			.field("next-evaluation", nextEvaluationAbsoluteTime));
 	}
 
 	public static void onServerTick(MinecraftServer server) {
@@ -131,13 +120,11 @@ public final class SeasonWeatherManager {
 		lastObservedAbsoluteTime = now;
 
 		if (currentCondition != null && now >= conditionEndAbsoluteTime) {
-			WeatherCondition previous = currentCondition;
 			currentCondition = null;
 			conditionEndAbsoluteTime = -1L;
 			nextEvaluationAbsoluteTime = safeAdd(now, resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes()));
 			applyCondition(server, WeatherCondition.CLEAR, false);
 			persistState();
-			emitDebug("condition-ended", builder -> builder.field("condition", previous.id()));
 		}
 
 		if (currentCondition == null && now >= nextEvaluationAbsoluteTime) {
@@ -149,10 +136,6 @@ public final class SeasonWeatherManager {
 			nextEvaluationAbsoluteTime = -1L;
 			applyCondition(server, selected, true);
 			persistState();
-			emitDebug("condition-selected", builder -> builder
-				.field("condition", selected.id())
-				.field("duration-ticks", duration)
-				.field("average-humidity", selection.averageHumidity()));
 		}
 
 		applyCondition(server, currentCondition == null ? WeatherCondition.CLEAR : currentCondition, false);
@@ -293,7 +276,6 @@ public final class SeasonWeatherManager {
 				condition.precipitating(),
 				condition == WeatherCondition.THUNDERSTORM);
 		} catch (ReflectiveOperationException | RuntimeException exception) {
-			LOGGER.debug("Unable to synchronize Vanilla weather parameters; direct weather data was updated.", exception);
 		}
 	}
 
@@ -341,22 +323,6 @@ public final class SeasonWeatherManager {
 		return null;
 	}
 
-	private static void emitDebug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-weather-manager", "lifecycle", subject)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
-			"season.weather.lifecycle",
-			MadokuMetaDataManager.SEASON.mainSystem(),
-			"season-weather-manager",
-			"lifecycle",
-			subject)
-			.side(MadokuDebugManager.Side.SERVER)
-			.tick(MadokuTimeManager.getGameplayTicks())
-			.subject(subject);
-		if (customizer != null) customizer.accept(builder);
-		builder.log();
-	}
 
 	private record Selection(WeatherCondition condition, double averageHumidity) { }
 

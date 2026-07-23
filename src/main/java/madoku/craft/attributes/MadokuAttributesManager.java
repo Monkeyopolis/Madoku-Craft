@@ -1,7 +1,5 @@
 package madoku.craft.attributes;
 
-import madoku.craft.api.metadata.MadokuMetaDataManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.attributes.armor.MadokuArmorManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
@@ -16,8 +14,6 @@ public final class MadokuAttributesManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.ATTRIBUTES);
-		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.ATTRIBUTES);
 		MadokuArmorManager.initialize();
 		MadokuHealthManager.initialize();
 		MadokuHungerManager.initialize();

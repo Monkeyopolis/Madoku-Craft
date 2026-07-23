@@ -106,7 +106,6 @@ public abstract class BlockFarmingDropsMixin {
 			return;
 		}
 
-		MadokuFarming.emitPendingHarvestUsedDebug(level, pos, state, "block_drop");
 		Item secondaryHarvestItem = MadokuFarming.getCropSecondaryHarvestItem(level, pos, state);
 		int secondaryCount = MadokuFarming.calculateCropSecondaryHarvestCount(level, pos, state, random);
 		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(secondaryHarvestItem != null && secondaryCount > 0 ? 2 : 1);

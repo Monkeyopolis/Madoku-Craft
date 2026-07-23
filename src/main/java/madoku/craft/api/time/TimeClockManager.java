@@ -1,6 +1,5 @@
 package madoku.craft.api.time;
 
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -8,7 +7,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.clock.ClockTimeMarker;
 import net.minecraft.world.clock.ClockTimeMarkers;
 
-import java.util.function.Consumer;
 
 public final class TimeClockManager {
 	public static final long TICKS_PER_SECOND = 20L;
@@ -17,8 +15,6 @@ public final class TimeClockManager {
 	private static final long CYCLE_MINUTES_PER_DAY = 24L;
 	private static final long MINUTES_PER_DAY = 24L * 60L;
 	private static final int MINECRAFT_CLOCK_ZERO_OFFSET_MINUTES = 6 * 60;
-	private static final String DEBUG_SUB_SYSTEM = "time-manager";
-
 	private static volatile long gameplayTicks = 0L;
 	private static volatile boolean hasObservedWorldTime = false;
 	private static volatile long lastObservedWorldDayTime = 0L;
@@ -32,38 +28,17 @@ public final class TimeClockManager {
 
 	public static void initialize() {
 		resetRuntimeState();
-		emitTimeDebug("initialize", builder -> builder
-			.subject("initialize")
-			.field("enabled", isEnabled())
-			.field("day-minutes", TimeConfigManager.getDayMinutes())
-			.field("night-minutes", TimeConfigManager.getNightMinutes())
-			.field("seasonal-changes-enabled", TimeConfigManager.isSeasonalChangesEnabled())
-			.field("sleep-enabled", TimeConfigManager.isSleepEnabled()));
 	}
 
 	public static void reset() {
-		long previousWorldTime = lastObservedWorldDayTime;
-		long previousGameplayTicks = lastObservedGameplayTicks;
 		resetRuntimeState();
-		emitTimeDebug("reset", builder -> builder
-			.subject("reset")
-			.field("world-time", previousWorldTime)
-			.field("gameplay-ticks", previousGameplayTicks));
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
 		observeRuntimeState(server);
-		emitTimeDebug("onServerStarted", builder -> builder
-			.subject("server-started")
-			.field("world-time", getCurrentAbsoluteDayTime())
-			.field("gameplay-ticks", getElapsedGameplayTicks()));
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
-		emitTimeDebug("onServerStopping", builder -> builder
-			.subject("server-stopping")
-			.field("world-time", getCurrentAbsoluteDayTime())
-			.field("gameplay-ticks", getElapsedGameplayTicks()));
 	}
 
 	public static void update(MinecraftServer server) {
@@ -85,28 +60,6 @@ public final class TimeClockManager {
 			return;
 		}
 
-		String seasonId = MadokuSeasonManager.getCurrentSeasonId();
-		int clockTotalMinutes = getTotalMinutes(observedDayTime);
-		int clockHour = getClockHour(observedDayTime);
-		int clockMinute = Math.floorMod(clockTotalMinutes, 60);
-		boolean daytime = isDaytime(clockHour);
-		double segmentMinutes = daytime
-			? TimeConfigManager.getDayMinutes() * TimeConfigManager.getSeasonalDayMultiplier(seasonId)
-			: TimeConfigManager.getNightMinutes() * TimeConfigManager.getSeasonalNightMultiplier(seasonId);
-		long segmentWorldTicks = daytime ? resolveDayWorldTickSpan() : resolveNightWorldTickSpan();
-		double desiredTicksPerServerTick = resolveDesiredTicksPerServerTick(segmentMinutes, segmentWorldTicks);
-		emitTimeDebug("update", builder -> builder
-			.subject("observe")
-			.field("gameplay-delta", lastGameplayTickDelta)
-			.field("world-delta", getWorldTimeDelta())
-			.field("world-time", observedDayTime)
-			.field("season", seasonId)
-			.field("clock-hour", clockHour)
-			.field("clock-minute", clockMinute)
-			.field("daytime", daytime)
-			.field("segment-minutes", segmentMinutes)
-			.field("segment-world-ticks", segmentWorldTicks)
-			.field("desired-ticks-per-server-tick", desiredTicksPerServerTick));
 	}
 
 	public static float resolveWorldClockRate(MinecraftServer server) {
@@ -121,9 +74,7 @@ public final class TimeClockManager {
 
 		long currentDayTime = overworld.getOverworldClockTime();
 		String seasonId = MadokuSeasonManager.getCurrentSeasonId();
-		int clockTotalMinutes = getTotalMinutes(currentDayTime);
 		int clockHour = getClockHour(currentDayTime);
-		int clockMinute = Math.floorMod(clockTotalMinutes, 60);
 		boolean daytime = isDaytime(clockHour);
 		double segmentMinutes = daytime
 			? TimeConfigManager.getDayMinutes() * TimeConfigManager.getSeasonalDayMultiplier(seasonId)
@@ -133,30 +84,8 @@ public final class TimeClockManager {
 		double sleepMultiplier = Math.max(1L, TimeSleepManager.getCachedTickIncrement());
 		double resolvedRate = baseRate * sleepMultiplier;
 		if (!Double.isFinite(resolvedRate) || resolvedRate <= 0.0D) {
-			emitTimeDebug("resolveWorldClockRate", builder -> builder
-				.subject("fallback")
-				.field("season", seasonId)
-				.field("clock-hour", clockHour)
-				.field("clock-minute", clockMinute)
-				.field("daytime", daytime)
-				.field("segment-minutes", segmentMinutes)
-				.field("segment-world-ticks", segmentWorldTicks)
-				.field("base-rate", baseRate)
-				.field("sleep-multiplier", sleepMultiplier)
-				.field("resolved-rate", 1.0D));
 			return 1.0F;
 		}
-		emitTimeDebug("resolveWorldClockRate", builder -> builder
-			.subject(daytime ? "day" : "night")
-			.field("season", seasonId)
-			.field("clock-hour", clockHour)
-			.field("clock-minute", clockMinute)
-			.field("daytime", daytime)
-			.field("segment-minutes", segmentMinutes)
-			.field("segment-world-ticks", segmentWorldTicks)
-			.field("base-rate", baseRate)
-			.field("sleep-multiplier", sleepMultiplier)
-			.field("resolved-rate", resolvedRate));
 		return (float) resolvedRate;
 	}
 
@@ -402,16 +331,4 @@ public final class TimeClockManager {
 		}
 	}
 
-	private static void emitTimeDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit("api", DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "api", DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 }

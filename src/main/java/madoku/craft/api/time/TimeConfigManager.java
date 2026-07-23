@@ -3,7 +3,6 @@ package madoku.craft.api.time;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.season.MadokuSeasonManager;
@@ -13,11 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 
 public final class TimeConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeConfigManager.class);
-	private static final String DEBUG_SUB_SYSTEM = "time-config-manager";
 	private static final String TIME_CONFIG_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-time";
 	private static final String TIME_CONFIG_FILE_NAME = "madoku-time";
 	private static final long TICKS_PER_MINUTE = MadokuTimeManager.TICKS_PER_SECOND * MadokuTimeManager.SECONDS_PER_MINUTE;
@@ -52,18 +49,6 @@ public final class TimeConfigManager {
 
 	public static void initialize() {
 		loadConfig();
-		emitTimeDebug("initialize", builder -> builder
-			.subject("initialize")
-			.field("config-folder", TIME_CONFIG_FOLDER_NAME)
-			.field("config-file", TIME_CONFIG_FILE_NAME)
-			.field("day-cycle-enabled", isDayCycleEnabled())
-			.field("day-cycle-time-enabled", isDayCycleTimeEnabled())
-			.field("day-minutes", getDayMinutes())
-			.field("night-minutes", getNightMinutes())
-			.field("seasonal-changes-enabled", isSeasonalChangesEnabled())
-			.field("sleep-enabled", isSleepEnabled())
-			.field("sleep-transitions-enabled", isSleepTimeTransitionsEnabled())
-			.field("sleep-forward-time-enabled", isForwardTimeEnabled()));
 	}
 
 	public static boolean isDayCycleEnabled() {
@@ -333,18 +318,6 @@ public final class TimeConfigManager {
 		};
 	}
 
-	private static void emitTimeDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit("api", "time-manager", DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, "api", "time-manager", DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 
 	private record Settings(DayCycleSettings dayCycle, SleepSettings sleep) {
 		private static Settings defaults() {

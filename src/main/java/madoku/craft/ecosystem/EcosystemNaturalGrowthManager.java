@@ -3,7 +3,6 @@ package madoku.craft.ecosystem;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 
 public final class EcosystemNaturalGrowthManager {
 	public static final String SCHEDULER_OWNER_ID = "ecosystem_growth_process_gameplay";
@@ -59,8 +57,6 @@ public final class EcosystemNaturalGrowthManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalGrowthManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String CONFIG_FILE_NAME = "natural-growth";
-	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
-	private static final String DEBUG_SUB_SYSTEM = "ecosystem-natural-growth-manager";
 	private static final long MIN_INTERVAL_TICKS = 1L;
 	private static final long MAX_INTERVAL_TICKS = 20L;
 	private static final int MAX_GRASS_CANDIDATES_PER_CHUNK = 4;
@@ -119,24 +115,13 @@ public final class EcosystemNaturalGrowthManager {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE, EcosystemNaturalGrowthManager::runTask);
-		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
-			.subject("initialize")
-			.field("config-folder", CONFIG_FOLDER_NAME)
-			.field("config-file", CONFIG_FILE_NAME)
-			.field("scheduler-owner", SCHEDULER_OWNER_ID)
-			.field("enabled", isEnabled()));
 	}
 
 	public static void reset() {
-		String previousSchedulerId = schedulerId;
 		schedulerId = "";
 		taskScheduled = false;
 		clearTrackedCandidateState();
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
-		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
-			.subject("reset")
-			.field("scheduler-id", previousSchedulerId)
-			.field("task-scheduled", false));
 	}
 
 	static void clearTrackedCandidateState() {
@@ -295,12 +280,6 @@ public final class EcosystemNaturalGrowthManager {
 			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 		}
 		MadokuEcosystemManager.markChunkDirty(chunkKey);
-		emitGrowthDebug("ecosystem.tracking", builder -> builder
-			.subject("sync-growth-chunk-tracking")
-			.field("level-id", chunkKey.levelId())
-			.field("chunk-x", chunkKey.chunkX())
-			.field("chunk-z", chunkKey.chunkZ())
-			.field("tracked", tracked));
 	}
 
 	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunkKey) {
@@ -850,11 +829,6 @@ public final class EcosystemNaturalGrowthManager {
 		);
 		MadokuSchedulerManager.clearQueuedRequests(schedulerId);
 		requestProcessing(server, 1L);
-		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
-			.subject("server-started")
-			.field("scheduler-id", schedulerId)
-			.field("task-scheduled", taskScheduled)
-			.field("enabled", isEnabled()));
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
@@ -862,10 +836,6 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
-		emitGrowthDebug("ecosystem.natural_growth.lifecycle", builder -> builder
-			.subject("server-stopping")
-			.field("scheduler-id", schedulerId)
-			.field("task-scheduled", taskScheduled));
 		clearSchedulerState();
 	}
 
@@ -874,12 +844,6 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	public static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		emitGrowthDebug("ecosystem.natural_growth.process_chunk", builder -> builder
-			.subject("process-chunk")
-			.field("level-id", MadokuEcosystemManager.levelId(level))
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("day-time", currentAbsoluteDayTime));
 		processDirtInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime, "surface_dirt");
 		processTreeCandidateInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime);
 		processCactusCandidateInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime);
@@ -1676,13 +1640,8 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		int evaluated = 0;
-		int advanced = 0;
-		int grown = 0;
-		int removed = 0;
 		List<String> removeKeys = new ArrayList<>();
 		for (String dirtEntryKey : chunkDirtKeys) {
-			evaluated++;
 			MadokuEcosystemManager.DirtState dirt = MadokuEcosystemManager.dirtBlocksByKey.get(dirtEntryKey);
 			if (dirt == null || !dirt.levelId.equals(worldLevelId)) {
 				continue;
@@ -1696,7 +1655,6 @@ public final class EcosystemNaturalGrowthManager {
 			BlockState state = world.getBlockState(dirtPos);
 			if (!EcosystemNaturalErosionManager.isTrackableGroundBlock(state)) {
 				removeKeys.add(dirtEntryKey);
-				removed++;
 				continue;
 			}
 
@@ -1705,7 +1663,6 @@ public final class EcosystemNaturalGrowthManager {
 			}
 			if (!MadokuEcosystemManager.isCandidateForMode(world, dirtPos, state, dirt.mode)) {
 				removeKeys.add(dirtEntryKey);
-				removed++;
 				continue;
 			}
 
@@ -1718,7 +1675,6 @@ public final class EcosystemNaturalGrowthManager {
 				if (updatedProgress > dirt.progressGrowthTicks) {
 					dirt.progressGrowthTicks = updatedProgress;
 					MadokuEcosystemManager.markChunkDirty(targetChunkKey);
-					advanced++;
 				}
 			}
 			dirt.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -1731,8 +1687,6 @@ public final class EcosystemNaturalGrowthManager {
 					world.setBlockAndUpdate(dirtPos, replacement.defaultBlockState());
 				}
 				removeKeys.add(dirtEntryKey);
-				grown++;
-				removed++;
 			}
 		}
 
@@ -1741,21 +1695,6 @@ public final class EcosystemNaturalGrowthManager {
 				MadokuEcosystemManager.markChunkDirty(targetChunkKey);
 			}
 		}
-		final int finalEvaluated = evaluated;
-		final int finalAdvanced = advanced;
-		final int finalGrown = grown;
-		final int finalRemoved = removed;
-		emitGrowthDebug("ecosystem.natural_growth.dirt", builder -> builder
-			.subject("process-dirt")
-			.field("mode", targetMode)
-			.field("level-id", worldLevelId)
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("evaluated", finalEvaluated)
-			.field("advanced", finalAdvanced)
-			.field("grown", finalGrown)
-			.field("removed", finalRemoved)
-			.field("remaining", chunkDirtKeys.size() - removeKeys.size()));
 	}
 
 	static void processTreeCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
@@ -1769,20 +1708,10 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		boolean progressed = false;
-		boolean removed = false;
-		boolean grew = false;
 		if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			emitGrowthDebug("ecosystem.natural_growth.tree", builder -> builder
-				.subject("remove-invalid-tree-candidate")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", candidate.chunkX)
-				.field("chunk-z", candidate.chunkZ)
-				.field("tree-type", candidate.treeType));
 			return;
 		}
 
@@ -1792,13 +1721,6 @@ public final class EcosystemNaturalGrowthManager {
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			emitGrowthDebug("ecosystem.natural_growth.tree", builder -> builder
-				.subject("remove-invalid-ground")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", chunkX)
-				.field("chunk-z", chunkZ)
-				.field("tree-type", candidate.treeType));
 			return;
 		}
 
@@ -1810,7 +1732,6 @@ public final class EcosystemNaturalGrowthManager {
 			if (updatedProgress > candidate.progressGrowthTicks) {
 				candidate.progressGrowthTicks = updatedProgress;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				progressed = true;
 			}
 		}
 		candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -1820,26 +1741,9 @@ public final class EcosystemNaturalGrowthManager {
 			treeCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			grew = grownNow;
 			if (grownNow) {
 				MadokuEcosystemManager.requestEcosystemProcessing(world.getServer(), 1L);
 			}
-		}
-		final boolean finalProgressed = progressed;
-		final boolean finalRemoved = removed;
-		final boolean finalGrew = grew;
-		if (finalProgressed || finalRemoved || finalGrew) {
-			emitGrowthDebug("ecosystem.natural_growth.tree", builder -> builder
-				.subject("process-tree")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", chunkX)
-				.field("chunk-z", chunkZ)
-				.field("progressed", finalProgressed)
-				.field("removed", finalRemoved)
-				.field("grown", finalGrew)
-				.field("progress", candidate.progressGrowthTicks)
-				.field("required", candidate.requiredGrowthTicks));
 		}
 	}
 
@@ -1854,19 +1758,10 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		boolean progressed = false;
-		boolean removed = false;
-		boolean grew = false;
 		if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			emitGrowthDebug("ecosystem.natural_growth.cactus", builder -> builder
-				.subject("remove-invalid-cactus-candidate")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", candidate.chunkX)
-				.field("chunk-z", candidate.chunkZ));
 			return;
 		}
 
@@ -1876,12 +1771,6 @@ public final class EcosystemNaturalGrowthManager {
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			emitGrowthDebug("ecosystem.natural_growth.cactus", builder -> builder
-				.subject("remove-invalid-ground")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", chunkX)
-				.field("chunk-z", chunkZ));
 			return;
 		}
 
@@ -1893,7 +1782,6 @@ public final class EcosystemNaturalGrowthManager {
 			if (updatedProgress > candidate.progressGrowthTicks) {
 				candidate.progressGrowthTicks = updatedProgress;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				progressed = true;
 			}
 		}
 		candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -1903,26 +1791,9 @@ public final class EcosystemNaturalGrowthManager {
 			cactusCandidatesByChunk.remove(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 			MadokuEcosystemManager.markChunkDirty(chunkKey);
-			removed = true;
-			grew = grownNow;
 			if (grownNow) {
 				MadokuEcosystemManager.requestEcosystemProcessing(world.getServer(), 1L);
 			}
-		}
-		final boolean finalProgressed = progressed;
-		final boolean finalRemoved = removed;
-		final boolean finalGrew = grew;
-		if (finalProgressed || finalRemoved || finalGrew) {
-			emitGrowthDebug("ecosystem.natural_growth.cactus", builder -> builder
-				.subject("process-cactus")
-				.field("level-id", candidate.levelId)
-				.field("chunk-x", chunkX)
-				.field("chunk-z", chunkZ)
-				.field("progressed", finalProgressed)
-				.field("removed", finalRemoved)
-				.field("grown", finalGrew)
-				.field("progress", candidate.progressGrowthTicks)
-				.field("required", candidate.requiredGrowthTicks));
 		}
 	}
 
@@ -1937,9 +1808,6 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		int progressed = 0;
-		int grown = 0;
-		int removed = 0;
 		boolean removedAny = false;
 		for (int index = candidates.size() - 1; index >= 0; index--) {
 			MadokuEcosystemManager.GrassCandidateState candidate = candidates.get(index);
@@ -1947,7 +1815,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -1955,7 +1822,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -1965,7 +1831,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -1977,7 +1842,6 @@ public final class EcosystemNaturalGrowthManager {
 				if (updatedProgress > candidate.progressGrowthTicks) {
 					candidate.progressGrowthTicks = updatedProgress;
 					MadokuEcosystemManager.markChunkDirty(chunkKey);
-					progressed++;
 				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -1987,8 +1851,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				grown++;
-				removed++;
 			}
 		}
 
@@ -2000,18 +1862,6 @@ public final class EcosystemNaturalGrowthManager {
 		if (removedAny) {
 			syncChunkProcessorTracking(chunkKey);
 		}
-		final int finalProgressed = progressed;
-		final int finalGrown = grown;
-		final int finalRemoved = removed;
-		emitGrowthDebug("ecosystem.natural_growth.grass", builder -> builder
-			.subject("process-grass")
-			.field("level-id", MadokuEcosystemManager.levelId(world))
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("progressed", finalProgressed)
-			.field("grown", finalGrown)
-			.field("removed", finalRemoved)
-			.field("remaining", candidates.size()));
 	}
 
 	static void processDesertFoliageGrowthCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
@@ -2025,9 +1875,6 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		int progressed = 0;
-		int grown = 0;
-		int removed = 0;
 		boolean removedAny = false;
 		for (int index = candidates.size() - 1; index >= 0; index--) {
 			MadokuEcosystemManager.GrassCandidateState candidate = candidates.get(index);
@@ -2035,7 +1882,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2043,7 +1889,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2053,7 +1898,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2065,7 +1909,6 @@ public final class EcosystemNaturalGrowthManager {
 				if (updatedProgress > candidate.progressGrowthTicks) {
 					candidate.progressGrowthTicks = updatedProgress;
 					MadokuEcosystemManager.markChunkDirty(chunkKey);
-					progressed++;
 				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -2075,8 +1918,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				grown++;
-				removed++;
 			}
 		}
 
@@ -2088,18 +1929,6 @@ public final class EcosystemNaturalGrowthManager {
 		if (removedAny) {
 			syncChunkProcessorTracking(chunkKey);
 		}
-		final int finalProgressed = progressed;
-		final int finalGrown = grown;
-		final int finalRemoved = removed;
-		emitGrowthDebug("ecosystem.natural_growth.desert_foliage", builder -> builder
-			.subject("process-desert-foliage")
-			.field("level-id", MadokuEcosystemManager.levelId(world))
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("progressed", finalProgressed)
-			.field("grown", finalGrown)
-			.field("removed", finalRemoved)
-			.field("remaining", candidates.size()));
 	}
 
 	static void processFoliageCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
@@ -2113,9 +1942,6 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		int progressed = 0;
-		int grown = 0;
-		int removed = 0;
 		boolean removedAny = false;
 		for (int index = candidates.size() - 1; index >= 0; index--) {
 			MadokuEcosystemManager.FoliageCandidateState candidate = candidates.get(index);
@@ -2123,7 +1949,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2131,7 +1956,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2141,7 +1965,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				removed++;
 				continue;
 			}
 
@@ -2153,7 +1976,6 @@ public final class EcosystemNaturalGrowthManager {
 				if (updatedProgress > candidate.progressGrowthTicks) {
 					candidate.progressGrowthTicks = updatedProgress;
 					MadokuEcosystemManager.markChunkDirty(chunkKey);
-					progressed++;
 				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
@@ -2163,8 +1985,6 @@ public final class EcosystemNaturalGrowthManager {
 				candidates.remove(index);
 				removedAny = true;
 				MadokuEcosystemManager.markChunkDirty(chunkKey);
-				grown++;
-				removed++;
 			}
 		}
 
@@ -2176,18 +1996,6 @@ public final class EcosystemNaturalGrowthManager {
 		if (removedAny) {
 			syncChunkProcessorTracking(chunkKey);
 		}
-		final int finalProgressed = progressed;
-		final int finalGrown = grown;
-		final int finalRemoved = removed;
-		emitGrowthDebug("ecosystem.natural_growth.foliage", builder -> builder
-			.subject("process-foliage")
-			.field("level-id", MadokuEcosystemManager.levelId(world))
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("progressed", finalProgressed)
-			.field("grown", finalGrown)
-			.field("removed", finalRemoved)
-			.field("remaining", candidates.size()));
 	}
 
 	public static void runTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
@@ -2198,10 +2006,6 @@ public final class EcosystemNaturalGrowthManager {
 		if (server == null || !isEnabled()) {
 			return;
 		}
-		emitGrowthDebug("ecosystem.natural_growth.scheduler", builder -> builder
-			.subject("run-task")
-			.field("scheduler-id", schedulerId)
-			.field("task-scheduled", taskScheduled));
 		requestProcessing(server, resolveSchedulerInterval(server));
 		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_ID);
 	}
@@ -2225,12 +2029,6 @@ public final class EcosystemNaturalGrowthManager {
 		);
 		if (isAccepted(firstStatus)) {
 			taskScheduled = true;
-			emitGrowthDebug("ecosystem.natural_growth.scheduler", builder -> builder
-				.subject("request-processing")
-				.field("scheduler-id", currentSchedulerId)
-				.field("delay-ticks", delayTicks)
-				.field("queued-before", queuedBefore)
-				.field("accepted", true));
 			return;
 		}
 		String refreshedSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
@@ -2247,12 +2045,6 @@ public final class EcosystemNaturalGrowthManager {
 		if (isAccepted(secondStatus)) {
 			taskScheduled = true;
 		}
-		emitGrowthDebug("ecosystem.natural_growth.scheduler", builder -> builder
-			.subject("request-processing")
-			.field("scheduler-id", schedulerId)
-			.field("delay-ticks", delayTicks)
-			.field("queued-before", queuedBefore)
-			.field("accepted", isAccepted(secondStatus)));
 	}
 
 	private static long resolveSchedulerInterval(MinecraftServer server) {
@@ -2309,33 +2101,11 @@ public final class EcosystemNaturalGrowthManager {
 			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
 			settings = NaturalGrowthConfigManager.fromJson(normalized);
 			JSONFormatManager.writeManagedFile(file, NaturalGrowthConfigManager.toJson(settings), defaults);
-			emitGrowthDebug("ecosystem.natural_growth.config", builder -> builder
-				.subject("load-config")
-				.field("config-folder", CONFIG_FOLDER_NAME)
-				.field("config-file", CONFIG_FILE_NAME)
-				.field("enabled", settings.isEnabled()));
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
 			LOGGER.error("Failed to load EcosystemNaturalGrowthManager config; using defaults.", exception);
-			emitGrowthDebug("ecosystem.natural_growth.config", builder -> builder
-				.subject("load-config-failed")
-				.field("config-folder", CONFIG_FOLDER_NAME)
-				.field("config-file", CONFIG_FILE_NAME)
-				.field("enabled", fallback.isEnabled()));
 		}
 	}
 
-	private static void emitGrowthDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 
 }

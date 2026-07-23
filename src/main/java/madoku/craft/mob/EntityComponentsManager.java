@@ -2,7 +2,6 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.debug.MadokuDebugManager;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -33,7 +32,6 @@ public final class EntityComponentsManager {
 		changed |= set(entity, Attributes.KNOCKBACK_RESISTANCE, components, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE);
 		changed |= set(entity, Attributes.FLYING_SPEED, components, MobConfigManager.FIELD_FLYING_SPEED);
 		changed |= set(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, components, MobConfigManager.FIELD_SWIMMING_SPEED);
-		emitBaseStatsDebug(entity);
 		return changed;
 	}
 
@@ -98,21 +96,12 @@ public final class EntityComponentsManager {
 			return false;
 		}
 		boolean hardcore = entity.level().getServer() != null && entity.level().getServer().isHardcore();
-		double healthBefore = readBaseValue(entity, Attributes.MAX_HEALTH);
-		double damageBefore = readBaseValue(entity, Attributes.ATTACK_DAMAGE);
-		double movementSpeedBefore = readBaseValue(entity, Attributes.MOVEMENT_SPEED);
-		double flyingSpeedBefore = readBaseValue(entity, Attributes.FLYING_SPEED);
-		double swimmingSpeedBefore = readBaseValue(entity, Attributes.WATER_MOVEMENT_EFFICIENCY);
-		double healthAdjustment = add(entity, Attributes.MAX_HEALTH, MobConfigManager.FIELD_HEALTH, hardcore);
-		double damageAdjustment = add(entity, Attributes.ATTACK_DAMAGE, MobConfigManager.FIELD_DAMAGE, hardcore);
-		double movementSpeedAdjustment = add(entity, Attributes.MOVEMENT_SPEED, MobConfigManager.FIELD_MOVEMENT_SPEED, hardcore);
-		double flyingSpeedAdjustment = add(entity, Attributes.FLYING_SPEED, MobConfigManager.FIELD_FLYING_SPEED, hardcore);
-		double swimmingSpeedAdjustment = add(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, MobConfigManager.FIELD_SWIMMING_SPEED, hardcore);
-		boolean changed = healthAdjustment != 0.0D
-			|| damageAdjustment != 0.0D
-			|| movementSpeedAdjustment != 0.0D
-			|| flyingSpeedAdjustment != 0.0D
-			|| swimmingSpeedAdjustment != 0.0D;
+		boolean changed = false;
+		changed |= add(entity, Attributes.MAX_HEALTH, MobConfigManager.FIELD_HEALTH, hardcore);
+		changed |= add(entity, Attributes.ATTACK_DAMAGE, MobConfigManager.FIELD_DAMAGE, hardcore);
+		changed |= add(entity, Attributes.MOVEMENT_SPEED, MobConfigManager.FIELD_MOVEMENT_SPEED, hardcore);
+		changed |= add(entity, Attributes.FLYING_SPEED, MobConfigManager.FIELD_FLYING_SPEED, hardcore);
+		changed |= add(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, MobConfigManager.FIELD_SWIMMING_SPEED, hardcore);
 		int baseExperienceDrop = MobEntityManager.resolveMobExperienceDropForRuntime(entity);
 		int resolvedExperienceDrop = (int) Math.round(MobWorldDifficultyManager.resolveValue(
 			MobConfigManager.FIELD_EXPERIENCE_DROP,
@@ -127,22 +116,6 @@ public final class EntityComponentsManager {
 		if (entity instanceof MobEntityManager.DifficultyState state) {
 			state.madokuCraft$setWorldDifficultyScalingApplied(true);
 		}
-		emitWorldDifficultyDebug(
-			entity,
-			hardcore,
-			healthBefore,
-			healthAdjustment,
-			damageBefore,
-			damageAdjustment,
-			movementSpeedBefore,
-			movementSpeedAdjustment,
-			flyingSpeedBefore,
-			flyingSpeedAdjustment,
-			swimmingSpeedBefore,
-			swimmingSpeedAdjustment,
-			baseExperienceDrop,
-			resolvedExperienceDrop - baseExperienceDrop
-		);
 		return changed;
 	}
 
@@ -158,93 +131,15 @@ public final class EntityComponentsManager {
 		return true;
 	}
 
-	private static double add(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute, String key, boolean hardcore) {
+	private static boolean add(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute, String key, boolean hardcore) {
 		AttributeInstance instance = entity.getAttribute(attribute);
-		if (instance == null) return 0.0D;
+		if (instance == null) return false;
 		double base = instance.getBaseValue();
 		double addition = MobWorldDifficultyManager.resolveAddition(key, base, entity.level().getDifficulty(), hardcore);
-		if (!Double.isFinite(addition) || addition == 0.0D) return 0.0D;
+		if (!Double.isFinite(addition) || addition == 0.0D) return false;
 		instance.setBaseValue(Math.max(0.0D, base + addition));
 		if (attribute == Attributes.MAX_HEALTH) entity.setHealth(Math.min(entity.getHealth(), entity.getMaxHealth()));
-		return addition;
-	}
-
-	private static void emitBaseStatsDebug(LivingEntity entity) {
-		String entry = "apply-configured-components";
-		if (entity == null || !MadokuDebugManager.shouldEmit("mob", "entity", "components", entry)) {
-			return;
-		}
-		MadokuDebugManager.event("mob.stats.base", "mob", "entity", "components", entry)
-			.side(MadokuDebugManager.Side.SERVER)
-			.world(entity.level().dimension().identifier().toString())
-			.subject(entity.getType().toString())
-			.field("entity-uuid", entity.getUUID())
-			.field("base-health", readBaseValue(entity, Attributes.MAX_HEALTH))
-			.field("base-damage", readBaseValue(entity, Attributes.ATTACK_DAMAGE))
-			.field("base-movement-speed", readBaseValue(entity, Attributes.MOVEMENT_SPEED))
-			.field("base-flying-speed", readBaseValue(entity, Attributes.FLYING_SPEED))
-			.field("base-swimming-speed", readBaseValue(entity, Attributes.WATER_MOVEMENT_EFFICIENCY))
-			.field("base-armor", readBaseValue(entity, Attributes.ARMOR))
-			.field("base-knockback-resistance", readBaseValue(entity, Attributes.KNOCKBACK_RESISTANCE))
-			.field("base-scale", readBaseValue(entity, Attributes.SCALE))
-			.field("base-experience-drop", MobEntityManager.resolveMobExperienceDropForRuntime(entity))
-			.log();
-	}
-
-	private static void emitWorldDifficultyDebug(
-		LivingEntity entity,
-		boolean hardcore,
-		double healthBefore,
-		double healthAdjustment,
-		double damageBefore,
-		double damageAdjustment,
-		double movementSpeedBefore,
-		double movementSpeedAdjustment,
-		double flyingSpeedBefore,
-		double flyingSpeedAdjustment,
-		double swimmingSpeedBefore,
-		double swimmingSpeedAdjustment,
-		int experienceBefore,
-		double experienceAdjustment
-	) {
-		String entry = "apply-world-difficulty-scaling";
-		if (entity == null || !MadokuDebugManager.shouldEmit("mob", "entity", "components", entry)) {
-			return;
-		}
-		MadokuDebugManager.event("mob.stats.world_difficulty", "mob", "entity", "components", entry)
-			.side(MadokuDebugManager.Side.SERVER)
-			.world(entity.level().dimension().identifier().toString())
-			.subject(entity.getType().toString())
-			.field("entity-uuid", entity.getUUID())
-			.field("difficulty", entity.level().getDifficulty())
-			.field("hardcore", hardcore)
-			.field("health-before", healthBefore)
-			.field("health-adjustment", healthAdjustment)
-			.field("health-after", readBaseValue(entity, Attributes.MAX_HEALTH))
-			.field("damage-before", damageBefore)
-			.field("damage-adjustment", damageAdjustment)
-			.field("damage-after", readBaseValue(entity, Attributes.ATTACK_DAMAGE))
-			.field("movement-speed-before", movementSpeedBefore)
-			.field("movement-speed-adjustment", movementSpeedAdjustment)
-			.field("movement-speed-after", readBaseValue(entity, Attributes.MOVEMENT_SPEED))
-			.field("flying-speed-before", flyingSpeedBefore)
-			.field("flying-speed-adjustment", flyingSpeedAdjustment)
-			.field("flying-speed-after", readBaseValue(entity, Attributes.FLYING_SPEED))
-			.field("swimming-speed-before", swimmingSpeedBefore)
-			.field("swimming-speed-adjustment", swimmingSpeedAdjustment)
-			.field("swimming-speed-after", readBaseValue(entity, Attributes.WATER_MOVEMENT_EFFICIENCY))
-			.field("experience-before", experienceBefore)
-			.field("experience-adjustment", experienceAdjustment)
-			.field("experience-after", MobEntityManager.resolveMobExperienceDropForRuntime(entity))
-			.log();
-	}
-
-	private static double readBaseValue(LivingEntity entity, net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute> attribute) {
-		if (entity == null || attribute == null) {
-			return 0.0D;
-		}
-		AttributeInstance instance = entity.getAttribute(attribute);
-		return instance == null ? 0.0D : instance.getBaseValue();
+		return true;
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {

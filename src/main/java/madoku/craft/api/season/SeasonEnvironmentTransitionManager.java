@@ -1,14 +1,11 @@
 package madoku.craft.api.season;
 
-import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
 
-import java.util.function.Consumer;
 
 /** Applies the current season's climate adjustment and vanilla environment overrides. */
 public final class SeasonEnvironmentTransitionManager {
@@ -30,13 +27,11 @@ public final class SeasonEnvironmentTransitionManager {
 
 	public static void initialize() {
 		EnvironmentTransitionConfigManager.initialize();
-		debug("initialize");
 	}
 
 	public static void reset() {
 		temperatureOffset = 0.0;
 		humidityOffset = 0.0;
-		debug("reset");
 	}
 
 	static void updateSeasonState(MadokuSeasonManager.SeasonState state) {
@@ -68,17 +63,6 @@ public final class SeasonEnvironmentTransitionManager {
 				seasonLengthDays) : 0.0;
 		if (Double.compare(previousTemperatureOffset, temperatureOffset) != 0
 			|| Double.compare(previousHumidityOffset, humidityOffset) != 0) {
-			debug("offsets-changed", builder -> builder
-				.field("season", state.season().id())
-				.field("season-day", state.seasonDay())
-				.field("elapsed-intervals", elapsedIntervals)
-				.field("adjustment-count", count)
-				.field("time-rate-days", timeRateDays)
-				.field("temperature-offset", temperatureOffset)
-				.field("humidity-offset", humidityOffset)
-				.field("temperature-enabled", settings.temperatureEnabled())
-				.field("humidity-enabled", settings.humidityEnabled())
-				.field("season-transitions-enabled", settings.seasonTransitionsEnabled()));
 		}
 	}
 
@@ -303,19 +287,5 @@ public final class SeasonEnvironmentTransitionManager {
 		if (adjustment == null) return 0.0;
 		return adjustment.type().equals("subtraction") ? -adjustment.value() : adjustment.value();
 	}
-	private static void debug(String subject) {
-		debug(subject, builder -> { });
-	}
 
-	private static void debug(String subject, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
-			"season.environment-transition.lifecycle",
-			MadokuMetaDataManager.SEASON.mainSystem(),
-			"season-environment-transition-manager",
-			"lifecycle",
-			"state"
-		).side(MadokuDebugManager.Side.SERVER).tick(madoku.craft.api.time.MadokuTimeManager.getGameplayTicks()).subject(subject);
-		if (customizer != null) customizer.accept(builder);
-		builder.log();
-	}
 }

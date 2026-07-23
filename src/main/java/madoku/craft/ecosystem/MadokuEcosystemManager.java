@@ -3,8 +3,6 @@ package madoku.craft.ecosystem;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.data.DataWorldChunkManager;
-import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
@@ -27,9 +25,6 @@ import java.util.function.Consumer;
 
 public final class MadokuEcosystemManager {
 	private static final String DATA_SYSTEM_ID = "ecosystem";
-	private static final String DEBUG_MAIN_SYSTEM = "ecosystem";
-	private static final String DEBUG_SUB_SYSTEM = "ecosystem-manager";
-
 	private static final String FIELD_GROUND_BLOCKS = "ground-blocks";
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_BLOCK_POS = "block-pos";
@@ -146,23 +141,15 @@ public final class MadokuEcosystemManager {
 	}
 
 	public static void initialize() {
-		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.ECOSYSTEM);
-		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.ECOSYSTEM);
 		EcosystemConfigManager.initialize();
 		EcosystemNaturalGrowthManager.initialize();
 		EcosystemNaturalErosionManager.initialize();
 		EcosystemNaturalDecayManager.initialize();
 		loadConfig();
 		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("initialize")
-			.field("data-system", DATA_SYSTEM_ID));
 	}
 
 	public static void reset() {
-		final int previousTrackedDirt = dirtBlocksByKey.size();
-		final int previousTrackedChunks = dirtKeysByChunk.size();
-		final int previousDiscoveryAccumulators = discoveryAccumulatorsByChunk.size();
 		EcosystemConfigManager.reset();
 		EcosystemNaturalGrowthManager.reset();
 		EcosystemNaturalErosionManager.reset();
@@ -179,11 +166,6 @@ public final class MadokuEcosystemManager {
 		dirty = false;
 		loadingPersistedData = false;
 		resetUnifiedDiscoveryState();
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("reset")
-			.field("tracked-dirt", previousTrackedDirt)
-			.field("tracked-chunks", previousTrackedChunks)
-			.field("discovery-accumulators", previousDiscoveryAccumulators));
 	}
 
 	public static boolean isEnabled() {
@@ -297,12 +279,6 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.onServerStarted(server);
 		EcosystemNaturalErosionManager.onServerStarted(server);
 		EcosystemNaturalDecayManager.onServerStarted(server);
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("server-started")
-			.field("enabled", isEnabled())
-			.field("growth", isNaturalGrowthEnabled())
-			.field("erosion", isNaturalErosionEnabled())
-			.field("decay", isNaturalDecayEnabled()));
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -342,12 +318,6 @@ public final class MadokuEcosystemManager {
 			lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 			dirty = false;
 			DIRTY_CHUNK_KEYS.clear();
-			emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-				.subject("load-persisted-data")
-				.field("auto-save-ticks", autoSaveIntervalTicks)
-				.field("dirty", dirty)
-				.field("chunk-files", 0)
-				.field("persisted-chunks", PERSISTED_CHUNK_KEYS.size()));
 		} finally {
 			loadingPersistedData = false;
 		}
@@ -368,10 +338,6 @@ public final class MadokuEcosystemManager {
 		if (dirty) {
 			savePersistedData(server);
 		}
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("autosave")
-			.field("bucket", bucket)
-			.field("dirty", dirty));
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
@@ -383,7 +349,6 @@ public final class MadokuEcosystemManager {
 		Set<ChunkRefKey> dirtyChunkKeys = collectDirtyChunkKeys();
 		Set<ChunkRefKey> staleChunkKeys = new LinkedHashSet<>(PERSISTED_CHUNK_KEYS);
 		staleChunkKeys.removeAll(currentChunkKeys);
-		int writtenChunkFiles = 0;
 		for (ChunkRefKey chunkKey : dirtyChunkKeys) {
 			if (!currentChunkKeys.contains(chunkKey)) {
 				continue;
@@ -397,7 +362,6 @@ public final class MadokuEcosystemManager {
 				DATA_SYSTEM_ID,
 				chunkData
 			);
-			writtenChunkFiles++;
 		}
 		for (ChunkRefKey chunkKey : staleChunkKeys) {
 			DataWorldChunkManager.removeChunkSystemData(
@@ -408,14 +372,7 @@ public final class MadokuEcosystemManager {
 		PERSISTED_CHUNK_KEYS.clear();
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
 		DIRTY_CHUNK_KEYS.clear();
-		final int writtenChunkFileCount = writtenChunkFiles;
 		dirty = false;
-		emitEcosystemDebug("ecosystem.lifecycle", builder -> builder
-			.subject("save-persisted-data")
-			.field("dirty", dirty)
-			.field("chunk-files", writtenChunkFileCount)
-			.field("persisted-chunks", currentChunkKeys.size())
-			.field("deleted-chunks", staleChunkKeys.size()));
 	}
 
 	static void beginUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
@@ -424,11 +381,6 @@ public final class MadokuEcosystemManager {
 		}
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
 		discoveryAccumulatorsByChunk.put(chunkKey, new ChunkDiscoveryAccumulator());
-		emitEcosystemDebug("ecosystem.discovery", builder -> builder
-			.subject("begin-unified-discovery")
-			.field("level-id", chunkKey.levelId())
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	static void runUnifiedDiscoveryForChunk(
@@ -452,13 +404,6 @@ public final class MadokuEcosystemManager {
 		lastUnifiedDiscoveryLevelId = worldLevelId;
 		lastUnifiedDiscoveryChunkX = chunkX;
 		lastUnifiedDiscoveryChunkZ = chunkZ;
-		emitEcosystemDebug("ecosystem.discovery", builder -> builder
-			.subject("run-unified-discovery")
-			.field("level-id", worldLevelId)
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ)
-			.field("tick", gameplayTick));
-
 		ChunkDiscoveryAccumulator accumulator = getOrCreateDiscoveryAccumulator(world, chunkX, chunkZ);
 		if (accumulator == null || snapshot == null || (snapshot.motionColumns().isEmpty() && snapshot.surfaceColumns().isEmpty())) {
 			return;
@@ -665,18 +610,6 @@ public final class MadokuEcosystemManager {
 		discoveryAccumulatorsByChunk.clear();
 	}
 
-	private static void emitEcosystemDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 
 	private static ChunkDiscoveryAccumulator getOrCreateDiscoveryAccumulator(ServerLevel world, int chunkX, int chunkZ) {
 		if (world == null) {

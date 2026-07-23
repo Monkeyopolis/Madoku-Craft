@@ -3,10 +3,8 @@ package madoku.craft.api.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,11 +32,6 @@ public final class BiomeClimateConfigManager {
 
 	public static void initialize() {
 		loadConfig();
-		emitDebug("initialize", builder -> builder
-			.field("config-file", CONFIG_FILE_NAME + ".json")
-			.field("temperature-enabled", settings.temperatureEnabled())
-			.field("humidity-enabled", settings.humidityEnabled())
-			.field("biomes", settings.biomes().size()));
 	}
 
 	public static void reloadConfig() {
@@ -48,10 +41,6 @@ public final class BiomeClimateConfigManager {
 
 	public static void reset() {
 		settings = defaults();
-		emitDebug("reset", builder -> builder
-			.field("temperature-enabled", settings.temperatureEnabled())
-			.field("humidity-enabled", settings.humidityEnabled())
-			.field("biomes", settings.biomes().size()));
 	}
 
 	public static Settings getSettings() {
@@ -166,21 +155,6 @@ public final class BiomeClimateConfigManager {
 	public record Climate(int temperature, int humidity) {
 	}
 
-	private static void emitDebug(String subject, java.util.function.Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-biome-climate-manager", "biome-climate-config-manager", entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(
-			"season.biome-climate.config",
-			MadokuMetaDataManager.SEASON.mainSystem(),
-			"season-biome-climate-manager",
-			"biome-climate-config-manager",
-			entry
-		).side(MadokuDebugManager.Side.SERVER).subject(subject);
-		if (customizer != null) customizer.accept(builder);
-		builder.log();
-	}
 
 	public record Settings(boolean temperatureEnabled, boolean humidityEnabled, Map<String, Climate> biomes) {
 		public Settings {

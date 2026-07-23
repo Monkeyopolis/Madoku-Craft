@@ -1,7 +1,6 @@
 package madoku.craft.api.chunk;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
@@ -19,11 +18,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 final class ChunkDiscoveryManager {
-	private static final String DEBUG_MAIN_SYSTEM = "chunk";
-	private static final String DEBUG_SUB_SYSTEM = "chunk-discovery-manager";
 	private static final String CHUNK_SCHEDULER_OWNER_ID = "madoku_chunks";
 	private static final String TASK_TYPE_CHUNK_REFRESH = "chunk_refresh";
 	private static final long CHUNK_REFRESH_MIN_INTERVAL_TICKS = 1L;
@@ -50,26 +46,15 @@ final class ChunkDiscoveryManager {
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_CHUNK_REFRESH, ChunkDiscoveryManager::runChunkRefreshTask);
 		ServerChunkEvents.CHUNK_LOAD.register(ChunkDiscoveryManager::onChunkLoad);
 		ServerChunkEvents.CHUNK_UNLOAD.register(ChunkDiscoveryManager::onChunkUnload);
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("initialize")
-			.field("task-type", TASK_TYPE_CHUNK_REFRESH));
 	}
 
 	public static void reset() {
-		final int previousLoadedChunks = DISCOVERY_LOADED_CHUNKS.size();
-		final boolean previousTaskScheduled = refreshTaskScheduled;
-		final String previousSchedulerId = chunkSchedulerId;
 		clearRuntimeState();
 		chunkSchedulerId = "";
 		refreshTaskScheduled = false;
 		serverStopping = false;
 		lastAutosaveBucket = Long.MIN_VALUE;
 		MadokuSchedulerManager.clearAdaptiveDelayState(CHUNK_SCHEDULER_OWNER_ID);
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("reset")
-			.field("scheduler-id", previousSchedulerId)
-			.field("task-scheduled", previousTaskScheduled)
-			.field("loaded-chunks", previousLoadedChunks));
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -85,10 +70,6 @@ final class ChunkDiscoveryManager {
 		serverStopping = false;
 		long autoSaveIntervalTicks = DataWorldChunkManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("load-persisted-data")
-			.field("auto-save-ticks", autoSaveIntervalTicks)
-			.field("chunk-cursor", discoveryChunkScanCursor));
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -111,11 +92,6 @@ final class ChunkDiscoveryManager {
 		if (!ChunkProcessorManager.hasActiveChunkProcessors()) {
 			chunkSchedulerId = "";
 			refreshTaskScheduled = false;
-			emitChunkDebug("chunk.discovery", builder -> builder
-				.subject("server-started")
-				.field("scheduler-id", chunkSchedulerId)
-				.field("active-processors", false)
-				.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));
 			return;
 		}
 		chunkSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
@@ -125,11 +101,6 @@ final class ChunkDiscoveryManager {
 		if (!refreshTaskScheduled) {
 			requestChunkRefresh(server, resolveChunkRefreshInterval(server));
 		}
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("server-started")
-			.field("scheduler-id", chunkSchedulerId)
-			.field("task-scheduled", refreshTaskScheduled)
-			.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -143,9 +114,6 @@ final class ChunkDiscoveryManager {
 		}
 		lastAutosaveBucket = bucket;
 		savePersistedData(server);
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("autosave")
-			.field("bucket", bucket));
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
@@ -154,16 +122,12 @@ final class ChunkDiscoveryManager {
 		}
 		serverStopping = true;
 		savePersistedData(server);
-		emitChunkDebug("chunk.discovery", builder -> builder.subject("server-stopping"));
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
 		if (server == null || !ChunkConfigManager.isChunkDiscoveryEnabled()) {
 			return;
 		}
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("save-persisted-data")
-			.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));
 	}
 
 	static void onChunkLoad(ServerLevel level, LevelChunk chunk, boolean generated) {
@@ -216,11 +180,6 @@ final class ChunkDiscoveryManager {
 		}
 		long refreshIntervalTicks = resolveChunkRefreshInterval(server);
 		int columnsPerRefresh = ChunkConfigManager.resolveAdaptiveChunkWorkUnits(refreshIntervalTicks);
-		emitChunkDebug("chunk.discovery", builder -> builder
-			.subject("refresh-task")
-			.field("scheduler-id", chunkSchedulerId)
-			.field("columns-per-refresh", columnsPerRefresh)
-			.field("loaded-chunks", DISCOVERY_LOADED_CHUNKS.size()));
 		runSharedChunkDiscoverySteps(server, columnsPerRefresh);
 		requestChunkRefresh(server, refreshIntervalTicks);
 	}
@@ -541,18 +500,6 @@ final class ChunkDiscoveryManager {
 		discoveryChunksSeeded = false;
 	}
 
-	private static void emitChunkDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 
 	private static void requestChunkRefresh(MinecraftServer server, long delayTicks) {
 		if (server == null

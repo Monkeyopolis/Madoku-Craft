@@ -62,7 +62,6 @@ public abstract class LootTableFarmingMixin {
 			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
 		}
 		MadokuLuckManager.applyManagedCropDrops(lootContext, drops);
-		MadokuFarming.emitPendingHarvestUsedDebug(level, pos, state, "loot_table");
 		MadokuFarming.completeCropHarvest(level, pos, state);
 		cir.setReturnValue(drops);
 	}

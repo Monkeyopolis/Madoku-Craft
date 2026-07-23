@@ -1,8 +1,6 @@
 package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -26,8 +24,6 @@ public final class MadokuLevelsManager {
 		LevelsAttributesManager.initialize();
 		LevelsPlayerManager.initialize();
 		LevelsPayloadManager.initialize();
-		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.LEVELS);
-		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.LEVELS);
 		initialized = true;
 	}
 

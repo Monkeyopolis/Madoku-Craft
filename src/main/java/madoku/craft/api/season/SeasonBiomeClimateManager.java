@@ -1,7 +1,5 @@
 package madoku.craft.api.season;
 
-import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -24,15 +22,12 @@ public final class SeasonBiomeClimateManager {
 	private SeasonBiomeClimateManager() { }
 
 	public static void initialize() {
-		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.SEASON);
 		BiomeClimateConfigManager.initialize();
-		debug("initialize", BiomeClimateConfigManager.getSettings().biomes().size());
 	}
 
 	public static void reset() {
 		currentServer = null;
 		runtimeConfiguredClimates = Map.of();
-		debug("reset", 0);
 	}
 
 	static void onServerStarted(MinecraftServer server) {
@@ -64,7 +59,6 @@ public final class SeasonBiomeClimateManager {
 			}
 		}
 		runtimeConfiguredClimates = Collections.unmodifiableMap(configured);
-		debug("refresh", configured.size());
 	}
 
 	public static boolean isTemperatureEnabled() {
@@ -120,8 +114,4 @@ public final class SeasonBiomeClimateManager {
 		}
 	}
 
-	private static void debug(String subject, int biomeCount) {
-		MadokuDebugManager.event("season.biome-climate.lifecycle", MadokuMetaDataManager.SEASON.mainSystem(), "season-biome-climate-manager", "lifecycle", "state")
-			.subject(subject).field("biomes", biomeCount).log();
-	}
 }

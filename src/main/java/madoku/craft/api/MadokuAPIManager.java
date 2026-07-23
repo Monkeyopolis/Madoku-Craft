@@ -1,8 +1,6 @@
 package madoku.craft.api;
 
 import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.api.debug.MadokuDebugManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.json.MadokuJSONManager;
@@ -21,12 +19,8 @@ public final class MadokuAPIManager {
 
 	public static void initialize() {
 		MadokuJSONManager.initialize();
-		MadokuMetaDataManager.initialize();
-		MadokuMetaDataManager.registerMainSystem(MadokuMetaDataManager.API);
 		getApiRootDirectory();
 		MadokuDataManager.initialize();
-		MadokuDebugManager.initialize();
-		MadokuDebugManager.bootstrapMainSystem(MadokuMetaDataManager.API);
 		MadokuTimeManager.initialize();
 		MadokuChunkManager.initialize();
 		MadokuSeasonManager.initialize();
@@ -44,7 +38,6 @@ public final class MadokuAPIManager {
 		MadokuJSONManager.reset();
 		MadokuTimeManager.reset();
 		MadokuSeasonManager.reset();
-		MadokuDebugManager.resetSession();
 		MadokuChunkManager.reset();
 		MadokuSchedulerManager.reset();
 		MadokuSyncManager.reset();

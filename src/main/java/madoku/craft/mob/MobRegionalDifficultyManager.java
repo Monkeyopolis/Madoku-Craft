@@ -2,7 +2,6 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
@@ -269,7 +268,6 @@ public final class MobRegionalDifficultyManager {
 		if (applied == null) {
 			return;
 		}
-		emitRegionalScalingDebug(mob, biomeAdjustment, structureAdjustment, timeAdjustment, totalAdjustment, applied);
 	}
 
 	public static void applySpawnScalingIfUnscaled(Mob mob, ServerLevelAccessor worldAccess) {
@@ -342,7 +340,6 @@ public final class MobRegionalDifficultyManager {
 		double sanitizedBase = Math.max(0.0D, baseExplosionPower);
 		double powerAddition = resolveScaledAddition(sanitizedBase, increments.explosionPower(), modes.explosionPowerMode(), totalAdjustment);
 		double resolved = roundDifficultyScaleValue(sanitizedBase, powerAddition);
-		emitRegionalCombatScalingDebug(mob, "resolve-creeper-explosion-power-scaling", "explosion-power", sanitizedBase, resolved, totalAdjustment);
 		return resolved;
 	}
 
@@ -364,7 +361,6 @@ public final class MobRegionalDifficultyManager {
 		double addition = resolveScaledAddition(sanitizedBase, increments.rangedDamage(), modes.rangedDamageMode(), totalAdjustment);
 		double resolved = Math.max(0.0D, sanitizedBase + addition);
 		double rounded = roundDifficultyScaleValue(sanitizedBase, resolved);
-		emitRegionalCombatScalingDebug(mob, "resolve-mob-ranged-damage-scaling", "ranged-damage", sanitizedBase, rounded, totalAdjustment);
 		return rounded;
 	}
 
@@ -386,7 +382,6 @@ public final class MobRegionalDifficultyManager {
 		double addition = resolveScaledAddition(sanitizedBase, increments.attackAccuracy(), modes.attackAccuracyMode(), totalAdjustment);
 		double resolved = sanitizedBase + addition;
 		double clamped = Mth.clamp(roundDifficultyScaleValue(sanitizedBase, resolved), 0.0D, 1.0D);
-		emitRegionalCombatScalingDebug(mob, "resolve-mob-attack-accuracy-scaling", "attack-accuracy", sanitizedBase, clamped, totalAdjustment);
 		return clamped;
 	}
 
@@ -925,62 +920,7 @@ public final class MobRegionalDifficultyManager {
 		return instance == null ? 0.0D : instance.getBaseValue();
 	}
 
-	private static void emitRegionalScalingDebug(
-		Mob mob,
-		int biomeAdjustment,
-		int structureAdjustment,
-		int timeAdjustment,
-		int totalAdjustment,
-		ScalingApplication applied
-	) {
-		String entry = "apply-spawn-scaling";
-		if (mob == null || applied == null || !MadokuDebugManager.shouldEmit("mob", "regional-difficulty", entry)) {
-			return;
-		}
-		MadokuDebugManager.event("mob.stats.regional_difficulty", "mob", "regional-difficulty", entry)
-			.side(MadokuDebugManager.Side.SERVER)
-			.world(mob.level().dimension().identifier().toString())
-			.subject(mob.getType().toString())
-			.field("entity-uuid", mob.getUUID())
-			.field("biome-adjustment", biomeAdjustment)
-			.field("structure-adjustment", structureAdjustment)
-			.field("time-adjustment", timeAdjustment)
-			.field("total-adjustment", totalAdjustment)
-			.field("health-adjustment", applied.healthAddition())
-			.field("movement-speed-adjustment", applied.movementSpeedAddition())
-			.field("scale-adjustment", applied.scaleAddition())
-			.field("armor-adjustment", applied.armorAddition())
-			.field("damage-adjustment", applied.damageAddition())
-			.field("knockback-resistance-adjustment", applied.knockbackResistanceAddition())
-			.field("experience-adjustment", applied.experienceDropAddition())
-			.field("health-after", readAttributeBaseValue(mob, Attributes.MAX_HEALTH))
-			.field("movement-speed-after", readAttributeBaseValue(mob, Attributes.MOVEMENT_SPEED))
-			.field("flying-speed-after", readAttributeBaseValue(mob, Attributes.FLYING_SPEED))
-			.field("scale-after", readAttributeBaseValue(mob, Attributes.SCALE))
-			.field("armor-after", readAttributeBaseValue(mob, Attributes.ARMOR))
-			.field("damage-after", readAttributeBaseValue(mob, Attributes.ATTACK_DAMAGE))
-			.field("knockback-resistance-after", readAttributeBaseValue(mob, Attributes.KNOCKBACK_RESISTANCE))
-			.field("experience-before", applied.experienceBaseBefore())
-			.field("experience-after", applied.experienceBaseAfter())
-			.log();
-	}
 
-	private static void emitRegionalCombatScalingDebug(Mob mob, String entry, String stat, double base, double resolved, int totalAdjustment) {
-		if (mob == null || entry == null || stat == null || !MadokuDebugManager.shouldEmit("mob", "regional-difficulty", entry)) {
-			return;
-		}
-		MadokuDebugManager.event("mob.stats.regional_difficulty", "mob", "regional-difficulty", entry)
-			.side(MadokuDebugManager.Side.SERVER)
-			.world(mob.level().dimension().identifier().toString())
-			.subject(mob.getType().toString())
-			.field("entity-uuid", mob.getUUID())
-			.field("stat", stat)
-			.field("total-adjustment", totalAdjustment)
-			.field("base", base)
-			.field("adjustment", resolved - base)
-			.field("resolved", resolved)
-			.log();
-	}
 
 	private static double resolveHealthScalingAmount(
 		Mob mob,

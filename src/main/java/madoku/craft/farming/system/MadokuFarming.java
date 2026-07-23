@@ -88,7 +88,6 @@ public final class MadokuFarming {
 	private static final int CROP_MAX_AGE = 7;
 	private static final long PENDING_HARVEST_TTL_TICKS = 2L;
 	private static final long ABSOLUTE_TIME_ROLLBACK_RESET_TICKS = 20L;
-	private static final long CHUNK_DEBUG_INTERVAL_TICKS = 200L;
 	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
 	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 180L;
 
@@ -96,9 +95,6 @@ public final class MadokuFarming {
 	private static volatile String farmingProcessSchedulerId = "";
 	private static volatile boolean farmingProcessTaskScheduled = false;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
-	private static volatile long lastChunkProcessDebugTick = Long.MIN_VALUE;
-	private static volatile long lastChunkPickDebugTick = Long.MIN_VALUE;
-	private static volatile long lastChunkDiscoverDebugTick = Long.MIN_VALUE;
 	private static volatile int chunkScanCursor = 0;
 	private static volatile boolean dirty = false;
 
@@ -730,9 +726,6 @@ public final class MadokuFarming {
 		return getCropAge(state) >= getCropAgeLimit(state);
 	}
 
-	public static void emitPendingHarvestUsedDebug(ServerLevel world, BlockPos cropPos, BlockState state, String source) {
-		// Intentionally no-op in the rewritten simulation system.
-	}
 
 	private static boolean handleBlockBreakBefore(Level world, BlockPos pos, BlockState state, BlockEntity blockEntity) {
 		if (!settings.enabled || !(world instanceof ServerLevel serverLevel) || pos == null || state == null) {
@@ -851,8 +844,6 @@ public final class MadokuFarming {
 					trackCrop(world, pos, state);
 				}
 			}
-		}
-		if (shouldEmitChunkDebug("farming.chunk_discover", false)) {
 		}
 	}
 
@@ -1278,44 +1269,8 @@ public final class MadokuFarming {
 		return new ChunkRefKey(levelId, BlockPos.getX(packedBlockPos) >> 4, BlockPos.getZ(packedBlockPos) >> 4);
 	}
 
-	private static boolean shouldEmitChunkDebug(String metricId, boolean force) {
-		long now = MadokuTimeManager.getGameplayTicks();
-		if (!force) {
-			long last = lastChunkDebugTick(metricId);
-			if (last != Long.MIN_VALUE && now - last < CHUNK_DEBUG_INTERVAL_TICKS) {
-				return false;
-			}
-		}
-		setLastChunkDebugTick(metricId, now);
-		return true;
-	}
 
-	private static long lastChunkDebugTick(String metricId) {
-		if ("farming.chunk_process".equals(metricId)) {
-			return lastChunkProcessDebugTick;
-		}
-		if ("farming.chunk_pick".equals(metricId)) {
-			return lastChunkPickDebugTick;
-		}
-		if ("farming.chunk_discover".equals(metricId)) {
-			return lastChunkDiscoverDebugTick;
-		}
-		return Long.MIN_VALUE;
-	}
 
-	private static void setLastChunkDebugTick(String metricId, long tick) {
-		if ("farming.chunk_process".equals(metricId)) {
-			lastChunkProcessDebugTick = tick;
-			return;
-		}
-		if ("farming.chunk_pick".equals(metricId)) {
-			lastChunkPickDebugTick = tick;
-			return;
-		}
-		if ("farming.chunk_discover".equals(metricId)) {
-			lastChunkDiscoverDebugTick = tick;
-		}
-	}
 
 	private static long resolveAbsoluteDayTime(ServerLevel world) {
 		if (world == null) {
@@ -2731,6 +2686,5 @@ public final class MadokuFarming {
 		}
 	}
 }
-
 
 

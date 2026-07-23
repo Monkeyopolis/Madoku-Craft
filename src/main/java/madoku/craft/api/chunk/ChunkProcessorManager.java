@@ -1,7 +1,6 @@
 package madoku.craft.api.chunk;
 
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -13,15 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collections;
-import java.util.function.Consumer;
 
 final class ChunkProcessorManager {
 	private static final long PROCESSOR_ROUND_ROBIN_MIN_INTERVAL_TICKS = 1L;
 	private static final long PROCESSOR_ROUND_ROBIN_MAX_INTERVAL_TICKS = 20L;
 	private static final String PROCESSOR_ROUND_ROBIN_SCHEDULER_OWNER_PREFIX = "madoku_chunks_processor_round_robin_";
-	private static final String DEBUG_MAIN_SYSTEM = "chunk";
-	private static final String DEBUG_SUB_SYSTEM = "chunk-processor-manager";
-
 	private static final Map<String, ChunkProcessorRuntime> CHUNK_PROCESSORS = new LinkedHashMap<>();
 	private static final Set<String> ACTIVE_CHUNK_PROCESSOR_IDS = new LinkedHashSet<>();
 	private static final Set<MadokuChunkManager.ProcessorChunkKey> DISCOVERED_CHUNK_KEYS = new LinkedHashSet<>();
@@ -30,8 +25,6 @@ final class ChunkProcessorManager {
 	}
 
 	public static void reset() {
-		final int previousDiscoveredChunkKeys = DISCOVERED_CHUNK_KEYS.size();
-		final int previousActiveProcessorCount = ACTIVE_CHUNK_PROCESSOR_IDS.size();
 		DISCOVERED_CHUNK_KEYS.clear();
 		for (ChunkProcessorRuntime runtime : CHUNK_PROCESSORS.values()) {
 			if (runtime != null) {
@@ -39,11 +32,6 @@ final class ChunkProcessorManager {
 			}
 		}
 		clearProcessorRoundRobinAdaptiveState();
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("reset")
-			.field("processors", CHUNK_PROCESSORS.size())
-			.field("active", previousActiveProcessorCount)
-			.field("discovered", previousDiscoveredChunkKeys));
 	}
 
 	public static void registerChunkProcessor(String processorId, MadokuChunkManager.ChunkProcessor processor) {
@@ -53,11 +41,6 @@ final class ChunkProcessorManager {
 		}
 		CHUNK_PROCESSORS.put(normalizedId, new ChunkProcessorRuntime(normalizedId, processor));
 		ACTIVE_CHUNK_PROCESSOR_IDS.add(normalizedId);
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("register")
-			.field("processor-id", normalizedId)
-			.field("processors", CHUNK_PROCESSORS.size())
-			.field("active", ACTIVE_CHUNK_PROCESSOR_IDS.size()));
 	}
 
 	public static void setChunkProcessorActive(String processorId, boolean active) {
@@ -70,20 +53,12 @@ final class ChunkProcessorManager {
 		} else {
 			ACTIVE_CHUNK_PROCESSOR_IDS.remove(normalizedId);
 		}
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("set-active")
-			.field("processor-id", normalizedId)
-			.field("active", active)
-			.field("active-count", ACTIVE_CHUNK_PROCESSOR_IDS.size()));
 	}
 
 	public static void resetChunkProcessor(String processorId) {
 		ChunkProcessorRuntime runtime = CHUNK_PROCESSORS.get(normalizeProcessorId(processorId));
 		if (runtime != null) {
 			runtime.resetState();
-			emitChunkDebug("chunk.processor", builder -> builder
-				.subject("reset-processor")
-				.field("processor-id", runtime.id));
 		}
 	}
 
@@ -111,11 +86,6 @@ final class ChunkProcessorManager {
 				addLoadedTrackedChunk(runtime, chunkKey);
 			}
 		}
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("discovery-finished")
-			.field("level-id", chunkKey.levelId())
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
@@ -130,9 +100,6 @@ final class ChunkProcessorManager {
 		if (!ACTIVE_CHUNK_PROCESSOR_IDS.contains(normalizedId)) {
 			return;
 		}
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("run-step")
-			.field("processor-id", normalizedId));
 		processActiveTrackedChunks(server, runtime);
 	}
 
@@ -149,12 +116,6 @@ final class ChunkProcessorManager {
 			return;
 		}
 		trackChunkWithState(runtime, new MadokuChunkManager.ProcessorChunkKey(levelId == null ? "" : levelId, chunkX, chunkZ));
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("track")
-			.field("processor-id", normalizeProcessorId(processorId))
-			.field("level-id", levelId == null ? "" : levelId)
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	public static void untrackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
@@ -170,12 +131,6 @@ final class ChunkProcessorManager {
 			return;
 		}
 		untrackChunkWithState(runtime, new MadokuChunkManager.ProcessorChunkKey(levelId == null ? "" : levelId, chunkX, chunkZ));
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("untrack")
-			.field("processor-id", normalizeProcessorId(processorId))
-			.field("level-id", levelId == null ? "" : levelId)
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	public static void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
@@ -195,11 +150,6 @@ final class ChunkProcessorManager {
 				addLoadedTrackedChunk(runtime, chunkKey);
 			}
 		}
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("chunk-loaded")
-			.field("level-id", chunkKey.levelId())
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	public static void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
@@ -218,11 +168,6 @@ final class ChunkProcessorManager {
 			DISCOVERED_CHUNK_KEYS.remove(chunkKey);
 			removeLoadedTrackedChunk(runtime, chunkKey);
 		}
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("chunk-unloaded")
-			.field("level-id", chunkKey.levelId())
-			.field("chunk-x", chunkX)
-			.field("chunk-z", chunkZ));
 	}
 
 	public static boolean hasActiveChunkProcessors() {
@@ -250,18 +195,6 @@ final class ChunkProcessorManager {
 		}
 	}
 
-	private static void emitChunkDebug(String metricId, Consumer<MadokuDebugManager.EventBuilder> customizer) {
-		String entry = MadokuDebugManager.resolveCallerMethodName(1);
-		if (!MadokuDebugManager.shouldEmit(DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)) {
-			return;
-		}
-		MadokuDebugManager.EventBuilder builder = MadokuDebugManager.event(metricId, DEBUG_MAIN_SYSTEM, DEBUG_SUB_SYSTEM, entry)
-			.side(MadokuDebugManager.Side.SERVER);
-		if (customizer != null) {
-			customizer.accept(builder);
-		}
-		builder.log();
-	}
 
 	public static Set<String> getActiveChunkProcessorIdsView() {
 		if (!ChunkConfigManager.isChunkProcessorEnabled()) {
@@ -293,13 +226,6 @@ final class ChunkProcessorManager {
 		long intervalTicks = resolveRoundRobinProcessorIntervalTicks(server, runtime);
 		int selectedIndex = Math.floorMod(runtime.activeChunkProcessCursor, runtime.loadedTrackedChunkCycle.size());
 		MadokuChunkManager.ProcessorChunkKey selectedChunk = runtime.loadedTrackedChunkCycle.get(selectedIndex);
-		emitChunkDebug("chunk.processor", builder -> builder
-			.subject("process")
-			.field("processor-id", runtime.id)
-			.field("level-id", selectedChunk.levelId())
-			.field("chunk-x", selectedChunk.chunkX())
-			.field("chunk-z", selectedChunk.chunkZ())
-			.field("loaded-tracked", runtime.loadedTrackedChunkCycle.size()));
 		ServerLevel world = MadokuChunkManager.resolveLevel(server, selectedChunk.levelId());
 		boolean loaded = world != null && MadokuChunkManager.isChunkLoaded(world, selectedChunk.chunkX(), selectedChunk.chunkZ());
 		if (!loaded) {

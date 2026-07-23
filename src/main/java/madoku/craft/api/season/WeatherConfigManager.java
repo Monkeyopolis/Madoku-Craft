@@ -4,10 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.api.debug.MadokuDebugManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.metadata.MadokuMetaDataManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,12 +39,10 @@ public final class WeatherConfigManager {
 
 	public static void initialize() {
 		loadConfig();
-		emitDebug("initialize");
 	}
 
 	public static void reset() {
 		settings = defaults();
-		emitDebug("reset");
 	}
 
 	public static void reloadConfig() {
@@ -163,26 +159,6 @@ public final class WeatherConfigManager {
 		}
 	}
 
-	private static void emitDebug(String subject) {
-		if (!MadokuDebugManager.shouldEmit(MadokuMetaDataManager.SEASON.mainSystem(), "season-weather-manager", "weather-config-manager", subject)) {
-			return;
-		}
-		MadokuDebugManager.event(
-			"season.weather.config",
-			MadokuMetaDataManager.SEASON.mainSystem(),
-			"season-weather-manager",
-			"weather-config-manager",
-			subject)
-			.side(MadokuDebugManager.Side.SERVER)
-			.subject(subject)
-			.field("enabled", settings.enabled())
-			.field("time-rate-minutes", settings.timeRateMinutes())
-			.field("durations", settings.durationMinutes().toString())
-			.field("clear-weight", settings.clearWeight())
-			.field("rain-weight", settings.rainWeight())
-			.field("thunderstorm-weight", settings.thunderstormWeight())
-			.log();
-	}
 
 	public record Settings(
 		boolean enabled,
