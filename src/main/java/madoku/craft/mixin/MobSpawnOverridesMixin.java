@@ -27,6 +27,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 	Spider.class
 }, priority = 1100)
 public abstract class MobSpawnOverridesMixin {
+	@Inject(method = "finalizeSpawn", at = @At("HEAD"))
+	private void madokuCraft$selectTopLevelVariantBeforeVanilla(
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason,
+		SpawnGroupData spawnGroupData,
+		CallbackInfoReturnable<SpawnGroupData> cir
+	) {
+		MobEntityManager.selectConfiguredTopLevelVariantForRuntime((Mob) (Object) this, world == null ? null : world.getRandom());
+	}
+
 	@Inject(method = "finalizeSpawn", at = @At("TAIL"))
 	private void madokuCraft$applySpawnOverridesAfterVanilla(
 		ServerLevelAccessor world,

@@ -25,13 +25,7 @@ public final class EntityComponentsManager {
 		JsonElement element = variant.get(MobConfigManager.FIELD_MOB_COMPONENTS);
 		if (element == null || !element.isJsonObject()) return false;
 		JsonObject components = element.getAsJsonObject();
-		boolean changed = false;
-		changed |= set(entity, Attributes.MAX_HEALTH, components, MobConfigManager.FIELD_HEALTH);
-		changed |= set(entity, Attributes.ARMOR, components, MobConfigManager.FIELD_ARMOR);
-		changed |= set(entity, Attributes.ATTACK_DAMAGE, components, MobConfigManager.FIELD_DAMAGE);
-		changed |= set(entity, Attributes.MOVEMENT_SPEED, components, MobConfigManager.FIELD_MOVEMENT_SPEED);
-		changed |= set(entity, Attributes.KNOCKBACK_RESISTANCE, components, MobConfigManager.FIELD_KNOCKBACK_RESISTANCE);
-		changed |= set(entity, Attributes.FLYING_SPEED, components, MobConfigManager.FIELD_FLYING_SPEED);
+		boolean changed = MobEntityManager.applyUniversalBaseStatsForRuntime(entity, variant);
 		changed |= set(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, components, MobConfigManager.FIELD_SWIMMING_SPEED);
 		return changed;
 	}

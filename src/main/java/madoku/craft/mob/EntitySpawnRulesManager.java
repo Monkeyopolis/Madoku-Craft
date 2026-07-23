@@ -44,6 +44,8 @@ public final class EntitySpawnRulesManager {
 		}
 		// Apply the selected configuration after the behavior hook has selected
 		// and stored the variant, while keeping vanilla finalizeSpawn intact.
-		EntityComponentsManager.applyConfiguredComponents(mob, MobEntityManager.resolveConfiguredEntityVariantForRuntime(mob));
+		if (MobEntityManager.shouldApplyConfiguredComponentsForRuntime(mob)) {
+			EntityComponentsManager.applyConfiguredComponents(mob, MobEntityManager.resolveConfiguredEntityVariantForRuntime(mob));
+		}
 	}
 }

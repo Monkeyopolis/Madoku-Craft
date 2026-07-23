@@ -73,6 +73,7 @@
     "MobPetSoundMixin",
     "MobTargetSelectorAccessor",
     "MobSpawnOverridesMixin",
+    "ServerLevelMobReplacementMixin",
     "PlayerEatGateMixin",
     "PlayerEntitiesInventoryMixin",
     "PlayerExperienceMadokuLevelsMixin",

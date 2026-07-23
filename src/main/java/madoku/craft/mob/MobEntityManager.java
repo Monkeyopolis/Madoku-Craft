@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
 import madoku.craft.pet.PlayerEntitiesSystem;
@@ -55,6 +56,7 @@ import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -86,7 +88,6 @@ public final class MobEntityManager {
 	private static final Map<UUID, Float> FIXED_ARROW_DAMAGE = new ConcurrentHashMap<>();
 	private static final Map<UUID, Integer> MANAGED_MOB_ARROWS = new ConcurrentHashMap<>();
 	private static final java.util.Set<UUID> INVULNERABILITY_BYPASS_ARROWS = ConcurrentHashMap.newKeySet();
-	private static final Map<UUID, EntitySpawnReason> PENDING_SPIDER_JOCKEY_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingZombieReplacement> PENDING_ZOMBIE_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
@@ -133,7 +134,6 @@ public final class MobEntityManager {
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
 		INVULNERABILITY_BYPASS_ARROWS.clear();
-		PENDING_SPIDER_JOCKEY_REPLACEMENTS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -161,7 +161,6 @@ public final class MobEntityManager {
 		FIXED_ARROW_DAMAGE.clear();
 		MANAGED_MOB_ARROWS.clear();
 		INVULNERABILITY_BYPASS_ARROWS.clear();
-		PENDING_SPIDER_JOCKEY_REPLACEMENTS.clear();
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_ENTITIES.clear();
@@ -183,13 +182,188 @@ public final class MobEntityManager {
 		DifficultyInstance difficulty,
 		EntitySpawnReason spawnReason
 	) {
+		selectConfiguredNestedVariantForRuntime(mob, world.getRandom());
 		EntitySpawnRulesManager.applyAfterVanilla(mob, world, difficulty, spawnReason);
+		if (hasPendingAlternativeReplacement(mob)) {
+			return;
+		}
+		applyConfiguredEquipmentAtVanillaSpawn(mob, world.getRandom());
+		applyConfiguredJockeyAtVanillaSpawn(mob, world, difficulty, spawnReason);
 		EntityComponentsManager.applyMobBabyComponent(mob);
 		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForRuntime(mob)) {
 			MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
 		}
 		EntityComponentsManager.applyWorldDifficultyScaling(mob);
 		MobRegionalDifficultyManager.roundFinalScalingValues(mob);
+	}
+
+	private static boolean hasPendingAlternativeReplacement(Entity entity) {
+		return entity != null
+			&& (PENDING_CAVE_SPIDER_REPLACEMENTS.containsKey(entity.getUUID())
+				|| PENDING_ZOMBIE_REPLACEMENTS.containsKey(entity.getUUID()));
+	}
+
+	private static void applyConfiguredEquipmentAtVanillaSpawn(Mob mob, RandomSource random) {
+		if (mob == null || random == null || !MobConfigManager.isEnabled()
+			|| !shouldApplyConfiguredSpawnRulesForRuntime(mob)
+			|| !EquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+			return;
+		}
+		JsonObject variant = resolveConfiguredEntityVariantForRuntime(mob);
+		JsonObject spawnRules = readObject(variant, MobConfigManager.FIELD_SPAWN_RULES);
+		JsonObject equipmentSet = readObject(spawnRules, MobConfigManager.FIELD_EQUIPMENT_SET);
+		if (equipmentSet.entrySet().isEmpty() || !readBoolean(equipmentSet, MobConfigManager.FIELD_ENABLED, false)) {
+			return;
+		}
+		double chancePercent = Math.max(0.0D, Math.min(100.0D, readDouble(equipmentSet, MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0D)));
+		if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
+			return;
+		}
+		String equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
+		EquipmentConfigManager.EquipmentProfile profile = EquipmentConfigManager.resolveProfile(equipmentReference, mob.getType());
+		if (profile == null || !profile.enabled()) {
+			return;
+		}
+
+		double partialWeight = Math.max(0.0D, profile.armorSetWeights().partialSetWeight());
+		double halfWeight = Math.max(0.0D, profile.armorSetWeights().halfSetWeight());
+		double fullWeight = Math.max(0.0D, profile.armorSetWeights().fullSetWeight());
+		double totalWeight = partialWeight + halfWeight + fullWeight;
+		if (totalWeight <= 0.0D) {
+			return;
+		}
+		double roll = random.nextDouble() * totalWeight;
+		List<EquipmentSlot> slots;
+		if (roll < partialWeight) {
+			slots = List.of(EquipmentSlot.HEAD);
+		} else if ((roll - partialWeight) < halfWeight) {
+			slots = List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET);
+		} else {
+			slots = List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
+		}
+
+		Map<EquipmentSlot, ItemStack> selected = new java.util.EnumMap<>(EquipmentSlot.class);
+		for (EquipmentSlot slot : slots) {
+			EquipmentConfigManager.WeightedArmorEntry item = selectWeightedArmorEntry(profile.slotEntries().get(slot), random);
+			if (item == null || item.item() == null) {
+				return;
+			}
+			selected.put(slot, new ItemStack(item.item()));
+		}
+		clearArmorSlots(mob);
+		for (Map.Entry<EquipmentSlot, ItemStack> entry : selected.entrySet()) {
+			mob.setItemSlot(entry.getKey(), entry.getValue());
+		}
+	}
+
+	private static EquipmentConfigManager.WeightedArmorEntry selectWeightedArmorEntry(
+		List<EquipmentConfigManager.WeightedArmorEntry> entries,
+		RandomSource random
+	) {
+		if (entries == null || entries.isEmpty() || random == null) {
+			return null;
+		}
+		double totalWeight = 0.0D;
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry != null && entry.item() != null && entry.weight() > 0.0D) {
+				totalWeight += entry.weight();
+			}
+		}
+		if (totalWeight <= 0.0D) {
+			return null;
+		}
+		double roll = random.nextDouble() * totalWeight;
+		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
+				continue;
+			}
+			if (roll < entry.weight()) {
+				return entry;
+			}
+			roll -= entry.weight();
+		}
+		return null;
+	}
+
+	private static void applyConfiguredJockeyAtVanillaSpawn(
+		Mob mob,
+		ServerLevelAccessor world,
+		DifficultyInstance difficulty,
+		EntitySpawnReason spawnReason
+	) {
+		if (mob == null || world == null || difficulty == null || !shouldApplyConfiguredSpawnRulesForRuntime(mob)) {
+			return;
+		}
+		if (spawnReason == EntitySpawnReason.JOCKEY) {
+			return;
+		}
+		if (mob instanceof Spider spider) {
+			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.SPIDER) {
+				applyConfiguredMobJockey(spider, world, difficulty, resolveConfiguredEntityVariantForRuntime(spider), spawnReason, false, false);
+			}
+			return;
+		}
+		if (mob instanceof Zombie zombie && !(zombie instanceof ZombieVillager)) {
+			applyConfiguredMobJockey(zombie, world, difficulty, resolveConfiguredEntityVariantForRuntime(zombie), spawnReason, true, zombie.isBaby());
+			return;
+		}
+		if (mob instanceof AbstractSkeleton skeleton) {
+			applyConfiguredMobJockey(skeleton, world, difficulty, resolveConfiguredEntityVariantForRuntime(skeleton), spawnReason, true, false);
+		}
+	}
+
+	public static void selectConfiguredTopLevelVariantForRuntime(LivingEntity entity, RandomSource random) {
+		if (entity == null || random == null || !MobConfigManager.isEnabled()) {
+			return;
+		}
+		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
+		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) {
+			return;
+		}
+		JsonObject fileRoot = root(fileKey);
+		JsonObject fileConfigRoot = resolveMobFileConfigRootForRuntime(fileKey);
+		if (!readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)) {
+			return;
+		}
+
+		String storedVariant = readStoredVariantKeyForRuntime(entity, fileKey);
+		if (storedVariant.isBlank()) {
+			String selectedVariant = selectWeightedVariantKey(
+				fileRoot,
+				random,
+				normalizedKey -> false,
+				variantRoot -> resolveVariantSpawnWeight(variantRoot, 0.0D)
+			);
+			if (!selectedVariant.isBlank()) {
+				writeStoredVariantKeyForRuntime(entity, fileKey, selectedVariant);
+			}
+		}
+	}
+
+	static void selectConfiguredNestedVariantForRuntime(LivingEntity entity, RandomSource random) {
+		if (entity == null || random == null || !MobConfigManager.isEnabled()) {
+			return;
+		}
+		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
+		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) {
+			return;
+		}
+		JsonObject fileRoot = root(fileKey);
+		JsonObject fileConfigRoot = resolveMobFileConfigRootForRuntime(fileKey);
+		if (!readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)) {
+			return;
+		}
+
+		JsonObject variantCatalog = EntityConfigManager.resolvePrimaryVariant(fileRoot);
+		JsonObject variantGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileRoot);
+		String storedVariant = readStoredVariantKeyForRuntime(entity, fileKey);
+		if (!storedVariant.isBlank()) {
+			JsonObject selectedVariant = readObject(variantCatalog, storedVariant);
+			if (!selectedVariant.entrySet().isEmpty()) {
+				variantGroup = selectedVariant;
+			}
+		}
+		resolveNestedVariantForRuntime(variantGroup, entity, random, true);
 	}
 	public static void applyZombieSpawnOverrides(
 		Zombie zombie,
@@ -280,8 +454,6 @@ public final class MobEntityManager {
 			return;
 		}
 		PENDING_ZOMBIE_REPLACEMENTS.put(zombie.getUUID(), new PendingZombieReplacement(replacementType, spawnReason));
-		MinecraftServer server = resolveServer(zombie);
-		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
 	static void queueCaveSpiderReplacement(Spider spider, EntitySpawnReason spawnReason) {
@@ -289,17 +461,51 @@ public final class MobEntityManager {
 			return;
 		}
 		PENDING_CAVE_SPIDER_REPLACEMENTS.put(spider.getUUID(), spawnReason);
-		MinecraftServer server = resolveServer(spider);
-		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
-	static void queueSpiderJockeyReplacement(Spider spider, EntitySpawnReason spawnReason) {
-		if (spider == null || spawnReason == null || spider.getType() != madoku.craft.entity.MadokuEntityTypes.SPIDER) {
-			return;
+	public static boolean replacePendingEntityBeforeVanillaAdd(ServerLevel level, Entity source) {
+		if (level == null || source == null) {
+			return false;
 		}
-		PENDING_SPIDER_JOCKEY_REPLACEMENTS.put(spider.getUUID(), spawnReason);
-		MinecraftServer server = resolveServer(spider);
-		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
+
+		EntitySpawnReason spawnReason = null;
+		EntityType<?> replacementType = null;
+		if (source instanceof Zombie) {
+			PendingZombieReplacement replacement = PENDING_ZOMBIE_REPLACEMENTS.remove(source.getUUID());
+			if (replacement != null) {
+				replacementType = replacement.replacementType();
+				spawnReason = replacement.reason();
+			}
+		} else if (source instanceof Spider) {
+			spawnReason = PENDING_CAVE_SPIDER_REPLACEMENTS.remove(source.getUUID());
+			if (spawnReason != null) {
+				replacementType = madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER;
+			}
+		}
+		if (replacementType == null) {
+			return false;
+		}
+
+		Entity replacement = replacementType.create(level, spawnReason == null ? EntitySpawnReason.NATURAL : spawnReason);
+		if (replacement == null) {
+			return false;
+		}
+		replacement.setPos(source.getX(), source.getY(), source.getZ());
+		replacement.setYRot(source.getYRot());
+		replacement.setXRot(source.getXRot());
+		if (replacement instanceof Zombie replacementZombie && source instanceof Zombie zombie) {
+			replacementZombie.setBaby(zombie.isBaby());
+		}
+		if (replacement instanceof Mob mob) {
+			EntitySpawnReason reason = spawnReason == null ? EntitySpawnReason.NATURAL : spawnReason;
+			mob.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(source.position())), reason, null);
+		}
+		if (!level.tryAddFreshEntityWithPassengers(replacement)) {
+			replacement.discard();
+			return false;
+		}
+		source.discard();
+		return true;
 	}
 
 	public static boolean applySpiderSpawnOverrides(
@@ -674,10 +880,8 @@ public final class MobEntityManager {
 	}
 
 	private static boolean applyLoadedEntityRules(LivingEntity entity) {
-		boolean configuredComponentsApplied = EntityComponentsManager.applyConfiguredComponents(
-			entity,
-			resolveConfiguredEntityVariantForRuntime(entity)
-		);
+		boolean configuredComponentsApplied = shouldApplyConfiguredComponentsForRuntime(entity)
+			&& EntityComponentsManager.applyConfiguredComponents(entity, resolveConfiguredEntityVariantForRuntime(entity));
 		boolean configuredLoadedRulesApplied = applyConfiguredLoadedEntityRules(entity);
 		EntityComponentsManager.applyMobBabyComponent(entity);
 		if ((configuredComponentsApplied || configuredLoadedRulesApplied) && entity instanceof MobEntityManager.DifficultyState state) {
@@ -1007,6 +1211,7 @@ public final class MobEntityManager {
 		modified |= setBaseValueIfPresent(entity, Attributes.ATTACK_DAMAGE, readOptionalNonNegative(componentsRoot, MobConfigManager.FIELD_DAMAGE));
 		modified |= setBaseValueIfPresent(entity, Attributes.MOVEMENT_SPEED, readOptionalPositive(componentsRoot, MobConfigManager.FIELD_MOVEMENT_SPEED));
 		modified |= setBaseValueIfPresent(entity, Attributes.FLYING_SPEED, readOptionalPositive(componentsRoot, FIELD_FLYING_SPEED));
+		modified |= setBaseValueIfPresent(entity, Attributes.WATER_MOVEMENT_EFFICIENCY, readOptionalNonNegative(componentsRoot, MobConfigManager.FIELD_SWIMMING_SPEED));
 		modified |= setBaseValueIfPresent(
 			entity,
 			Attributes.KNOCKBACK_RESISTANCE,
@@ -1218,7 +1423,6 @@ public final class MobEntityManager {
 			FIXED_ARROW_DAMAGE.remove(id);
 			MANAGED_MOB_ARROWS.remove(id);
 		}
-		PENDING_SPIDER_JOCKEY_REPLACEMENTS.remove(id);
 		PENDING_CAVE_SPIDER_REPLACEMENTS.remove(id);
 		PENDING_ZOMBIE_REPLACEMENTS.remove(id);
 		EntityBehaviorsManager.SkeletonBehavior.onEntityCleanup(entity);
@@ -1237,9 +1441,6 @@ public final class MobEntityManager {
 		runtimeTaskScheduled = false;
 		tickManagedMobArrows(server);
 		tickHomingProjectiles(server);
-		processPendingSpiderJockeyReplacements(server);
-		processPendingCaveSpiderReplacements(server);
-		processPendingZombieReplacements(server);
 		boolean beeRuntimeActive = EntityBehaviorsManager.BeeBehavior.tickRuntime(
 			server,
 			TRACKED_ENTITIES.values(),
@@ -1249,9 +1450,6 @@ public final class MobEntityManager {
 		boolean mobBabyRuntimeActive = tickConfiguredMobBabyStates();
 		if (!MANAGED_MOB_ARROWS.isEmpty()
 			|| !HOMING_ARROWS.isEmpty()
-			|| !PENDING_SPIDER_JOCKEY_REPLACEMENTS.isEmpty()
-			|| !PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()
-			|| !PENDING_ZOMBIE_REPLACEMENTS.isEmpty()
 			|| beeRuntimeActive
 			|| mobBabyRuntimeActive) {
 			requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
@@ -1392,127 +1590,6 @@ public final class MobEntityManager {
 		}
 	}
 
-	private static void processPendingCaveSpiderReplacements(MinecraftServer server) {
-		if (server == null || PENDING_CAVE_SPIDER_REPLACEMENTS.isEmpty()) {
-			return;
-		}
-		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_CAVE_SPIDER_REPLACEMENTS.entrySet()) {
-			processQueuedRuntimeReplacement(
-				server,
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.SPIDER,
-				entry.getValue(),
-				madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER,
-				false,
-				"process_cave_spider_missing",
-				"process_cave_spider_create_failed",
-				"process_cave_spider_spawned",
-				"replaced_with_cave_spider"
-			);
-			PENDING_CAVE_SPIDER_REPLACEMENTS.remove(entry.getKey());
-		}
-	}
-
-	private static void processPendingSpiderJockeyReplacements(MinecraftServer server) {
-		if (server == null || PENDING_SPIDER_JOCKEY_REPLACEMENTS.isEmpty()) {
-			return;
-		}
-		for (Map.Entry<UUID, EntitySpawnReason> entry : PENDING_SPIDER_JOCKEY_REPLACEMENTS.entrySet()) {
-			processQueuedRuntimeReplacement(
-				server,
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.SPIDER,
-				entry.getValue(),
-				madoku.craft.entity.MadokuEntityTypes.SKELETON,
-				true,
-				"process_spider_jockey_missing",
-				"process_spider_jockey_create_failed",
-				"process_spider_jockey_spawned",
-				"skeleton_attached"
-			);
-			PENDING_SPIDER_JOCKEY_REPLACEMENTS.remove(entry.getKey());
-		}
-	}
-
-	private static void processPendingZombieReplacements(MinecraftServer server) {
-		if (server == null || PENDING_ZOMBIE_REPLACEMENTS.isEmpty()) {
-			return;
-		}
-		for (Map.Entry<UUID, PendingZombieReplacement> entry : PENDING_ZOMBIE_REPLACEMENTS.entrySet()) {
-			PendingZombieReplacement replacement = entry.getValue();
-			if (replacement == null) {
-				PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-				continue;
-			}
-			processQueuedRuntimeReplacement(
-				server,
-				entry.getKey(),
-				madoku.craft.entity.MadokuEntityTypes.ZOMBIE,
-				replacement.reason(),
-				replacement.replacementType(),
-				false,
-				"process_zombie_missing",
-				"process_zombie_create_failed",
-				"process_zombie_spawned",
-				"replaced_with_custom_entity"
-			);
-			PENDING_ZOMBIE_REPLACEMENTS.remove(entry.getKey());
-		}
-	}
-
-	private static void processQueuedRuntimeReplacement(
-		MinecraftServer server,
-		UUID sourceId,
-		EntityType<?> expectedSourceType,
-		EntitySpawnReason spawnReason,
-		EntityType<?> spawnedType,
-		boolean attachToSource,
-		String missingPhase,
-		String createFailedPhase,
-		String completedPhase,
-		String completedDetail
-	) {
-		if (server == null || sourceId == null || spawnedType == null) {
-			return;
-		}
-		Entity source = findEntity(server, sourceId);
-		if (source == null || !source.isAlive() || (expectedSourceType != null && source.getType() != expectedSourceType)) {
-			return;
-		}
-		if (!(source.level() instanceof ServerLevel level)) {
-			return;
-		}
-
-		EntitySpawnReason reason = spawnReason == null ? EntitySpawnReason.NATURAL : spawnReason;
-		Entity spawnedEntity = spawnedType.create(level, reason);
-		if (spawnedEntity == null) {
-			return;
-		}
-
-		spawnedEntity.setPos(source.getX(), source.getY(), source.getZ());
-		spawnedEntity.setYRot(source.getYRot());
-		spawnedEntity.setXRot(source.getXRot());
-		if (spawnedEntity instanceof Zombie replacementZombie && source instanceof Zombie zombie) {
-			replacementZombie.setBaby(zombie.isBaby());
-		}
-		if (spawnedEntity instanceof Mob mobSpawned) {
-			mobSpawned.finalizeSpawn(level, level.getCurrentDifficultyAt(BlockPos.containing(source.position())), reason, null);
-		}
-		if (spawnedEntity instanceof AbstractSkeleton skeleton
-			&& isBowAttackEnabledForRuntimeSkeleton(skeleton)) {
-			ensureBowEquipped(skeleton);
-		}
-		level.tryAddFreshEntityWithPassengers(spawnedEntity);
-		if (attachToSource) {
-			if (!spawnedEntity.startRiding(source) && spawnedEntity.isAlive()) {
-				spawnedEntity.discard();
-				return;
-			}
-		} else {
-			source.discard();
-		}
-	}
-
 	private static Entity findEntity(MinecraftServer server, UUID entityId) {
 		if (server == null || entityId == null) {
 			return null;
@@ -1562,13 +1639,6 @@ public final class MobEntityManager {
 	}
 
 	private record PendingZombieReplacement(EntityType<?> replacementType, EntitySpawnReason reason) {}
-
-	private static MinecraftServer resolveServer(Entity entity) {
-		if (entity == null || !(entity.level() instanceof ServerLevel serverLevel)) {
-			return null;
-		}
-		return serverLevel.getServer();
-	}
 
 	private static LivingEntity resolveDamageSourceLivingAttacker(DamageSource source) {
 		if (source == null) {
@@ -1934,6 +2004,36 @@ public final class MobEntityManager {
 		return resolveRegionalDifficultyMobFileKey(entity);
 	}
 
+	static boolean shouldApplyConfiguredComponentsForRuntime(LivingEntity entity) {
+		if (entity == null || !MobConfigManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
+		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) {
+			return false;
+		}
+		return readBoolean(
+			resolveMobFileConfigRootForRuntime(fileKey),
+			MobConfigManager.FIELD_OVERRIDE_COMPONENTS,
+			true
+		);
+	}
+
+	private static boolean shouldApplyConfiguredSpawnRulesForRuntime(LivingEntity entity) {
+		if (entity == null || !MobConfigManager.isEnabled()) {
+			return false;
+		}
+		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
+		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) {
+			return false;
+		}
+		return readBoolean(
+			resolveMobFileConfigRootForRuntime(fileKey),
+			MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES,
+			true
+		);
+	}
+
 	static JsonObject resolveConfiguredEntityVariantForRuntime(LivingEntity entity) {
 		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
 		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) return new JsonObject();
@@ -1965,6 +2065,24 @@ public final class MobEntityManager {
 		return "";
 	}
 
+	private static void writeStoredVariantKeyForRuntime(LivingEntity entity, String fileKey, String variantKey) {
+		if (entity == null || fileKey == null || fileKey.isBlank() || variantKey == null || variantKey.isBlank()) {
+			return;
+		}
+		String prefix = "madoku-craft." + fileKey + ".variant:";
+		String existing = null;
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(prefix)) {
+				existing = tag;
+				break;
+			}
+		}
+		if (existing != null) {
+			entity.removeTag(existing);
+		}
+		entity.addTag(prefix + normalizeKey(variantKey));
+	}
+
 	static JsonObject resolveNestedVariantRoot(JsonObject variantGroupRoot, String nestedVariantKey) {
 		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
 			return new JsonObject();
@@ -1991,7 +2109,7 @@ public final class MobEntityManager {
 		}
 
 		String selectedKey = readNestedVariantTag(entity);
-		if (spawnContext && random != null) {
+		if (selectedKey.isBlank() && spawnContext && random != null) {
 			selectedKey = selectNestedVariantKey(nestedVariants, random);
 		}
 		if (selectedKey.isBlank() && entity instanceof AgeableMob ageableMob && hasMobBabyVariant(nestedVariants)) {
