@@ -1,5 +1,6 @@
 package madoku.craft.mob;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.entity.MadokuEntities;
@@ -299,16 +300,20 @@ public final class MobEntityManager {
 		}
 		if (mob instanceof Spider spider) {
 			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.SPIDER) {
-				applyConfiguredMobJockey(spider, world, difficulty, resolveConfiguredEntityVariantForRuntime(spider), spawnReason, false, false);
+				applyConfiguredMobJockey(spider, world, difficulty, resolveConfiguredEntityVariantForRuntime(spider), spawnReason);
 			}
 			return;
 		}
+		if (mob instanceof Husk husk) {
+			applyConfiguredMobJockey(husk, world, difficulty, resolveConfiguredEntityVariantForRuntime(husk), spawnReason);
+			return;
+		}
 		if (mob instanceof Zombie zombie && !(zombie instanceof ZombieVillager)) {
-			applyConfiguredMobJockey(zombie, world, difficulty, resolveConfiguredEntityVariantForRuntime(zombie), spawnReason, true, zombie.isBaby());
+			applyConfiguredMobJockey(zombie, world, difficulty, resolveConfiguredEntityVariantForRuntime(zombie), spawnReason);
 			return;
 		}
 		if (mob instanceof AbstractSkeleton skeleton) {
-			applyConfiguredMobJockey(skeleton, world, difficulty, resolveConfiguredEntityVariantForRuntime(skeleton), spawnReason, true, false);
+			applyConfiguredMobJockey(skeleton, world, difficulty, resolveConfiguredEntityVariantForRuntime(skeleton), spawnReason);
 		}
 	}
 
@@ -395,9 +400,7 @@ public final class MobEntityManager {
 		ServerLevelAccessor world,
 		DifficultyInstance difficulty,
 		JsonObject variantRoot,
-		EntitySpawnReason spawnReason,
-		boolean sourceIsPassenger,
-		boolean sourceIsBaby
+		EntitySpawnReason spawnReason
 	) {
 		if (sourceMob == null || world == null || difficulty == null || variantRoot == null || !sourceMob.isAlive() || sourceMob.getVehicle() != null) {
 			return false;
@@ -409,42 +412,76 @@ public final class MobEntityManager {
 			return false;
 		}
 
-		JsonObject passengerRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_PASSENGER);
+		JsonObject passengersRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_PASSENGERS);
 		JsonObject mountRoot = readObject(jockeyRoot, MobConfigManager.FIELD_JOCKEY_MOUNT);
+		List<JsonObject> passengerDefinitions = readConfiguredJockeyPassengers(passengersRoot);
+		if (passengerDefinitions.isEmpty() || passengerDefinitions.size() > 2) {
+			return false;
+		}
+
+		EntityType<?> mountType = resolveConfiguredJockeyMobEntityType(mountRoot);
+		if (mountType == null) {
+			return false;
+		}
+		List<EntityType<?>> passengerTypes = new ArrayList<>();
+		for (JsonObject passengerDefinition : passengerDefinitions) {
+			EntityType<?> passengerType = resolveConfiguredJockeyMobEntityType(passengerDefinition);
+			if (passengerType == null) {
+				return false;
+			}
+			passengerTypes.add(passengerType);
+		}
 
 		ServerLevel level = world.getLevel();
 		EntitySpawnReason jockeyReason = EntitySpawnReason.JOCKEY;
-		if (sourceIsPassenger) {
-			applyConfiguredMainHand(sourceMob, passengerRoot);
-
-			EntityType<?> mountType = resolveConfiguredMobEntityType(mountRoot, sourceIsBaby);
-			if (mountType == null) {
-				return false;
+		int sourcePassengerIndex = -1;
+		for (int index = 0; index < passengerTypes.size(); index++) {
+			if (passengerTypes.get(index) == sourceMob.getType()) {
+				sourcePassengerIndex = index;
+				break;
 			}
+		}
 
-			Entity mount = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason, mountType, false, mountRoot);
-			if (mount == null) {
-				return false;
+		boolean sourceIsMount = sourceMob.getType() == mountType && sourcePassengerIndex < 0;
+		if (sourceIsMount) {
+			applyConfiguredJockeyMobWeapon(sourceMob, mountRoot);
+			boolean applied = false;
+			for (JsonObject passengerDefinition : passengerDefinitions) {
+				Entity passenger = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason,
+					resolveConfiguredJockeyMobEntityType(passengerDefinition), passengerDefinition);
+				if (passenger == null) {
+					continue;
+				}
+				if (!passenger.startRiding(sourceMob) && passenger.isAlive()) {
+					passenger.discard();
+					continue;
+				}
+				applied = true;
 			}
-			if (!sourceMob.startRiding(mount) && mount.isAlive()) {
+			return applied;
+		}
+
+		if (sourcePassengerIndex < 0) {
+			return false;
+		}
+		applyConfiguredJockeyMobWeapon(sourceMob, passengerDefinitions.get(sourcePassengerIndex));
+		Entity mount = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason, mountType, mountRoot);
+		if (mount == null || (!sourceMob.startRiding(mount) && sourceMob.isAlive())) {
+			if (mount != null && mount.isAlive()) {
 				mount.discard();
-				return false;
 			}
-			return true;
-		}
-
-		EntityType<?> passengerType = resolveConfiguredMobEntityType(passengerRoot, sourceIsBaby);
-		if (passengerType == null) {
 			return false;
 		}
-
-		Entity passenger = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason, passengerType, true, passengerRoot);
-		if (passenger == null) {
-			return false;
-		}
-		if (!passenger.startRiding(sourceMob) && passenger.isAlive()) {
-			passenger.discard();
-			return false;
+		for (int index = 0; index < passengerDefinitions.size(); index++) {
+			if (index == sourcePassengerIndex) {
+				continue;
+			}
+			JsonObject passengerDefinition = passengerDefinitions.get(index);
+			Entity passenger = spawnConfiguredJockeyPartner(sourceMob, world, difficulty, level, jockeyReason,
+				passengerTypes.get(index), passengerDefinition);
+			if (passenger != null && !passenger.startRiding(mount) && passenger.isAlive()) {
+				passenger.discard();
+			}
 		}
 		return true;
 	}
@@ -543,6 +580,47 @@ public final class MobEntityManager {
 			}
 		}
 		return resolveEntityTypeById(mobId);
+	}
+
+	private static List<JsonObject> readConfiguredJockeyPassengers(JsonObject passengersRoot) {
+		List<JsonObject> passengers = new ArrayList<>();
+		if (passengersRoot == null || passengersRoot.entrySet().isEmpty()) {
+			return passengers;
+		}
+		JsonElement mobsElement = passengersRoot.get(MobConfigManager.FIELD_JOCKEY_MOBS);
+		if (mobsElement == null || mobsElement.isJsonNull()) {
+			return passengers;
+		}
+		if (mobsElement.isJsonArray()) {
+			JsonArray mobs = mobsElement.getAsJsonArray();
+			for (JsonElement mobElement : mobs) {
+				if (mobElement != null && mobElement.isJsonObject()) {
+					passengers.add(mobElement.getAsJsonObject());
+				}
+			}
+			return passengers;
+		}
+		if (mobsElement.isJsonObject()) {
+			JsonObject mobs = mobsElement.getAsJsonObject();
+			if (mobs.has(MobConfigManager.FIELD_MOB_ID)) {
+				passengers.add(mobs);
+				return passengers;
+			}
+			for (Map.Entry<String, JsonElement> entry : mobs.entrySet()) {
+				JsonElement mobElement = entry.getValue();
+				if (mobElement != null && mobElement.isJsonObject()) {
+					passengers.add(mobElement.getAsJsonObject());
+				}
+			}
+		}
+		return passengers;
+	}
+
+	private static EntityType<?> resolveConfiguredJockeyMobEntityType(JsonObject mobDefinition) {
+		if (mobDefinition == null || mobDefinition.entrySet().isEmpty()) {
+			return null;
+		}
+		return resolveEntityTypeById(readString(mobDefinition, MobConfigManager.FIELD_MOB_ID, ""));
 	}
 
 	public static void applySkeletonSpawnOverrides(
@@ -2478,8 +2556,7 @@ public final class MobEntityManager {
 		ServerLevel level,
 		EntitySpawnReason spawnReason,
 		EntityType<?> partnerType,
-		boolean partnerIsPassenger,
-		JsonObject partnerRoot
+		JsonObject partnerDefinition
 	) {
 		if (sourceMob == null || world == null || difficulty == null || level == null || partnerType == null) {
 			return null;
@@ -2495,19 +2572,21 @@ public final class MobEntityManager {
 		partner.setXRot(sourceMob.getXRot());
 		if (partner instanceof Mob mobPartner) {
 			mobPartner.finalizeSpawn(world, difficulty, spawnReason, null);
-			if (partnerIsPassenger) {
-				applyConfiguredMainHand(mobPartner, partnerRoot);
-			}
+			applyConfiguredJockeyMobWeapon(mobPartner, partnerDefinition);
 		}
 		level.tryAddFreshEntityWithPassengers(partner);
 		return partner;
 	}
 
-	private static void applyConfiguredMainHand(Mob mob, JsonObject mobRoot) {
-		if (mob == null || mobRoot == null || mobRoot.entrySet().isEmpty()) {
+	private static void applyConfiguredJockeyMobWeapon(Mob mob, JsonObject mobDefinition) {
+		if (mob == null || mobDefinition == null || mobDefinition.entrySet().isEmpty()) {
 			return;
 		}
-		String itemId = readString(mobRoot, MobConfigManager.FIELD_MAIN_HAND, "");
+		JsonElement weaponElement = mobDefinition.get(MobConfigManager.FIELD_MOB_WEAPON);
+		if (weaponElement == null || weaponElement.isJsonNull() || !weaponElement.isJsonObject()) {
+			return;
+		}
+		String itemId = readString(weaponElement.getAsJsonObject(), MobConfigManager.FIELD_ITEM, "");
 		if (itemId.isBlank()) {
 			return;
 		}

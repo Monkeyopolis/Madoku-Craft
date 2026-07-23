@@ -1,6 +1,7 @@
 package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import madoku.craft.api.json.JSONFormatManager;
@@ -107,9 +108,9 @@ public final class MobConfigManager {
 	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
 	public static final String FIELD_EQUIPMENT_CHANCE = "equipment-chance";
 	public static final String FIELD_MOB_JOCKEY = "mob-jockey";
-	public static final String FIELD_JOCKEY_PASSENGER = "passenger";
+	public static final String FIELD_JOCKEY_PASSENGERS = "passengers";
+	public static final String FIELD_JOCKEY_MOBS = "mobs";
 	public static final String FIELD_JOCKEY_MOUNT = "mount";
-	public static final String FIELD_MAIN_HAND = "main-hand";
 	public static final String FIELD_SPAWN_ALTERNATIVE_MOB = "spawn-alternative-mob";
 	public static final String FIELD_MOB = "mob";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
@@ -641,28 +642,50 @@ public final class MobConfigManager {
 			buildSpawnRules(90.0D, equipmentReference), buildBehavior(false, true, false, false),
 			buildGoals("hurt-by-target", "target-player", "ranged-attack")
 		);
-		variant.add(jockeyKey, buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", jockeyKey), new JsonObject(), new JsonObject()));
+		String passengerType = "minecraft:" + jockeyKey.replace("-jockey", "").replace('-', '_');
+		variant.add(jockeyKey, buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, passengerType, "minecraft:bow", "minecraft:spider"), new JsonObject(), new JsonObject()));
 		return variant;
 	}
 
-	private static JsonObject buildJockeySpawnRules(double weight, String mountType, String jockeyKey) {
+	private static JsonObject buildJockeySpawnRules(double weight, String passengerType, String passengerWeapon, String mountType) {
+		return buildJockeySpawnRules(
+			weight,
+			mountType,
+			buildJockeyMobDefinition(passengerType, passengerWeapon)
+		);
+	}
+
+	private static JsonObject buildJockeySpawnRules(double weight, String mountType, JsonObject... passengerDefinitions) {
 		JsonObject jockey = new JsonObject();
 		jockey.addProperty(FIELD_ENABLED, true);
-		JsonObject passenger = new JsonObject();
-		JsonObject passengerMob = new JsonObject();
-		String passengerType = jockeyKey.replace("-jockey", "");
-		passengerMob.addProperty(FIELD_ADULT_GROUP, "minecraft:" + passengerType.replace('-', '_'));
-		passenger.add(FIELD_MOB, passengerMob);
-		passenger.addProperty(FIELD_MAIN_HAND, "minecraft:bow");
-		jockey.add(FIELD_JOCKEY_PASSENGER, passenger);
+		JsonArray passengerMobs = new JsonArray();
+		if (passengerDefinitions != null) {
+			for (JsonObject passengerDefinition : passengerDefinitions) {
+				if (passengerDefinition != null && !passengerDefinition.entrySet().isEmpty()) {
+					passengerMobs.add(passengerDefinition);
+				}
+			}
+		}
+		JsonObject passengers = new JsonObject();
+		passengers.add(FIELD_JOCKEY_MOBS, passengerMobs);
+		jockey.add(FIELD_JOCKEY_PASSENGERS, passengers);
 		JsonObject mount = new JsonObject();
-		JsonObject mountMob = new JsonObject();
-		mountMob.addProperty(FIELD_ADULT_GROUP, mountType);
-		mount.add(FIELD_MOB, mountMob);
+		mount.addProperty(FIELD_MOB_ID, mountType);
 		jockey.add(FIELD_JOCKEY_MOUNT, mount);
 		JsonObject rules = buildSpawnRules(weight);
 		rules.add(FIELD_MOB_JOCKEY, jockey);
 		return rules;
+	}
+
+	private static JsonObject buildJockeyMobDefinition(String mobId, String weaponId) {
+		JsonObject definition = new JsonObject();
+		definition.addProperty(FIELD_MOB_ID, mobId);
+		if (weaponId != null && !weaponId.isBlank()) {
+			JsonObject weapon = new JsonObject();
+			weapon.addProperty(FIELD_ITEM, weaponId);
+			definition.add(FIELD_MOB_WEAPON, weapon);
+		}
+		return definition;
 	}
 
 	private static JsonObject buildCaveSpiderVariantDefaults() {
@@ -742,6 +765,28 @@ public final class MobConfigManager {
 			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
 		addMobBabyComponent(baby, true);
 		addNestedVariant(variant, FIELD_BABY_GROUP, baby);
+		JsonObject huskJockey = buildVariant(
+			new JsonObject(), buildSpawnRules(10.0D, "minecraft-equipment-husk.json"), new JsonObject(), new JsonObject());
+		addNestedVariant(huskJockey, FIELD_ADULT_GROUP, buildVariant(
+			new JsonObject(),
+			buildJockeySpawnRules(
+				90.0D,
+				"minecraft:camel_husk",
+				buildJockeyMobDefinition("minecraft:husk", "minecraft:golden_spear"),
+				buildJockeyMobDefinition("minecraft:parched", "minecraft:bow")
+			),
+			new JsonObject(), new JsonObject()));
+		JsonObject huskJockeyBaby = buildVariant(
+			new JsonObject(),
+			buildJockeySpawnRules(
+				10.0D,
+				"minecraft:chicken",
+				buildJockeyMobDefinition("minecraft:husk", null)
+			),
+			new JsonObject(), new JsonObject());
+		addMobBabyComponent(huskJockeyBaby, true);
+		addNestedVariant(huskJockey, FIELD_BABY_GROUP, huskJockeyBaby);
+		variant.add("husk-jockey", huskJockey);
 		return variant;
 	}
 
@@ -755,7 +800,7 @@ public final class MobConfigManager {
 		JsonObject meleeComponents = buildComponents(20.0D, null, 5.0D, 0.24D, null, null, null, 1.0D, 7, null, null, null, null,
 			"minecraft-entities-skeleton.json", "empty", null, 0, 1.0D, null, null);
 		variant.add("melee-skeleton", buildVariant(meleeComponents, buildSpawnRules(10.0D, "minecraft-equipment-skeleton.json"), new JsonObject(), buildGoals("hurt-by-target", "target-player", "melee-attack")));
-		variant.add("skeleton-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", "skeleton"), new JsonObject(), new JsonObject()));
+		variant.add("skeleton-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:skeleton", "minecraft:bow", "minecraft:spider"), new JsonObject(), new JsonObject()));
 		return variant;
 	}
 
@@ -772,7 +817,7 @@ public final class MobConfigManager {
 		JsonObject caveSpiderRules = buildSpawnRules(10.0D);
 		caveSpiderRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
 		variant.add("cave-spider", buildSpawnAlternativeVariant(caveSpiderRules));
-		variant.add("spider-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", "spider"), new JsonObject(), new JsonObject()));
+		variant.add("spider-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:skeleton", "minecraft:bow", "minecraft:spider"), new JsonObject(), new JsonObject()));
 		return variant;
 	}
 
@@ -798,7 +843,14 @@ public final class MobConfigManager {
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
 		addZombieAgeVariants(variant);
-		JsonObject zombieJockey = buildVariant(new JsonObject(), buildZombieJockeySpawnRules(), new JsonObject(), new JsonObject());
+		JsonObject zombieJockey = buildVariant(
+			new JsonObject(), buildSpawnRules(10.0D, "minecraft-equipment-zombie.json"), new JsonObject(), new JsonObject());
+		addNestedVariant(zombieJockey, FIELD_ADULT_GROUP, buildVariant(
+			new JsonObject(), buildJockeySpawnRules(90.0D, "minecraft:zombie", "minecraft:stone_spear", "minecraft:zombie_horse"), new JsonObject(), new JsonObject()));
+		JsonObject zombieJockeyBaby = buildVariant(
+			new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:zombie", "minecraft:stone_spear", "minecraft:chicken"), new JsonObject(), new JsonObject());
+		addMobBabyComponent(zombieJockeyBaby, true);
+		addNestedVariant(zombieJockey, FIELD_BABY_GROUP, zombieJockeyBaby);
 		variant.add("zombie-jockey", zombieJockey);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
@@ -820,27 +872,6 @@ public final class MobConfigManager {
 			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject());
 		addMobBabyComponent(baby, true);
 		addNestedVariant(variant, FIELD_BABY_GROUP, baby);
-	}
-
-	private static JsonObject buildZombieJockeySpawnRules() {
-		JsonObject rules = buildSpawnRules(10.0D);
-		JsonObject jockey = new JsonObject();
-		jockey.addProperty(FIELD_ENABLED, true);
-		JsonObject passenger = new JsonObject();
-		JsonObject passengerMob = new JsonObject();
-		passengerMob.addProperty(FIELD_ADULT_GROUP, "minecraft:zombie");
-		passengerMob.addProperty(FIELD_BABY_GROUP, "minecraft:zombie");
-		passenger.add(FIELD_MOB, passengerMob);
-		passenger.addProperty(FIELD_MAIN_HAND, "minecraft:stone_spear");
-		jockey.add(FIELD_JOCKEY_PASSENGER, passenger);
-		JsonObject mount = new JsonObject();
-		JsonObject mountMob = new JsonObject();
-		mountMob.addProperty(FIELD_ADULT_GROUP, "minecraft:zombie_horse");
-		mountMob.addProperty(FIELD_BABY_GROUP, "minecraft:chicken");
-		mount.add(FIELD_MOB, mountMob);
-		jockey.add(FIELD_JOCKEY_MOUNT, mount);
-		rules.add(FIELD_MOB_JOCKEY, jockey);
-		return rules;
 	}
 
 	private static JsonObject buildZombieVillagerVariantDefaults() {

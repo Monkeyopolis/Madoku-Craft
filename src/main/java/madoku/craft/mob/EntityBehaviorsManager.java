@@ -2418,24 +2418,11 @@ public final class EntityBehaviorsManager {
 			}
 
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
-			if (defaultGroup.entrySet().isEmpty()) {
-				return;
-			}
-
-			boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 
-			JsonObject variantGroup = resolveHuskVariantGroupRoot(fileConfigRoot, fileRoot, world, true);
-			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(
-				variantGroup,
-				husk,
-				overrideSpawnRules ? world.getRandom() : null,
-				overrideSpawnRules
-			);
-			variant = mergeHuskFileSettings(fileRoot, variant);
-			if (overrideSpawnRules) {
+			JsonObject variant = MobEntityManager.resolveConfiguredEntityVariantForRuntime(husk);
+			if (variant.entrySet().isEmpty()) {
+				return;
 			}
 			applyWeaponDamagePolicy(husk, variant);
 			applyHuskBehaviorToggles(husk, fileConfigRoot, variant);
@@ -2465,9 +2452,7 @@ public final class EntityBehaviorsManager {
 			}
 
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(fileRoot, husk, null, false);
-			variant = mergeHuskFileSettings(fileRoot, variant);
+			JsonObject variant = MobEntityManager.resolveConfiguredEntityVariantForRuntime(husk);
 
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 			boolean modified = overrideStats && MobEntityManager.applyUniversalBaseStatsForRuntime(husk, variant);
@@ -2522,21 +2507,7 @@ public final class EntityBehaviorsManager {
 			if (husk == null) {
 				return new JsonObject();
 			}
-			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(fileRoot, husk, null, false);
-			return mergeHuskFileSettings(fileRoot, variant);
-		}
-
-		private static JsonObject mergeHuskFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
-			JsonObject merged = variantRoot == null ? new JsonObject() : variantRoot.deepCopy();
-			if (fileRoot == null || fileRoot.entrySet().isEmpty()) {
-				return merged;
-			}
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
-			return merged;
+			return MobEntityManager.resolveConfiguredEntityVariantForRuntime(husk);
 		}
 
 		private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(Husk husk, RandomSource random) {
@@ -2631,77 +2602,6 @@ public final class EntityBehaviorsManager {
 			MobEntityManager.disableZombieReinforcementsForRuntime(husk);
 		}
 
-		private static JsonObject resolveHuskVariantGroupRoot(
-			JsonObject fileConfigRoot,
-			JsonObject fileRoot,
-			ServerLevelAccessor world,
-			boolean spawnContext
-		) {
-			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
-			if (defaultGroup.entrySet().isEmpty()) {
-				return new JsonObject();
-			}
-			boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
-			if (!spawnContext || world == null || !overrideSpawnRules) {
-				return defaultGroup;
-			}
-
-			String selectedVariant = selectHuskVariantKey(fileConfigRoot, world);
-			if (selectedVariant.isBlank()) {
-				return defaultGroup;
-			}
-			JsonObject selected = resolveHuskVariantRootByKey(fileConfigRoot, selectedVariant);
-			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
-		}
-
-		private static String selectHuskVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
-			double defaultWeight = Math.max(0.0D, resolveHuskVariantSpawnWeight(EntityConfigManager.resolvePrimaryVariantOnly(fileRoot), 100.0D));
-			List<HuskVariantWeight> weightedVariants = new java.util.ArrayList<>();
-			double total = defaultWeight;
-			for (Map.Entry<String, JsonObject> entry : collectHuskVariantRoots(fileRoot).entrySet()) {
-				double weight = Math.max(0.0D, resolveHuskVariantSpawnWeight(entry.getValue(), 0.0D));
-				if (weight <= 0.0D) {
-					continue;
-				}
-				total += weight;
-				weightedVariants.add(new HuskVariantWeight(entry.getKey(), weight));
-			}
-			if (total <= 0.0D || world == null) {
-				return "";
-			}
-			double roll = world.getRandom().nextDouble() * total;
-			if (roll < defaultWeight) {
-				return "";
-			}
-			roll -= defaultWeight;
-			for (HuskVariantWeight variant : weightedVariants) {
-				if (roll < variant.weight()) {
-					return variant.key();
-				}
-				roll -= variant.weight();
-			}
-			return "";
-		}
-
-		private static double resolveHuskVariantSpawnWeight(JsonObject variantRoot, double fallback) {
-			return MobEntityManager.resolveVariantSpawnWeight(variantRoot, fallback);
-		}
-
-		private static Map<String, JsonObject> collectHuskVariantRoots(JsonObject fileRoot) {
-			Map<String, JsonObject> variants = new java.util.LinkedHashMap<>(EntityConfigManager.collectTopLevelVariantRoots(fileRoot));
-			if (!variants.isEmpty()) {
-				variants.remove(variants.keySet().iterator().next());
-			}
-			return variants;
-		}
-
-		private static JsonObject resolveHuskVariantRootByKey(JsonObject fileRoot, String variantKey) {
-			if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
-				return new JsonObject();
-			}
-			return EntityConfigManager.resolveTopLevelVariant(fileRoot, variantKey);
-		}
-
 		private static void applyWeaponDamagePolicy(Husk husk, JsonObject resolvedRoot) {
 			if (husk == null || resolvedRoot == null) {
 				return;
@@ -2736,16 +2636,6 @@ public final class EntityBehaviorsManager {
 			ItemStack normalized = stack.copy();
 			normalized.set(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.builder().build());
 			husk.setItemSlot(slot, normalized);
-		}
-
-
-		private static void copyIfMissing(JsonObject target, JsonObject source, String key) {
-			if (target == null || source == null || key == null || key.isBlank()) {
-				return;
-			}
-			if (!target.has(key) && source.has(key)) {
-				target.add(key, source.get(key).deepCopy());
-			}
 		}
 
 		private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
@@ -2784,8 +2674,6 @@ public final class EntityBehaviorsManager {
 			int equippedPieces,
 			int requiredPieces
 		) {}
-
-		private record HuskVariantWeight(String key, double weight) {}
 
 		private static ItemStack rollArmorItemForSlot(
 			EquipmentConfigManager.EquipmentProfile profile,
