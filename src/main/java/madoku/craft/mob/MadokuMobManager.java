@@ -15,6 +15,11 @@ public final class MadokuMobManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		// Integrated servers can stop and restart inside the same JVM. The server-stop
+		// hook clears these runtime configuration snapshots, so reload them before
+		// entities begin spawning or loading again.
+		MobConfigManager.initialize();
+		WorldDifficultyConfigManager.initialize();
 		MobWorldDifficultyManager.onServerStarted(server);
 		MobRegionalDifficultyManager.onServerStarted(server);
 		MobEntityManager.onServerStarted(server);

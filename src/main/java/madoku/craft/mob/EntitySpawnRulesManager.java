@@ -21,80 +21,16 @@ public final class EntitySpawnRulesManager {
 	public static void initialize() {
 	}
 
-	public static boolean applyBeforeVanilla(Mob mob, ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason) {
-		if (mob == null || world == null || difficulty == null || spawnReason == null || !MobEntityManager.isEnabled()) return false;
-		if (mob instanceof ZombieVillager zombieVillager) {
-			if (EntityBehaviorsManager.ZombieBehavior.shouldOverrideSpawnRules(zombieVillager)) {
-				MobEntityManager.applyZombieSpawnOverrides(zombieVillager, world, difficulty, spawnReason);
-				return true;
-			}
-			return false;
-		}
-		if (mob instanceof Drowned drowned) {
-			if (EntityBehaviorsManager.DrownedBehavior.shouldOverrideSpawnRules(drowned)) {
-				MobEntityManager.applyDrownedSpawnOverrides(drowned, world, difficulty, spawnReason);
-				return true;
-			}
-			return false;
-		}
-		if (mob instanceof Husk husk) {
-			if (EntityBehaviorsManager.HuskBehavior.shouldOverrideSpawnRules(husk)) {
-				EntityBehaviorsManager.HuskBehavior.applySpawnOverrides(husk, world, difficulty, spawnReason);
-				return true;
-			}
-			return false;
-		}
-		if (mob instanceof Creeper creeper) {
-			if (EntityBehaviorsManager.CreeperBehavior.shouldOverrideSpawnRules(creeper)) {
-				EntityBehaviorsManager.CreeperBehavior.applySpawnOverrides(creeper, world, difficulty);
-				return true;
-			}
-			return false;
-		}
-		if (mob instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON && EntityBehaviorsManager.WitherSkeletonBehavior.shouldOverrideSpawnRules(skeleton)) {
-				EntityBehaviorsManager.WitherSkeletonBehavior.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
-				return true;
-			}
-			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED && EntityBehaviorsManager.BoggedBehavior.shouldOverrideSpawnRules(skeleton)) {
-				EntityBehaviorsManager.BoggedBehavior.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
-				return true;
-			}
-			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED && EntityBehaviorsManager.ParchedBehavior.shouldOverrideSpawnRules(skeleton)) {
-				EntityBehaviorsManager.ParchedBehavior.applySpawnOverrides(skeleton, world, difficulty, spawnReason);
-				return true;
-			}
-			if (EntityBehaviorsManager.SkeletonBehavior.shouldOverrideSpawnRules(skeleton)) {
-				MobEntityManager.applySkeletonSpawnOverrides(skeleton, world, difficulty, spawnReason);
-				return true;
-			}
-			return false;
-		}
-		if (mob instanceof Spider spider) {
-			return EntityBehaviorsManager.SpiderBehavior.shouldOverrideSpawnRules(spider) && MobEntityManager.applySpiderSpawnOverrides(spider, world, difficulty, spawnReason);
-		}
-		if (mob instanceof Zombie zombie) {
-			if (EntityBehaviorsManager.ZombieBehavior.shouldOverrideSpawnRules(zombie)) {
-				MobEntityManager.applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
-				return true;
-			}
-		}
-		return false;
-	}
-
 	public static void applyAfterVanilla(Mob mob, ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason) {
 		if (mob == null || world == null || difficulty == null || spawnReason == null || !MobEntityManager.isEnabled()) return;
-		EntityComponentsManager.applyConfiguredComponents(mob, MobEntityManager.resolveConfiguredEntityVariantForRuntime(mob));
 		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
 			EntityBehaviorsManager.BeeBehavior.applySpawnOverrides(mob, world);
-			return;
-		}
-		if (mob.getType() == MadokuEntities.HAG) {
+		} else if (mob.getType() == MadokuEntities.HAG) {
 			EntityBehaviorsManager.HagBehavior.applySpawnOverrides(mob);
-			return;
-		}
-		if (mob instanceof Spider spider) {
+		} else if (mob instanceof Spider spider) {
 			MobEntityManager.applySpiderSpawnOverrides(spider, world, difficulty, spawnReason);
+		} else if (mob instanceof Creeper creeper) {
+			EntityBehaviorsManager.CreeperBehavior.applySpawnOverrides(creeper, world, difficulty);
 		} else if (mob instanceof ZombieVillager zombieVillager) {
 			MobEntityManager.applyZombieSpawnOverrides(zombieVillager, world, difficulty, spawnReason);
 		} else if (mob instanceof Drowned drowned) {
@@ -106,5 +42,8 @@ public final class EntitySpawnRulesManager {
 		} else if (mob instanceof Zombie zombie) {
 			MobEntityManager.applyZombieSpawnOverrides(zombie, world, difficulty, spawnReason);
 		}
+		// Apply the selected configuration after the behavior hook has selected
+		// and stored the variant, while keeping vanilla finalizeSpawn intact.
+		EntityComponentsManager.applyConfiguredComponents(mob, MobEntityManager.resolveConfiguredEntityVariantForRuntime(mob));
 	}
 }

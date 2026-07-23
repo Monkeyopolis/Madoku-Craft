@@ -3,6 +3,7 @@ package madoku.craft.mob;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,14 +20,59 @@ public final class EntityConfigManager {
 		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
 		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
 		JsonObject entity = entityElement.getAsJsonObject();
-		JsonObject base = firstVariant(entity);
 		JsonObject selected = resolveVariantPath(entity, variantKey);
-		JsonObject resolved = merge(new JsonObject(), base);
-		return merge(resolved, selected);
+		return merge(new JsonObject(), selected);
 	}
 
-	public static JsonObject resolveDefaultVariant(JsonObject fileRoot) {
-		return resolveVariant(fileRoot, "");
+	public static JsonObject resolvePrimaryVariant(JsonObject fileRoot) {
+		if (fileRoot == null) return new JsonObject();
+		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
+		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
+		JsonObject entity = entityElement.getAsJsonObject();
+		JsonObject resolved = resolveVariantPath(entity, "");
+		String defaultKey = firstVariantKey(entity);
+		for (Map.Entry<String, JsonElement> entry : entity.entrySet()) {
+			if (entry.getKey().equals(defaultKey)
+				|| !isVariantKey(entry.getKey())
+				|| entry.getValue() == null
+				|| !entry.getValue().isJsonObject()) {
+				continue;
+			}
+			resolved.add(entry.getKey(), entry.getValue().deepCopy());
+		}
+		return resolved;
+	}
+
+	public static JsonObject resolvePrimaryVariantOnly(JsonObject fileRoot) {
+		if (fileRoot == null) return new JsonObject();
+		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
+		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
+		return resolveVariantPath(entityElement.getAsJsonObject(), "");
+	}
+
+	static Map<String, JsonObject> collectTopLevelVariantRoots(JsonObject fileRoot) {
+		Map<String, JsonObject> variants = new LinkedHashMap<>();
+		if (fileRoot == null) {
+			return variants;
+		}
+		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
+		if (entityElement == null || !entityElement.isJsonObject()) {
+			return variants;
+		}
+		for (Map.Entry<String, JsonElement> entry : entityElement.getAsJsonObject().entrySet()) {
+			if (entry.getValue() != null && entry.getValue().isJsonObject() && isVariantKey(entry.getKey())) {
+				variants.putIfAbsent(entry.getKey().trim().toLowerCase(), entry.getValue().getAsJsonObject());
+			}
+		}
+		return variants;
+	}
+
+	static JsonObject resolveTopLevelVariant(JsonObject fileRoot, String variantKey) {
+		if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
+			return new JsonObject();
+		}
+		JsonObject variant = collectTopLevelVariantRoots(fileRoot).get(variantKey.trim().toLowerCase());
+		return variant == null ? new JsonObject() : variant;
 	}
 
 	public static boolean isWorldDifficultyScalingEnabled(JsonObject fileRoot) {
@@ -53,17 +99,6 @@ public final class EntityConfigManager {
 
 	static JsonElement resolveConfiguredElement(JsonObject root, String key) {
 		if (root == null || key == null) return null;
-		if (MobConfigManager.FIELD_DEFAULT_GROUP.equals(key)) {
-			if (root.has(MobConfigManager.FIELD_ENTITY)) {
-				return resolveDefaultVariant(root);
-			}
-			if (root.has(MobConfigManager.FIELD_MOB_COMPONENTS)
-				|| root.has(MobConfigManager.FIELD_MOB_BEHAVIORS)
-				|| root.has(MobConfigManager.FIELD_MOB_GOALS)
-				|| root.has(MobConfigManager.FIELD_SPAWN_RULES)) {
-				return root;
-			}
-		}
 		return root.get(key);
 	}
 
@@ -71,15 +106,26 @@ public final class EntityConfigManager {
 		if (entity == null || entity.entrySet().isEmpty()) return new JsonObject();
 		List<String> path = splitPath(variantKey);
 		JsonObject current = path.isEmpty() ? firstVariant(entity) : readObject(entity, path.get(0));
-		if (current.entrySet().isEmpty()) current = firstVariant(entity);
+		if (current.entrySet().isEmpty()) return new JsonObject();
 		JsonObject resolved = merge(new JsonObject(), current);
 		for (int index = 1; index < path.size(); index++) {
 			JsonObject nested = readObject(current, path.get(index));
 			if (nested.entrySet().isEmpty()) break;
-			merge(resolved, nested);
+			resolved = merge(removeNestedVariantEntries(resolved), nested);
 			current = nested;
 		}
 		return resolved;
+	}
+
+	private static JsonObject removeNestedVariantEntries(JsonObject root) {
+		JsonObject sharedRoot = root == null ? new JsonObject() : root.deepCopy();
+		for (String key : new ArrayList<>(sharedRoot.keySet())) {
+			JsonElement value = sharedRoot.get(key);
+			if (value != null && value.isJsonObject() && isVariantKey(key)) {
+				sharedRoot.remove(key);
+			}
+		}
+		return sharedRoot;
 	}
 
 	private static List<String> splitPath(String value) {
@@ -96,6 +142,13 @@ public final class EntityConfigManager {
 			if (isVariantKey(entry.getKey()) && entry.getValue().isJsonObject()) return entry.getValue().getAsJsonObject();
 		}
 		return new JsonObject();
+	}
+
+	private static String firstVariantKey(JsonObject entity) {
+		for (Map.Entry<String, JsonElement> entry : entity.entrySet()) {
+			if (isVariantKey(entry.getKey()) && entry.getValue().isJsonObject()) return entry.getKey();
+		}
+		return "";
 	}
 
 	static boolean isVariantKey(String key) {

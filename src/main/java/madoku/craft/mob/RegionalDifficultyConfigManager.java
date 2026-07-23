@@ -162,22 +162,22 @@ public final class RegionalDifficultyConfigManager {
 		Double attackAccuracy = null;
 		Double explosionPower = null;
 		switch (normalized) {
-			case "bee" -> flyingSpeed = 2.0D;
-			case "creeper" -> explosionPower = 5.0D;
+			case "bee" -> flyingSpeed = 0.02D;
+			case "creeper" -> explosionPower = 0.05D;
 			case "skeleton", "stray", "bogged", "parched" -> {
-				rangedDamage = 5.0D;
+				rangedDamage = 0.05D;
 				attackAccuracy = 0.02D;
 			}
 			case "wither-skeleton" -> {
-				rangedDamage = 1.0D;
+				rangedDamage = 0.01D;
 				attackAccuracy = 0.02D;
 			}
 			case "drowned" -> {
-				swimmingSpeed = 2.0D;
-				rangedDamage = 5.0D;
+				swimmingSpeed = 0.02D;
+				rangedDamage = 0.05D;
 				attackAccuracy = 0.02D;
 			}
-			case "spider", "cave-spider" -> scale = 10.0D;
+			case "spider", "cave-spider" -> scale = 0.10D;
 			default -> {
 			}
 		}

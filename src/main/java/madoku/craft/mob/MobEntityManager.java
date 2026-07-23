@@ -79,6 +79,7 @@ public final class MobEntityManager {
 	private static final int HOMING_LIFETIME_TICKS = 60;
 	private static final int MOB_ARROW_LIFETIME_TICKS = 15 * 20;
 	private static final String HOMING_PROJECTILE_TAG = "madoku-craft.projectile.homing";
+	private static final String NESTED_VARIANT_TAG_PREFIX = "madoku-craft.nested-variant:";
 	private static final String FIELD_FLYING_SPEED = MobConfigManager.FIELD_FLYING_SPEED;
 
 	private static final Map<UUID, HomingArrowState> HOMING_ARROWS = new ConcurrentHashMap<>();
@@ -176,15 +177,6 @@ public final class MobEntityManager {
 	public static boolean isEnabled() {
 		return MobConfigManager.isEnabled();
 	}
-	public static boolean applyMobSpawnOverridesBeforeVanilla(
-		Mob mob,
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		EntitySpawnReason spawnReason
-	) {
-		return EntitySpawnRulesManager.applyBeforeVanilla(mob, world, difficulty, spawnReason);
-	}
-
 	public static void applyMobSpawnOverridesAfterVanilla(
 		Mob mob,
 		ServerLevelAccessor world,
@@ -193,7 +185,11 @@ public final class MobEntityManager {
 	) {
 		EntitySpawnRulesManager.applyAfterVanilla(mob, world, difficulty, spawnReason);
 		EntityComponentsManager.applyMobBabyComponent(mob);
+		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForRuntime(mob)) {
+			MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+		}
 		EntityComponentsManager.applyWorldDifficultyScaling(mob);
+		MobRegionalDifficultyManager.roundFinalScalingValues(mob);
 	}
 	public static void applyZombieSpawnOverrides(
 		Zombie zombie,
@@ -710,7 +706,7 @@ public final class MobEntityManager {
 			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
 				return EntityBehaviorsManager.CaveSpiderBehavior.applyLoadedEntityOverrides(spider);
 			}
-			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject root = fileMobRoot(MobConfigManager.FILE_SPIDER);
 			return isMobFileEnabled(MobConfigManager.FILE_SPIDER) && applyUniversalBaseStatsForRuntime(spider, root);
 		}
 		if (entity instanceof AbstractSkeleton skeleton) {
@@ -753,6 +749,7 @@ public final class MobEntityManager {
 			}
 		}
 		applyLoadedEntityDifficultyScaling(entity);
+		MobRegionalDifficultyManager.roundFinalScalingValues(mob);
 	}
 
 	public static boolean isRegionalDifficultyScalingEnabledForRuntime(Mob mob) {
@@ -762,10 +759,12 @@ public final class MobEntityManager {
 	static double resolveWorldDifficultyValueForRuntime(LivingEntity entity, String attribute, double baseValue) {
 		if (entity == null || !EntityConfigManager.isWorldDifficultyScalingEnabled(
 			resolveMobFileConfigRootForRuntime(resolveRuntimeMobFileKey(entity)))) {
-			return Math.max(0.0D, baseValue);
+			return MobConfigManager.roundDifficultyScaleValue(Math.max(0.0D, baseValue));
 		}
 		boolean hardcore = entity.level().getServer() != null && entity.level().getServer().isHardcore();
-		return MobWorldDifficultyManager.resolveValue(attribute, baseValue, entity.level().getDifficulty(), hardcore);
+		double sanitizedBase = Math.max(0.0D, baseValue);
+		double resolved = MobWorldDifficultyManager.resolveValue(attribute, sanitizedBase, entity.level().getDifficulty(), hardcore);
+		return resolved;
 	}
 
 	private static void applyLoadedEntityDifficultyScaling(LivingEntity entity) {
@@ -786,9 +785,9 @@ public final class MobEntityManager {
 		if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
 			return;
 		}
-		JsonObject creeperRoot = readObject(root, MobConfigManager.FIELD_CREEPER);
-		JsonObject creeperVariant = readObject(creeperRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-		JsonObject chargedVariant = readObject(creeperRoot, MobConfigManager.FIELD_CHARGED_CREEPER);
+		JsonObject creeperCatalog = EntityConfigManager.resolvePrimaryVariant(root);
+		JsonObject creeperVariant = EntityConfigManager.resolvePrimaryVariantOnly(root);
+		JsonObject chargedVariant = readObject(creeperCatalog, MobConfigManager.FIELD_CHARGED_CREEPER);
 		double regularWeight = Math.max(0.0D, readSpawnRuleDouble(creeperVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D));
 		double specialWeight = Math.max(0.0D, readSpawnRuleDouble(chargedVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D));
 		double total = regularWeight + specialWeight;
@@ -1078,15 +1077,16 @@ public final class MobEntityManager {
 		if (creeper == null || fileRoot == null || fileRoot.entrySet().isEmpty()) {
 			return new JsonObject();
 		}
-		JsonObject creeperRoot = readObject(fileRoot, MobConfigManager.FIELD_CREEPER);
-		JsonObject defaultGroup = readObject(creeperRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		JsonObject creeperRoot = EntityConfigManager.resolvePrimaryVariantOnly(fileRoot);
+		JsonObject creeperCatalog = EntityConfigManager.resolvePrimaryVariant(fileRoot);
+		JsonObject defaultGroup = creeperRoot;
 		if (defaultGroup.entrySet().isEmpty()) {
 			return new JsonObject();
 		}
 		if (!creeper.isPowered()) {
 			return defaultGroup;
 		}
-		JsonObject chargedVariant = readObject(creeperRoot, MobConfigManager.FIELD_CHARGED_CREEPER);
+		JsonObject chargedVariant = readObject(creeperCatalog, MobConfigManager.FIELD_CHARGED_CREEPER);
 		if (chargedVariant.entrySet().isEmpty()) {
 			return defaultGroup;
 		}
@@ -1131,16 +1131,16 @@ public final class MobEntityManager {
 		if (configuredPower != null) {
 			explosionPower = Math.max(0.0D, configuredPower);
 		}
-		explosionPower = resolveWorldDifficultyValueForRuntime(
+		explosionPower = Math.max(0.0D, explosionPower + MobRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper, explosionPower));
+		return resolveWorldDifficultyValueForRuntime(
 			creeper,
 			MobConfigManager.FIELD_EXPLOSION_POWER,
 			explosionPower
 		);
-		return Math.max(0.0D, explosionPower + MobRegionalDifficultyManager.resolveCreeperExplosionPowerScaling(creeper, explosionPower));
 	}
 
 	private static JsonObject resolveHagDefaultGroup(JsonObject fileRoot) {
-		return readObject(readObject(fileRoot, MobConfigManager.FILE_HAG), MobConfigManager.FIELD_DEFAULT_GROUP);
+		return EntityConfigManager.resolvePrimaryVariant(readObject(fileRoot, MobConfigManager.FILE_HAG));
 	}
 
 	private static void disableZombieReinforcements(Zombie zombie) {
@@ -1616,34 +1616,29 @@ public final class MobEntityManager {
 			if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIE_VILLAGER)) {
 				return new JsonObject();
 			}
-			JsonObject root = resolveZombieVillagerRootForRuntime(zombieVillager.getType());
-			JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-			return resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+			JsonObject root = EntityConfigManager.resolvePrimaryVariantOnly(root(MobConfigManager.FILE_ZOMBIE_VILLAGER));
+			return resolveNestedVariantForRuntime(root, zombieVillager, null, false);
 		}
 		if (attacker instanceof Drowned drowned) {
 			if (!isMobFileEnabled(MobConfigManager.FILE_DROWNED)) {
 				return new JsonObject();
 			}
-			JsonObject root = resolveDrownedRootForRuntime(drowned.getType());
-			JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-			return resolveAgeVariantRoot(defaultGroup, drowned.isBaby());
+			JsonObject root = EntityConfigManager.resolvePrimaryVariantOnly(root(MobConfigManager.FILE_DROWNED));
+			return resolveNestedVariantForRuntime(root, drowned, null, false);
 		}
 		if (attacker instanceof Husk husk) {
 			if (!isMobFileEnabled(MobConfigManager.FILE_HUSK)) {
 				return new JsonObject();
 			}
-			JsonObject root = resolveHuskRootForRuntime(husk.getType());
-			JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-			return resolveAgeVariantRoot(defaultGroup, husk.isBaby());
+			JsonObject root = EntityConfigManager.resolvePrimaryVariantOnly(root(MobConfigManager.FILE_HUSK));
+			return resolveNestedVariantForRuntime(root, husk, null, false);
 		}
 		if (attacker instanceof Zombie zombie) {
 			if (!isMobFileEnabled(MobConfigManager.FILE_ZOMBIE)) {
 				return new JsonObject();
 			}
-			JsonObject root = resolveZombieRootForRuntime(zombie.getType());
-			return zombie.isBaby()
-				? resolveZombieBabyRootForRuntime(root)
-				: resolveZombieAdultRootForRuntime(root);
+			JsonObject root = EntityConfigManager.resolvePrimaryVariantOnly(root(MobConfigManager.FILE_ZOMBIE));
+			return resolveNestedVariantForRuntime(root, zombie, null, false);
 		}
 		if (attacker instanceof Creeper creeper) {
 			if (!isMobFileEnabled(MobConfigManager.FILE_CREEPER)) {
@@ -1664,7 +1659,7 @@ public final class MobEntityManager {
 			JsonObject fileRoot = spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER
 				? fileMobRoot(MobConfigManager.FILE_CAVE_SPIDER)
 				: fileMobRoot(MobConfigManager.FILE_SPIDER);
-			return readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			return fileRoot;
 		}
 		if (attacker.getType() == MadokuEntities.HAG) {
 			if (!isMobFileEnabled(MobConfigManager.FILE_HAG)) {
@@ -1687,43 +1682,34 @@ public final class MobEntityManager {
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
 		double resolved = Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
-		return roundDifficultyScaleValue(baseValue, resolved);
+		return roundDifficultyScaleValue(resolved);
 	}
 
 	private static double resolveSkeletonRangedDamage(AbstractSkeleton skeleton, JsonObject root) {
 		if (skeleton == null) {
 			return 0.0D;
 		}
-		double rangedDamage = MobEntityManager.resolveWorldDifficultyValueForRuntime(
+		double rangedDamage = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(
 			skeleton,
-			MobConfigManager.FIELD_RANGED_DAMAGE,
 			readMobStatDouble(root, MobConfigManager.FIELD_RANGED_DAMAGE, 4.0D)
 		);
-		return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+		return MobEntityManager.resolveWorldDifficultyValueForRuntime(
+			skeleton,
+			MobConfigManager.FIELD_RANGED_DAMAGE,
+			rangedDamage
+		);
 	}
 
-	private static double roundDifficultyScaleValue(double originalValue, double value) {
+	private static double roundDifficultyScaleValue(double value) {
 		if (!Double.isFinite(value)) {
 			return value;
 		}
-		double step = isWholeNumber(originalValue) ? 0.05D : 0.005D;
+		double step = isWholeNumber(value) ? 0.05D : 0.005D;
 		return Math.round(value / step) * step;
 	}
 
 	private static boolean isWholeNumber(double value) {
 		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
-	}
-
-	static double resolveAgeVariantChanceForRuntime(
-		double adultWeight,
-		double babyWeight,
-		DifficultyInstance difficulty,
-		LivingEntity entity
-	) {
-		double adult = Math.max(0.0D, adultWeight);
-		double baby = Math.max(0.0D, babyWeight);
-		double total = adult + baby;
-		return total <= 0.0D ? 0.0D : Mth.clamp(baby / total, 0.0D, 1.0D);
 	}
 
 	private static boolean isHardcoreWorld(Level level) {
@@ -1761,7 +1747,7 @@ public final class MobEntityManager {
 	}
 
 	private static JsonObject fileMobRoot(String fileKey) {
-		return EntityConfigManager.resolveDefaultVariant(root(fileKey));
+		return EntityConfigManager.resolvePrimaryVariant(root(fileKey));
 	}
 
 	private static boolean isSupportedSkeletonRuntimeType(AbstractSkeleton skeleton) {
@@ -1861,54 +1847,15 @@ public final class MobEntityManager {
 		if (husk == null || fallbackEffect == null || !MobConfigManager.isEnabled() || !isMobFileEnabled(MobConfigManager.FILE_HUSK)) {
 			return fallbackEffect;
 		}
-		JsonObject huskFileRoot = resolveHuskRootForRuntime(husk.getType());
-		JsonObject defaultGroup = readObject(huskFileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+		JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(root(MobConfigManager.FILE_HUSK));
 		if (defaultGroup.entrySet().isEmpty()) {
 			return fallbackEffect;
 		}
-		JsonObject variant = resolveAgeVariantRoot(defaultGroup, husk.isBaby());
+		JsonObject variant = resolveNestedVariantForRuntime(defaultGroup, husk, null, false);
 		if (variant.entrySet().isEmpty()) {
 			return fallbackEffect;
 		}
 		return resolveConfiguredMobEffectInstance(readMobComponentsRoot(variant), fallbackEffect);
-	}
-
-	private static JsonObject zombieAdultRoot(JsonObject root) {
-		JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-		if (defaultGroup.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject shared = defaultGroup.deepCopy();
-		shared.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		shared.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject adultOverride = readObject(defaultGroup, MobConfigManager.FIELD_ADULT_GROUP);
-		if (adultOverride.entrySet().isEmpty()) {
-			return shared;
-		}
-		return mergeJsonWithOverride(shared, adultOverride);
-	}
-
-	static JsonObject resolveZombieAdultRootForRuntime(JsonObject root) {
-		return zombieAdultRoot(root);
-	}
-
-	private static JsonObject zombieBabyRoot(JsonObject root) {
-		JsonObject defaultGroup = readObject(root, MobConfigManager.FIELD_DEFAULT_GROUP);
-		if (defaultGroup.entrySet().isEmpty()) {
-			return new JsonObject();
-		}
-		JsonObject shared = defaultGroup.deepCopy();
-		shared.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		shared.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject babyOverride = readObject(defaultGroup, MobConfigManager.FIELD_BABY_GROUP);
-		if (babyOverride.entrySet().isEmpty()) {
-			return shared;
-		}
-		return mergeJsonWithOverride(shared, babyOverride);
-	}
-
-	static JsonObject resolveZombieBabyRootForRuntime(JsonObject root) {
-		return zombieBabyRoot(root);
 	}
 
 	private static String normalizeKey(String value) {
@@ -1977,9 +1924,10 @@ public final class MobEntityManager {
 
 	static JsonObject resolveVariantGroupRoot(JsonObject defaultGroupRoot, JsonObject variantGroupRoot) {
 		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
-			return defaultGroupRoot == null ? new JsonObject() : defaultGroupRoot;
+			return defaultGroupRoot == null ? new JsonObject() : defaultGroupRoot.deepCopy();
 		}
-		return mergeJsonWithOverride(defaultGroupRoot, variantGroupRoot);
+		// Top-level variants are siblings. They must resolve independently.
+		return variantGroupRoot.deepCopy();
 	}
 
 	static String resolveRuntimeMobFileKey(LivingEntity entity) {
@@ -1989,27 +1937,89 @@ public final class MobEntityManager {
 	static JsonObject resolveConfiguredEntityVariantForRuntime(LivingEntity entity) {
 		String fileKey = resolveRegionalDifficultyMobFileKey(entity);
 		if (fileKey.isBlank() || !isMobFileEnabled(fileKey)) return new JsonObject();
-		return EntityConfigManager.resolveDefaultVariant(root(fileKey));
+		JsonObject variantCatalog = EntityConfigManager.resolvePrimaryVariant(root(fileKey));
+		JsonObject variantGroup = EntityConfigManager.resolvePrimaryVariantOnly(root(fileKey));
+		String storedVariantKey = readStoredVariantKeyForRuntime(entity, fileKey);
+		if (!storedVariantKey.isBlank()) {
+			JsonObject selectedVariant = readObject(variantCatalog, storedVariantKey);
+			if (!selectedVariant.entrySet().isEmpty()) {
+				variantGroup = selectedVariant;
+			}
+		}
+		return resolveNestedVariantForRuntime(variantGroup, entity, null, false);
 	}
 
-	static JsonObject resolveAgeVariantRoot(JsonObject variantGroupRoot, boolean baby) {
+	private static String readStoredVariantKeyForRuntime(LivingEntity entity, String fileKey) {
+		if (entity == null || fileKey == null || fileKey.isBlank()) {
+			return "";
+		}
+		String prefix = "madoku-craft." + fileKey + ".variant:";
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(prefix)) {
+				String key = tag.substring(prefix.length()).trim().toLowerCase(Locale.ROOT);
+				if (!key.isBlank()) {
+					return key;
+				}
+			}
+		}
+		return "";
+	}
+
+	static JsonObject resolveNestedVariantRoot(JsonObject variantGroupRoot, String nestedVariantKey) {
 		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
 			return new JsonObject();
 		}
-		JsonObject sharedRoot = variantGroupRoot.deepCopy();
-		sharedRoot.remove(MobConfigManager.FIELD_ADULT_GROUP);
-		sharedRoot.remove(MobConfigManager.FIELD_BABY_GROUP);
-		JsonObject ageOverride = readObject(
-			variantGroupRoot,
-			baby ? MobConfigManager.FIELD_BABY_GROUP : MobConfigManager.FIELD_ADULT_GROUP
-		);
-		if (ageOverride.entrySet().isEmpty()) {
-			return sharedRoot;
+		JsonObject nestedVariant = readObject(variantGroupRoot, nestedVariantKey);
+		if (nestedVariant.entrySet().isEmpty()) {
+			return removeNestedVariantEntries(variantGroupRoot);
 		}
-		return mergeJsonWithOverride(sharedRoot, ageOverride);
+		return mergeJsonWithOverride(removeNestedVariantEntries(variantGroupRoot), nestedVariant);
 	}
 
-	static Map<String, JsonObject> collectVariantRoots(JsonObject root, Predicate<String> reservedKeyPredicate) {
+	static JsonObject resolveNestedVariantForRuntime(
+		JsonObject variantGroupRoot,
+		LivingEntity entity,
+		RandomSource random,
+		boolean spawnContext
+	) {
+		if (variantGroupRoot == null || variantGroupRoot.entrySet().isEmpty()) {
+			return new JsonObject();
+		}
+		Map<String, JsonObject> nestedVariants = collectNestedVariantRoots(variantGroupRoot);
+		if (nestedVariants.isEmpty()) {
+			return removeNestedVariantEntries(variantGroupRoot);
+		}
+
+		String selectedKey = readNestedVariantTag(entity);
+		if (spawnContext && random != null) {
+			selectedKey = selectNestedVariantKey(nestedVariants, random);
+		}
+		if (selectedKey.isBlank() && entity instanceof AgeableMob ageableMob && hasMobBabyVariant(nestedVariants)) {
+			boolean baby = ageableMob.isBaby();
+			for (Map.Entry<String, JsonObject> entry : nestedVariants.entrySet()) {
+				if (hasMobBabyComponent(entry.getValue()) == baby) {
+					selectedKey = entry.getKey();
+					break;
+				}
+			}
+		}
+		if (selectedKey.isBlank()) {
+			return removeNestedVariantEntries(variantGroupRoot);
+		}
+		JsonObject selected = nestedVariants.get(normalizeKey(selectedKey));
+		if (selected == null || selected.entrySet().isEmpty()) {
+			return removeNestedVariantEntries(variantGroupRoot);
+		}
+		if (spawnContext) {
+			writeNestedVariantTag(entity, selectedKey);
+			if (entity instanceof AgeableMob ageableMob && hasMobBabyVariant(nestedVariants)) {
+				ageableMob.setBaby(hasMobBabyComponent(selected));
+			}
+		}
+		return mergeJsonWithOverride(removeNestedVariantEntries(variantGroupRoot), selected);
+	}
+
+	private static Map<String, JsonObject> collectNestedVariantRoots(JsonObject root) {
 		Map<String, JsonObject> variants = new LinkedHashMap<>();
 		if (root == null) {
 			return variants;
@@ -2019,44 +2029,129 @@ public final class MobEntityManager {
 				continue;
 			}
 			String key = normalizeKey(entry.getKey());
-			if (!EntityConfigManager.isVariantKey(key)) {
-				continue;
+			if (EntityConfigManager.isVariantKey(key)) {
+				variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
 			}
-			if (reservedKeyPredicate != null && reservedKeyPredicate.test(key)) {
-				continue;
-			}
-			variants.putIfAbsent(key, entry.getValue().getAsJsonObject());
 		}
 		return variants;
 	}
 
-	static JsonObject resolveVariantRootByKey(JsonObject root, String variantKey, String defaultGroupKey, Predicate<String> reservedKeyPredicate) {
+	private static String selectNestedVariantKey(Map<String, JsonObject> variants, RandomSource random) {
+		if (variants == null || variants.isEmpty() || random == null) {
+			return "";
+		}
+		double total = 0.0D;
+		Map<String, Double> weights = new LinkedHashMap<>();
+		for (Map.Entry<String, JsonObject> entry : variants.entrySet()) {
+			double weight = Math.max(0.0D, resolveVariantSpawnWeight(entry.getValue(), 0.0D));
+			if (weight > 0.0D) {
+				weights.put(entry.getKey(), weight);
+				total += weight;
+			}
+		}
+		if (total <= 0.0D) {
+			return "";
+		}
+		double roll = random.nextDouble() * total;
+		for (Map.Entry<String, Double> entry : weights.entrySet()) {
+			if (roll < entry.getValue()) {
+				return entry.getKey();
+			}
+			roll -= entry.getValue();
+		}
+		return "";
+	}
+
+	private static boolean hasMobBabyVariant(Map<String, JsonObject> variants) {
+		for (JsonObject variant : variants.values()) {
+			if (hasMobBabyComponent(variant)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean hasMobBabyComponent(JsonObject variant) {
+		JsonObject components = readObject(variant, MobConfigManager.FIELD_MOB_COMPONENTS);
+		JsonElement mobBaby = components.get(MobConfigManager.FIELD_MOB_BABY);
+		return mobBaby != null && mobBaby.isJsonObject();
+	}
+
+	private static String readNestedVariantTag(LivingEntity entity) {
+		if (entity == null) {
+			return "";
+		}
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(NESTED_VARIANT_TAG_PREFIX)) {
+				String key = normalizeKey(tag.substring(NESTED_VARIANT_TAG_PREFIX.length()));
+				if (!key.isBlank()) {
+					return key;
+				}
+			}
+		}
+		return "";
+	}
+
+	private static void writeNestedVariantTag(LivingEntity entity, String variantKey) {
+		if (entity == null || variantKey == null || variantKey.isBlank()) {
+			return;
+		}
+		String existing = null;
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(NESTED_VARIANT_TAG_PREFIX)) {
+				existing = tag;
+				break;
+			}
+		}
+		if (existing != null) {
+			entity.removeTag(existing);
+		}
+		entity.addTag(NESTED_VARIANT_TAG_PREFIX + normalizeKey(variantKey));
+	}
+
+	private static JsonObject removeNestedVariantEntries(JsonObject root) {
+		JsonObject sharedRoot = root == null ? new JsonObject() : root.deepCopy();
+		for (String key : new ArrayList<>(sharedRoot.keySet())) {
+			JsonElement value = sharedRoot.get(key);
+			if (value != null && value.isJsonObject() && EntityConfigManager.isVariantKey(key)) {
+				sharedRoot.remove(key);
+			}
+		}
+		return sharedRoot;
+	}
+
+	static JsonObject resolveVariantRootByKey(JsonObject root, String variantKey, Predicate<String> reservedKeyPredicate) {
 		if (root == null || variantKey == null || variantKey.isBlank()) {
 			return new JsonObject();
 		}
-		if (defaultGroupKey != null && normalizeKey(variantKey).equals(normalizeKey(defaultGroupKey))) {
-			return readObject(root, defaultGroupKey);
+		if (reservedKeyPredicate != null && reservedKeyPredicate.test(normalizeKey(variantKey))) {
+			return new JsonObject();
 		}
-		JsonObject variant = collectVariantRoots(root, reservedKeyPredicate).get(normalizeKey(variantKey));
-		return variant == null ? new JsonObject() : variant;
+		return EntityConfigManager.resolveTopLevelVariant(root, variantKey);
 	}
 
 	static String selectWeightedVariantKey(
 		JsonObject root,
 		RandomSource random,
-		String defaultGroupKey,
-		String defaultVariantKey,
 		Predicate<String> reservedKeyPredicate,
 		ToDoubleFunction<JsonObject> weightResolver
 	) {
-		if (root == null || random == null || defaultVariantKey == null || defaultVariantKey.isBlank()) {
-			return defaultVariantKey == null ? "" : defaultVariantKey;
+		if (root == null || random == null) {
+			return "";
 		}
-		JsonObject defaultGroup = readObject(root, defaultGroupKey);
+		JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(root);
 		double defaultWeight = Math.max(0.0D, weightResolver == null ? 0.0D : weightResolver.applyAsDouble(defaultGroup));
 		double total = defaultWeight;
 		java.util.List<WeightedVariant> weightedVariants = new ArrayList<>();
-		for (Map.Entry<String, JsonObject> entry : collectVariantRoots(root, reservedKeyPredicate).entrySet()) {
+		boolean primary = true;
+		for (Map.Entry<String, JsonObject> entry : EntityConfigManager.collectTopLevelVariantRoots(root).entrySet()) {
+			if (primary) {
+				primary = false;
+				continue;
+			}
+			if (reservedKeyPredicate != null && reservedKeyPredicate.test(normalizeKey(entry.getKey()))) {
+				continue;
+			}
 			double weight = Math.max(0.0D, weightResolver == null ? 0.0D : weightResolver.applyAsDouble(entry.getValue()));
 			if (weight <= 0.0D) {
 				continue;
@@ -2065,11 +2160,11 @@ public final class MobEntityManager {
 			weightedVariants.add(new WeightedVariant(entry.getKey(), weight));
 		}
 		if (total <= 0.0D) {
-			return defaultVariantKey;
+			return "";
 		}
 		double roll = random.nextDouble() * total;
 		if (roll < defaultWeight) {
-			return defaultVariantKey;
+			return "";
 		}
 		double cursor = defaultWeight;
 		for (WeightedVariant variant : weightedVariants) {
@@ -2078,7 +2173,7 @@ public final class MobEntityManager {
 				return variant.key();
 			}
 		}
-		return defaultVariantKey;
+		return "";
 	}
 
 	static double resolveVariantSpawnWeight(JsonObject variantRoot, double fallback) {
@@ -2094,11 +2189,10 @@ public final class MobEntityManager {
 		if (direct != null) {
 			return direct;
 		}
-		JsonObject adult = readObject(variantRoot, MobConfigManager.FIELD_ADULT_GROUP);
-		JsonObject baby = readObject(variantRoot, MobConfigManager.FIELD_BABY_GROUP);
-		double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
-		double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
-		double summed = adultWeight + babyWeight;
+		double summed = 0.0D;
+		for (JsonObject nestedVariant : collectNestedVariantRoots(variantRoot).values()) {
+			summed += Math.max(0.0D, readSpawnRuleDouble(nestedVariant, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
+		}
 		return summed > 0.0D ? summed : fallback;
 	}
 
@@ -2106,24 +2200,12 @@ public final class MobEntityManager {
 		if (entity == null || beeFileRoot == null) {
 			return new JsonObject();
 		}
-		JsonObject beeRoot = fileMobRoot(MobConfigManager.FILE_BEE);
+		JsonObject beeRoot = EntityConfigManager.resolvePrimaryVariantOnly(beeFileRoot);
 		if (beeRoot.entrySet().isEmpty()) {
 			return new JsonObject();
 		}
-		boolean isBaby = entity instanceof AgeableMob ageableMob && ageableMob.isBaby();
-		if (spawnContext && readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true)
-			&& entity instanceof AgeableMob ageableMob && random != null) {
-			JsonObject adult = resolveAgeVariantRoot(beeRoot, false);
-			JsonObject baby = resolveAgeVariantRoot(beeRoot, true);
-			double adultWeight = Math.max(0.0D, readSpawnRuleDouble(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 100.0D));
-			double babyWeight = Math.max(0.0D, readSpawnRuleDouble(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 0.0D));
-			double total = adultWeight + babyWeight;
-			if (total > 0.0D) {
-				isBaby = (random.nextDouble() * total) >= adultWeight;
-				ageableMob.setBaby(isBaby);
-			}
-		}
-		return resolveAgeVariantRoot(beeRoot, isBaby);
+		boolean selectNested = spawnContext && readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
+		return resolveNestedVariantForRuntime(beeRoot, entity, selectNested ? random : null, selectNested);
 	}
 
 	private static JsonObject mergeJsonWithOverride(JsonObject base, JsonObject override) {

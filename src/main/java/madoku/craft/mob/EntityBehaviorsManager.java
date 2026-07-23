@@ -708,7 +708,6 @@ public final class EntityBehaviorsManager {
 		private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
 		private static final int DEFAULT_CHARGE_UP_TICKS = 10;
 		private static final String BOGGED_VARIANT_TAG_PREFIX = "madoku-craft.bogged.variant:";
-		private static final String BOGGED_VARIANT_DEFAULT_KEY = "default";
 	
 		private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
 		private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
@@ -937,7 +936,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearVariantTag(skeleton);
 				return new JsonObject();
@@ -945,10 +944,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredVariantKey(skeleton);
 			if (!storedVariant.isBlank()) {
-				if (BOGGED_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -959,15 +955,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectVariantKey(fileRoot, world);
+			String selectedVariant = selectVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = BOGGED_VARIANT_DEFAULT_KEY;
-			}
-			writeVariantTag(skeleton, selectedVariant);
-			if (BOGGED_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveVariantRootByKey(fileRoot, selectedVariant);
+			writeVariantTag(skeleton, selectedVariant);
+			JsonObject selected = resolveVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -975,8 +968,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				BOGGED_VARIANT_DEFAULT_KEY,
 				BoggedBehavior::isReservedBoggedGroupKey,
 				variantRoot -> MobEntityManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -986,7 +977,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				BoggedBehavior::isReservedBoggedGroupKey
 			);
 		}
@@ -1003,8 +993,7 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
+				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
 		}
 	
 		private static String readStoredVariantKey(AbstractSkeleton skeleton) {
@@ -1307,11 +1296,12 @@ public final class EntityBehaviorsManager {
 				skeleton.level().getDifficulty(),
 				isHardcoreWorld(skeleton.level())
 			);
-			return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+			return rangedDamage;
 		}
 	
 		private static double resolveScaledRangedDamage(AbstractSkeleton skeleton, double base, Difficulty difficulty, boolean hardcore) {
-			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, base);
+			double regional = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, base);
+			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, regional);
 		}
 	
 		private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -1566,7 +1556,7 @@ public final class EntityBehaviorsManager {
 			if (fileRoot == null || fileKey == null || fileKey.isBlank()) {
 				return new JsonObject();
 			}
-			return EntityConfigManager.resolveDefaultVariant(fileRoot);
+			return EntityConfigManager.resolvePrimaryVariant(fileRoot);
 		}
 	
 		private static JsonObject readObject(JsonObject parent, String key) {
@@ -1678,7 +1668,6 @@ public final class EntityBehaviorsManager {
 	public static final class DrownedBehavior {
 		private static final double MIN_DROWNED_TRIDENT_HOMING_DISTANCE_SQR = 4.0D;
 		private static final String DROWNED_VARIANT_TAG_PREFIX = "madoku-craft.drowned.variant:";
-		private static final String DROWNED_VARIANT_DEFAULT_KEY = "default";
 		private static final String DROWNED_VARIANT_RANGED_KEY = "ranged-drowned";
 		private static final String RANGED_TRIDENT_TAG = "madoku-craft.drowned.ranged_trident";
 	
@@ -1744,21 +1733,12 @@ public final class EntityBehaviorsManager {
 			boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 	
-			JsonObject adult = MobEntityManager.resolveAgeVariantRoot(defaultGroup, false);
-			JsonObject baby = MobEntityManager.resolveAgeVariantRoot(defaultGroup, true);
-			if (overrideSpawnRules) {
-				boolean shouldBeBaby = false;
-				double babyChance = MobEntityManager.resolveAgeVariantChanceForRuntime(
-						MobEntityManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D),
-						MobEntityManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D),
-						difficulty,
-						drowned
-				);
-				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
-				drowned.setBaby(shouldBeBaby);
-			}
-	
-			JsonObject variant = drowned.isBaby() ? baby : adult;
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(
+				variantGroup,
+				drowned,
+				overrideSpawnRules ? world.getRandom() : null,
+				overrideSpawnRules
+			);
 			variant = mergeDrownedFileSettings(fileRoot, variant);
 			if (overrideSpawnRules) {
 				applySpawnEquipmentSetLoadout(drowned, variant, world.getRandom());
@@ -1794,7 +1774,7 @@ public final class EntityBehaviorsManager {
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveDrownedRootForRuntime(drowned.getType());
 			JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(variantGroup, drowned, null, false);
 			variant = mergeDrownedFileSettings(fileRoot, variant);
 	
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
@@ -1820,7 +1800,7 @@ public final class EntityBehaviorsManager {
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveDrownedRootForRuntime(drowned.getType());
 			JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(variantGroup, drowned, null, false);
 			variant = mergeDrownedFileSettings(fileRoot, variant);
 			return true;
 		}
@@ -1837,7 +1817,7 @@ public final class EntityBehaviorsManager {
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveDrownedRootForRuntime(drowned.getType());
 			JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(variantGroup, drowned, null, false);
 			variant = mergeDrownedFileSettings(fileRoot, variant);
 			JsonObject componentsRoot = readObject(variant, MobConfigManager.FIELD_MOB_COMPONENTS);
 			return readDouble(componentsRoot, MobConfigManager.FIELD_SWIMMING_SPEED, fallback);
@@ -1881,7 +1861,7 @@ public final class EntityBehaviorsManager {
 			JsonObject fileKeyRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(MobConfigManager.FILE_DROWNED);
 			JsonObject fileRoot = MobEntityManager.resolveDrownedRootForRuntime(drowned.getType());
 			JsonObject defaultGroup = resolveDrownedVariantGroupRoot(drowned, fileKeyRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(defaultGroup, drowned.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(defaultGroup, drowned, null, false);
 			return mergeDrownedFileSettings(fileRoot, variant);
 		}
 	
@@ -1892,17 +1872,14 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearDrownedVariantTag(drowned);
 				return new JsonObject();
 			}
 			String storedVariant = readStoredDrownedVariantKey(drowned);
 			if (!storedVariant.isBlank()) {
-				if (DROWNED_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveDrownedVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveDrownedVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -1913,15 +1890,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectDrownedVariantKey(fileRoot, world);
+			String selectedVariant = selectDrownedVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = DROWNED_VARIANT_DEFAULT_KEY;
-			}
-			writeDrownedVariantTag(drowned, selectedVariant);
-			if (DROWNED_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveDrownedVariantRootByKey(fileRoot, selectedVariant);
+			writeDrownedVariantTag(drowned, selectedVariant);
+			JsonObject selected = resolveDrownedVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -1929,8 +1903,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				DROWNED_VARIANT_DEFAULT_KEY,
 				DrownedBehavior::isReservedDrownedGroupKey,
 				variantRoot -> resolveDrownedVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -1944,8 +1916,7 @@ public final class EntityBehaviorsManager {
 			if (normalizedKey == null || normalizedKey.isBlank()) {
 				return true;
 			}
-			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
+			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
@@ -1955,7 +1926,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				DrownedBehavior::isReservedDrownedGroupKey
 			);
 		}
@@ -2306,7 +2276,6 @@ public final class EntityBehaviorsManager {
 				return baseDamage;
 			}
 			double damage = resolveScaledRangedDamage(drowned, baseDamage, drowned.level().getDifficulty(), isHardcoreWorld(drowned.level()));
-			damage = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(drowned, damage);
 			return Math.max(0.0D, damage);
 		}
 	
@@ -2376,7 +2345,8 @@ public final class EntityBehaviorsManager {
 		}
 	
 		private static double resolveScaledRangedDamage(Drowned drowned, double base, Difficulty difficulty, boolean hardcore) {
-			return MobEntityManager.resolveWorldDifficultyValueForRuntime(drowned, MobConfigManager.FIELD_RANGED_DAMAGE, base);
+			double regional = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(drowned, base);
+			return MobEntityManager.resolveWorldDifficultyValueForRuntime(drowned, MobConfigManager.FIELD_RANGED_DAMAGE, regional);
 		}
 	
 		private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -2594,7 +2564,6 @@ public final class EntityBehaviorsManager {
 	}
 
 	public static final class HuskBehavior {
-		private static final String HUSK_VARIANT_DEFAULT_KEY = "default";
 	
 		private HuskBehavior() {
 		}
@@ -2622,7 +2591,7 @@ public final class EntityBehaviorsManager {
 	
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				return;
 			}
@@ -2631,21 +2600,12 @@ public final class EntityBehaviorsManager {
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 	
 			JsonObject variantGroup = resolveHuskVariantGroupRoot(fileConfigRoot, fileRoot, world, true);
-			JsonObject adult = MobEntityManager.resolveAgeVariantRoot(variantGroup, false);
-			JsonObject baby = MobEntityManager.resolveAgeVariantRoot(variantGroup, true);
-			if (overrideSpawnRules) {
-				boolean shouldBeBaby = false;
-				double babyChance = MobEntityManager.resolveAgeVariantChanceForRuntime(
-						readSpawnWeight(adult, 95.0D),
-						readSpawnWeight(baby, 5.0D),
-						difficulty,
-						husk
-				);
-				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
-				husk.setBaby(shouldBeBaby);
-			}
-	
-			JsonObject variant = husk.isBaby() ? baby : adult;
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(
+				variantGroup,
+				husk,
+				overrideSpawnRules ? world.getRandom() : null,
+				overrideSpawnRules
+			);
 			variant = mergeHuskFileSettings(fileRoot, variant);
 			if (overrideSpawnRules) {
 				applySpawnEquipmentSetLoadout(husk, variant, world.getRandom());
@@ -2679,7 +2639,7 @@ public final class EntityBehaviorsManager {
 	
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(fileRoot, husk, null, false);
 			variant = mergeHuskFileSettings(fileRoot, variant);
 	
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
@@ -2725,7 +2685,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(fileRoot, husk, null, false);
 			return mergeHuskFileSettings(fileRoot, variant);
 		}
 	
@@ -2859,7 +2819,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				return new JsonObject();
 			}
@@ -2868,16 +2828,16 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectHuskVariantKey(fileRoot, world);
-			if (selectedVariant.isBlank() || HUSK_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
+			String selectedVariant = selectHuskVariantKey(fileConfigRoot, world);
+			if (selectedVariant.isBlank()) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveHuskVariantRootByKey(fileRoot, selectedVariant);
+			JsonObject selected = resolveHuskVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
 		private static String selectHuskVariantKey(JsonObject fileRoot, ServerLevelAccessor world) {
-			double defaultWeight = Math.max(0.0D, resolveHuskVariantSpawnWeight(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), 100.0D));
+			double defaultWeight = Math.max(0.0D, resolveHuskVariantSpawnWeight(EntityConfigManager.resolvePrimaryVariantOnly(fileRoot), 100.0D));
 			List<HuskVariantWeight> weightedVariants = new java.util.ArrayList<>();
 			double total = defaultWeight;
 			for (Map.Entry<String, JsonObject> entry : collectHuskVariantRoots(fileRoot).entrySet()) {
@@ -2889,11 +2849,11 @@ public final class EntityBehaviorsManager {
 				weightedVariants.add(new HuskVariantWeight(entry.getKey(), weight));
 			}
 			if (total <= 0.0D || world == null) {
-				return HUSK_VARIANT_DEFAULT_KEY;
+				return "";
 			}
 			double roll = world.getRandom().nextDouble() * total;
 			if (roll < defaultWeight) {
-				return HUSK_VARIANT_DEFAULT_KEY;
+				return "";
 			}
 			roll -= defaultWeight;
 			for (HuskVariantWeight variant : weightedVariants) {
@@ -2902,7 +2862,7 @@ public final class EntityBehaviorsManager {
 				}
 				roll -= variant.weight();
 			}
-			return HUSK_VARIANT_DEFAULT_KEY;
+			return "";
 		}
 	
 		private static double resolveHuskVariantSpawnWeight(JsonObject variantRoot, double fallback) {
@@ -2910,47 +2870,18 @@ public final class EntityBehaviorsManager {
 		}
 	
 		private static Map<String, JsonObject> collectHuskVariantRoots(JsonObject fileRoot) {
-			Map<String, JsonObject> variants = new java.util.LinkedHashMap<>();
-			if (fileRoot == null) {
-				return variants;
-			}
-			for (Map.Entry<String, JsonElement> entry : fileRoot.entrySet()) {
-				if (entry.getKey() == null || entry.getValue() == null || !entry.getValue().isJsonObject()) {
-					continue;
-				}
-				if (isHuskConfigRootKey(entry.getKey())) {
-					continue;
-				}
-				variants.put(normalizeKey(entry.getKey()), entry.getValue().getAsJsonObject());
+			Map<String, JsonObject> variants = new java.util.LinkedHashMap<>(EntityConfigManager.collectTopLevelVariantRoots(fileRoot));
+			if (!variants.isEmpty()) {
+				variants.remove(variants.keySet().iterator().next());
 			}
 			return variants;
-		}
-	
-		private static boolean isHuskConfigRootKey(String key) {
-			String normalizedKey = normalizeKey(key);
-			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_ENABLED))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_COMPONENTS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_BEHAVIORS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
 		}
 	
 		private static JsonObject resolveHuskVariantRootByKey(JsonObject fileRoot, String variantKey) {
 			if (fileRoot == null || variantKey == null || variantKey.isBlank()) {
 				return new JsonObject();
 			}
-			JsonObject variant = collectHuskVariantRoots(fileRoot).get(normalizeKey(variantKey));
-			return variant == null ? new JsonObject() : variant;
-		}
-	
-		private static double readSpawnWeight(JsonObject root, double fallback) {
-			JsonObject spawnRules = readObject(root, MobConfigManager.FIELD_SPAWN_RULES);
-			return readDouble(spawnRules, MobConfigManager.FIELD_SPAWN_WEIGHT, fallback);
+			return EntityConfigManager.resolveTopLevelVariant(fileRoot, variantKey);
 		}
 	
 		private static void applyWeaponDamagePolicy(Husk husk, JsonObject resolvedRoot) {
@@ -3106,10 +3037,6 @@ public final class EntityBehaviorsManager {
 			return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 		}
 	
-		private static String normalizeKey(String value) {
-			return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-		}
-	
 		private static String fileKeyForType(EntityType<?> type) {
 			return type == madoku.craft.entity.MadokuEntityTypes.HUSK ? MobConfigManager.FILE_HUSK : "";
 		}
@@ -3151,7 +3078,6 @@ public final class EntityBehaviorsManager {
 		private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
 		private static final int DEFAULT_CHARGE_UP_TICKS = 10;
 		private static final String PARCHED_VARIANT_TAG_PREFIX = "madoku-craft.parched.variant:";
-		private static final String PARCHED_VARIANT_DEFAULT_KEY = "default";
 	
 		private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
 		private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
@@ -3380,7 +3306,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearVariantTag(skeleton);
 				return new JsonObject();
@@ -3388,10 +3314,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredVariantKey(skeleton);
 			if (!storedVariant.isBlank()) {
-				if (PARCHED_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -3402,15 +3325,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectVariantKey(fileRoot, world);
+			String selectedVariant = selectVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = PARCHED_VARIANT_DEFAULT_KEY;
-			}
-			writeVariantTag(skeleton, selectedVariant);
-			if (PARCHED_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveVariantRootByKey(fileRoot, selectedVariant);
+			writeVariantTag(skeleton, selectedVariant);
+			JsonObject selected = resolveVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -3418,8 +3338,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				PARCHED_VARIANT_DEFAULT_KEY,
 				ParchedBehavior::isReservedParchedGroupKey,
 				variantRoot -> MobEntityManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -3429,7 +3347,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				ParchedBehavior::isReservedParchedGroupKey
 			);
 		}
@@ -3446,8 +3363,7 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
+				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
 		}
 	
 		private static String readStoredVariantKey(AbstractSkeleton skeleton) {
@@ -3750,11 +3666,12 @@ public final class EntityBehaviorsManager {
 				skeleton.level().getDifficulty(),
 				isHardcoreWorld(skeleton.level())
 			);
-			return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+			return rangedDamage;
 		}
 	
 		private static double resolveScaledRangedDamage(AbstractSkeleton skeleton, double base, Difficulty difficulty, boolean hardcore) {
-			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, base);
+			double regional = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, base);
+			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, regional);
 		}
 	
 		private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -3931,7 +3848,6 @@ public final class EntityBehaviorsManager {
 		private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
 		private static final int DEFAULT_CHARGE_UP_TICKS = 10;
 		private static final String SKELETON_VARIANT_TAG_PREFIX = "madoku-craft.skeleton.variant:";
-		private static final String SKELETON_VARIANT_DEFAULT_KEY = "default";
 	
 		private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
 		private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
@@ -4265,7 +4181,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearSkeletonVariantTag(skeleton);
 				return new JsonObject();
@@ -4273,10 +4189,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredSkeletonVariantKey(skeleton);
 			if (!storedVariant.isBlank()) {
-				if (SKELETON_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveSkeletonVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveSkeletonVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -4287,15 +4200,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectSkeletonVariantKey(fileRoot, world);
+			String selectedVariant = selectSkeletonVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = SKELETON_VARIANT_DEFAULT_KEY;
-			}
-			writeSkeletonVariantTag(skeleton, selectedVariant);
-			if (SKELETON_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveSkeletonVariantRootByKey(fileRoot, selectedVariant);
+			writeSkeletonVariantTag(skeleton, selectedVariant);
+			JsonObject selected = resolveSkeletonVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -4303,7 +4213,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				SkeletonBehavior::isReservedSkeletonGroupKey
 			);
 		}
@@ -4312,8 +4221,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				SKELETON_VARIANT_DEFAULT_KEY,
 				SkeletonBehavior::isReservedSkeletonGroupKey,
 				variantRoot -> MobEntityManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -4331,8 +4238,7 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
+				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
 		}
 	
 		private static boolean applyConfiguredSkeletonVariantOutcome(
@@ -4579,11 +4485,12 @@ public final class EntityBehaviorsManager {
 				skeleton.level().getDifficulty(),
 				isHardcoreWorld(skeleton.level())
 			);
-			return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+			return rangedDamage;
 		}
 	
 		private static double resolveScaledRangedDamage(AbstractSkeleton skeleton, double base, Difficulty difficulty, boolean hardcore) {
-			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, base);
+			double regional = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, base);
+			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, regional);
 		}
 	
 		private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -4682,7 +4589,6 @@ public final class EntityBehaviorsManager {
 	}
 
 	public static final class SpiderBehavior {
-		private static final String SPIDER_VARIANT_DEFAULT_KEY = MobConfigManager.FIELD_DEFAULT_GROUP;
 		private static final String SPIDER_VARIANT_TAG_PREFIX = "madoku-craft.spider.variant:";
 	
 		private SpiderBehavior() {
@@ -4718,7 +4624,7 @@ public final class EntityBehaviorsManager {
 				return false;
 			}
 	
-			JsonObject defaultGroup = readObject(spiderRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearSpiderVariantTag(spider);
 				return false;
@@ -4726,10 +4632,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredSpiderVariantKey(spider);
 			if (!storedVariant.isBlank()) {
-				if (normalizeKey(storedVariant).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
-					return false;
-				}
-				JsonObject storedVariantRoot = resolveSpiderVariantRootByKey(spiderRoot, storedVariant);
+			JsonObject storedVariantRoot = resolveSpiderVariantRootByKey(fileRoot, storedVariant);
 				if (storedVariantRoot.entrySet().isEmpty()) {
 					return false;
 				}
@@ -4737,16 +4640,13 @@ public final class EntityBehaviorsManager {
 				return applyConfiguredSpiderVariantOutcome(spider, world, difficulty, spawnReason, effectiveStoredVariantRoot);
 			}
 	
-			String selectedVariant = selectSpiderVariantKey(spiderRoot, world);
+			String selectedVariant = selectSpiderVariantKey(fileRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = SPIDER_VARIANT_DEFAULT_KEY;
-			}
-			writeSpiderVariantTag(spider, selectedVariant);
-			if (normalizeKey(selectedVariant).equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))) {
 				return false;
 			}
+			writeSpiderVariantTag(spider, selectedVariant);
 			clearExistingSkeletonPassengers(spider);
-			JsonObject variantRoot = resolveSpiderVariantRootByKey(spiderRoot, selectedVariant);
+			JsonObject variantRoot = resolveSpiderVariantRootByKey(fileRoot, selectedVariant);
 			if (variantRoot.entrySet().isEmpty()) {
 				return false;
 			}
@@ -4789,8 +4689,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				spiderRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				SPIDER_VARIANT_DEFAULT_KEY,
 				SpiderBehavior::isReservedSpiderGroupKey,
 				variantRoot -> readSpawnWeight(variantRoot, 0.0D)
 			);
@@ -4867,7 +4765,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_COMPONENTS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_SPAWN_RULES))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_BEHAVIORS))
@@ -4881,7 +4778,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				spiderRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				SpiderBehavior::isReservedSpiderGroupKey
 			);
 		}
@@ -4899,7 +4795,7 @@ public final class EntityBehaviorsManager {
 			if (fileRoot == null || fileKey == null || fileKey.isBlank()) {
 				return new JsonObject();
 			}
-			return EntityConfigManager.resolveDefaultVariant(fileRoot);
+			return EntityConfigManager.resolvePrimaryVariant(fileRoot);
 		}
 	
 		private static JsonObject readObject(JsonObject parent, String key) {
@@ -4928,7 +4824,6 @@ public final class EntityBehaviorsManager {
 		private static final int DEFAULT_ATTACK_INTERVAL_TICKS = 20;
 		private static final int DEFAULT_CHARGE_UP_TICKS = 10;
 		private static final String STRAY_VARIANT_TAG_PREFIX = "madoku-craft.stray.variant:";
-		private static final String STRAY_VARIANT_DEFAULT_KEY = "default";
 	
 		private static final Map<UUID, PendingRangedBowCharge> PENDING_RANGED_BOW_CHARGES = new ConcurrentHashMap<>();
 		private static final Map<UUID, Integer> RANGED_BOW_COOLDOWNS = new ConcurrentHashMap<>();
@@ -5157,7 +5052,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearVariantTag(skeleton);
 				return new JsonObject();
@@ -5165,10 +5060,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredVariantKey(skeleton);
 			if (!storedVariant.isBlank()) {
-				if (STRAY_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -5179,15 +5071,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectVariantKey(fileRoot, world);
+			String selectedVariant = selectVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = STRAY_VARIANT_DEFAULT_KEY;
-			}
-			writeVariantTag(skeleton, selectedVariant);
-			if (STRAY_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveVariantRootByKey(fileRoot, selectedVariant);
+			writeVariantTag(skeleton, selectedVariant);
+			JsonObject selected = resolveVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -5195,8 +5084,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				STRAY_VARIANT_DEFAULT_KEY,
 				StrayBehavior::isReservedStrayGroupKey,
 				variantRoot -> MobEntityManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -5206,7 +5093,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				StrayBehavior::isReservedStrayGroupKey
 			);
 		}
@@ -5223,8 +5109,7 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
+				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
 		}
 	
 		private static String readStoredVariantKey(AbstractSkeleton skeleton) {
@@ -5527,11 +5412,12 @@ public final class EntityBehaviorsManager {
 				skeleton.level().getDifficulty(),
 				isHardcoreWorld(skeleton.level())
 			);
-			return MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, rangedDamage);
+			return rangedDamage;
 		}
 	
 		private static double resolveScaledRangedDamage(AbstractSkeleton skeleton, double base, Difficulty difficulty, boolean hardcore) {
-			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, base);
+			double regional = MobRegionalDifficultyManager.resolveMobRangedDamageScaling(skeleton, base);
+			return MobEntityManager.resolveWorldDifficultyValueForRuntime(skeleton, MobConfigManager.FIELD_RANGED_DAMAGE, regional);
 		}
 	
 		private static double resolveScaledAttackAccuracy(double base, Difficulty difficulty, boolean hardcore) {
@@ -5707,7 +5593,6 @@ public final class EntityBehaviorsManager {
 	public static final class WitherSkeletonBehavior {
 		private static final int DEFAULT_WITHER_EFFECT_DURATION_TICKS = 5 * 20;
 		private static final String WITHER_SKELETON_VARIANT_TAG_PREFIX = "madoku-craft.wither-skeleton.variant:";
-		private static final String WITHER_SKELETON_VARIANT_DEFAULT_KEY = "default";
 	
 		private WitherSkeletonBehavior() {
 		}
@@ -5820,7 +5705,7 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearWitherSkeletonVariantTag(skeleton);
 				return new JsonObject();
@@ -5828,10 +5713,7 @@ public final class EntityBehaviorsManager {
 	
 			String storedVariant = readStoredWitherSkeletonVariantKey(skeleton);
 			if (!storedVariant.isBlank()) {
-				if (WITHER_SKELETON_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveWitherSkeletonVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveWitherSkeletonVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -5842,15 +5724,12 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectWitherSkeletonVariantKey(fileRoot, world);
+			String selectedVariant = selectWitherSkeletonVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = WITHER_SKELETON_VARIANT_DEFAULT_KEY;
-			}
-			writeWitherSkeletonVariantTag(skeleton, selectedVariant);
-			if (WITHER_SKELETON_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveWitherSkeletonVariantRootByKey(fileRoot, selectedVariant);
+			writeWitherSkeletonVariantTag(skeleton, selectedVariant);
+			JsonObject selected = resolveWitherSkeletonVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
 		}
 	
@@ -5858,7 +5737,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				WitherSkeletonBehavior::isReservedWitherSkeletonGroupKey
 			);
 		}
@@ -5867,8 +5745,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				WITHER_SKELETON_VARIANT_DEFAULT_KEY,
 				WitherSkeletonBehavior::isReservedWitherSkeletonGroupKey,
 				variantRoot -> MobEntityManager.resolveVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -5886,8 +5762,7 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
+				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW));
 		}
 	
 		public static boolean applyWitherSkeletonHitEffect(LivingEntity target, Entity attacker) {
@@ -6054,7 +5929,6 @@ public final class EntityBehaviorsManager {
 
 	public static final class ZombieBehavior {
 		private static final String ZOMBIE_VARIANT_TAG_PREFIX = "madoku-craft.zombie.variant:";
-		private static final String ZOMBIE_VARIANT_DEFAULT_KEY = "default";
 	
 		private ZombieBehavior() {
 		}
@@ -6083,25 +5957,17 @@ public final class EntityBehaviorsManager {
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveZombieRootForRuntime(zombie.getType());
 			JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, world, true);
-			JsonObject adult = MobEntityManager.resolveAgeVariantRoot(variantGroup, false);
-			JsonObject baby = MobEntityManager.resolveAgeVariantRoot(variantGroup, true);
 			boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-	
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(
+				variantGroup,
+				zombie,
+				overrideSpawnRules ? world.getRandom() : null,
+				overrideSpawnRules
+			);
 			if (overrideSpawnRules) {
-				boolean shouldBeBaby = false;
-				double babyChance = MobEntityManager.resolveAgeVariantChanceForRuntime(
-						MobEntityManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 95.0D),
-						MobEntityManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 5.0D),
-						difficulty,
-						zombie
-				);
-				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
-				zombie.setBaby(shouldBeBaby);
 				clearVanillaZombieJockeyMount(zombie);
 			}
-	
-			JsonObject variant = zombie.isBaby() ? baby : adult;
 			variant = mergeZombieFileSettings(fileRoot, variant);
 			if (overrideSpawnRules && applyConfiguredZombieAlternativeMobReplacement(zombie, variant, spawnReason)) {
 				return;
@@ -6139,7 +6005,7 @@ public final class EntityBehaviorsManager {
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveZombieRootForRuntime(zombie.getType());
 			JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(variantGroup, zombie, null, false);
 			variant = mergeZombieFileSettings(fileRoot, variant);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 			boolean modified = overrideStats && MobEntityManager.applyUniversalBaseStatsForRuntime(zombie, variant);
@@ -6188,7 +6054,7 @@ public final class EntityBehaviorsManager {
 			}
 			JsonObject fileRoot = MobEntityManager.resolveZombieRootForRuntime(zombie.getType());
 			JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(variantGroup, zombie, null, false);
 			return mergeZombieFileSettings(fileRoot, variant);
 		}
 	
@@ -6386,17 +6252,14 @@ public final class EntityBehaviorsManager {
 			ServerLevelAccessor world,
 			boolean spawnContext
 		) {
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				clearZombieVariantTag(zombie);
 				return new JsonObject();
 			}
 			String storedVariant = readStoredZombieVariantKey(zombie);
 			if (!storedVariant.isBlank()) {
-				if (ZOMBIE_VARIANT_DEFAULT_KEY.equals(storedVariant)) {
-					return defaultGroup;
-				}
-				JsonObject known = resolveZombieVariantRootByKey(fileRoot, storedVariant);
+				JsonObject known = resolveZombieVariantRootByKey(fileConfigRoot, storedVariant);
 				if (!known.entrySet().isEmpty()) {
 					return MobEntityManager.resolveVariantGroupRoot(defaultGroup, known);
 				}
@@ -6407,21 +6270,13 @@ public final class EntityBehaviorsManager {
 				return defaultGroup;
 			}
 	
-			String selectedVariant = selectZombieVariantKey(fileRoot, world);
+			String selectedVariant = selectZombieVariantKey(fileConfigRoot, world);
 			if (selectedVariant.isBlank()) {
-				selectedVariant = ZOMBIE_VARIANT_DEFAULT_KEY;
-			}
-			writeZombieVariantTag(zombie, selectedVariant);
-			if (ZOMBIE_VARIANT_DEFAULT_KEY.equals(selectedVariant)) {
 				return defaultGroup;
 			}
-			JsonObject selected = resolveZombieVariantRootByKey(fileRoot, selectedVariant);
+			writeZombieVariantTag(zombie, selectedVariant);
+			JsonObject selected = resolveZombieVariantRootByKey(fileConfigRoot, selectedVariant);
 			return selected.entrySet().isEmpty() ? defaultGroup : MobEntityManager.resolveVariantGroupRoot(defaultGroup, selected);
-		}
-	
-		@SuppressWarnings("unused")
-		private static JsonObject resolveAgeVariantRoot(JsonObject variantGroupRoot, boolean baby) {
-			return MobEntityManager.resolveAgeVariantRoot(variantGroupRoot, baby);
 		}
 	
 		private static JsonObject mergeZombieFileSettings(JsonObject fileRoot, JsonObject variantRoot) {
@@ -6449,8 +6304,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.selectWeightedVariantKey(
 				fileRoot,
 				world == null ? null : world.getRandom(),
-				MobConfigManager.FIELD_DEFAULT_GROUP,
-				ZOMBIE_VARIANT_DEFAULT_KEY,
 				ZombieBehavior::isReservedZombieGroupKey,
 				variantRoot -> resolveZombieVariantSpawnWeight(variantRoot, 0.0D)
 			);
@@ -6464,8 +6317,7 @@ public final class EntityBehaviorsManager {
 			if (normalizedKey == null || normalizedKey.isBlank()) {
 				return true;
 			}
-			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
+			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
@@ -6475,7 +6327,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveVariantRootByKey(
 				fileRoot,
 				variantKey,
-				MobConfigManager.FIELD_DEFAULT_GROUP,
 				ZombieBehavior::isReservedZombieGroupKey
 			);
 		}
@@ -6678,29 +6529,19 @@ public final class EntityBehaviorsManager {
 	
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
 			if (defaultGroup.entrySet().isEmpty()) {
 				return;
 			}
 	
-			JsonObject adult = MobEntityManager.resolveAgeVariantRoot(defaultGroup, false);
-			JsonObject baby = MobEntityManager.resolveAgeVariantRoot(defaultGroup, true);
 			boolean overrideSpawnRules = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_SPAWN_RULES, true);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-	
-			if (overrideSpawnRules) {
-				boolean shouldBeBaby = false;
-				double babyChance = MobEntityManager.resolveAgeVariantChanceForRuntime(
-						MobEntityManager.readSpawnRuleDoubleForRuntime(adult, MobConfigManager.FIELD_SPAWN_WEIGHT, 90.0D),
-						MobEntityManager.readSpawnRuleDoubleForRuntime(baby, MobConfigManager.FIELD_SPAWN_WEIGHT, 10.0D),
-						difficulty,
-						zombieVillager
-				);
-				shouldBeBaby = world.getRandom().nextFloat() < babyChance;
-				zombieVillager.setBaby(shouldBeBaby);
-			}
-	
-			JsonObject variant = zombieVillager.isBaby() ? baby : adult;
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(
+				defaultGroup,
+				zombieVillager,
+				overrideSpawnRules ? world.getRandom() : null,
+				overrideSpawnRules
+			);
 			variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 			if (overrideSpawnRules) {
 				applySpawnEquipmentSetLoadout(zombieVillager, variant, world.getRandom());
@@ -6723,8 +6564,8 @@ public final class EntityBehaviorsManager {
 	
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			JsonObject fileRoot = MobEntityManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+			JsonObject defaultGroup = EntityConfigManager.resolvePrimaryVariantOnly(fileConfigRoot);
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(defaultGroup, zombieVillager, null, false);
 			variant = mergeZombieVillagerFileSettings(fileRoot, variant);
 	
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
@@ -6766,8 +6607,7 @@ public final class EntityBehaviorsManager {
 				return new JsonObject();
 			}
 			JsonObject fileRoot = MobEntityManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
+			JsonObject variant = MobEntityManager.resolveNestedVariantForRuntime(fileRoot, zombieVillager, null, false);
 			return mergeZombieVillagerFileSettings(fileRoot, variant);
 		}
 	

@@ -339,8 +339,7 @@ public final class MobRegionalDifficultyManager {
 		StatModes modes = resolvedIncrements.modes();
 		double sanitizedBase = Math.max(0.0D, baseExplosionPower);
 		double powerAddition = resolveScaledAddition(sanitizedBase, increments.explosionPower(), modes.explosionPowerMode(), totalAdjustment);
-		double resolved = roundDifficultyScaleValue(sanitizedBase, powerAddition);
-		return resolved;
+		return powerAddition;
 	}
 
 	public static double resolveMobRangedDamageScaling(Mob mob, double baseDamage) {
@@ -359,9 +358,7 @@ public final class MobRegionalDifficultyManager {
 		StatIncrements increments = resolvedIncrements.increments();
 		StatModes modes = resolvedIncrements.modes();
 		double addition = resolveScaledAddition(sanitizedBase, increments.rangedDamage(), modes.rangedDamageMode(), totalAdjustment);
-		double resolved = Math.max(0.0D, sanitizedBase + addition);
-		double rounded = roundDifficultyScaleValue(sanitizedBase, resolved);
-		return rounded;
+		return Math.max(0.0D, sanitizedBase + addition);
 	}
 
 	public static double resolveMobAttackAccuracyScaling(Mob mob, double baseAccuracy) {
@@ -381,8 +378,7 @@ public final class MobRegionalDifficultyManager {
 		StatModes modes = resolvedIncrements.modes();
 		double addition = resolveScaledAddition(sanitizedBase, increments.attackAccuracy(), modes.attackAccuracyMode(), totalAdjustment);
 		double resolved = sanitizedBase + addition;
-		double clamped = Mth.clamp(roundDifficultyScaleValue(sanitizedBase, resolved), 0.0D, 1.0D);
-		return clamped;
+		return Mth.clamp(MobConfigManager.roundDifficultyScaleValue(resolved), 0.0D, 1.0D);
 	}
 
 	private static void loadConfig() {
@@ -895,7 +891,6 @@ public final class MobRegionalDifficultyManager {
 			double maxHealth = mob.getAttributeValue(Attributes.MAX_HEALTH);
 			mob.setHealth((float) maxHealth);
 		}
-
 		return new ScalingApplication(
 			increments,
 			healthAddition,
@@ -1018,7 +1013,7 @@ public final class MobRegionalDifficultyManager {
 			case PERCENTAGE -> safeBase * (safeConfigured * totalAdjustment);
 			case ADD -> safeConfigured * totalAdjustment;
 		};
-		return roundDifficultyScaleValue(safeBase, addition);
+		return addition;
 	}
 
 	private static int applyExperienceDropScaling(Mob mob, int baseExperienceDrop, int experienceDropAddition) {
@@ -1039,16 +1034,29 @@ public final class MobRegionalDifficultyManager {
 		return Math.max(0, accessor.madokuCraft$getXpReward());
 	}
 
-	private static double roundDifficultyScaleValue(double originalValue, double value) {
-		if (!Double.isFinite(value)) {
-			return value;
+	static void roundFinalScalingValues(Mob mob) {
+		if (mob == null) {
+			return;
 		}
-		double step = isWholeNumber(originalValue) ? 0.05D : 0.005D;
-		return Math.round(value / step) * step;
+		roundAttribute(mob, Attributes.MAX_HEALTH);
+		roundAttribute(mob, Attributes.ARMOR);
+		roundAttribute(mob, Attributes.ATTACK_DAMAGE);
+		roundAttribute(mob, Attributes.MOVEMENT_SPEED);
+		roundAttribute(mob, Attributes.FLYING_SPEED);
+		roundAttribute(mob, Attributes.WATER_MOVEMENT_EFFICIENCY);
+		roundAttribute(mob, Attributes.SCALE);
+		roundAttribute(mob, Attributes.KNOCKBACK_RESISTANCE);
+		if (mob instanceof MobExperienceAccessor accessor) {
+			accessor.madokuCraft$setXpReward(Math.max(0, (int) Math.round(accessor.madokuCraft$getXpReward())));
+		}
+		mob.setHealth(Math.min(mob.getHealth(), mob.getMaxHealth()));
 	}
 
-	private static boolean isWholeNumber(double value) {
-		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
+	private static void roundAttribute(Mob mob, Holder<Attribute> attribute) {
+		AttributeInstance instance = mob.getAttribute(attribute);
+		if (instance != null) {
+			instance.setBaseValue(MobConfigManager.roundDifficultyScaleValue(instance.getBaseValue()));
+		}
 	}
 
 	private static Identifier normalizeIdentifier(String rawValue) {
@@ -1383,8 +1391,4 @@ public final class MobRegionalDifficultyManager {
 		}
 	}
 	}
-
-
-
-
 

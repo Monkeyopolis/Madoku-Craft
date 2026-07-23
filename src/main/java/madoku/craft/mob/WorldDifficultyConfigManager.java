@@ -54,14 +54,16 @@ public final class WorldDifficultyConfigManager {
 	}
 
 	public static double resolveAddition(String attribute, double baseValue, int difficultyLevel) {
-		if (!enabled || attribute == null || difficultyLevel <= 0) return 0.0D;
+		if (!enabled || attribute == null || difficultyLevel == 0) return 0.0D;
 		ScalingRule rule = RULES.get(attribute);
 		if (rule == null) return 0.0D;
-		return switch (rule.type()) {
+		double safeBase = Math.max(0.0D, baseValue);
+		double addition = switch (rule.type()) {
 			case MobConfigManager.TYPE_FLAT -> rule.value() * difficultyLevel;
-			case MobConfigManager.TYPE_PERCENTAGE -> Math.max(0.0D, baseValue) * (rule.value() * difficultyLevel);
+			case MobConfigManager.TYPE_PERCENTAGE -> safeBase * (rule.value() * difficultyLevel);
 			default -> 0.0D;
 		};
+		return addition;
 	}
 
 	private static JsonObject readObject(JsonObject root, String key) {

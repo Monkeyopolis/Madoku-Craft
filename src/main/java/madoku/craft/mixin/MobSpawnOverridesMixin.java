@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin({
+@Mixin(value = {
 	Mob.class,
 	Zombie.class,
 	ZombieVillager.class,
@@ -25,22 +25,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 	Husk.class,
 	AbstractSkeleton.class,
 	Spider.class
-})
+}, priority = 1100)
 public abstract class MobSpawnOverridesMixin {
-	@Inject(method = "finalizeSpawn", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$applySpawnOverridesBeforeVanilla(
-		ServerLevelAccessor world,
-		DifficultyInstance difficulty,
-		EntitySpawnReason spawnReason,
-		SpawnGroupData spawnGroupData,
-		CallbackInfoReturnable<SpawnGroupData> cir
-	) {
-		Mob mob = (Mob) (Object) this;
-		if (MobEntityManager.applyMobSpawnOverridesBeforeVanilla(mob, world, difficulty, spawnReason)) {
-			cir.setReturnValue(spawnGroupData);
-		}
-	}
-
 	@Inject(method = "finalizeSpawn", at = @At("TAIL"))
 	private void madokuCraft$applySpawnOverridesAfterVanilla(
 		ServerLevelAccessor world,

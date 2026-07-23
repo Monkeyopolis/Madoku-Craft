@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
@@ -112,6 +113,9 @@ public final class EntityComponentsManager {
 		if (resolvedExperienceDrop != baseExperienceDrop) {
 			MobEntityManager.applyExperienceDropForRuntime(entity, resolvedExperienceDrop);
 			changed = true;
+		}
+		if (entity instanceof Mob mob) {
+			MobRegionalDifficultyManager.roundFinalScalingValues(mob);
 		}
 		if (entity instanceof MobEntityManager.DifficultyState state) {
 			state.madokuCraft$setWorldDifficultyScalingApplied(true);

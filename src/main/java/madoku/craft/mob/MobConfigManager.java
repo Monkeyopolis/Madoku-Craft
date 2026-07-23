@@ -1,5 +1,6 @@
 package madoku.craft.mob;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.api.json.JSONFormatManager;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public final class MobConfigManager {
+	private static final String INTERNAL_NESTED_VARIANT_MARKER = "__madoku_nested_variant";
 	public static final String CONFIG_ROOT = "madoku-craft";
 	public static final String MOBS_SYSTEM_FOLDER = "madoku-craft-mobs";
 	public static final String ENTITIES_SYSTEM_FOLDER = "madoku-entities";
@@ -112,7 +114,6 @@ public final class MobConfigManager {
 	public static final String FIELD_MOB = "mob";
 	public static final String FIELD_OVERRIDE_SPAWN_RULES = "override-spawn-rules";
 	public static final String FIELD_OVERRIDE_GOALS = "override-goals";
-	public static final String FIELD_DEFAULT_GROUP = "default";
 	public static final String FIELD_BABY_GROUP = "baby";
 	public static final String FIELD_ADULT_GROUP = "adult";
 	public static final String FIELD_PARTIAL_SET = "partial-set";
@@ -369,7 +370,11 @@ public final class MobConfigManager {
 			FILE_WITHER_SKELETON, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key)) {
 			entityVariant.getAsJsonObject(FIELD_MOB_COMPONENTS).addProperty(FIELD_WEAPON_DAMAGE, false);
 		}
-		addMobBabyComponent(entityVariant, List.of(FILE_BEE, FILE_DROWNED, FILE_HUSK, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key));
+		JsonObject entityRoot = new JsonObject();
+		entityRoot.addProperty(FIELD_CUSTOM_MOB_DROPS, true);
+		entityRoot.addProperty(FIELD_WORLD_DIFFICULTY_SCALING, true);
+		entityRoot.addProperty(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, true);
+		addSiblingVariants(entityRoot, key, entityVariant);
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_OVERRIDE_SPAWN_RULES, true)
@@ -377,12 +382,116 @@ public final class MobConfigManager {
 			.put(FIELD_OVERRIDE_BEHAVIORS, true)
 			.put(FIELD_OVERRIDE_GOALS, true)
 			.put(FIELD_MOB_ID, mobId)
-			.object(FIELD_ENTITY, entity -> entity
-				.put(FIELD_CUSTOM_MOB_DROPS, true)
-				.put(FIELD_WORLD_DIFFICULTY_SCALING, true)
-				.put(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, true)
-				.put(key, entityVariant))
+			.put(FIELD_ENTITY, entityRoot)
 			.build();
+	}
+
+	private static void addSiblingVariants(JsonObject entityRoot, String primaryKey, JsonObject primaryVariant) {
+		if (entityRoot == null || primaryKey == null || primaryVariant == null) {
+			return;
+		}
+		JsonObject primary = primaryVariant.deepCopy();
+		JsonObject shared = primaryVariant.deepCopy();
+		for (String key : List.copyOf(primary.keySet())) {
+			JsonElement value = primary.get(key);
+			if (value != null && value.isJsonObject() && EntityConfigManager.isVariantKey(key)) {
+				if (!isNestedVariantEntry(value)) {
+					primary.remove(key);
+				}
+				shared.remove(key);
+			}
+		}
+		entityRoot.add(primaryKey, primary);
+		for (Map.Entry<String, JsonElement> entry : primaryVariant.entrySet()) {
+			String key = entry.getKey();
+			JsonElement value = entry.getValue();
+			if (value == null || !value.isJsonObject() || !EntityConfigManager.isVariantKey(key)
+				|| isNestedVariantEntry(value)) {
+				continue;
+			}
+			JsonObject sibling = value.getAsJsonObject();
+			JsonObject resolvedSibling = isSpawnAlternativeVariant(sibling)
+				? sibling.deepCopy()
+				: mergeVariantEntries(shared, sibling);
+			stripInternalNestedVariantMarkers(resolvedSibling);
+			entityRoot.add(key, resolvedSibling);
+		}
+		stripInternalNestedVariantMarkers(primary);
+		entityRoot.remove(primaryKey);
+		entityRoot.add(primaryKey, primary);
+	}
+
+	private static boolean isSpawnAlternativeVariant(JsonObject variant) {
+		if (variant == null) {
+			return false;
+		}
+		JsonElement spawnRulesElement = variant.get(FIELD_SPAWN_RULES);
+		if (spawnRulesElement == null || !spawnRulesElement.isJsonObject()) {
+			return false;
+		}
+		JsonElement alternativeElement = spawnRulesElement.getAsJsonObject().get(FIELD_SPAWN_ALTERNATIVE_MOB);
+		if (alternativeElement == null || !alternativeElement.isJsonObject()) {
+			return false;
+		}
+		return true;
+	}
+
+	private static JsonObject buildSpawnAlternativeVariant(JsonObject spawnRules) {
+		JsonObject variant = new JsonObject();
+		variant.add(FIELD_SPAWN_RULES, spawnRules == null ? new JsonObject() : spawnRules);
+		return variant;
+	}
+
+	private static boolean isNestedVariantEntry(JsonElement value) {
+		return value != null && value.isJsonObject()
+			&& value.getAsJsonObject().has(INTERNAL_NESTED_VARIANT_MARKER);
+	}
+
+	private static void addNestedVariant(JsonObject parent, String key, JsonObject variant) {
+		if (parent == null || key == null || variant == null) {
+			return;
+		}
+		variant.addProperty(INTERNAL_NESTED_VARIANT_MARKER, true);
+		parent.add(key, variant);
+	}
+
+	private static void stripInternalNestedVariantMarkers(JsonObject root) {
+		if (root == null) {
+			return;
+		}
+		root.remove(INTERNAL_NESTED_VARIANT_MARKER);
+		for (JsonElement value : root.asMap().values()) {
+			if (value != null && value.isJsonObject()) {
+				stripInternalNestedVariantMarkers(value.getAsJsonObject());
+			}
+		}
+	}
+
+	private static JsonObject mergeVariantEntries(JsonObject shared, JsonObject variant) {
+		JsonObject merged = shared == null ? new JsonObject() : shared.deepCopy();
+		if (variant == null) {
+			return merged;
+		}
+		for (Map.Entry<String, JsonElement> entry : variant.entrySet()) {
+			JsonElement current = merged.get(entry.getKey());
+			if (current != null && current.isJsonObject() && entry.getValue().isJsonObject()) {
+				mergeVariantEntriesInto(current.getAsJsonObject(), entry.getValue().getAsJsonObject());
+			} else {
+				merged.add(entry.getKey(), entry.getValue().deepCopy());
+			}
+		}
+		return merged;
+	}
+
+	private static void mergeVariantEntriesInto(JsonObject target, JsonObject source) {
+		for (Map.Entry<String, JsonElement> entry : source.entrySet()) {
+			JsonElement current = target.get(entry.getKey());
+			if (current != null && current.isJsonObject() && entry.getValue().isJsonObject()) {
+				mergeVariantEntriesInto(current.getAsJsonObject(), entry.getValue().getAsJsonObject());
+			} else {
+				target.add(entry.getKey(), entry.getValue().deepCopy());
+			}
+		}
 	}
 
 	private static void addMobBabyComponent(JsonObject variant, boolean ageable) {
@@ -513,12 +622,12 @@ public final class MobConfigManager {
 			buildComponents(10.0D, null, 2.0D, 0.30D, null, 0.60D, null, 0.5D, null, null, null, null, null, "minecraft-entities-bee.json", null, "minecraft:poison", 60, null, null, null),
 			buildSpawnRules(100.0D), behavior, buildGoals("breed", "hurt-by-target", "become-angry-target")
 		);
-		variant.add("adult", buildVariant(buildComponents(null, null, null, null, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null), buildSpawnRules(80.0D), new JsonObject(), new JsonObject()));
+		addNestedVariant(variant, FIELD_ADULT_GROUP, buildVariant(buildComponents(null, null, null, null, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null), buildSpawnRules(80.0D), new JsonObject(), new JsonObject()));
 		JsonObject baby = buildVariant(
 			buildComponents(5.0D, null, null, 0.25D, null, 0.0D, null, 0.45D, 1, null, null, null, null, null, null, null, 0, null, null, null),
 			buildSpawnRules(20.0D), new JsonObject(), new JsonObject());
 		addMobBabyComponent(baby, true);
-		variant.add("baby", baby);
+		addNestedVariant(variant, FIELD_BABY_GROUP, baby);
 		return variant;
 	}
 
@@ -596,26 +705,26 @@ public final class MobConfigManager {
 			buildSpawnRules(90.0D, "minecraft-equipment-drowned.json"), buildBehavior(true, false, false, false),
 			buildGoals("hurt-by-target", "target-player")
 		);
-		melee.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		addNestedVariant(melee, FIELD_ADULT_GROUP, buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
 		JsonObject meleeBaby = buildVariant(
 			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, null, null, null, null, "minecraft-entities-drowned.json", null, null, 0, null, null, null),
 			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
 		addMobBabyComponent(meleeBaby, true);
-		melee.add("baby", meleeBaby);
+		addNestedVariant(melee, FIELD_BABY_GROUP, meleeBaby);
 		JsonObject ranged = buildVariant(
 			buildComponents(null, null, null, 0.24D, 0.012D, null, null, null, null, 9.0D, 0.8D, 30.0D, 15.0D,
 				"minecraft-entities-drowned.json", "minecraft:trident", null, 0, null, null, null),
 			buildSpawnRules(10.0D, "minecraft-equipment-drowned.json"), buildBehavior(true, false, true, false),
 			buildGoals("trident-attack", "hurt-by-target", "target-player")
 		);
-		ranged.add("adult", buildVariant(
+		addNestedVariant(ranged, FIELD_ADULT_GROUP, buildVariant(
 			buildComponents(20.0D, null, 5.0D, null, null, null, null, 1.0D, 7, null, null, null, null, null, null, null, 0, null, null, null),
 			buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
 		JsonObject rangedBaby = buildVariant(
 			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, 4.5D, null, null, null, null, null, null, 0, null, null, null),
 			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
 		addMobBabyComponent(rangedBaby, true);
-		ranged.add("baby", rangedBaby);
+		addNestedVariant(ranged, FIELD_BABY_GROUP, rangedBaby);
 		melee.add("ranged-drowned", ranged);
 		return melee;
 	}
@@ -627,12 +736,12 @@ public final class MobConfigManager {
 			buildSpawnRules(90.0D, "minecraft-equipment-husk.json"), buildBehavior(true, false, false, false),
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
-		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		addNestedVariant(variant, FIELD_ADULT_GROUP, buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
 		JsonObject baby = buildVariant(
 			buildComponents(14.0D, 1.0D, 3.5D, null, null, null, 0.2D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
 			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
 		addMobBabyComponent(baby, true);
-		variant.add("baby", baby);
+		addNestedVariant(variant, FIELD_BABY_GROUP, baby);
 		return variant;
 	}
 
@@ -662,7 +771,7 @@ public final class MobConfigManager {
 		alternative.addProperty(FIELD_MOB, "minecraft:cave_spider");
 		JsonObject caveSpiderRules = buildSpawnRules(10.0D);
 		caveSpiderRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
-		variant.add("cave-spider", buildVariant(new JsonObject(), caveSpiderRules, new JsonObject(), new JsonObject()));
+		variant.add("cave-spider", buildSpawnAlternativeVariant(caveSpiderRules));
 		variant.add("spider-jockey", buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, "minecraft:spider", "spider"), new JsonObject(), new JsonObject()));
 		return variant;
 	}
@@ -688,20 +797,29 @@ public final class MobConfigManager {
 			buildSpawnRules(80.0D, "minecraft-equipment-zombie.json"), buildBehavior(false, false, false, false),
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
-		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		JsonObject baby = buildVariant(
-			buildComponents(12.0D, 0.0D, 3.0D, 0.21D, null, null, 0.0D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject());
-		addMobBabyComponent(baby, true);
-		variant.add("baby", baby);
-		variant.add("zombie-jockey", buildVariant(new JsonObject(), buildZombieJockeySpawnRules(), new JsonObject(), new JsonObject()));
+		addZombieAgeVariants(variant);
+		JsonObject zombieJockey = buildVariant(new JsonObject(), buildZombieJockeySpawnRules(), new JsonObject(), new JsonObject());
+		variant.add("zombie-jockey", zombieJockey);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
 		alternative.addProperty(FIELD_MOB, "minecraft:zombie_villager");
 		JsonObject villagerRules = buildSpawnRules(10.0D);
 		villagerRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
-		variant.add("zombie-villager", buildVariant(new JsonObject(), villagerRules, new JsonObject(), new JsonObject()));
+		JsonObject zombieVillager = buildSpawnAlternativeVariant(villagerRules);
+		variant.add("zombie-villager", zombieVillager);
 		return variant;
+	}
+
+	private static void addZombieAgeVariants(JsonObject variant) {
+		if (variant == null) {
+			return;
+		}
+		addNestedVariant(variant, FIELD_ADULT_GROUP, buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
+		JsonObject baby = buildVariant(
+			buildComponents(12.0D, 0.0D, 3.0D, 0.21D, null, null, 0.0D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
+			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject());
+		addMobBabyComponent(baby, true);
+		addNestedVariant(variant, FIELD_BABY_GROUP, baby);
 	}
 
 	private static JsonObject buildZombieJockeySpawnRules() {
