@@ -72,6 +72,8 @@
     "MobPetSoundMixin",
     "MobTargetSelectorAccessor",
     "MobSpawnOverridesMixin",
+    "VanillaSpiderJockeyMixin",
+    "VanillaZombieJockeyMixin",
     "ServerLevelMobReplacementMixin",
     "PlayerEatGateMixin",
     "PlayerEntitiesInventoryMixin",

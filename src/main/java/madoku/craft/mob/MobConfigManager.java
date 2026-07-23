@@ -777,15 +777,16 @@ public final class MobConfigManager {
 
 	private static JsonObject buildWitherSkeletonVariantDefaults() {
 		JsonObject variant = buildVariant(
-			buildComponents(20.0D, null, 7.0D, 0.25D, null, null, null, 1.0D, 11, 6.0D, 0.7D, 20.0D, 10.0D,
-				"minecraft-entities-wither-skeleton.json", "minecraft:bow", "minecraft:wither", 15, null, null, null),
-			buildSpawnRules(90.0D, "minecraft-equipment-wither-skeleton.json"), buildBehavior(false, true, false, false),
-			buildGoals("hurt-by-target", "target-player", "ranged-attack")
-		);
-		variant.add("melee-wither-skeleton", buildVariant(
 			buildComponents(20.0D, null, 7.0D, 0.25D, null, null, null, 1.0D, 11, null, null, null, null,
 				"minecraft-entities-wither-skeleton.json", "minecraft:netherite_sword", "minecraft:wither", 15, null, null, null),
-			buildSpawnRules(10.0D, "minecraft-equipment-wither-skeleton.json"), new JsonObject(), buildGoals("hurt-by-target", "target-player", "melee-attack")));
+			buildSpawnRules(90.0D, "minecraft-equipment-wither-skeleton.json"), new JsonObject(),
+			buildGoals("hurt-by-target", "target-player", "melee-attack")
+		);
+		variant.add("ranged-wither-skeleton", buildVariant(
+			buildComponents(20.0D, null, 7.0D, 0.25D, null, null, null, 1.0D, 11, 6.0D, 0.7D, 20.0D, 10.0D,
+				"minecraft-entities-wither-skeleton.json", "minecraft:bow", "minecraft:wither", 15, null, null, null),
+			buildSpawnRules(10.0D, "minecraft-equipment-wither-skeleton.json"), buildBehavior(false, true, false, false),
+			buildGoals("hurt-by-target", "target-player", "ranged-attack")));
 		return variant;
 	}
 

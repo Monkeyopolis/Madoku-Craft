@@ -5155,9 +5155,6 @@ public final class EntityBehaviorsManager {
 				overrideSpawnRules ? world.getRandom() : null,
 				overrideSpawnRules
 			);
-			if (overrideSpawnRules) {
-				clearVanillaZombieJockeyMount(zombie);
-			}
 			variant = mergeZombieFileSettings(fileRoot, variant);
 			if (overrideSpawnRules && applyConfiguredZombieAlternativeMobReplacement(zombie, variant, spawnReason)) {
 				return;
@@ -5281,20 +5278,6 @@ public final class EntityBehaviorsManager {
 			}
 			MobEntityManager.queueZombieReplacement(zombie, replacementType, spawnReason);
 			return true;
-		}
-
-		private static void clearVanillaZombieJockeyMount(Zombie zombie) {
-			if (zombie == null) {
-				return;
-			}
-			Entity vehicle = zombie.getVehicle();
-			if (vehicle == null || vehicle.getType() != madoku.craft.entity.MadokuEntityTypes.CHICKEN) {
-				return;
-			}
-			zombie.stopRiding();
-			if (vehicle.isAlive()) {
-				vehicle.discard();
-			}
 		}
 
 		private static EquipmentLoadoutResult applyEquipmentSetLoadout(Zombie zombie, String equipmentReference, double chancePercent, RandomSource random) {

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** Configuration group for entity definitions. */
@@ -17,7 +18,10 @@ public final class EntityConfigManager {
 		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
 		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
 		JsonObject entity = entityElement.getAsJsonObject();
-		JsonObject selected = resolveVariantPath(entity, variantKey);
+		String resolvedKey = variantKey == null || variantKey.isBlank()
+			? resolvePrimaryVariantKey(fileRoot, entity)
+			: variantKey;
+		JsonObject selected = resolveVariantPath(entity, resolvedKey);
 		return merge(new JsonObject(), selected);
 	}
 
@@ -26,10 +30,10 @@ public final class EntityConfigManager {
 		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
 		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
 		JsonObject entity = entityElement.getAsJsonObject();
-		JsonObject resolved = resolveVariantPath(entity, "");
-		String defaultKey = firstVariantKey(entity);
+		String defaultKey = resolvePrimaryVariantKey(fileRoot, entity);
+		JsonObject resolved = resolveVariantPath(entity, defaultKey);
 		for (Map.Entry<String, JsonElement> entry : entity.entrySet()) {
-			if (entry.getKey().equals(defaultKey)
+			if (entry.getKey().equalsIgnoreCase(defaultKey)
 				|| !isVariantKey(entry.getKey())
 				|| entry.getValue() == null
 				|| !entry.getValue().isJsonObject()) {
@@ -44,7 +48,8 @@ public final class EntityConfigManager {
 		if (fileRoot == null) return new JsonObject();
 		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
 		if (entityElement == null || !entityElement.isJsonObject()) return new JsonObject();
-		return resolveVariantPath(entityElement.getAsJsonObject(), "");
+		JsonObject entity = entityElement.getAsJsonObject();
+		return resolveVariantPath(entity, resolvePrimaryVariantKey(fileRoot, entity));
 	}
 
 	static Map<String, JsonObject> collectTopLevelVariantRoots(JsonObject fileRoot) {
@@ -62,6 +67,17 @@ public final class EntityConfigManager {
 			}
 		}
 		return variants;
+	}
+
+	static String resolvePrimaryVariantKeyForRuntime(JsonObject fileRoot) {
+		if (fileRoot == null) {
+			return "";
+		}
+		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);
+		if (entityElement == null || !entityElement.isJsonObject()) {
+			return "";
+		}
+		return resolvePrimaryVariantKey(fileRoot, entityElement.getAsJsonObject());
 	}
 
 	static JsonObject resolveTopLevelVariant(JsonObject fileRoot, String variantKey) {
@@ -112,6 +128,22 @@ public final class EntityConfigManager {
 			current = nested;
 		}
 		return resolved;
+	}
+
+	private static String resolvePrimaryVariantKey(JsonObject fileRoot, JsonObject entity) {
+		if (fileRoot != null && entity != null) {
+			JsonElement mobIdElement = fileRoot.get(MobConfigManager.FIELD_MOB_ID);
+			if (mobIdElement != null && mobIdElement.isJsonPrimitive() && mobIdElement.getAsJsonPrimitive().isString()) {
+				String mobId = mobIdElement.getAsString().trim().toLowerCase(Locale.ROOT);
+				int separator = mobId.indexOf(':');
+				String path = separator >= 0 ? mobId.substring(separator + 1) : mobId;
+				String canonicalKey = path.replace('_', '-');
+				if (isVariantKey(canonicalKey) && entity.has(canonicalKey) && entity.get(canonicalKey).isJsonObject()) {
+					return canonicalKey;
+				}
+			}
+		}
+		return firstVariantKey(entity);
 	}
 
 	private static JsonObject removeNestedVariantEntries(JsonObject root) {

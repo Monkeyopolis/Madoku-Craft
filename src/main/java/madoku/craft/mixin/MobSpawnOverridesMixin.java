@@ -35,7 +35,11 @@ public abstract class MobSpawnOverridesMixin {
 		SpawnGroupData spawnGroupData,
 		CallbackInfoReturnable<SpawnGroupData> cir
 	) {
-		MobEntityManager.selectConfiguredTopLevelVariantForRuntime((Mob) (Object) this, world == null ? null : world.getRandom());
+		MobEntityManager.selectConfiguredTopLevelVariantForRuntime(
+			(Mob) (Object) this,
+			world == null ? null : world.getRandom(),
+			spawnReason
+		);
 	}
 
 	@Inject(method = "finalizeSpawn", at = @At("TAIL"))
