@@ -12,9 +12,6 @@ public final class EntityConfigManager {
 	private EntityConfigManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static JsonObject resolveVariant(JsonObject fileRoot, String variantKey) {
 		if (fileRoot == null) return new JsonObject();
 		JsonElement entityElement = fileRoot.get(MobConfigManager.FIELD_ENTITY);

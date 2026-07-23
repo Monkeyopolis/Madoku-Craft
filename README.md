@@ -16,19 +16,14 @@ Items:
 The Item system modifies item properities based on their category.
 This allows you to modify tools and stacking limit.
 
-Composter:
-
-The Composter system is separate from the Item system.
-It stores its settings under `madoku-composter/madoku-composter.json` and its item files under `madoku-craft-items/madoku-items/farming-items`.
-
 Attributes:
 
 The Attribute system modifies attributes to rebalance the game.
 This allows you to customize the game's difficulty to your needs.
 
-Leveling:
+Levels:
 
-The Leveling system allows players to allocate points to increase certain stats.
+The Levels system allows players to allocate points to increase certain stats.
 Press K to open up the Menu.
 
 Pets:

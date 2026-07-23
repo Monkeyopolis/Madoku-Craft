@@ -50,9 +50,6 @@ public final class RegionalDifficultyConfigManager {
 	private RegionalDifficultyConfigManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static JsonObject buildSettingsDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)

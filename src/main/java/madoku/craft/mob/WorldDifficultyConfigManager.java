@@ -29,7 +29,8 @@ public final class WorldDifficultyConfigManager {
 				JSONTypeManager.STATIC_CONFIG,
 				null
 			);
-			enabled = readBoolean(root, MobConfigManager.FIELD_ENABLED, true);
+			enabled = MobConfigManager.isEnabled()
+				&& readBoolean(root, MobConfigManager.FIELD_ENABLED, true);
 			JsonObject scaling = readObject(root, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			for (Map.Entry<String, JsonElement> entry : scaling.entrySet()) {
 				if (!entry.getValue().isJsonObject()) continue;

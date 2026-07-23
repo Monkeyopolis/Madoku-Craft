@@ -20,12 +20,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -68,10 +66,6 @@ public final class MobRegionalDifficultyManager {
 	}
 
 	public static void initialize() {
-		RegionalDifficultyConfigManager.initialize();
-		RegionalDifficultyStructuresManager.initialize();
-		RegionalDifficultyBiomesManager.initialize();
-		RegionalDifficultyTimeManager.initialize();
 		loadConfig();
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MobRegionalDifficultyManager::runTimeTask);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
@@ -175,7 +169,7 @@ public final class MobRegionalDifficultyManager {
 	}
 
 	public static boolean isEnabled() {
-		return snapshot.enabled();
+		return MobConfigManager.isEnabled() && snapshot.enabled();
 	}
 
 	public static int resolveHudDifficultyLevel(ServerLevel world, net.minecraft.core.BlockPos pos) {
@@ -237,6 +231,9 @@ public final class MobRegionalDifficultyManager {
 		}
 
 		scaledMob.madokuCraft$setSpawnDifficultyAdjustment(0);
+		if (!MobEntityManager.isDifficultyScalingEligible(mob)) {
+			return;
+		}
 		Snapshot config = snapshot;
 		if (!config.enabled()) {
 			return;
@@ -258,13 +255,12 @@ public final class MobRegionalDifficultyManager {
 		int baseAdjustment = 1;
 		int totalAdjustment = Math.max(0, baseAdjustment + biomeAdjustment + structureAdjustment + timeAdjustment);
 		scaledMob.madokuCraft$setSpawnDifficultyAdjustment(totalAdjustment);
-		if (totalAdjustment <= 0 || isHealthOnlyBoss(mob)) {
+		if (totalAdjustment <= 0) {
 			return;
 		}
 
 		ResolvedIncrements resolvedIncrements = config.resolveIncrements(mob);
-		boolean fullStatScaling = mob instanceof Monster || resolvedIncrements.usesIndividualProfile();
-		ScalingApplication applied = applyScalingAdjustments(mob, resolvedIncrements, totalAdjustment, fullStatScaling);
+		ScalingApplication applied = applyScalingAdjustments(mob, resolvedIncrements, totalAdjustment);
 		if (applied == null) {
 			return;
 		}
@@ -306,7 +302,7 @@ public final class MobRegionalDifficultyManager {
 	}
 
 	public static void reapplySpawnScalingFromStoredAdjustment(Mob mob) {
-		if (mob == null || !(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
+		if (!MobEntityManager.isDifficultyScalingEligible(mob) || !(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
 			return;
 		}
 		Snapshot config = snapshot;
@@ -314,17 +310,17 @@ public final class MobRegionalDifficultyManager {
 			return;
 		}
 		int totalAdjustment = Math.max(0, scaledMob.madokuCraft$getSpawnDifficultyAdjustment());
-		if (totalAdjustment <= 0 || isHealthOnlyBoss(mob)) {
+		if (totalAdjustment <= 0) {
 			return;
 		}
 
 		ResolvedIncrements resolvedIncrements = config.resolveIncrements(mob);
-		boolean fullStatScaling = mob instanceof Monster || resolvedIncrements.usesIndividualProfile();
-		applyScalingAdjustments(mob, resolvedIncrements, totalAdjustment, fullStatScaling);
+		applyScalingAdjustments(mob, resolvedIncrements, totalAdjustment);
 	}
 
 	public static double resolveCreeperExplosionPowerScaling(Mob mob, double baseExplosionPower) {
-		if (mob == null || mob.getType() != madoku.craft.entity.MadokuEntityTypes.CREEPER || !snapshot.enabled()) {
+		if (!MobEntityManager.isDifficultyScalingEligible(mob)
+			|| mob.getType() != madoku.craft.entity.MadokuEntityTypes.CREEPER || !isEnabled()) {
 			return 0.0D;
 		}
 		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
@@ -344,7 +340,7 @@ public final class MobRegionalDifficultyManager {
 
 	public static double resolveMobRangedDamageScaling(Mob mob, double baseDamage) {
 		double sanitizedBase = Math.max(0.0D, baseDamage);
-		if (mob == null || !snapshot.enabled()) {
+		if (!MobEntityManager.isDifficultyScalingEligible(mob) || !isEnabled()) {
 			return sanitizedBase;
 		}
 		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
@@ -363,7 +359,7 @@ public final class MobRegionalDifficultyManager {
 
 	public static double resolveMobAttackAccuracyScaling(Mob mob, double baseAccuracy) {
 		double sanitizedBase = Mth.clamp(baseAccuracy, 0.0D, 1.0D);
-		if (mob == null || !snapshot.enabled()) {
+		if (!MobEntityManager.isDifficultyScalingEligible(mob) || !isEnabled()) {
 			return sanitizedBase;
 		}
 		if (!(mob instanceof MobEntityManager.DifficultyState scaledMob)) {
@@ -739,17 +735,6 @@ public final class MobRegionalDifficultyManager {
 			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
-	private static boolean isHealthOnlyBoss(Mob mob) {
-		if (mob == null) {
-			return false;
-		}
-		EntityType<?> type = mob.getType();
-		return type == madoku.craft.entity.MadokuEntityTypes.ENDER_DRAGON
-			|| type == madoku.craft.entity.MadokuEntityTypes.ELDER_GUARDIAN
-			|| type == madoku.craft.entity.MadokuEntityTypes.WITHER
-			|| type == madoku.craft.entity.MadokuEntityTypes.WARDEN;
-	}
-
 	private static StructureContext resolveStructureContext(
 		ServerLevel world,
 		net.minecraft.core.BlockPos pos,
@@ -852,38 +837,35 @@ public final class MobRegionalDifficultyManager {
 	private static ScalingApplication applyScalingAdjustments(
 		Mob mob,
 		ResolvedIncrements resolvedIncrements,
-		int totalAdjustment,
-		boolean fullStatScaling
+		int totalAdjustment
 	) {
 		if (mob == null || resolvedIncrements == null || totalAdjustment <= 0) {
 			return null;
 		}
-			StatIncrements increments = resolvedIncrements.increments();
-			StatModes modes = resolvedIncrements.modes();
-			double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
-			double healthAddition = resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
-			double movementSpeedAddition = fullStatScaling ? resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			double flyingSpeedAddition = fullStatScaling && mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE
-				? resolveFlyingSpeedScalingAmount(mob, increments, modes, totalAdjustment)
-				: 0.0D;
-			double scaleAddition = fullStatScaling ? resolveScaleScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			double armorAddition = fullStatScaling ? resolveArmorScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			double damageAddition = fullStatScaling ? resolveDamageScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			double knockbackResistanceAddition = fullStatScaling ? resolveKnockbackResistanceScalingAmount(mob, increments, modes, totalAdjustment) : 0.0D;
-			int experienceBaseBefore = resolveMobExperienceDrop(mob);
-			int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, modes, totalAdjustment);
+		StatIncrements increments = resolvedIncrements.increments();
+		StatModes modes = resolvedIncrements.modes();
+		double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
+		double healthAddition = resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
+		double movementSpeedAddition = resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment);
+		double flyingSpeedAddition = mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE
+			? resolveFlyingSpeedScalingAmount(mob, increments, modes, totalAdjustment)
+			: 0.0D;
+		double scaleAddition = resolveScaleScalingAmount(mob, increments, modes, totalAdjustment);
+		double armorAddition = resolveArmorScalingAmount(mob, increments, modes, totalAdjustment);
+		double damageAddition = resolveDamageScalingAmount(mob, increments, modes, totalAdjustment);
+		double knockbackResistanceAddition = resolveKnockbackResistanceScalingAmount(mob, increments, modes, totalAdjustment);
+		int experienceBaseBefore = resolveMobExperienceDrop(mob);
+		int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, modes, totalAdjustment);
 
 		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
-		if (fullStatScaling) {
-			addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
-			if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
-				addAttribute(mob, Attributes.FLYING_SPEED, flyingSpeedAddition);
-			}
-			addAttribute(mob, Attributes.SCALE, scaleAddition);
-			addAttribute(mob, Attributes.ARMOR, armorAddition);
-			addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
-			addAttribute(mob, Attributes.KNOCKBACK_RESISTANCE, knockbackResistanceAddition);
+		addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
+		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
+			addAttribute(mob, Attributes.FLYING_SPEED, flyingSpeedAddition);
 		}
+		addAttribute(mob, Attributes.SCALE, scaleAddition);
+		addAttribute(mob, Attributes.ARMOR, armorAddition);
+		addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
+		addAttribute(mob, Attributes.KNOCKBACK_RESISTANCE, knockbackResistanceAddition);
 		int experienceBaseAfter = applyExperienceDropScaling(mob, experienceBaseBefore, experienceDropAddition);
 		double armorBaseAfter = readAttributeBaseValue(mob, Attributes.ARMOR);
 
@@ -923,7 +905,7 @@ public final class MobRegionalDifficultyManager {
 		StatModes modes,
 		int totalAdjustment
 	) {
-		if (mob == null) {
+		if (!MobEntityManager.isDifficultyScalingEligible(mob)) {
 			return 0.0D;
 		}
 		double currentMaxHealth = Math.max(1.0D, mob.getAttributeValue(Attributes.MAX_HEALTH));
@@ -965,7 +947,11 @@ public final class MobRegionalDifficultyManager {
 		if (mob == null) {
 			return 0.0D;
 		}
-		double currentSpeed = Math.max(0.0D, mob.getAttributeValue(Attributes.FLYING_SPEED));
+		AttributeInstance instance = mob.getAttribute(Attributes.FLYING_SPEED);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentSpeed = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentSpeed, increments.flyingSpeed(), modes.flyingSpeedMode(), totalAdjustment);
 	}
 
@@ -1224,15 +1210,15 @@ public final class MobRegionalDifficultyManager {
 
 			private ResolvedIncrements resolveIncrements(Mob mob) {
 				if (mob == null || mobScalingIncrements.isEmpty()) {
-					return new ResolvedIncrements(increments, globalModes, "global");
+					return new ResolvedIncrements(increments, globalModes);
 				}
 			for (String key : RegionalDifficultyConfigManager.resolveMobScalingFileKeys(mob.getType())) {
 				ScalingProfile specific = mobScalingIncrements.get(key);
 				if (specific != null) {
-					return new ResolvedIncrements(specific.increments(), specific.modes(), key);
+					return new ResolvedIncrements(specific.increments(), specific.modes());
 				}
 			}
-			return new ResolvedIncrements(increments, globalModes, "global_fallback");
+			return new ResolvedIncrements(increments, globalModes);
 		}
 
 		private int biomeAdjustment(Identifier biomeId) {
@@ -1263,13 +1249,7 @@ public final class MobRegionalDifficultyManager {
 	) {
 	}
 
-	private record ResolvedIncrements(StatIncrements increments, StatModes modes, String sourceKey) {
-		private boolean usesIndividualProfile() {
-			return sourceKey != null
-				&& !sourceKey.isBlank()
-				&& !"global".equals(sourceKey)
-				&& !"global_fallback".equals(sourceKey);
-		}
+	private record ResolvedIncrements(StatIncrements increments, StatModes modes) {
 	}
 
 	private record ScalingProfile(StatIncrements increments, StatModes modes) {
@@ -1391,4 +1371,3 @@ public final class MobRegionalDifficultyManager {
 		}
 	}
 	}
-

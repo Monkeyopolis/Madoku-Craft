@@ -26,7 +26,6 @@
     "CreeperExplosionMixin",
     "CreeperPoweredAccessor",
     "CropBlockFarmingMixin",
-    "DifficultyInstanceRegionalDifficultyMixin",
     "DrownedRangedTridentAttackMixin",
     "DrownedRuntimeTickMixin",
     "DrownedTargetingUnderwaterMixin",

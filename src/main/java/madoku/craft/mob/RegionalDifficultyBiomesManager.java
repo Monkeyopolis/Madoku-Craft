@@ -23,9 +23,6 @@ public final class RegionalDifficultyBiomesManager {
 	private RegionalDifficultyBiomesManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static JsonObject buildDefaults() {
 		JSONFormatManager.ObjectBuilder list = JSONFormatManager.object();
 		for (String biome : DEFAULT_BIOMES) {

@@ -12,9 +12,6 @@ public final class RegionalDifficultyTimeManager {
 	private RegionalDifficultyTimeManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static JsonObject buildDefaults() {
 		return JSONFormatManager.object()
 			.put(MobConfigManager.FIELD_ENABLED, true)

@@ -8,9 +8,6 @@ public final class EntityGoalsManager {
 	private EntityGoalsManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static boolean isGoalEnabled(JsonObject variant, String goalKey) {
 		if (variant == null || goalKey == null) return false;
 		JsonElement goalsElement = variant.get(MobConfigManager.FIELD_MOB_GOALS);

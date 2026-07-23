@@ -1,6 +1,5 @@
 package madoku.craft.mob;
 
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.Difficulty;
 
 /** Runtime owner for world-difficulty attribute scaling. */
@@ -12,15 +11,12 @@ public final class MobWorldDifficultyManager {
 		WorldDifficultyConfigManager.initialize();
 	}
 
-	public static void onServerStarted(MinecraftServer server) {
-	}
-
 	public static void onServerStopped() {
 		WorldDifficultyConfigManager.reset();
 	}
 
 	public static boolean isEnabled() {
-		return WorldDifficultyConfigManager.isEnabled();
+		return MobConfigManager.isEnabled() && WorldDifficultyConfigManager.isEnabled();
 	}
 
 	public static double resolveAddition(String attribute, double baseValue, Difficulty difficulty, boolean hardcore) {

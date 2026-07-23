@@ -20,7 +20,6 @@ public final class MadokuMobManager {
 		// entities begin spawning or loading again.
 		MobConfigManager.initialize();
 		WorldDifficultyConfigManager.initialize();
-		MobWorldDifficultyManager.onServerStarted(server);
 		MobRegionalDifficultyManager.onServerStarted(server);
 		MobEntityManager.onServerStarted(server);
 	}

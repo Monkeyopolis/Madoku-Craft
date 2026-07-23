@@ -61,8 +61,6 @@ import net.minecraft.world.phys.Vec3;
 public final class EntityBehaviorsManager {
 	private EntityBehaviorsManager() { }
 
-	public static void initialize() { }
-
 	public static final class BeeBehavior {
 		private static final int DEFAULT_NECTAR_TOTAL_CHARGES = 10;
 		private static final int DEFAULT_SEARCH_DURATION_TICKS = 1200;

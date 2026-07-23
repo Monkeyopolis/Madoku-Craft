@@ -101,11 +101,6 @@ public final class MobEntityManager {
 	}
 
 	public static void initialize() {
-		EntityBehaviorsManager.initialize();
-		EntityComponentsManager.initialize();
-		EntitySpawnRulesManager.initialize();
-		EntityGoalsManager.initialize();
-		EntityConfigManager.initialize();
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
@@ -177,6 +172,23 @@ public final class MobEntityManager {
 	public static boolean isEnabled() {
 		return MobConfigManager.isEnabled();
 	}
+
+	static boolean isDifficultyScalingEligible(LivingEntity entity) {
+		if (!(entity instanceof Mob mob)) {
+			return false;
+		}
+		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
+			return true;
+		}
+		if (!(mob instanceof Monster)) {
+			return false;
+		}
+		EntityType<?> type = mob.getType();
+		return type != madoku.craft.entity.MadokuEntityTypes.ENDER_DRAGON
+			&& type != madoku.craft.entity.MadokuEntityTypes.ELDER_GUARDIAN
+			&& type != madoku.craft.entity.MadokuEntityTypes.WITHER
+			&& type != madoku.craft.entity.MadokuEntityTypes.WARDEN;
+	}
 	public static void applyMobSpawnOverridesAfterVanilla(
 		Mob mob,
 		ServerLevelAccessor world,
@@ -191,11 +203,13 @@ public final class MobEntityManager {
 		applyConfiguredEquipmentAtVanillaSpawn(mob, world.getRandom());
 		applyConfiguredJockeyAtVanillaSpawn(mob, world, difficulty, spawnReason);
 		EntityComponentsManager.applyMobBabyComponent(mob);
-		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForRuntime(mob)) {
-			MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+		if (isDifficultyScalingEligible(mob)) {
+			if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForRuntime(mob)) {
+				MobRegionalDifficultyManager.applySpawnScalingIfUnscaled(mob, world);
+			}
+			EntityComponentsManager.applyWorldDifficultyScaling(mob);
+			MobRegionalDifficultyManager.roundFinalScalingValues(mob);
 		}
-		EntityComponentsManager.applyWorldDifficultyScaling(mob);
-		MobRegionalDifficultyManager.roundFinalScalingValues(mob);
 	}
 
 	private static boolean hasPendingAlternativeReplacement(Entity entity) {
@@ -1020,7 +1034,8 @@ public final class MobEntityManager {
 	}
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
-		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob) || level == null || PlayerEntitiesSystem.isManagedPet(entity)) {
+		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob)
+			|| !isDifficultyScalingEligible(mob) || level == null || PlayerEntitiesSystem.isManagedPet(entity)) {
 			return;
 		}
 		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForMob(entity)) {
@@ -1035,11 +1050,11 @@ public final class MobEntityManager {
 	}
 
 	public static boolean isRegionalDifficultyScalingEnabledForRuntime(Mob mob) {
-		return mob != null && isRegionalDifficultyScalingEnabledForMob(mob);
+		return isDifficultyScalingEligible(mob) && isRegionalDifficultyScalingEnabledForMob(mob);
 	}
 
 	static double resolveWorldDifficultyValueForRuntime(LivingEntity entity, String attribute, double baseValue) {
-		if (entity == null || !EntityConfigManager.isWorldDifficultyScalingEnabled(
+		if (!isDifficultyScalingEligible(entity) || !EntityConfigManager.isWorldDifficultyScalingEnabled(
 			resolveMobFileConfigRootForRuntime(resolveRuntimeMobFileKey(entity)))) {
 			return MobConfigManager.roundDifficultyScaleValue(Math.max(0.0D, baseValue));
 		}

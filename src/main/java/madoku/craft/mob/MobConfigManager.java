@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
 public final class MobConfigManager {
 	private static final String INTERNAL_NESTED_VARIANT_MARKER = "__madoku_nested_variant";
@@ -133,60 +132,6 @@ public final class MobConfigManager {
 	public static final String FIELD_GREIF_POWER = "greif-power";
 	public static final String FIELD_FUSE_LENGTH = "fuse-length";
 
-	public static final List<String> MOB_COMPONENTS_OPTIONAL_ENTRIES = List.of(
-		FIELD_HEALTH,
-		FIELD_ARMOR,
-		FIELD_DAMAGE,
-		FIELD_TRUE_DAMAGE,
-		FIELD_MOVEMENT_SPEED,
-		FIELD_SWIMMING_SPEED,
-		FIELD_FLYING_SPEED,
-		FIELD_KNOCKBACK_RESISTANCE,
-		FIELD_SCALE,
-		FIELD_EXPERIENCE_DROP,
-		FIELD_RANGED_DAMAGE,
-		FIELD_ATTACK_INTERVAL,
-		FIELD_ATTACK_ACCURACY,
-		FIELD_CHARGE_INTERVAL,
-		FIELD_MOB_DROPS,
-		FIELD_MOB_WEAPON,
-		FIELD_WEAPON_DAMAGE,
-		FIELD_MOB_EFFECT,
-		FIELD_EXPLOSION_POWER,
-		FIELD_FUSE_LENGTH,
-		FIELD_MOB_BABY
-	);
-
-	public static final List<String> MOB_SPAWN_RULES_OPTIONAL_ENTRIES = List.of(
-		FIELD_SPAWN_WEIGHT,
-		FIELD_EQUIPMENT_SET,
-		FIELD_MOB_JOCKEY,
-		FIELD_SPAWN_ALTERNATIVE_MOB
-	);
-
-	public static final List<String> MOB_BEHAVIOR_OPTIONAL_ENTRIES = List.of(
-		FIELD_CAN_PICK_UP_LOOT,
-		FIELD_RETALIATE_WHEN_HURT,
-		FIELD_CALLS_REINFORCEMENTS_WHEN_HURT,
-		FIELD_TRIDENT_ATTACK,
-		FIELD_BOW_ATTACK,
-		FIELD_POLLINATE_CROPS,
-		FIELD_MOB_EXPLODE
-	);
-
-	public static final List<String> MOB_GOALS_OPTIONAL_ENTRIES = List.of(
-		"breed",
-		"follow-parent",
-		"become-angry-target",
-		"hurt-by-target",
-		"trident-attack",
-		"melee-attack",
-		"ranged-attack",
-		"target-player"
-	);
-
-	private static final Map<String, JsonObject> DEFAULT_FILE_DEFAULTS = buildNewEntityDefaults();
-
 	private MobConfigManager() {
 	}
 
@@ -294,9 +239,12 @@ public final class MobConfigManager {
 
 	private static void loadRuntimeConfig() throws IOException {
 		Path mobsRootDirectory = getOrCreateMobRootDirectory();
+		Path systemSettingsFile = mobsRootDirectory.resolve(MOBS_SETTINGS_FILE + ".json");
+		JsonObject systemSettings = JSONFormatManager.ensureManagedFile(systemSettingsFile, buildMobSystemDefaults());
+		boolean systemEnabled = readBoolean(systemSettings, FIELD_ENABLED, true);
 		Path settingsFile = mobsRootDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json");
 		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildEntitySystemDefaults());
-		boolean enabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
+		boolean entitiesEnabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
 		Path entityDirectory = getOrCreateEntityDirectory();
 		Map<String, JsonObject> files = new LinkedHashMap<>();
 		if (Files.isDirectory(entityDirectory)) {
@@ -307,7 +255,9 @@ public final class MobConfigManager {
 				}
 			}
 		}
-		runtimeConfig = enabled ? new RuntimeConfig(true, Map.copyOf(files)) : RuntimeConfig.disabled();
+		runtimeConfig = systemEnabled && entitiesEnabled
+			? new RuntimeConfig(true, Map.copyOf(files))
+			: RuntimeConfig.disabled();
 		EquipmentConfigManager.reloadConfig();
 	}
 
@@ -317,6 +267,10 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildEntitySystemDefaults() {
+		return JSONFormatManager.object().put(FIELD_ENABLED, true).build();
+	}
+
+	public static JsonObject buildMobSystemDefaults() {
 		return JSONFormatManager.object().put(FIELD_ENABLED, true).build();
 	}
 
@@ -937,51 +891,6 @@ public final class MobConfigManager {
 		}
 	}
 
-	public static JsonObject buildMobSystemDefaults() {
-		return JSONFormatManager.object()
-			.put(FIELD_ENABLED, true)
-			.build();
-	}
-
-	public static Map<String, JsonObject> buildDefaultMobFileDefaults() {
-		Map<String, JsonObject> copy = new LinkedHashMap<>();
-		for (Map.Entry<String, JsonObject> entry : DEFAULT_FILE_DEFAULTS.entrySet()) {
-			copy.put(entry.getKey(), entry.getValue().deepCopy());
-		}
-		return copy;
-	}
-
-	public static JsonObject buildDynamicMobDefaults(String fileKey) {
-		return buildNewDynamicEntityDefaults(fileKey);
-	}
-
-	static JsonObject buildMobComponentsDefaults(
-		Double health,
-		Double armor,
-		Double damage,
-		Double movementSpeed,
-		Double knockbackResistance,
-		Double scale,
-		Integer experienceDrop
-	) {
-		return buildMobComponentsDefaults(
-			health,
-			armor,
-			damage,
-			movementSpeed,
-			null,
-			null,
-			knockbackResistance,
-			scale,
-			experienceDrop,
-			null,
-			null,
-			null,
-			null,
-			null
-		);
-	}
-
 	static JsonObject buildMobComponentsDefaults(
 		Double health,
 		Double armor,
@@ -1066,13 +975,6 @@ public final class MobConfigManager {
 		return value != null && Double.isFinite(value);
 	}
 
-	static void addDifficultyScaleEntry(JsonObject root, String field, Double value) {
-		if (root == null || field == null || field.isBlank() || value == null || !Double.isFinite(value)) {
-			return;
-		}
-		root.addProperty(field, roundDifficultyScaleValue(value));
-	}
-
 	static double roundDifficultyScaleValue(double value) {
 		if (!Double.isFinite(value)) {
 			return value;
@@ -1083,78 +985,6 @@ public final class MobConfigManager {
 
 	private static boolean isWholeNumber(double value) {
 		return Math.abs(value - Math.rint(value)) <= 1.0E-9D;
-	}
-
-	static void ensureMobSchema(JsonObject mobRoot, boolean canPickUpLootDefault) {
-		if (mobRoot == null) {
-			return;
-		}
-		getOrCreateObject(mobRoot, FIELD_MOB_COMPONENTS);
-		getOrCreateObject(mobRoot, FIELD_SPAWN_RULES);
-		getOrCreateObject(mobRoot, FIELD_MOB_BEHAVIORS);
-		getOrCreateObject(mobRoot, FIELD_MOB_GOALS);
-	}
-
-	static JsonObject buildMobSpawnRulesDefaults() {
-		return mobSpawnRules().build();
-	}
-
-	static MobSpawnRulesBuilder mobSpawnRules() {
-		return new MobSpawnRulesBuilder();
-	}
-
-	static final class MobSpawnRulesBuilder {
-		private final JsonObject root = new JsonObject();
-
-		MobSpawnRulesBuilder spawnWeight(Double value) {
-			addOptionalDouble(root, FIELD_SPAWN_WEIGHT, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder equipmentSet(JsonObject value) {
-			addOptionalObject(root, FIELD_EQUIPMENT_SET, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder mobJockey(JsonObject value) {
-			addOptionalObject(root, FIELD_MOB_JOCKEY, value);
-			return this;
-		}
-
-		MobSpawnRulesBuilder spawnAlternativeMob(JsonObject value) {
-			addOptionalObject(root, FIELD_SPAWN_ALTERNATIVE_MOB, value);
-			return this;
-		}
-
-		JsonObject build() {
-			return root;
-		}
-	}
-
-	private static void addOptionalDouble(JsonObject target, String key, Double value) {
-		if (target == null || key == null || key.isBlank() || value == null) {
-			return;
-		}
-		target.addProperty(key, value);
-	}
-
-	private static void addOptionalObject(JsonObject target, String key, JsonObject value) {
-		if (target == null || key == null || key.isBlank() || value == null || value.entrySet().isEmpty()) {
-			return;
-		}
-		target.add(key, value.deepCopy());
-	}
-
-	static JsonObject buildMobBehaviorDefaults(Consumer<JsonObject> configurator) {
-		JsonObject root = new JsonObject();
-		if (configurator != null) {
-			configurator.accept(root);
-		}
-		return root;
-	}
-
-	static JsonObject buildMobBehaviorDefaults() {
-		return buildMobBehaviorDefaults(root -> {});
 	}
 
 	static JsonObject buildMobExplodeDefaults(Double destructionChance, Double griefPower) {
@@ -1169,41 +999,6 @@ public final class MobConfigManager {
 		return mobExplode;
 	}
 
-	static JsonObject buildMobGoalsDefaults() {
-		return buildMobGoalsDefaults(root -> {});
-	}
-
-	static JsonObject buildMobGoalsDefaults(Consumer<JsonObject> configurator) {
-		JsonObject root = new JsonObject();
-		if (configurator != null) {
-			configurator.accept(root);
-		}
-		return root;
-	}
-
-	public static List<String> getOptionalEntriesForContainer(String containerKey) {
-		if (FIELD_MOB_COMPONENTS.equals(containerKey)) {
-			return MOB_COMPONENTS_OPTIONAL_ENTRIES;
-		}
-		if (FIELD_SPAWN_RULES.equals(containerKey)) {
-			return MOB_SPAWN_RULES_OPTIONAL_ENTRIES;
-		}
-		if (FIELD_MOB_BEHAVIORS.equals(containerKey)) {
-			return MOB_BEHAVIOR_OPTIONAL_ENTRIES;
-		}
-		if (FIELD_MOB_GOALS.equals(containerKey)) {
-			return MOB_GOALS_OPTIONAL_ENTRIES;
-		}
-		return List.of();
-	}
-
-	public static boolean isOptionalEntryForContainer(String containerKey, String entryKey) {
-		if (entryKey == null || entryKey.isBlank()) {
-			return false;
-		}
-		return getOptionalEntriesForContainer(containerKey).contains(entryKey);
-	}
-
 	static void addMobGoal(JsonObject goalsRoot, String goalKey, boolean enabled, int priority, double weight, int cooldownTicks) {
 		if (goalsRoot == null || goalKey == null || goalKey.isBlank()) {
 			return;
@@ -1214,36 +1009,6 @@ public final class MobConfigManager {
 		goal.addProperty("weight", weight);
 		goal.addProperty("cooldown-ticks", cooldownTicks);
 		goalsRoot.add(goalKey, goal);
-	}
-
-	static void mergeMissing(JsonObject target, JsonObject defaults) {
-		if (target == null || defaults == null) {
-			return;
-		}
-		for (Map.Entry<String, com.google.gson.JsonElement> entry : defaults.entrySet()) {
-			String key = entry.getKey();
-			com.google.gson.JsonElement value = entry.getValue();
-			if (!target.has(key)) {
-				target.add(key, value.deepCopy());
-				continue;
-			}
-			if (target.get(key).isJsonObject() && value.isJsonObject()) {
-				mergeMissing(target.getAsJsonObject(key), value.getAsJsonObject());
-			}
-		}
-	}
-
-
-	static JsonObject getOrCreateObject(JsonObject parent, String key) {
-		if (parent == null || key == null || key.isBlank()) {
-			return new JsonObject();
-		}
-		if (parent.has(key) && parent.get(key).isJsonObject()) {
-			return parent.getAsJsonObject(key);
-		}
-		JsonObject created = new JsonObject();
-		parent.add(key, created);
-		return created;
 	}
 
 	private record RuntimeConfig(boolean enabled, Map<String, JsonObject> files) {

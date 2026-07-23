@@ -17,9 +17,6 @@ public final class EntityComponentsManager {
 	private EntityComponentsManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static boolean applyConfiguredComponents(LivingEntity entity, JsonObject variant) {
 		if (entity == null || variant == null) return false;
 		JsonElement element = variant.get(MobConfigManager.FIELD_MOB_COMPONENTS);
@@ -85,7 +82,7 @@ public final class EntityComponentsManager {
 	}
 
 	public static boolean applyWorldDifficultyScaling(LivingEntity entity) {
-		if (entity == null || !MobWorldDifficultyManager.isEnabled()
+		if (!MobConfigManager.isEnabled() || !MobEntityManager.isDifficultyScalingEligible(entity) || !MobWorldDifficultyManager.isEnabled()
 			|| !EntityConfigManager.isWorldDifficultyScalingEnabled(MobEntityManager.resolveMobFileConfigRootForRuntime(MobEntityManager.resolveRuntimeMobFileKey(entity)))) return false;
 		if (entity instanceof MobEntityManager.DifficultyState state && state.madokuCraft$isWorldDifficultyScalingApplied()) {
 			return false;

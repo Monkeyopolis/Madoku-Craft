@@ -18,9 +18,6 @@ public final class EntitySpawnRulesManager {
 	private EntitySpawnRulesManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static void applyAfterVanilla(Mob mob, ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason) {
 		if (mob == null || world == null || difficulty == null || spawnReason == null || !MobEntityManager.isEnabled()) return;
 		if (mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {

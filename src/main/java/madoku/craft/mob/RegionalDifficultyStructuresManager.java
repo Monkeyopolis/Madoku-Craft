@@ -19,9 +19,6 @@ public final class RegionalDifficultyStructuresManager {
 	private RegionalDifficultyStructuresManager() {
 	}
 
-	public static void initialize() {
-	}
-
 	public static JsonObject buildDefaults() {
 		JSONFormatManager.ObjectBuilder list = JSONFormatManager.object();
 		for (String structure : DEFAULT_STRUCTURES) {
