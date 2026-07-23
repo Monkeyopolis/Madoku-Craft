@@ -94,10 +94,6 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.applyBeeLoadedEntityOverrides(entity);
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			return MobEntityManager.applyBeeDifficultyOverrides(entity);
-		}
-	
 		public static boolean applyStingingAttackEffect(Bee bee, LivingEntity target, MobEffectInstance effect, Entity attacker) {
 			if (bee == null || target == null || effect == null || attacker == null) {
 				return false;
@@ -795,31 +791,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(skeleton);
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
-			if (resolvedRoot.entrySet().isEmpty()) {
-				return false;
-			}
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
-			applyWeaponDamagePolicy(skeleton, resolvedRoot);
-			applyBehaviorToggles(skeleton, fileConfigRoot, resolvedRoot);
-			if (isBowAttackEnabled(skeleton)) {
-				ensureBowEquipped(skeleton);
-			}
-			return modified;
-		}
-	
 		public static JsonObject resolveRuntimeRoot(AbstractSkeleton skeleton) {
 			if (skeleton == null || !MobEntityManager.isEnabled()) {
 				return new JsonObject();
@@ -1031,7 +1002,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
@@ -1253,7 +1223,6 @@ public final class EntityBehaviorsManager {
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
 			return merged;
@@ -1353,11 +1322,6 @@ public final class EntityBehaviorsManager {
 			return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
 		}
 	
-		private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-			double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-			return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
-		}
-	
 		private static double roundDifficultyScaleValue(double value) {
 			if (!Double.isFinite(value)) {
 				return value;
@@ -1378,11 +1342,6 @@ public final class EntityBehaviorsManager {
 				case NORMAL -> 0;
 				case HARD -> hardcore ? 2 : 1;
 			};
-		}
-	
-		private static Double readOptionalNonNegative(JsonObject root, String key) {
-			double value = readDouble(root, key, Double.NaN);
-			return Double.isFinite(value) && value >= 0.0D ? value : null;
 		}
 	
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
@@ -1570,20 +1529,6 @@ public final class EntityBehaviorsManager {
 			return overrideStats && MobEntityManager.applyUniversalBaseStatsForRuntime(spider, caveSpiderRoot);
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof Spider spider) || spider.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = MobConfigManager.FILE_CAVE_SPIDER;
-			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-			JsonObject fileRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject caveSpiderRoot = readMobRoot(fileRoot, fileKey);
-			boolean overrideStats = readBoolean(fileRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			return false;
-		}
-	
 		static boolean isCustomMobDropsEnabled(LivingEntity entity) {
 			if (!(entity instanceof Spider spider) || spider.level().isClientSide() || !MobEntityManager.isEnabled()) {
 				return false;
@@ -1682,7 +1627,7 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.applyCreeperRuntimeStats(creeper, root);
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
+		public static boolean applyLoadedExplosionDifficultyScaling(LivingEntity entity) {
 			if (!(entity instanceof Creeper creeper) || creeper.level().isClientSide() || !MobEntityManager.isEnabled()) {
 				return false;
 			}
@@ -1860,29 +1805,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof Drowned drowned) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(drowned.getType());
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveDrownedRootForRuntime(drowned.getType());
-			JsonObject variantGroup = resolveDrownedVariantGroupRoot(drowned, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, drowned.isBaby());
-			variant = mergeDrownedFileSettings(fileRoot, variant);
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
-			ensureRangedDrownedTridentEquipped(drowned);
-			applyWeaponDamagePolicy(drowned, variant);
-			applyDrownedBehaviorToggles(drowned, fileConfigRoot, variant);
-			return modified;
-		}
-	
 		public static boolean shouldAllowUnderwaterTargeting(Drowned drowned, LivingEntity target) {
 			if (drowned == null || target == null) {
 				return true;
@@ -2025,7 +1947,6 @@ public final class EntityBehaviorsManager {
 			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
 		}
@@ -2085,7 +2006,6 @@ public final class EntityBehaviorsManager {
 				return merged;
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
@@ -2467,11 +2387,6 @@ public final class EntityBehaviorsManager {
 			return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
 		}
 	
-		private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-			double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-			return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
-		}
-	
 		private static double roundDifficultyScaleValue(double value) {
 			if (!Double.isFinite(value)) {
 				return value;
@@ -2545,11 +2460,6 @@ public final class EntityBehaviorsManager {
 			} catch (RuntimeException ignored) {
 				return fallback;
 			}
-		}
-	
-		private static Double readOptionalNonNegative(JsonObject root, String key) {
-			double value = readDouble(root, key, Double.NaN);
-			return Double.isFinite(value) && value >= 0.0D ? value : null;
 		}
 	
 		private static String readString(JsonObject root, String key, String fallback) {
@@ -2779,27 +2689,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof Husk husk) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(husk.getType());
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveHuskRootForRuntime(husk.getType());
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP), husk.isBaby());
-			variant = mergeHuskFileSettings(fileRoot, variant);
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
-			applyWeaponDamagePolicy(husk, variant);
-			applyHuskBehaviorToggles(husk, fileConfigRoot, variant);
-			return modified;
-		}
-	
 		static boolean isCustomMobDropsEnabled(LivingEntity entity) {
 			if (!(entity instanceof Husk husk) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
 				return false;
@@ -2846,7 +2735,6 @@ public final class EntityBehaviorsManager {
 				return merged;
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
@@ -3048,7 +2936,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
 		}
@@ -3059,20 +2946,6 @@ public final class EntityBehaviorsManager {
 			}
 			JsonObject variant = collectHuskVariantRoots(fileRoot).get(normalizeKey(variantKey));
 			return variant == null ? new JsonObject() : variant;
-		}
-	
-		private static boolean isHardcoreWorld(net.minecraft.world.level.Level level) {
-			return level != null && level.getServer() != null && level.getServer().isHardcore();
-		}
-	
-		private static int resolveDifficultyTier(Difficulty difficulty, boolean hardcore) {
-			Difficulty resolved = difficulty == null ? Difficulty.NORMAL : difficulty;
-			return switch (resolved) {
-				case PEACEFUL -> -2;
-				case EASY -> -1;
-				case NORMAL -> 0;
-				case HARD -> hardcore ? 2 : 1;
-			};
 		}
 	
 		private static double readSpawnWeight(JsonObject root, double fallback) {
@@ -3361,31 +3234,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(skeleton);
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
-			if (resolvedRoot.entrySet().isEmpty()) {
-				return false;
-			}
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
-			applyWeaponDamagePolicy(skeleton, resolvedRoot);
-			applyBehaviorToggles(skeleton, fileConfigRoot, resolvedRoot);
-			if (isBowAttackEnabled(skeleton)) {
-				ensureBowEquipped(skeleton);
-			}
-			return modified;
-		}
-	
 		public static JsonObject resolveRuntimeRoot(AbstractSkeleton skeleton) {
 			if (skeleton == null || !MobEntityManager.isEnabled()) {
 				return new JsonObject();
@@ -3597,7 +3445,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
@@ -3819,7 +3666,6 @@ public final class EntityBehaviorsManager {
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
 			return merged;
@@ -3919,11 +3765,6 @@ public final class EntityBehaviorsManager {
 			return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
 		}
 	
-		private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-			double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-			return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
-		}
-	
 		private static double roundDifficultyScaleValue(double value) {
 			if (!Double.isFinite(value)) {
 				return value;
@@ -3944,11 +3785,6 @@ public final class EntityBehaviorsManager {
 				case NORMAL -> 0;
 				case HARD -> hardcore ? 2 : 1;
 			};
-		}
-	
-		private static Double readOptionalNonNegative(JsonObject root, String key) {
-			double value = readDouble(root, key, Double.NaN);
-			return Double.isFinite(value) && value >= 0.0D ? value : null;
 		}
 	
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
@@ -4154,22 +3990,6 @@ public final class EntityBehaviorsManager {
 				return false;
 			}
 			return MobEntityManager.applyUniversalBaseStatsForRuntime(skeleton, resolvedRoot);
-		}
-	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = skeletonFileKey(skeleton);
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
-			if (resolvedRoot.entrySet().isEmpty()) {
-				return false;
-			}
-			return false;
 		}
 	
 		public static boolean shouldOverrideSpawnRules(AbstractSkeleton skeleton) {
@@ -4511,7 +4331,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
 		}
@@ -4642,7 +4461,6 @@ public final class EntityBehaviorsManager {
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
 			return merged;
@@ -4748,11 +4566,6 @@ public final class EntityBehaviorsManager {
 			return root.get(key).getAsDouble();
 		}
 	
-		private static Double readOptionalNonNegative(JsonObject root, String key) {
-			double value = readDouble(root, key, Double.NaN);
-			return Double.isFinite(value) && value >= 0.0D ? value : null;
-		}
-	
 		private static boolean isHardcoreWorld(Level level) {
 			return level != null && level.getServer() != null && level.getServer().isHardcore();
 		}
@@ -4779,11 +4592,6 @@ public final class EntityBehaviorsManager {
 	
 		private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
 			return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
-		}
-	
-		private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-			double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-			return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
 		}
 	
 		private static double roundDifficultyScaleValue(double value) {
@@ -5058,7 +4866,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_MOB_COMPONENTS))
@@ -5196,31 +5003,6 @@ public final class EntityBehaviorsManager {
 	
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
 			boolean modified = overrideStats && MobEntityManager.applyUniversalBaseStatsForRuntime(skeleton, resolvedRoot);
-			applyWeaponDamagePolicy(skeleton, resolvedRoot);
-			applyBehaviorToggles(skeleton, fileConfigRoot, resolvedRoot);
-			if (isBowAttackEnabled(skeleton)) {
-				ensureBowEquipped(skeleton);
-			}
-			return modified;
-		}
-	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(skeleton);
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject resolvedRoot = resolveRuntimeRoot(skeleton);
-			if (resolvedRoot.entrySet().isEmpty()) {
-				return false;
-			}
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
 			applyWeaponDamagePolicy(skeleton, resolvedRoot);
 			applyBehaviorToggles(skeleton, fileConfigRoot, resolvedRoot);
 			if (isBowAttackEnabled(skeleton)) {
@@ -5440,7 +5222,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_OVERRIDE_GOALS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
@@ -5662,7 +5443,6 @@ public final class EntityBehaviorsManager {
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
 			return merged;
@@ -5762,11 +5542,6 @@ public final class EntityBehaviorsManager {
 			return roundDifficultyScaleValue(Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore))));
 		}
 	
-		private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-			double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-			return roundDifficultyScaleValue(Math.max(minimum, baseValue * Math.max(0.0D, multiplier)));
-		}
-	
 		private static double roundDifficultyScaleValue(double value) {
 			if (!Double.isFinite(value)) {
 				return value;
@@ -5787,11 +5562,6 @@ public final class EntityBehaviorsManager {
 				case NORMAL -> 0;
 				case HARD -> hardcore ? 2 : 1;
 			};
-		}
-	
-		private static Double readOptionalNonNegative(JsonObject root, String key) {
-			double value = readDouble(root, key, Double.NaN);
-			return Double.isFinite(value) && value >= 0.0D ? value : null;
 		}
 	
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
@@ -5994,22 +5764,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof AbstractSkeleton skeleton) || skeleton.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(MobConfigManager.FILE_WITHER_SKELETON);
-			JsonObject root = resolveRuntimeRoot(skeleton);
-			if (root.entrySet().isEmpty()) {
-				return false;
-			}
-			boolean modified = false;
-			if (isBowAttackEnabled(skeleton)) {
-				ensureBowEquipped(skeleton);
-			}
-			return modified;
-		}
-	
 		public static JsonObject resolveRuntimeRoot(AbstractSkeleton skeleton) {
 			if (skeleton == null || !MobEntityManager.isEnabled()) {
 				return new JsonObject();
@@ -6132,7 +5886,6 @@ public final class EntityBehaviorsManager {
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP));
 		}
@@ -6232,7 +5985,6 @@ public final class EntityBehaviorsManager {
 				return merged;
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
@@ -6394,24 +6146,6 @@ public final class EntityBehaviorsManager {
 			applyWeaponDamagePolicy(zombie, variant);
 			applyZombieBehaviorToggles(zombie, fileConfigRoot, variant);
 			modified |= applyConfiguredZombieAlternativeMobReplacement(zombie, variant, EntitySpawnReason.NATURAL);
-			return modified;
-		}
-	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof Zombie zombie) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = fileKeyForType(zombie.getType());
-			if (fileKey.isBlank() || !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveZombieRootForRuntime(zombie.getType());
-			JsonObject variantGroup = resolveZombieVariantGroupRoot(zombie, fileConfigRoot, fileRoot, null, false);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(variantGroup, zombie.isBaby());
-			variant = mergeZombieFileSettings(fileRoot, variant);
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
 			return modified;
 		}
 	
@@ -6697,7 +6431,6 @@ public final class EntityBehaviorsManager {
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);
 			return merged;
@@ -6733,7 +6466,6 @@ public final class EntityBehaviorsManager {
 			}
 			return normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_DEFAULT_GROUP))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_CUSTOM_MOB_DROPS))
-				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW))
 				|| normalizedKey.equals(normalizeKey(MobConfigManager.FIELD_WEAPON_DAMAGE));
@@ -7002,28 +6734,6 @@ public final class EntityBehaviorsManager {
 			return modified;
 		}
 	
-		public static boolean applyLoadedEntityDifficultyOverrides(LivingEntity entity) {
-			if (!(entity instanceof ZombieVillager zombieVillager) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
-				return false;
-			}
-			String fileKey = MobConfigManager.FILE_ZOMBIE_VILLAGER;
-			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return false;
-			}
-	
-			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
-			JsonObject fileRoot = MobEntityManager.resolveZombieVillagerRootForRuntime(zombieVillager.getType());
-			JsonObject defaultGroup = readObject(fileRoot, MobConfigManager.FIELD_DEFAULT_GROUP);
-			JsonObject variant = MobEntityManager.resolveAgeVariantRoot(defaultGroup, zombieVillager.isBaby());
-			variant = mergeZombieVillagerFileSettings(fileRoot, variant);
-	
-			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-			boolean modified = false;
-			applyWeaponDamagePolicy(zombieVillager, variant);
-			applyZombieVillagerBehaviorToggles(zombieVillager, fileConfigRoot, variant);
-			return modified;
-		}
-	
 		static boolean isCustomMobDropsEnabled(LivingEntity entity) {
 			if (!(entity instanceof ZombieVillager zombieVillager) || entity.level().isClientSide() || !MobEntityManager.isEnabled()) {
 				return false;
@@ -7067,7 +6777,6 @@ public final class EntityBehaviorsManager {
 				return merged;
 			}
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_CUSTOM_MOB_DROPS);
-			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WORLD_DIFFICULTY_SCALING);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_REGIONAL_DIFFICULTY_SCALING_NEW);
 			copyIfMissing(merged, fileRoot, MobConfigManager.FIELD_WEAPON_DAMAGE);

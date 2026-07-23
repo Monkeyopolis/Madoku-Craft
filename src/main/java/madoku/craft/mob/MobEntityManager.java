@@ -773,56 +773,8 @@ public final class MobEntityManager {
 			return;
 		}
 		EntityComponentsManager.applyWorldDifficultyScaling(entity);
-		if (entity instanceof ZombieVillager zombieVillager) {
-			EntityBehaviorsManager.ZombieVillagerBehavior.applyLoadedEntityDifficultyOverrides(zombieVillager);
-			return;
-		}
-		if (entity instanceof Drowned drowned) {
-			EntityBehaviorsManager.DrownedBehavior.applyLoadedEntityDifficultyOverrides(drowned);
-			return;
-		}
-		if (entity instanceof Husk husk) {
-			EntityBehaviorsManager.HuskBehavior.applyLoadedEntityDifficultyOverrides(husk);
-			return;
-		}
-		if (entity instanceof Spider spider) {
-			if (spider.getType() == madoku.craft.entity.MadokuEntityTypes.CAVE_SPIDER) {
-				EntityBehaviorsManager.CaveSpiderBehavior.applyLoadedEntityDifficultyOverrides(spider);
-				return;
-			}
-			JsonObject root = readObject(fileMobRoot(MobConfigManager.FILE_SPIDER), MobConfigManager.FIELD_DEFAULT_GROUP);
-			return;
-		}
-		if (entity instanceof AbstractSkeleton skeleton) {
-			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
-				EntityBehaviorsManager.WitherSkeletonBehavior.applyLoadedEntityDifficultyOverrides(skeleton);
-				return;
-			}
-			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
-				EntityBehaviorsManager.StrayBehavior.applyLoadedEntityDifficultyOverrides(skeleton);
-			} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
-				EntityBehaviorsManager.BoggedBehavior.applyLoadedEntityDifficultyOverrides(skeleton);
-			} else if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
-				EntityBehaviorsManager.ParchedBehavior.applyLoadedEntityDifficultyOverrides(skeleton);
-			} else {
-				EntityBehaviorsManager.SkeletonBehavior.applyLoadedEntityDifficultyOverrides(skeleton);
-			}
-			return;
-		}
 		if (entity instanceof Creeper creeper) {
-			EntityBehaviorsManager.CreeperBehavior.applyLoadedEntityDifficultyOverrides(creeper);
-			return;
-		}
-		if (entity instanceof Zombie zombie) {
-			EntityBehaviorsManager.ZombieBehavior.applyLoadedEntityDifficultyOverrides(zombie);
-			return;
-		}
-		if (entity.getType() == madoku.craft.entity.MadokuEntityTypes.BEE) {
-			EntityBehaviorsManager.BeeBehavior.applyLoadedEntityDifficultyOverrides(entity);
-			return;
-		}
-		if (entity.getType() == MadokuEntities.HAG) {
-			return;
+			EntityBehaviorsManager.CreeperBehavior.applyLoadedExplosionDifficultyScaling(creeper);
 		}
 	}
 
@@ -876,18 +828,6 @@ public final class MobEntityManager {
 			return false;
 		}
 		return applyUniversalBaseStatsForRuntime(entity, resolvedRoot);
-	}
-
-	static boolean applyBeeDifficultyOverrides(LivingEntity entity) {
-		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || !isMobFileEnabled(MobConfigManager.FILE_BEE)) {
-			return false;
-		}
-		JsonObject beeFileRoot = root(MobConfigManager.FILE_BEE);
-		JsonObject resolved = resolveBeeRoot(entity, beeFileRoot, entity.getRandom(), false);
-		if (resolved.entrySet().isEmpty() || !readBoolean(beeFileRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true)) {
-			return false;
-		}
-		return false;
 	}
 
 	static JsonObject resolveBeeBehaviorRoot(LivingEntity entity) {
@@ -1241,14 +1181,6 @@ public final class MobEntityManager {
 			return ((MobExperienceAccessor) mob).madokuCraft$getXpReward();
 		}
 		return 0;
-	}
-
-	private static double readAttributeBaseValue(LivingEntity entity, Holder<Attribute> attribute) {
-		if (entity == null || attribute == null) {
-			return 0.0D;
-		}
-		AttributeInstance instance = entity.getAttribute(attribute);
-		return instance == null ? 0.0D : instance.getBaseValue();
 	}
 
 	private static boolean setBaseValue(LivingEntity entity, Holder<Attribute> attribute, double value) {
@@ -1755,12 +1687,6 @@ public final class MobEntityManager {
 
 	private static double resolveDifficultyAdjustedValue(Difficulty difficulty, boolean hardcore, double baseValue, double step, double minimum) {
 		double resolved = Math.max(minimum, baseValue + (step * resolveDifficultyTier(difficulty, hardcore)));
-		return roundDifficultyScaleValue(baseValue, resolved);
-	}
-
-	private static double resolveDifficultyAdjustedPercentValue(Difficulty difficulty, boolean hardcore, double baseValue, double stepRatio, double minimum) {
-		double multiplier = 1.0D + (stepRatio * resolveDifficultyTier(difficulty, hardcore));
-		double resolved = Math.max(minimum, baseValue * Math.max(0.0D, multiplier));
 		return roundDifficultyScaleValue(baseValue, resolved);
 	}
 

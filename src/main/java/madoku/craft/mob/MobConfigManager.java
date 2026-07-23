@@ -24,7 +24,6 @@ public final class MobConfigManager {
 	public static final String ENTITIES_SETTINGS_FILE = "madoku-entities";
 	public static final String WORLD_DIFFICULTY_SETTINGS_FILE = "madoku-world-difficulty";
 	public static final String REGIONAL_DIFFICULTY_SETTINGS_FILE = "madoku-regional-difficulty";
-	public static final String ENTITY_FILES_FOLDER = "mobs";
 	public static final String REGIONAL_SCALING_FOLDER = "scaling";
 	public static final String REGIONAL_STRUCTURES_FILE = "structures";
 	public static final String REGIONAL_TIME_FILE = "time";
@@ -240,7 +239,7 @@ public final class MobConfigManager {
 				null
 			);
 			JSONFormatManager.ensureManagedFolder(
-				ensureDirectory(mobsDirectory.resolve(ENTITIES_SYSTEM_FOLDER).resolve(ENTITY_FILES_FOLDER)),
+				getOrCreateEntityDirectory(),
 				buildNewEntityDefaults(),
 				MobConfigManager::buildNewDynamicEntityDefaults,
 				(fileKey, ignored) -> true,
@@ -296,10 +295,10 @@ public final class MobConfigManager {
 		Path settingsFile = mobsRootDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json");
 		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildEntitySystemDefaults());
 		boolean enabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
-		Path mobsDirectory = getOrCreateEntityDirectory().resolve(ENTITY_FILES_FOLDER);
+		Path entityDirectory = getOrCreateEntityDirectory();
 		Map<String, JsonObject> files = new LinkedHashMap<>();
-		if (Files.isDirectory(mobsDirectory)) {
-			try (var stream = Files.list(mobsDirectory)) {
+		if (Files.isDirectory(entityDirectory)) {
+			try (var stream = Files.list(entityDirectory)) {
 				for (Path file : stream.filter(Files::isRegularFile).filter(path -> path.getFileName().toString().endsWith(".json")).toList()) {
 					String fileKey = file.getFileName().toString().substring(0, file.getFileName().toString().length() - 5).toLowerCase();
 					files.put(fileKey, JSONFormatManager.readManagedDocument(file).data());
@@ -515,9 +514,11 @@ public final class MobConfigManager {
 			buildSpawnRules(100.0D), behavior, buildGoals("breed", "hurt-by-target", "become-angry-target")
 		);
 		variant.add("adult", buildVariant(buildComponents(null, null, null, null, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null), buildSpawnRules(80.0D), new JsonObject(), new JsonObject()));
-		variant.add("baby", buildVariant(
+		JsonObject baby = buildVariant(
 			buildComponents(5.0D, null, null, 0.25D, null, 0.0D, null, 0.45D, 1, null, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(20.0D), new JsonObject(), new JsonObject()));
+			buildSpawnRules(20.0D), new JsonObject(), new JsonObject());
+		addMobBabyComponent(baby, true);
+		variant.add("baby", baby);
 		return variant;
 	}
 
@@ -596,9 +597,11 @@ public final class MobConfigManager {
 			buildGoals("hurt-by-target", "target-player")
 		);
 		melee.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		melee.add("baby", buildVariant(
+		JsonObject meleeBaby = buildVariant(
 			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, null, null, null, null, "minecraft-entities-drowned.json", null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
+		addMobBabyComponent(meleeBaby, true);
+		melee.add("baby", meleeBaby);
 		JsonObject ranged = buildVariant(
 			buildComponents(null, null, null, 0.24D, 0.012D, null, null, null, null, 9.0D, 0.8D, 30.0D, 15.0D,
 				"minecraft-entities-drowned.json", "minecraft:trident", null, 0, null, null, null),
@@ -608,9 +611,11 @@ public final class MobConfigManager {
 		ranged.add("adult", buildVariant(
 			buildComponents(20.0D, null, 5.0D, null, null, null, null, 1.0D, 7, null, null, null, null, null, null, null, 0, null, null, null),
 			buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		ranged.add("baby", buildVariant(
+		JsonObject rangedBaby = buildVariant(
 			buildComponents(10.0D, null, 2.5D, null, null, null, null, null, 3, 4.5D, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
+		addMobBabyComponent(rangedBaby, true);
+		ranged.add("baby", rangedBaby);
 		melee.add("ranged-drowned", ranged);
 		return melee;
 	}
@@ -623,9 +628,11 @@ public final class MobConfigManager {
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
 		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		variant.add("baby", buildVariant(
+		JsonObject baby = buildVariant(
 			buildComponents(14.0D, 1.0D, 3.5D, null, null, null, 0.2D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
+		addMobBabyComponent(baby, true);
+		variant.add("baby", baby);
 		return variant;
 	}
 
@@ -682,9 +689,11 @@ public final class MobConfigManager {
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
 		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		variant.add("baby", buildVariant(
+		JsonObject baby = buildVariant(
 			buildComponents(12.0D, 0.0D, 3.0D, 0.21D, null, null, 0.0D, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject()));
+			buildSpawnRules(10.0D), buildBehavior(false, false, false, false), new JsonObject());
+		addMobBabyComponent(baby, true);
+		variant.add("baby", baby);
 		variant.add("zombie-jockey", buildVariant(new JsonObject(), buildZombieJockeySpawnRules(), new JsonObject(), new JsonObject()));
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
@@ -724,9 +733,11 @@ public final class MobConfigManager {
 			buildGoals("hurt-by-target", "target-player", "melee-attack")
 		);
 		variant.add("adult", buildVariant(new JsonObject(), buildSpawnRules(90.0D), new JsonObject(), new JsonObject()));
-		variant.add("baby", buildVariant(
+		JsonObject baby = buildVariant(
 			buildComponents(10.0D, null, 2.5D, 0.24D, null, null, null, null, 3, null, null, null, null, null, null, null, 0, null, null, null),
-			buildSpawnRules(10.0D), new JsonObject(), new JsonObject()));
+			buildSpawnRules(10.0D), new JsonObject(), new JsonObject());
+		addMobBabyComponent(baby, true);
+		variant.add("baby", baby);
 		return variant;
 	}
 
