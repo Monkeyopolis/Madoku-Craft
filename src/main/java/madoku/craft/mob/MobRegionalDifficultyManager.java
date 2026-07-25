@@ -870,8 +870,10 @@ public final class MobRegionalDifficultyManager {
 		double armorBaseAfter = readAttributeBaseValue(mob, Attributes.ARMOR);
 
 		if (healthChanged) {
-			double maxHealth = mob.getAttributeValue(Attributes.MAX_HEALTH);
-			mob.setHealth((float) maxHealth);
+			AttributeInstance maxHealthInstance = mob.getAttribute(Attributes.MAX_HEALTH);
+			if (maxHealthInstance != null) {
+				mob.setHealth((float) maxHealthInstance.getValue());
+			}
 		}
 		return new ScalingApplication(
 			increments,
@@ -908,7 +910,11 @@ public final class MobRegionalDifficultyManager {
 		if (!MobEntityManager.isDifficultyScalingEligible(mob)) {
 			return 0.0D;
 		}
-		double currentMaxHealth = Math.max(1.0D, mob.getAttributeValue(Attributes.MAX_HEALTH));
+		AttributeInstance instance = mob.getAttribute(Attributes.MAX_HEALTH);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentMaxHealth = Math.max(1.0D, instance.getValue());
 		return resolveScaledAddition(currentMaxHealth, increments.health(), modes.healthMode(), totalAdjustment);
 	}
 
@@ -921,7 +927,11 @@ public final class MobRegionalDifficultyManager {
 		if (mob == null) {
 			return 0.0D;
 		}
-		double currentDamage = Math.max(0.0D, mob.getAttributeValue(Attributes.ATTACK_DAMAGE));
+		AttributeInstance instance = mob.getAttribute(Attributes.ATTACK_DAMAGE);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentDamage = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentDamage, increments.damage(), modes.damageMode(), totalAdjustment);
 	}
 
@@ -934,7 +944,11 @@ public final class MobRegionalDifficultyManager {
 		if (mob == null) {
 			return 0.0D;
 		}
-		double currentSpeed = Math.max(0.0D, mob.getAttributeValue(Attributes.MOVEMENT_SPEED));
+		AttributeInstance instance = mob.getAttribute(Attributes.MOVEMENT_SPEED);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentSpeed = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentSpeed, increments.movementSpeed(), modes.movementSpeedMode(), totalAdjustment);
 	}
 
@@ -964,17 +978,35 @@ public final class MobRegionalDifficultyManager {
 		if (mob == null) {
 			return 0.0D;
 		}
-		double currentScale = Math.max(0.0D, mob.getAttributeValue(Attributes.SCALE));
+		AttributeInstance instance = mob.getAttribute(Attributes.SCALE);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentScale = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentScale, increments.scale(), modes.scaleMode(), totalAdjustment);
 	}
 
 	private static double resolveArmorScalingAmount(Mob mob, StatIncrements increments, StatModes modes, int totalAdjustment) {
-		double currentArmor = mob == null ? 0.0D : Math.max(0.0D, mob.getAttributeValue(Attributes.ARMOR));
+		if (mob == null) {
+			return 0.0D;
+		}
+		AttributeInstance instance = mob.getAttribute(Attributes.ARMOR);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentArmor = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentArmor, increments.armor(), modes.armorMode(), totalAdjustment);
 	}
 
 	private static double resolveKnockbackResistanceScalingAmount(Mob mob, StatIncrements increments, StatModes modes, int totalAdjustment) {
-		double currentKnockbackResistance = mob == null ? 0.0D : Math.max(0.0D, mob.getAttributeValue(Attributes.KNOCKBACK_RESISTANCE));
+		if (mob == null) {
+			return 0.0D;
+		}
+		AttributeInstance instance = mob.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
+		if (instance == null) {
+			return 0.0D;
+		}
+		double currentKnockbackResistance = Math.max(0.0D, instance.getValue());
 		return resolveScaledAddition(currentKnockbackResistance, increments.knockbackResistance(), modes.knockbackResistanceMode(), totalAdjustment);
 	}
 

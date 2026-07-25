@@ -2,10 +2,13 @@ package madoku.craft.attributes.armor;
 
 import madoku.craft.attributes.MadokuAttributesManager;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.core.Holder;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
 
@@ -46,12 +49,12 @@ public final class MadokuArmorManager {
 		}
 
 		double armorPoints = clampToRange(
-			entity.getAttributeValue(Attributes.ARMOR),
+			readAttributeValue(entity, Attributes.ARMOR),
 			settings.armorPoints.startingArmor,
 			settings.armorPoints.maxPoints
 		);
 		double armorToughnessPoints = clampToRange(
-			entity.getAttributeValue(Attributes.ARMOR_TOUGHNESS),
+			readAttributeValue(entity, Attributes.ARMOR_TOUGHNESS),
 			settings.armorToughnessPoints.startingArmorToughness,
 			settings.armorToughnessPoints.maxPoints
 		);
@@ -83,6 +86,14 @@ public final class MadokuArmorManager {
 		}
 
 		return (float) Math.max(0.0d, roundToDamageIncrement(finalDamage));
+	}
+
+	private static double readAttributeValue(LivingEntity entity, Holder<Attribute> attribute) {
+		if (entity == null || attribute == null) {
+			return 0.0d;
+		}
+		AttributeInstance instance = entity.getAttribute(attribute);
+		return instance == null ? 0.0d : instance.getValue();
 	}
 
 	private static void loadStaticConfig() {
