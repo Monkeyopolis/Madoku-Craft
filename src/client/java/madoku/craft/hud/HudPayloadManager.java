@@ -1,6 +1,6 @@
 package madoku.craft.hud;
 
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -22,7 +22,7 @@ public final class HudPayloadManager {
 	private static volatile int serverHungerPending;
 	private static volatile int serverHungerMax = DEFAULT_MAX_HUNGER;
 	private static volatile boolean hasServerHunger;
-	private static final long[] petAbilityCooldownEndTicks = new long[PlayerEntitiesSystem.SLOT_COUNT];
+	private static final long[] petAbilityCooldownEndTicks = new long[PetEntitiesManager.SLOT_COUNT];
 
 	private HudPayloadManager() {
 	}

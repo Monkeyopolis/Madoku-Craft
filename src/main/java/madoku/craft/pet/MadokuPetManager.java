@@ -13,7 +13,6 @@ import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.MobEntityManager;
 import madoku.craft.mixin.MobTargetSelectorAccessor;
-import madoku.craft.api.sync.SyncPlayerManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -67,18 +66,19 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class PlayerEntitiesSystem {
-	private static final Logger LOGGER = LoggerFactory.getLogger(PlayerEntitiesSystem.class);
+public final class MadokuPetManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuPetManager.class);
 
 	public static final int SLOT_COUNT = 4;
 	public static final int FIRST_SLOT_INDEX = 46;
 	public static final int SLOT_X = 77;
 	public static final int[] SLOT_YS = {8, 26, 44, 62};
-	public static final String SAVE_KEY = "PlayerEntities";
+	public static final String SAVE_KEY = "MadokuPets";
 
-	private static final String PET_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-pets";
+	private static final String PET_CONFIG_ROOT_FOLDER_NAME = PetConfigManager.PET_FOLDER;
 	private static final String PET_CONFIG_FILE_NAME = "madoku-pets";
-	private static final String PET_RULES_FOLDER_NAME = "madoku-pets";
+	private static final String PET_RULES_FOLDER_NAME = PetConfigManager.ENTITY_FOLDER;
+	private static final String PET_ABILITIES_FOLDER_NAME = PetConfigManager.ABILITY_FOLDER;
 	private static final String DATA_FILE_NAME = "madoku-pets";
 	private static final String TASK_TYPE_PET_ATTACK = "pet_attack";
 	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
@@ -155,13 +155,18 @@ public final class PlayerEntitiesSystem {
 	private static volatile String runtimeSchedulerId = "";
 	private static volatile boolean runtimeTickQueued;
 
-	private PlayerEntitiesSystem() {
+	private MadokuPetManager() {
 	}
 
 	public static void initialize() {
-		loadConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_PET_ATTACK, PlayerEntitiesSystem::runPetAttack);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_PET_RUNTIME_TICK, PlayerEntitiesSystem::runPetRuntimeTick);
+		PetConfigManager.initialize();
+		PetEntitiesManager.initialize();
+		PetAbilitiesManager.initialize();
+		PetHudManager.initialize();
+		PetHagManager.initialize();
+		PetComponentsManager.initialize();
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_PET_ATTACK, MadokuPetManager::runPetAttack);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_PET_RUNTIME_TICK, MadokuPetManager::runPetRuntimeTick);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof ServerPlayer player)) {
 				return;
@@ -177,7 +182,7 @@ public final class PlayerEntitiesSystem {
 			cachePendingRespawnPetInventory(player);
 			clearSlotCooldowns(player.getUUID());
 		});
-		ServerLivingEntityEvents.AFTER_DAMAGE.register(PlayerEntitiesSystem::handleAfterDamage);
+		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuPetManager::handleAfterDamage);
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
 			removeAllPets(newPlayer.level().getServer(), oldPlayer.getUUID());
 			if (alive) {
@@ -187,7 +192,7 @@ public final class PlayerEntitiesSystem {
 			}
 			requestPetProcessing(newPlayer.level().getServer(), newPlayer.getUUID(), 0L);
 		});
-		ServerPlayerEvents.JOIN.register(PlayerEntitiesSystem::handlePlayerJoin);
+		ServerPlayerEvents.JOIN.register(MadokuPetManager::handlePlayerJoin);
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			if (handler == null || handler.player == null) {
 				return;
@@ -199,7 +204,7 @@ public final class PlayerEntitiesSystem {
 			ACTIVE_PET_IDS.remove(entityId);
 			NEXT_IDLE_MOVE_BY_PET.remove(entityId);
 			FOLLOW_COMMANDS_BY_PET.remove(entityId);
-			PetSoundState.remove(entityId);
+			PetPayloadManager.removeSoundState(entityId);
 		});
 	}
 
@@ -216,7 +221,7 @@ public final class PlayerEntitiesSystem {
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		ACTIVE_BEE_SWARMS.clear();
-		PetSoundState.clear();
+		PetPayloadManager.clearSoundState();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		runtimeSchedulerId = "";
 		runtimeTickQueued = false;
@@ -231,7 +236,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		loadConfig();
+		reloadConfig();
 		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, "slot-cooldowns", "uuid");
 		applyPersistedData(data);
 		removeTaggedPets(server);
@@ -354,7 +359,7 @@ public final class PlayerEntitiesSystem {
 			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
-	public static void onPlayerEntitiesInventoryChanged(ServerPlayer player) {
+	public static void onPetInventoryChanged(ServerPlayer player) {
 		if (player == null) {
 			return;
 		}
@@ -392,7 +397,7 @@ public final class PlayerEntitiesSystem {
 		return entity != null
 			&& (ACTIVE_PET_IDS.contains(entity.getUUID())
 				|| entity.entityTags().contains(MANAGED_PET_TAG)
-				|| PetSoundState.isManaged(entity));
+				|| PetPayloadManager.hasSoundState(entity.getUUID()));
 	}
 
 	public static float soundVolume(Entity entity, float baseVolume) {
@@ -465,7 +470,7 @@ public final class PlayerEntitiesSystem {
 		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
 			return abilityCooldownTicks(stack);
 		}
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		int batCount = countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN);
 		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(Math.max(1, batCount), rule));
 	}
@@ -508,7 +513,7 @@ public final class PlayerEntitiesSystem {
 			return 0.0D;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return 0.0D;
 		}
@@ -528,7 +533,7 @@ public final class PlayerEntitiesSystem {
 			return 0.0D;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return 0.0D;
 		}
@@ -548,7 +553,7 @@ public final class PlayerEntitiesSystem {
 			return 0.0D;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return 0.0D;
 		}
@@ -568,7 +573,7 @@ public final class PlayerEntitiesSystem {
 			return 0.0D;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return 0.0D;
 		}
@@ -601,7 +606,7 @@ public final class PlayerEntitiesSystem {
 			return amount;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return amount;
 		}
@@ -729,14 +734,14 @@ public final class PlayerEntitiesSystem {
 	}
 
 	public static void dropAll(ServerPlayer player) {
-		PlayerEntitiesInventory playerEntitiesInventory = playerEntitiesInventory(player);
-		if (player == null || playerEntitiesInventory == null) {
+		PetInventory petInventory = petInventory(player);
+		if (player == null || petInventory == null) {
 			return;
 		}
 
-		List<Integer> occupiedSlots = new ArrayList<>(playerEntitiesInventory.getContainerSize());
-		for (int slot = 0; slot < playerEntitiesInventory.getContainerSize(); slot++) {
-			if (!playerEntitiesInventory.getItem(slot).isEmpty()) {
+		List<Integer> occupiedSlots = new ArrayList<>(petInventory.getContainerSize());
+		for (int slot = 0; slot < petInventory.getContainerSize(); slot++) {
+			if (!petInventory.getItem(slot).isEmpty()) {
 				occupiedSlots.add(slot);
 			}
 		}
@@ -761,33 +766,33 @@ public final class PlayerEntitiesSystem {
 		);
 		for (int index = 0; index < dropCount; index++) {
 			int slot = occupiedSlots.get(index);
-			ItemStack stack = playerEntitiesInventory.getItem(slot);
+			ItemStack stack = petInventory.getItem(slot);
 			if (stack.isEmpty()) {
 				continue;
 			}
 
 			player.drop(stack, true, false);
-			playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+			petInventory.setItem(slot, ItemStack.EMPTY);
 		}
-		playerEntitiesInventory.setChanged();
+		petInventory.setChanged();
 	}
 
-	public static int countPlayerEntities(Player player) {
-		PlayerEntitiesInventory playerEntitiesInventory = playerEntitiesInventory(player);
-		if (playerEntitiesInventory == null) {
+	public static int countPets(Player player) {
+		PetInventory petInventory = petInventory(player);
+		if (petInventory == null) {
 			return 0;
 		}
 
 		int count = 0;
-		for (int slot = 0; slot < playerEntitiesInventory.getContainerSize(); slot++) {
-			if (isValidPlayerEntity(playerEntitiesInventory.getItem(slot))) {
+		for (int slot = 0; slot < petInventory.getContainerSize(); slot++) {
+			if (isValidPlayerEntity(petInventory.getItem(slot))) {
 				count++;
 			}
 		}
 		return count;
 	}
 
-	private static void loadConfig() {
+	static void reloadConfig() {
 		loadStaticConfig();
 		loadPetRules();
 	}
@@ -814,11 +819,12 @@ public final class PlayerEntitiesSystem {
 			Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
 				rulesDirectory,
 				buildDefaultPetRuleFiles(),
-				PlayerEntitiesSystem::buildDynamicPetRuleDefaults,
-				PlayerEntitiesSystem::isSupportedPetRuleFile,
+				MadokuPetManager::buildDynamicPetRuleDefaults,
+				MadokuPetManager::isSupportedPetRuleFile,
 				null
 			);
 			Map<String, JsonObject> abilityNormalizedFiles = new LinkedHashMap<>();
+			Map<String, JsonObject> abilityDefinitions = loadPetAbilityRules(rootDirectory);
 			for (Map.Entry<String, JsonObject> entry : normalizedFiles.entrySet()) {
 				String fileKey = entry.getKey();
 				JsonObject sourceRoot = entry.getValue();
@@ -828,6 +834,16 @@ public final class PlayerEntitiesSystem {
 				}
 
 				String abilityType = normalizeKey(getString(sourceRoot, "ability", defaultAbilityForItem(itemId)));
+				JsonObject abilityDefinition = abilityDefinitions.get(abilityType);
+				if (abilityDefinition != null) {
+					JsonObject merged = sourceRoot.deepCopy();
+					for (Map.Entry<String, JsonElement> abilityEntry : abilityDefinition.entrySet()) {
+						if (!merged.has(abilityEntry.getKey())) {
+							merged.add(abilityEntry.getKey(), abilityEntry.getValue().deepCopy());
+						}
+					}
+					sourceRoot = merged;
+				}
 				JsonObject abilityDefaults = PetRule.defaultsForItem(itemId, abilityType);
 				Path file = resolveJsonFile(rulesDirectory, fileKey);
 				JsonObject normalized = JSONFormatManager.writeManagedFile(file, sourceRoot, abilityDefaults, null);
@@ -846,6 +862,34 @@ public final class PlayerEntitiesSystem {
 			petRulesByItemId = Map.of();
 			LOGGER.error("Failed to load Madoku pet rules; using defaults.", exception);
 		}
+	}
+
+	private static Map<String, JsonObject> loadPetAbilityRules(Path rootDirectory) throws IOException {
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		String[] abilityTypes = {
+			PET_ABILITY_NONE,
+			PET_ABILITY_RANGED_HOMING_ARROW,
+			PET_ABILITY_WEB_PROJECTILE,
+			PET_ABILITY_EXPLOSIVE_PROJECTILE,
+			PET_ABILITY_PLAYER_DAMAGE_BONUS,
+			PET_ABILITY_FALL_DAMAGE_REDUCTION,
+			PET_ABILITY_MAX_HEALTH_BONUS,
+			PET_ABILITY_ARMOR_BONUS,
+			PET_ABILITY_DAMAGE_BLOCK,
+			PET_ABILITY_MOB_SCAN,
+			PET_ABILITY_BEE_SWARM
+		};
+		for (String abilityType : abilityTypes) {
+			defaults.put(abilityType, PetRule.defaultsForItem("minecraft:bat_spawn_egg", abilityType));
+		}
+		Path abilitiesDirectory = rootDirectory.resolve(PET_ABILITIES_FOLDER_NAME);
+		return JSONFormatManager.ensureManagedFolder(
+			abilitiesDirectory,
+			defaults,
+			fileKey -> defaults.getOrDefault(normalizeFileKey(fileKey), JSONFormatManager.object().put("ability", normalizeFileKey(fileKey)).build()),
+			(fileKey, sourceRoot) -> true,
+			null
+		);
 	}
 
 	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
@@ -908,8 +952,7 @@ public final class PlayerEntitiesSystem {
 					continue;
 				}
 				PetRule rule = resolvePetRule(pet);
-				SyncPlayerManager.send(player, new PetSoundStatePayloadManager(
-					pet.getUUID().toString(), rule == null ? "" : rule.itemId));
+				PetHudManager.sendSoundState(player, pet.getUUID().toString(), rule == null ? "" : rule.itemId);
 			}
 		}
 	}
@@ -919,8 +962,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 		for (ServerPlayer onlinePlayer : server.getPlayerList().getPlayers()) {
-			SyncPlayerManager.send(onlinePlayer, new PetSoundStatePayloadManager(
-				petId.toString(), itemId == null ? "" : itemId));
+			PetHudManager.sendSoundState(onlinePlayer, petId.toString(), itemId);
 		}
 	}
 
@@ -977,7 +1019,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return;
 		}
@@ -1059,7 +1101,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return;
 		}
@@ -1159,7 +1201,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			return;
 		}
@@ -1322,17 +1364,17 @@ public final class PlayerEntitiesSystem {
 		return true;
 	}
 
-	private static boolean hasAutomaticPetAbilities(PlayerEntitiesInventory inventory) {
+	private static boolean hasAutomaticPetAbilities(PetInventory inventory) {
 		return countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN) > 0
 			|| countSlotsWithAbility(inventory, PET_ABILITY_BEE_SWARM) > 0;
 	}
 
-	private static int countSlotsWithAbility(PlayerEntitiesInventory inventory, String abilityType) {
+	private static int countSlotsWithAbility(PetInventory inventory, String abilityType) {
 		return collectSlotsWithAbility(inventory, abilityType, null, null);
 	}
 
 	private static int collectSlotsWithAbility(
-		PlayerEntitiesInventory inventory,
+		PetInventory inventory,
 		String abilityType,
 		int[] slots,
 		PetRule[] rules
@@ -1442,7 +1484,7 @@ public final class PlayerEntitiesSystem {
 		}
 
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		long nextDelay;
 		if (petEntitiesEnabled()) {
 			nextDelay = syncPlayerPets(player);
@@ -1486,7 +1528,7 @@ public final class PlayerEntitiesSystem {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null || slot >= inventory.getContainerSize()) {
 			return;
 		}
@@ -1523,7 +1565,7 @@ public final class PlayerEntitiesSystem {
 			return -1L;
 		}
 
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			removeAllPets(server, player.getUUID());
 			return -1L;
@@ -1937,7 +1979,7 @@ public final class PlayerEntitiesSystem {
 				continue;
 			}
 
-			PlayerEntitiesInventory inventory = playerEntitiesInventory(owner);
+			PetInventory inventory = petInventory(owner);
 			if (inventory == null || state.slot < 0 || state.slot >= inventory.getContainerSize()) {
 				ACTIVE_BEE_SWARMS.remove(swarmKey);
 				continue;
@@ -2430,7 +2472,7 @@ public final class PlayerEntitiesSystem {
 		return PLAYER_SLOT_COOLDOWNS.computeIfAbsent(playerId, ignored -> new long[SLOT_COUNT]);
 	}
 
-	private static void pruneCooldowns(UUID playerId, PlayerEntitiesInventory inventory) {
+	private static void pruneCooldowns(UUID playerId, PetInventory inventory) {
 		if (playerId == null || inventory == null) {
 			return;
 		}
@@ -2451,8 +2493,8 @@ public final class PlayerEntitiesSystem {
 	}
 
 	private static void copyToNewPlayer(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
-		PlayerEntitiesInventory oldInventory = playerEntitiesInventory(oldPlayer);
-		PlayerEntitiesInventory newInventory = playerEntitiesInventory(newPlayer);
+		PetInventory oldInventory = petInventory(oldPlayer);
+		PetInventory newInventory = petInventory(newPlayer);
 		if (oldInventory == null || newInventory == null) {
 			return;
 		}
@@ -2465,7 +2507,7 @@ public final class PlayerEntitiesSystem {
 		if (player == null) {
 			return;
 		}
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(player);
+		PetInventory inventory = petInventory(player);
 		if (inventory == null) {
 			PENDING_RESPAWN_PET_INVENTORIES.remove(player.getUUID());
 			return;
@@ -2483,7 +2525,7 @@ public final class PlayerEntitiesSystem {
 		if (newPlayer == null || previousPlayerId == null) {
 			return false;
 		}
-		PlayerEntitiesInventory inventory = playerEntitiesInventory(newPlayer);
+		PetInventory inventory = petInventory(newPlayer);
 		ItemStack[] snapshot = PENDING_RESPAWN_PET_INVENTORIES.remove(previousPlayerId);
 		if (inventory == null || snapshot == null) {
 			return false;
@@ -2517,7 +2559,7 @@ public final class PlayerEntitiesSystem {
 			if (player == null) {
 				continue;
 			}
-			SyncPlayerManager.send(player, PetAbilityHudPayloadManager.fromArray(currentAbilityCooldowns(playerId)));
+			PetHudManager.sendAbilityCooldowns(player, currentAbilityCooldowns(playerId));
 		}
 	}
 
@@ -2561,7 +2603,7 @@ public final class PlayerEntitiesSystem {
 			ACTIVE_PET_IDS.remove(petId);
 			NEXT_IDLE_MOVE_BY_PET.remove(petId);
 			FOLLOW_COMMANDS_BY_PET.remove(petId);
-			PetSoundState.remove(petId);
+			PetPayloadManager.removeSoundState(petId);
 			broadcastManagedPetSoundState(server, petId, "");
 		}
 	}
@@ -2664,7 +2706,7 @@ public final class PlayerEntitiesSystem {
 				ACTIVE_PET_IDS.remove(entityId);
 				NEXT_IDLE_MOVE_BY_PET.remove(entityId);
 				FOLLOW_COMMANDS_BY_PET.remove(entityId);
-				PetSoundState.remove(entityId);
+				PetPayloadManager.removeSoundState(entityId);
 				broadcastManagedPetSoundState(server, entityId, "");
 			}
 		}
@@ -2698,7 +2740,7 @@ public final class PlayerEntitiesSystem {
 				ACTIVE_PET_IDS.remove(petId);
 				NEXT_IDLE_MOVE_BY_PET.remove(petId);
 				FOLLOW_COMMANDS_BY_PET.remove(petId);
-				PetSoundState.remove(petId);
+			PetPayloadManager.removeSoundState(petId);
 				broadcastManagedPetSoundState(server, petId, "");
 			}
 		}
@@ -2716,7 +2758,7 @@ public final class PlayerEntitiesSystem {
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		ACTIVE_BEE_SWARMS.clear();
-		PetSoundState.clear();
+		PetPayloadManager.clearSoundState();
 	}
 
 	private static void clearManagedPetEntityState(MinecraftServer server) {
@@ -2727,15 +2769,15 @@ public final class PlayerEntitiesSystem {
 		ACTIVE_PET_IDS.clear();
 		NEXT_IDLE_MOVE_BY_PET.clear();
 		FOLLOW_COMMANDS_BY_PET.clear();
-		PetSoundState.clear();
+		PetPayloadManager.clearSoundState();
 	}
 
 	private static String ownerTag(UUID ownerId) {
 		return MANAGED_PET_OWNER_PREFIX + ownerId;
 	}
 
-	private static PlayerEntitiesInventory playerEntitiesInventory(Player player) {
-		return player instanceof PlayerEntitiesHolder holder ? holder.madokuCraft$getPlayerEntitiesInventory() : null;
+	private static PetInventory petInventory(Player player) {
+		return player instanceof PetHolder holder ? holder.madokuCraft$getPetInventory() : null;
 	}
 
 	private static PetRule resolvePetRule(ItemStack stack) {
@@ -2754,7 +2796,7 @@ public final class PlayerEntitiesSystem {
 		if (entity == null) {
 			return null;
 		}
-		String syncedItemId = normalizeKey(PetSoundState.getItemId(entity));
+		String syncedItemId = normalizeKey(PetPayloadManager.soundItemId(entity.getUUID()));
 		if (!syncedItemId.isBlank()) {
 			return resolvePetRule(syncedItemId);
 		}
@@ -2949,7 +2991,7 @@ public final class PlayerEntitiesSystem {
 			return false;
 		}
 		String normalizedItemId = normalizeKey(itemId);
-		PetSoundState.set(pet.getUUID(), normalizedItemId);
+		PetPayloadManager.setSoundState(pet.getUUID(), normalizedItemId);
 		String existingTag = null;
 		for (String tag : pet.entityTags()) {
 			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {

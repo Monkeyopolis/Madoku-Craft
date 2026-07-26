@@ -2,7 +2,7 @@ package madoku.craft.mixin;
 
 import madoku.craft.attributes.armor.MadokuArmorManager;
 import madoku.craft.mob.MobEntityManager;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -45,8 +45,8 @@ public abstract class LivingEntityArmorDamageMixin {
 			damageAfterArmor = amount;
 		}
 
-		damageAfterArmor = PlayerEntitiesSystem.applyFallDamageAbilityReduction(entity, source, damageAfterArmor);
-		damageAfterArmor = PlayerEntitiesSystem.applyIncomingDamageBlockAbility(entity, source, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesManager.applyFallDamage(entity, source, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
 	}
 

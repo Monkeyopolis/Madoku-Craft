@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetEntitiesManager;
+import madoku.craft.pet.MadokuPetManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -22,7 +23,7 @@ public abstract class BatPetBehaviorMixin {
 	@Inject(method = "customServerAiStep", at = @At("HEAD"))
 	private void madokuCraft$keepManagedBatActive(ServerLevel level, CallbackInfo ci) {
 		Bat self = (Bat) (Object) this;
-		if (!PlayerEntitiesSystem.isManagedPet(self)) {
+		if (!PetEntitiesManager.isManaged(self)) {
 			MANAGED_BAT_TARGETS.remove(self.getUUID());
 			return;
 		}
@@ -39,13 +40,13 @@ public abstract class BatPetBehaviorMixin {
 	)
 	private void madokuCraft$applyManagedBatTarget(ServerLevel level, CallbackInfo ci) {
 		Bat self = (Bat) (Object) this;
-		if (!PlayerEntitiesSystem.isManagedPet(self)) {
+		if (!PetEntitiesManager.isManaged(self)) {
 			return;
 		}
 
-		long steeringInterval = Math.max(1L, PlayerEntitiesSystem.managedPetSteeringInterval());
+		long steeringInterval = Math.max(1L, MadokuPetManager.managedPetSteeringInterval());
 		if (level.getGameTime() % steeringInterval == 0L) {
-			Vec3 target = PlayerEntitiesSystem.managedPetMovementTarget(self);
+			Vec3 target = PetEntitiesManager.movementTarget(self);
 			BlockPos targetPos = target == null
 				? BlockPos.containing(self.position())
 				: new BlockPos(

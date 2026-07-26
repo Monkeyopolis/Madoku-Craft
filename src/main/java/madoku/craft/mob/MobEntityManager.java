@@ -8,7 +8,7 @@ import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.loot.system.EquipmentConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetComponentsManager;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -107,7 +107,7 @@ public final class MobEntityManager {
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			TRACKED_ENTITIES.put(entity.getUUID(), entity);
-			if (entity instanceof LivingEntity livingEntity && !PlayerEntitiesSystem.isManagedPet(livingEntity)) {
+			if (entity instanceof LivingEntity livingEntity && !PetComponentsManager.isManaged(livingEntity)) {
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
 				EntityComponentsManager.applyMobBabyComponent(livingEntity);
 				if (livingEntity instanceof AgeableMob ageableMob
@@ -682,7 +682,7 @@ public final class MobEntityManager {
 	}
 
 	public static boolean applyCustomSkeletonRangedAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
-		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
+		if (skeleton == null || PetComponentsManager.isManaged(skeleton)) {
 			return false;
 		}
 		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
@@ -701,7 +701,7 @@ public final class MobEntityManager {
 	}
 
 	public static int resolveSkeletonRangedAttackIntervalTicks(AbstractSkeleton skeleton) {
-		if (skeleton == null || PlayerEntitiesSystem.isManagedPet(skeleton)) {
+		if (skeleton == null || PetComponentsManager.isManaged(skeleton)) {
 			return -1;
 		}
 		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
@@ -1000,7 +1000,7 @@ public final class MobEntityManager {
 	}
 
 	private static boolean applyConfiguredLoadedEntityRules(LivingEntity entity) {
-		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || PlayerEntitiesSystem.isManagedPet(entity)) {
+		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || PetComponentsManager.isManaged(entity)) {
 			return false;
 		}
 		if (entity instanceof ZombieVillager zombieVillager) {
@@ -1052,7 +1052,7 @@ public final class MobEntityManager {
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
 		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob)
-			|| !isDifficultyScalingEligible(mob) || level == null || PlayerEntitiesSystem.isManagedPet(entity)) {
+			|| !isDifficultyScalingEligible(mob) || level == null || PetComponentsManager.isManaged(entity)) {
 			return;
 		}
 		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForMob(entity)) {
@@ -1572,7 +1572,7 @@ public final class MobEntityManager {
 			if (!(entity instanceof AgeableMob ageableMob)
 				|| !(entity instanceof LivingEntity livingEntity)
 				|| !entity.isAlive()
-				|| PlayerEntitiesSystem.isManagedPet(livingEntity)) {
+				|| PetComponentsManager.isManaged(livingEntity)) {
 				continue;
 			}
 			EntityComponentsManager.MobBabySettings settings = EntityComponentsManager.resolveMobBabySettings(livingEntity);

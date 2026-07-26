@@ -7,7 +7,8 @@ import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHagManager;
+import madoku.craft.pet.PetConfigManager;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.rarity.MadokuRarityTier;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -310,7 +311,7 @@ public final class MadokuLootTableStructures {
 		if (itemRarity != null) {
 			MadokuRarity.applyConfiguredRarity(stack, itemRarity);
 		}
-		PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
+		PetHagManager.applyLore(stack);
 		into.add(stack);
 	}
 
@@ -692,7 +693,7 @@ public final class MadokuLootTableStructures {
 			return true;
 		}
 		return switch (tag) {
-			case GROUP_TAG_MADOKU_PETS -> PlayerEntitiesSystem.isEnabled();
+			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
 			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
 			case GROUP_TAG_MADOKU_RARITY -> MadokuRarity.isEnabled();
 			default -> true;

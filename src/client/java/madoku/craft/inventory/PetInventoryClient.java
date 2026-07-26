@@ -3,7 +3,7 @@ package madoku.craft.inventory;
 import madoku.craft.mixin.client.AbstractContainerScreenAccessor;
 import madoku.craft.mixin.client.CreativeModeInventoryScreenAccessor;
 import madoku.craft.mixin.client.SlotAccessor;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetEntitiesManager;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
@@ -20,7 +20,7 @@ import net.minecraft.world.inventory.Slot;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-public final class PlayerEntitiesInventoryClient {
+public final class PetInventoryClient {
 	private static final Identifier SURVIVAL_INVENTORY_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/containers/survival_pet_inventory.png");
 	private static final Identifier CREATIVE_INVENTORY_TEXTURE =
@@ -67,7 +67,7 @@ public final class PlayerEntitiesInventoryClient {
 	private static Method playerPreviewRenderMethod;
 	private static boolean lookedUpPlayerPreviewRenderMethod;
 
-	private PlayerEntitiesInventoryClient() {
+	private PetInventoryClient() {
 	}
 
 	public static void initialize() {
@@ -193,8 +193,8 @@ public final class PlayerEntitiesInventoryClient {
 	}
 
 	private static void moveCreativePetSlots(CreativeModeInventoryScreen screen) {
-		for (int slot = 0; slot < PlayerEntitiesSystem.SLOT_COUNT; slot++) {
-			int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX + slot;
+		for (int slot = 0; slot < PetEntitiesManager.SLOT_COUNT; slot++) {
+			int slotIndex = PetEntitiesManager.FIRST_SLOT_INDEX + slot;
 			if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
 				break;
 			}
@@ -244,8 +244,8 @@ public final class PlayerEntitiesInventoryClient {
 
 	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, Object graphics) {
 		net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics = (net.minecraft.client.gui.GuiGraphicsExtractor) graphics;
-		for (int slotIndex = PlayerEntitiesSystem.FIRST_SLOT_INDEX;
-			slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT;
+		for (int slotIndex = PetEntitiesManager.FIRST_SLOT_INDEX;
+			slotIndex < PetEntitiesManager.FIRST_SLOT_INDEX + PetEntitiesManager.SLOT_COUNT;
 			slotIndex++) {
 			if (slotIndex >= screen.getMenu().slots.size()) {
 				break;

@@ -43,32 +43,37 @@ final class PetSettings {
 
 	static PetSettings fromJson(JsonObject source) {
 		PetSettings defaults = defaults();
-		boolean enabled = PlayerEntitiesSystem.getBoolean(source, "enabled", defaults.enabled);
-		boolean entitiesEnabled = PlayerEntitiesSystem.getBoolean(source, "pet-entity", defaults.entitiesEnabled);
+		boolean enabled = MadokuPetManager.getBoolean(source, "enabled", defaults.enabled);
+		boolean entitiesEnabled = MadokuPetManager.getBoolean(source, "pet-entity", defaults.entitiesEnabled);
 		int petRarityCommonChanceWeight = (int) clampLong(
-			PlayerEntitiesSystem.getLong(source, "pet-rarity-common", defaults.petRarityCommonChanceWeight),
+			MadokuPetManager.getLong(source, "pet-rarity-common", defaults.petRarityCommonChanceWeight),
 			0,
 			100000
 		);
 		int petRarityRareChanceWeight = (int) clampLong(
-			PlayerEntitiesSystem.getLong(source, "pet-rarity-rare", defaults.petRarityRareChanceWeight),
+			MadokuPetManager.getLong(source, "pet-rarity-rare", defaults.petRarityRareChanceWeight),
 			0,
 			100000
 		);
 		int petRarityEpicChanceWeight = (int) clampLong(
-			PlayerEntitiesSystem.getLong(source, "pet-rarity-epic", defaults.petRarityEpicChanceWeight),
+			MadokuPetManager.getLong(source, "pet-rarity-epic", defaults.petRarityEpicChanceWeight),
 			0,
 			100000
 		);
 		int petRarityMythicChanceWeight = (int) clampLong(
-			PlayerEntitiesSystem.getLong(source, "pet-rarity-mythic", defaults.petRarityMythicChanceWeight),
+			MadokuPetManager.getLong(source, "pet-rarity-mythic", defaults.petRarityMythicChanceWeight),
 			0,
 			100000
+		);
+		long schedulerTickInterval = clampLong(
+			MadokuPetManager.getLong(source, "scheduler-tick-interval", defaults.schedulerTickInterval),
+			1L,
+			20L
 		);
 		return new PetSettings(
 			enabled,
 			entitiesEnabled,
-			defaults.schedulerTickInterval,
+			schedulerTickInterval,
 			petRarityCommonChanceWeight,
 			petRarityRareChanceWeight,
 			petRarityEpicChanceWeight,
@@ -80,6 +85,7 @@ final class PetSettings {
 		return madoku.craft.api.json.JSONFormatManager.object()
 			.put("enabled", enabled)
 			.put("pet-entity", entitiesEnabled)
+			.put("scheduler-tick-interval", schedulerTickInterval)
 			.put("pet-rarity-common", petRarityCommonChanceWeight)
 			.put("pet-rarity-rare", petRarityRareChanceWeight)
 			.put("pet-rarity-epic", petRarityEpicChanceWeight)

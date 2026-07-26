@@ -1,9 +1,9 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesHolder;
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSlot;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHolder;
+import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetSlot;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -19,16 +19,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(InventoryMenu.class)
-public abstract class InventoryMenuPlayerEntitiesSlotsMixin extends AbstractContainerMenu {
-	protected InventoryMenuPlayerEntitiesSlotsMixin(MenuType<?> menuType, int containerId) {
+public abstract class InventoryMenuPetSlotsMixin extends AbstractContainerMenu {
+	protected InventoryMenuPetSlotsMixin(MenuType<?> menuType, int containerId) {
 		super(menuType, containerId);
 	}
 
 	@Inject(method = "<init>", at = @At("TAIL"))
 	private void madokuCraft$addPlayerEntitySlots(Inventory inventory, boolean active, Player owner, CallbackInfo ci) {
-		PlayerEntitiesInventory playerEntitiesInventory = ((PlayerEntitiesHolder) owner).madokuCraft$getPlayerEntitiesInventory();
-		for (int slot = 0; slot < PlayerEntitiesSystem.SLOT_COUNT; slot++) {
-			this.addSlot(new PlayerEntitiesSlot(playerEntitiesInventory, slot, PlayerEntitiesSystem.SLOT_X, PlayerEntitiesSystem.SLOT_YS[slot]));
+		PetInventory petInventory = ((PetHolder) owner).madokuCraft$getPetInventory();
+		for (int slot = 0; slot < PetEntitiesManager.SLOT_COUNT; slot++) {
+			this.addSlot(new PetSlot(petInventory, slot, PetEntitiesManager.SLOT_X, PetEntitiesManager.SLOT_YS[slot]));
 		}
 	}
 
@@ -43,17 +43,17 @@ public abstract class InventoryMenuPlayerEntitiesSlotsMixin extends AbstractCont
 			return;
 		}
 
-		if (slotIndex >= PlayerEntitiesSystem.FIRST_SLOT_INDEX && slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT) {
-			cir.setReturnValue(madokuCraft$quickMove(player, slot, 9, PlayerEntitiesSystem.FIRST_SLOT_INDEX));
+		if (slotIndex >= PetEntitiesManager.FIRST_SLOT_INDEX && slotIndex < PetEntitiesManager.FIRST_SLOT_INDEX + PetEntitiesManager.SLOT_COUNT) {
+			cir.setReturnValue(madokuCraft$quickMove(player, slot, 9, PetEntitiesManager.FIRST_SLOT_INDEX));
 			return;
 		}
 
-		if (slotIndex >= 9 && slotIndex < PlayerEntitiesSystem.FIRST_SLOT_INDEX && PlayerEntitiesSystem.isValidPlayerEntity(slot.getItem())) {
+		if (slotIndex >= 9 && slotIndex < PetEntitiesManager.FIRST_SLOT_INDEX && PetEntitiesManager.isValid(slot.getItem())) {
 			ItemStack moved = madokuCraft$quickMove(
 				player,
 				slot,
-				PlayerEntitiesSystem.FIRST_SLOT_INDEX,
-				PlayerEntitiesSystem.FIRST_SLOT_INDEX + PlayerEntitiesSystem.SLOT_COUNT
+				PetEntitiesManager.FIRST_SLOT_INDEX,
+				PetEntitiesManager.FIRST_SLOT_INDEX + PetEntitiesManager.SLOT_COUNT
 			);
 			if (!moved.isEmpty()) {
 				cir.setReturnValue(moved);

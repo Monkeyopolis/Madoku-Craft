@@ -2,7 +2,7 @@ package madoku.craft;
 
 import madoku.craft.entity.MadokuEntitiesClient;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.inventory.PlayerEntitiesInventoryClient;
+import madoku.craft.inventory.PetInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.hud.HudAttributesManager;
@@ -13,9 +13,7 @@ import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
 import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
-import madoku.craft.pet.PetAbilityHudPayloadManager;
-import madoku.craft.pet.PetSoundStatePayloadManager;
-import madoku.craft.pet.PetSoundState;
+import madoku.craft.pet.PetPayloadManager;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import madoku.craft.trade.MerchantEggVariantsClient;
@@ -33,7 +31,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		MadokuHudManager.initialize();
 		MadokuEntitiesClient.initialize();
 		MadokuLevelsClient.initialize();
-		PlayerEntitiesInventoryClient.initialize();
+		PetInventoryClient.initialize();
 		MerchantEggVariantsClient.initialize();
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			ClientSeasonalPrecipitationState.refresh(client.level);
@@ -62,17 +60,17 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(ItemProfilePayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
 		);
-		ClientPlayNetworking.registerGlobalReceiver(PetAbilityHudPayloadManager.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
 			HudPayloadManager.setPetAbilityCooldowns(payload.asArray())
 		);
-		ClientPlayNetworking.registerGlobalReceiver(PetSoundStatePayloadManager.TYPE, (payload, context) ->
-			PetSoundState.set(parseUuid(payload.petUuid()), payload.itemId())
+		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetSoundStatePayload.TYPE, (payload, context) ->
+			PetPayloadManager.setSoundState(parseUuid(payload.petUuid()), payload.itemId())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
 			HudAttributesManager.reset();
-			PetSoundState.clear();
+			PetPayloadManager.clearSoundState();
 		});
 	}
 

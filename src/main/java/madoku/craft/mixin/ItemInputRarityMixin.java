@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHagManager;
 import madoku.craft.rarity.MadokuRarity;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.util.RandomSource;
@@ -22,7 +22,7 @@ public class ItemInputRarityMixin {
 	) {
 		ItemStack stack = cir.getReturnValue();
 		MadokuRarity.applyGeneratedRarity(stack, RandomSource.create());
-		PlayerEntitiesSystem.applySupportedSpawnEggLore(stack);
+		PetHagManager.applyLore(stack);
 	}
 }
 

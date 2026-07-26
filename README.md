@@ -1,37 +1,39 @@
-## Madoku Craft:
+## Overview
 
-Madoku Craft is a configurable Minecraft overhaul MOD.
-It modifies Mobs, Items, Smelting, and adds new systems.
-All of these systems are modifiable in the CONFIG files.
+Madoku Craft is a configurable Minecraft overhaul mod.
+It adds seasons, an ecosystem, pets, and a leveling system.
+It also modifies items, attributes, recipes, loot, and mobs.
+All of these systems are modifiable in the config files.
 
 ## Main Features:
 
 Mobs:
 
-The MOB system modifies MOB behaviors and scales them based on Difficulty.
-Difficulty is determined by the biome, structure, and in-game time.
+The mob system modifies mob behaviors and scales them based on regional difficulty and world difficulty.
+Regional Difficulty is determined by the biome, structure, and in-game time when a mob spawns.
 
 Items:
 
-The Item system modifies item properities based on their category.
+The item system modifies item properities based on their category.
 This allows you to modify tools and stacking limit.
 
 Attributes:
 
-The Attribute system modifies attributes to rebalance the game.
+The attribute system modifies attributes to rebalance the game.
 This allows you to customize the game's difficulty to your needs.
 
 Levels:
 
 The Levels system allows players to allocate points to increase certain stats.
 Press K to open up the Menu.
+This keybind can be customized in the options menu.
 
 Pets:
 
-The Pet system allows players to Equip spawn eggs in the player's Inventory.
-This Spawns a tiny MOB that helps and follows you without getting in the way.
+The pet system allows players to equip spawn eggs in the player's inventory.
+This spawns a tiny mob that helps and follows you without getting in the way.
 
 ## Disclaimer:
 
-Make sure to backup your worlds before using this MOD.
-This MOD severely modifies Minecraft's systems and might cause unintended issues if removed.
+Make sure to backup your worlds before using this mod.
+This mod severely modifies Minecraft and might cause unintended issues if removed.

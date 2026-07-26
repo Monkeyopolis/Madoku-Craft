@@ -244,7 +244,7 @@ final class PetMovementController {
 	}
 
 	private static double batSlotVerticalOffset(int slot) {
-		return switch (Math.max(0, Math.min(PlayerEntitiesSystem.SLOT_COUNT - 1, slot))) {
+		return switch (Math.max(0, Math.min(PetEntitiesManager.SLOT_COUNT - 1, slot))) {
 			case 0 -> 0.45D;
 			case 1 -> 0.15D;
 			case 2 -> 0.35D;
@@ -254,7 +254,7 @@ final class PetMovementController {
 	}
 
 	private static double beeSlotVerticalOffset(int slot) {
-		return switch (Math.max(0, Math.min(PlayerEntitiesSystem.SLOT_COUNT - 1, slot))) {
+		return switch (Math.max(0, Math.min(PetEntitiesManager.SLOT_COUNT - 1, slot))) {
 			case 0 -> 0.55D;
 			case 1 -> 0.30D;
 			case 2 -> 0.62D;

@@ -1,7 +1,7 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -23,7 +23,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 
 		Minecraft client = Minecraft.getInstance();
 		Slot actualSlot = unwrapCreativeSlot(slot);
-		if (!(actualSlot.container instanceof PlayerEntitiesInventory)) {
+		if (!(actualSlot.container instanceof PetInventory)) {
 			return;
 		}
 		if (client.player == null || client.gameMode == null) {
@@ -46,7 +46,7 @@ public abstract class CreativeModeInventoryScreenPetSlotMixin {
 		}
 
 		ItemStack carried = menu.getCarried();
-		if (!PlayerEntitiesSystem.isValidPlayerEntity(carried)) {
+		if (!PetEntitiesManager.isValid(carried)) {
 			// Let vanilla creative handling remove/adjust occupied slots.
 			// Ignore empty-slot no-source clicks to prevent ghost writes.
 			return !actualSlot.hasItem();

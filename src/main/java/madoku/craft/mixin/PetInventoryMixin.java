@@ -1,8 +1,8 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PlayerEntitiesHolder;
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHolder;
+import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,19 +18,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
-public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHolder {
+public abstract class PetInventoryMixin implements PetHolder {
 	@Unique
-	private final PlayerEntitiesInventory madokuCraft$playerEntitiesInventory = madokuCraft$createPlayerEntitiesInventory();
+	private final PetInventory madokuCraft$petInventory = madokuCraft$createPetInventory();
 
 	@Override
-	public PlayerEntitiesInventory madokuCraft$getPlayerEntitiesInventory() {
-		return madokuCraft$playerEntitiesInventory;
+	public PetInventory madokuCraft$getPetInventory() {
+		return madokuCraft$petInventory;
 	}
 
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
-	private void madokuCraft$savePlayerEntities(ValueOutput output, CallbackInfo ci) {
-		for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
-			ItemStack stack = madokuCraft$playerEntitiesInventory.getItem(slot);
+	private void madokuCraft$savePets(ValueOutput output, CallbackInfo ci) {
+		for (int slot = 0; slot < madokuCraft$petInventory.getContainerSize(); slot++) {
+			ItemStack stack = madokuCraft$petInventory.getItem(slot);
 			if (stack.isEmpty()) {
 				continue;
 			}
@@ -44,39 +44,39 @@ public abstract class PlayerEntitiesInventoryMixin implements PlayerEntitiesHold
 	}
 
 	@Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
-	private void madokuCraft$loadPlayerEntities(ValueInput input, CallbackInfo ci) {
-		madokuCraft$playerEntitiesInventory.runBulkUpdate(() -> {
-			for (int slot = 0; slot < madokuCraft$playerEntitiesInventory.getContainerSize(); slot++) {
+	private void madokuCraft$loadPets(ValueInput input, CallbackInfo ci) {
+		madokuCraft$petInventory.runBulkUpdate(() -> {
+			for (int slot = 0; slot < madokuCraft$petInventory.getContainerSize(); slot++) {
 				String itemId = input.getStringOr(madokuCraft$slotKey(slot), "");
 				if (itemId.isBlank()) {
-					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);
 					continue;
 				}
 
 				Identifier identifier = Identifier.tryParse(itemId);
 				Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
 				if (item == null) {
-					madokuCraft$playerEntitiesInventory.setItem(slot, ItemStack.EMPTY);
+					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);
 					continue;
 				}
 
 				ItemStack stack = new ItemStack(item);
-				madokuCraft$playerEntitiesInventory.setItem(slot, PlayerEntitiesSystem.isValidPlayerEntity(stack) ? stack : ItemStack.EMPTY);
+				madokuCraft$petInventory.setItem(slot, PetEntitiesManager.isValid(stack) ? stack : ItemStack.EMPTY);
 			}
 		});
 	}
 
 	@Unique
 	private static String madokuCraft$slotKey(int slot) {
-		return PlayerEntitiesSystem.SAVE_KEY + "." + slot;
+		return "MadokuPets." + slot;
 	}
 
 	@Unique
-	private PlayerEntitiesInventory madokuCraft$createPlayerEntitiesInventory() {
-		PlayerEntitiesInventory inventory = new PlayerEntitiesInventory();
+	private PetInventory madokuCraft$createPetInventory() {
+		PetInventory inventory = new PetInventory();
 		inventory.setChangeListener(() -> {
 			if ((Object) this instanceof ServerPlayer serverPlayer) {
-				PlayerEntitiesSystem.onPlayerEntitiesInventoryChanged(serverPlayer);
+				PetEntitiesManager.onInventoryChanged(serverPlayer);
 			}
 		});
 		return inventory;

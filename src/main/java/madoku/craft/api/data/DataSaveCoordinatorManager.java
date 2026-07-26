@@ -9,7 +9,7 @@ import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevelsManager;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.MadokuPetManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
@@ -129,7 +129,7 @@ public final class DataSaveCoordinatorManager {
 			MadokuHungerManager.savePersistedData(server);
 			MadokuOxygenManager.savePersistedData(server);
 			MadokuLevelsManager.savePersistedData(server);
-			PlayerEntitiesSystem.savePersistedData(server);
+			MadokuPetManager.savePersistedData(server);
 			MadokuItemStack.savePersistedData(server);
 		} else {
 			MadokuEntities.autosavePersistedData(server);
@@ -140,7 +140,7 @@ public final class DataSaveCoordinatorManager {
 			MadokuHungerManager.autosavePersistedData(server);
 			MadokuOxygenManager.autosavePersistedData(server);
 			MadokuLevelsManager.autosavePersistedData(server);
-			PlayerEntitiesSystem.autosavePersistedData(server);
+			MadokuPetManager.autosavePersistedData(server);
 			MadokuItemStack.autosavePersistedData(server);
 		}
 		if (shutdown) MadokuChunkDataManager.savePersistedData(server);

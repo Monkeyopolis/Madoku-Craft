@@ -1,6 +1,7 @@
 package madoku.craft.entity;
 
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHagManager;
+import madoku.craft.pet.PetConfigManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -179,7 +180,7 @@ public class Hag extends Witch implements Merchant {
 				^ this.getUUID().getLeastSignificantBits()
 				^ week
 		);
-		boolean petSystemEnabled = PlayerEntitiesSystem.isEnabled();
+		boolean petSystemEnabled = PetConfigManager.isEnabled();
 		List<Item> spawnEggs = petSystemEnabled ? buildPetSystemSpawnEggs(random) : buildFallbackSpawnEggs(random);
 		for (Item item : spawnEggs) {
 			offers.add(createSpawnEggOffer(item, petSystemEnabled));
@@ -199,7 +200,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private List<Item> buildPetSystemSpawnEggs(Random random) {
-		List<Item> pool = new ArrayList<>(PlayerEntitiesSystem.tradeSpawnEggItems());
+		List<Item> pool = new ArrayList<>(PetHagManager.tradeItems());
 		List<Item> selected = new ArrayList<>();
 		int limit = Math.min(AVAILABLE_TRADE_COUNT, pool.size());
 		while (selected.size() < limit && !pool.isEmpty()) {
@@ -254,7 +255,7 @@ public class Hag extends Witch implements Merchant {
 		int emeraldCost = petSystemEnabled ? emeraldCost(item) : DEFAULT_SPAWN_EGG_EMERALD_COST;
 		ItemStack resultStack = new ItemStack(item);
 		if (petSystemEnabled) {
-			PlayerEntitiesSystem.applySupportedSpawnEggLore(resultStack);
+			PetHagManager.applyLore(resultStack);
 		}
 		return new MerchantOffer(
 			new ItemCost(Items.EGG, eggCost),
@@ -267,7 +268,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private int rarityWeight(Item item) {
-		return PlayerEntitiesSystem.petTradeRarityWeight(petRarity(item));
+		return PetHagManager.rarityWeight(petRarity(item));
 	}
 
 	private int eggCost(Item item) {
@@ -291,7 +292,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private String petRarity(Item item) {
-		return PlayerEntitiesSystem.petRarity(new ItemStack(item));
+		return PetHagManager.rarity(new ItemStack(item));
 	}
 }
 

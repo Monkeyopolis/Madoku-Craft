@@ -5,9 +5,11 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
 import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.pet.PlayerEntitiesHolder;
-import madoku.craft.pet.PlayerEntitiesInventory;
-import madoku.craft.pet.PlayerEntitiesSystem;
+import madoku.craft.pet.PetHolder;
+import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetConfigManager;
+import madoku.craft.pet.PetEntitiesManager;
+import madoku.craft.pet.PetAbilitiesManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -197,14 +199,14 @@ public final class HudAPIManager {
 
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
-		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PlayerEntitiesSystem.isEnabled()) {
+		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PetConfigManager.isEnabled()) {
 			return;
 		}
-		if (!(player instanceof PlayerEntitiesHolder holder)) {
+		if (!(player instanceof PetHolder holder)) {
 			return;
 		}
 
-		PlayerEntitiesInventory inventory = holder.madokuCraft$getPlayerEntitiesInventory();
+		PetInventory inventory = holder.madokuCraft$getPetInventory();
 		if (inventory == null) {
 			return;
 		}
@@ -306,11 +308,11 @@ public final class HudAPIManager {
 		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
-	private static List<Integer> visibleAbilitySlots(PlayerEntitiesInventory inventory) {
-		List<Integer> visible = new java.util.ArrayList<>(PlayerEntitiesSystem.SLOT_COUNT);
-		for (int slot = 0; slot < Math.min(PlayerEntitiesSystem.SLOT_COUNT, inventory.getContainerSize()); slot++) {
+	private static List<Integer> visibleAbilitySlots(PetInventory inventory) {
+		List<Integer> visible = new java.util.ArrayList<>(PetEntitiesManager.SLOT_COUNT);
+		for (int slot = 0; slot < Math.min(PetEntitiesManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty() || !PlayerEntitiesSystem.hasAbility(stack)) {
+			if (stack == null || stack.isEmpty() || !PetAbilitiesManager.hasAbility(stack)) {
 				continue;
 			}
 			visible.add(slot);
@@ -332,8 +334,8 @@ public final class HudAPIManager {
 			return;
 		}
 
-		int totalCooldownTicks = PlayerEntitiesSystem.abilityCooldownTicks(client.player, slot, stack);
-		if (totalCooldownTicks <= 0 || slot < 0 || slot >= PlayerEntitiesSystem.SLOT_COUNT) {
+		int totalCooldownTicks = PetAbilitiesManager.cooldownTicks(client.player, slot, stack);
+		if (totalCooldownTicks <= 0 || slot < 0 || slot >= PetEntitiesManager.SLOT_COUNT) {
 			return;
 		}
 
