@@ -1,15 +1,9 @@
 package madoku.craft.hud;
 
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.MadokuCraft;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
 import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.pet.PetHolder;
-import madoku.craft.pet.PetInventory;
-import madoku.craft.pet.PetConfigManager;
-import madoku.craft.pet.PetEntitiesManager;
-import madoku.craft.pet.PetAbilitiesManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -18,34 +12,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.HumanoidArm;
-import net.minecraft.world.item.ItemStack;
-import java.util.List;
 import java.util.Locale;
 
 public final class HudAPIManager {
-	private static final Identifier MADOKU_ABILITY_HUD_ID = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_ability_hud");
-	private static final Identifier ABILITY_SLOT_TEXTURE = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "textures/gui/interface/ability_slot.png");
-	private static final RenderPipeline ABILITY_SLOT_PIPELINE = RenderPipelines.GUI_TEXTURED;
-	private static final int ABILITY_SLOT_TEXTURE_SIZE = 16;
 	private static final int WORLD_X = 4;
 	private static final int WORLD_Y = 4;
 	private static final float WORLD_HUD_SCALE = 0.8F;
-	private static final int HOTBAR_HALF_WIDTH = 91;
-	private static final int HOTBAR_SLOT_ROW_HEIGHT = 22;
-	private static final int OFFHAND_SLOT_WIDTH = 29;
-	private static final int OFFHAND_TO_ABILITY_SPACING = 7;
-	private static final int ABILITY_SLOT_SIZE = 16;
-	private static final int ABILITY_SLOT_SPACING = 1;
-	private static final int ABILITY_SLOT_Y_OFFSET = (HOTBAR_SLOT_ROW_HEIGHT - ABILITY_SLOT_SIZE) / 2;
-	private static final int ABILITY_ITEM_RENDER_SIZE = 12;
-	private static final float ABILITY_ITEM_SCALE = 0.75F;
-	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
-	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.75F;
-	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
-	private static final int ABILITY_COOLDOWN_TEXT_Y_SPACING = 2;
 	private static final int COLOR = 0xFFFFFFFF;
 
 	private HudAPIManager() {
@@ -53,7 +26,6 @@ public final class HudAPIManager {
 
 	public static void initialize() {
 		HudElementRegistry.attachElementAfter(VanillaHudElements.MISC_OVERLAYS, Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_hud"), HudAPIManager::renderWorldHud);
-		HudElementRegistry.attachElementAfter(VanillaHudElements.HOTBAR, MADOKU_ABILITY_HUD_ID, HudAPIManager::renderAbilityHud);
 	}
 
 	public static void reset() {
@@ -192,61 +164,6 @@ public final class HudAPIManager {
 	}
 
 
-	private static void renderAbilityHud(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
-		if (!HudConfigManager.isEnabled()) {
-			return;
-		}
-
-		Minecraft client = Minecraft.getInstance();
-		LocalPlayer player = client.player;
-		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PetConfigManager.isEnabled()) {
-			return;
-		}
-		if (!(player instanceof PetHolder holder)) {
-			return;
-		}
-
-		PetInventory inventory = holder.madokuCraft$getPetInventory();
-		if (inventory == null) {
-			return;
-		}
-
-		int slotY = context.guiHeight() - HOTBAR_SLOT_ROW_HEIGHT + ABILITY_SLOT_Y_OFFSET;
-		List<Integer> visibleSlots = visibleAbilitySlots(inventory);
-		if (visibleSlots.isEmpty()) {
-			return;
-		}
-
-		int[] slotXs = computeAbilitySlotXs(context, player, visibleSlots.size());
-		for (int index = 0; index < visibleSlots.size(); index++) {
-			int slot = visibleSlots.get(index);
-			int slotX = slotXs[index];
-			context.blit(
-				ABILITY_SLOT_PIPELINE,
-				ABILITY_SLOT_TEXTURE,
-				slotX,
-				slotY,
-				0.0F,
-				0.0F,
-				ABILITY_SLOT_SIZE,
-				ABILITY_SLOT_SIZE,
-				ABILITY_SLOT_TEXTURE_SIZE,
-				ABILITY_SLOT_TEXTURE_SIZE
-			);
-
-			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty()) {
-				continue;
-			}
-
-			int itemOffset = (ABILITY_SLOT_SIZE - ABILITY_ITEM_RENDER_SIZE) / 2;
-			int itemX = slotX + itemOffset;
-			int itemY = slotY + itemOffset;
-			renderScaledAbilityItem(context, stack, itemX, itemY);
-			renderAbilityCooldownOverlay(context, client, stack, slot, slotX, slotY, itemX, itemY);
-		}
-	}
-
 	private static int lineOffset(Minecraft client, int lines) {
 		int lineStep = Math.round((client.font.lineHeight + 4) * WORLD_HUD_SCALE);
 		return WORLD_Y + (lineStep * lines);
@@ -308,113 +225,4 @@ public final class HudAPIManager {
 		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
-	private static List<Integer> visibleAbilitySlots(PetInventory inventory) {
-		List<Integer> visible = new java.util.ArrayList<>(PetEntitiesManager.SLOT_COUNT);
-		for (int slot = 0; slot < Math.min(PetEntitiesManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
-			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty() || !PetAbilitiesManager.hasAbility(stack)) {
-				continue;
-			}
-			visible.add(slot);
-		}
-		return visible;
-	}
-
-	private static void renderAbilityCooldownOverlay(
-		GuiGraphicsExtractor context,
-		Minecraft client,
-		ItemStack stack,
-		int slot,
-		int slotX,
-		int slotY,
-		int itemX,
-		int itemY
-	) {
-		if (client == null || client.level == null || stack == null || stack.isEmpty()) {
-			return;
-		}
-
-		int totalCooldownTicks = PetAbilitiesManager.cooldownTicks(client.player, slot, stack);
-		if (totalCooldownTicks <= 0 || slot < 0 || slot >= PetEntitiesManager.SLOT_COUNT) {
-			return;
-		}
-
-		long remainingTicks = Math.max(0L, HudPayloadManager.getPetAbilityCooldownEndTick(slot) - client.level.getGameTime());
-		if (remainingTicks <= 0L) {
-			return;
-		}
-
-		float cooldownPercent = Math.min(1.0F, remainingTicks / (float) totalCooldownTicks);
-		int overlayTop = itemY + net.minecraft.util.Mth.floor(ABILITY_ITEM_RENDER_SIZE * (1.0F - cooldownPercent));
-		int overlayBottom = overlayTop + net.minecraft.util.Mth.ceil(ABILITY_ITEM_RENDER_SIZE * cooldownPercent);
-		context.fill(RenderPipelines.GUI, itemX, overlayTop, itemX + ABILITY_ITEM_RENDER_SIZE, overlayBottom, ABILITY_COOLDOWN_OVERLAY_COLOR);
-		renderAbilityCooldownLabel(context, client, slotX, slotY, remainingTicks);
-	}
-
-	private static void renderAbilityCooldownLabel(
-		GuiGraphicsExtractor context,
-		Minecraft client,
-		int slotX,
-		int slotY,
-		long remainingTicks
-	) {
-		if (client == null || remainingTicks <= 0L) {
-			return;
-		}
-
-		String cooldownText = Integer.toString(Math.max(1, net.minecraft.util.Mth.ceil(remainingTicks / 20.0F)));
-		int textWidth = client.font.width(cooldownText);
-		float centerX = slotX + (ABILITY_SLOT_SIZE / 2.0F);
-		int textY = slotY - Math.round(client.font.lineHeight * ABILITY_COOLDOWN_TEXT_SCALE) - ABILITY_COOLDOWN_TEXT_Y_SPACING;
-		context.pose().pushMatrix();
-		context.pose().translate(centerX, textY);
-		context.pose().scale(ABILITY_COOLDOWN_TEXT_SCALE, ABILITY_COOLDOWN_TEXT_SCALE);
-		context.text(
-			client.font,
-			cooldownText,
-			Math.round(-textWidth / 2.0F),
-			0,
-			ABILITY_COOLDOWN_TEXT_COLOR,
-			true
-		);
-		context.pose().popMatrix();
-	}
-
-	private static void renderScaledAbilityItem(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {
-		if (context == null || stack == null || stack.isEmpty()) {
-			return;
-		}
-		context.pose().pushMatrix();
-		context.pose().translate(x, y);
-		context.pose().scale(ABILITY_ITEM_SCALE, ABILITY_ITEM_SCALE);
-		context.item(stack, 0, 0);
-		context.pose().popMatrix();
-	}
-
-	private static int[] computeAbilitySlotXs(GuiGraphicsExtractor context, LocalPlayer player, int slotCount) {
-		int[] xs = new int[Math.max(0, slotCount)];
-		if (slotCount <= 0) {
-			return xs;
-		}
-		int centerX = context.guiWidth() / 2;
-		boolean offhandOnLeft = player.getMainArm() == HumanoidArm.RIGHT;
-		boolean offhandVisible = player != null && !player.getOffhandItem().isEmpty();
-		int hotbarLeftEdge = centerX - HOTBAR_HALF_WIDTH;
-		int hotbarRightEdge = centerX + HOTBAR_HALF_WIDTH;
-		if (offhandOnLeft) {
-			int anchorX = offhandVisible ? hotbarLeftEdge - OFFHAND_SLOT_WIDTH : hotbarLeftEdge;
-			int startX = anchorX - OFFHAND_TO_ABILITY_SPACING - ABILITY_SLOT_SIZE;
-			for (int slot = 0; slot < xs.length; slot++) {
-				xs[slot] = startX - (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
-			}
-			return xs;
-		}
-
-		int anchorX = offhandVisible ? hotbarRightEdge + OFFHAND_SLOT_WIDTH : hotbarRightEdge;
-		int startX = anchorX + OFFHAND_TO_ABILITY_SPACING;
-		for (int slot = 0; slot < xs.length; slot++) {
-			xs[slot] = startX + (slot * (ABILITY_SLOT_SIZE + ABILITY_SLOT_SPACING));
-		}
-		return xs;
-	}
 }

@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
-import madoku.craft.pet.PetHolder;
-import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetComponentsManager.PetHolder;
+import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;

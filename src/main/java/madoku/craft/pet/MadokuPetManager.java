@@ -3,12 +3,9 @@ package madoku.craft.pet;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.MadokuCraft;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataPlayerManager;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.entity.Hag;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mob.MobEntityManager;
@@ -18,44 +15,28 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ambient.Bat;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.SpawnEggItem;
-import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +46,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import madoku.craft.pet.PetComponentsManager.PetHolder;
+import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetConfigManager.PetRule;
+import madoku.craft.pet.PetEntitiesManager.FollowCommand;
+import madoku.craft.pet.PetEntitiesManager.MovementController;
 
 public final class MadokuPetManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuPetManager.class);
@@ -75,10 +61,6 @@ public final class MadokuPetManager {
 	public static final int[] SLOT_YS = {8, 26, 44, 62};
 	public static final String SAVE_KEY = "MadokuPets";
 
-	private static final String PET_CONFIG_ROOT_FOLDER_NAME = PetConfigManager.PET_FOLDER;
-	private static final String PET_CONFIG_FILE_NAME = "madoku-pets";
-	private static final String PET_RULES_FOLDER_NAME = PetConfigManager.ENTITY_FOLDER;
-	private static final String PET_ABILITIES_FOLDER_NAME = PetConfigManager.ABILITY_FOLDER;
 	private static final String DATA_FILE_NAME = "madoku-pets";
 	private static final String TASK_TYPE_PET_ATTACK = "pet_attack";
 	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
@@ -125,32 +107,23 @@ public final class MadokuPetManager {
 	private static final double BEE_SWARM_ORBIT_RADIUS_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
-	private static final Identifier PLAYER_DAMAGE_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
-	private static final Identifier PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_max_health_bonus");
-	private static final Identifier PLAYER_ARMOR_ABILITY_MODIFIER_ID =
-		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final String FIELD_SLOT = "slot";
 	private static final String FIELD_TARGET_UUID = "target-uuid";
 	private static final String FIELD_SPAWN_X = "spawn-x";
 	private static final String FIELD_SPAWN_Y = "spawn-y";
 	private static final String FIELD_SPAWN_Z = "spawn-z";
-	private static final Map<UUID, UUID[]> PET_IDS_BY_PLAYER = new ConcurrentHashMap<>();
-	private static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
-	private static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
-	private static final Map<UUID, FollowCommand> FOLLOW_COMMANDS_BY_PET = new ConcurrentHashMap<>();
+	static final Map<UUID, UUID[]> PET_IDS_BY_PLAYER = new ConcurrentHashMap<>();
+	static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
+	static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
+	static final Map<UUID, FollowCommand> FOLLOW_COMMANDS_BY_PET = new ConcurrentHashMap<>();
 	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
-	private static final Set<UUID> DIRTY_ABILITY_HUD_PLAYERS = new HashSet<>();
 	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
 	private static final Map<UUID, ItemStack[]> PENDING_RESPAWN_PET_INVENTORIES = new ConcurrentHashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
 
-	private static volatile PetSettings settings = PetSettings.defaults();
-	private static volatile Map<String, PetRule> petRulesByItemId = Map.of();
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String runtimeSchedulerId = "";
 	private static volatile boolean runtimeTickQueued;
@@ -215,7 +188,7 @@ public final class MadokuPetManager {
 		FOLLOW_COMMANDS_BY_PET.clear();
 		PLAYER_SCHEDULER_IDS.clear();
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
-		DIRTY_ABILITY_HUD_PLAYERS.clear();
+		PetHudManager.clear();
 		PLAYER_SLOT_COOLDOWNS.clear();
 		PENDING_RESPAWN_PET_INVENTORIES.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
@@ -282,20 +255,20 @@ public final class MadokuPetManager {
 
 		refreshPlayerPassiveAbilityBonuses(server);
 
-		if (!settings.enabled) {
+		if (!PetConfigManager.settings().enabled) {
 			clearAllManagedPetState(server);
-			flushAbilityHudSyncs(server);
+			PetHudManager.flushAbilityHudSyncs(server);
 			return;
 		}
 
-		if (!petEntitiesEnabled()) {
+		if (!PetConfigManager.areEntitiesEnabled()) {
 			clearManagedPetEntityState(server);
 		}
 
 		tickManagedWebProjectiles(server);
 		tickManagedExplosiveProjectiles(server);
 		tickManagedBeeSwarms(server);
-		flushAbilityHudSyncs(server);
+		PetHudManager.flushAbilityHudSyncs(server);
 	}
 
 	private static void runPetRuntimeTick(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
@@ -359,39 +332,6 @@ public final class MadokuPetManager {
 			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
 	}
 
-	public static void onPetInventoryChanged(ServerPlayer player) {
-		if (player == null) {
-			return;
-		}
-
-		markAbilityHudDirty(player.getUUID());
-		applyPlayerMaxHealthAbilityBonus(player);
-		applyPlayerArmorAbilityBonus(player);
-		applyPlayerDamageAbilityBonus(player);
-
-		MinecraftServer server = player.level().getServer();
-		if (server == null) {
-			return;
-		}
-		if (!settings.enabled) {
-			removeAllPets(server, player.getUUID());
-			return;
-		}
-		if (!petEntitiesEnabled()) {
-			removeAllPets(server, player.getUUID());
-		}
-
-		requestPetProcessing(server, player.getUUID(), 0L);
-		onPlayerTick(server, player, MadokuTimeManager.getGameplayTicks());
-	}
-
-	public static boolean isValidPlayerEntity(ItemStack stack) {
-		if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof SpawnEggItem)) {
-			return false;
-		}
-		PetRule rule = resolvePetRule(stack);
-		return rule != null && rule.enabled;
-	}
 
 	public static boolean isManagedPet(Entity entity) {
 		return entity != null
@@ -400,338 +340,31 @@ public final class MadokuPetManager {
 				|| PetPayloadManager.hasSoundState(entity.getUUID()));
 	}
 
-	public static float soundVolume(Entity entity, float baseVolume) {
-		PetRule rule = resolvePetRule(entity);
-		float volumeMultiplier = rule == null ? 1.0F : rule.soundVolumeMultiplier;
-		return Math.max(0.0F, baseVolume * volumeMultiplier);
-	}
 
-	public static int ambientSoundInterval(Entity entity, int baseInterval) {
-		PetRule rule = resolvePetRule(entity);
-		int intervalMultiplier = rule == null ? 1 : rule.ambientSoundIntervalMultiplier;
-		return Math.max(20, baseInterval * Math.max(1, intervalMultiplier));
-	}
 
 	public static long managedPetSteeringInterval() {
-		return activeSchedulerTickInterval();
+		return PetEntitiesManager.activeSchedulerTickInterval();
 	}
 
 	public static Vec3 managedPetMovementTarget(Mob pet) {
-		return PetMovementController.managedPetMovementTarget(pet, FOLLOW_COMMANDS_BY_PET);
+		return MovementController.managedPetMovementTarget(pet, FOLLOW_COMMANDS_BY_PET);
 	}
 
 	public static double managedPetMovementSpeed(Mob pet, double fallbackSpeed) {
-		return PetMovementController.managedPetMovementSpeed(pet, fallbackSpeed, FOLLOW_COMMANDS_BY_PET);
+		return MovementController.managedPetMovementSpeed(pet, fallbackSpeed, FOLLOW_COMMANDS_BY_PET);
 	}
 
 	public static boolean isEnabled() {
-		return settings.enabled;
+		return PetConfigManager.settings().enabled;
 	}
 
 	public static boolean areEntitiesEnabled() {
-		return petEntitiesEnabled();
+		return PetConfigManager.areEntitiesEnabled();
 	}
 
-	public static int petTradeRarityWeight(String petRarity) {
-		String normalized = normalizePetRarity(petRarity);
-		return switch (normalized) {
-			case PET_RARITY_RARE -> settings.petRarityRareChanceWeight;
-			case PET_RARITY_EPIC -> settings.petRarityEpicChanceWeight;
-			case PET_RARITY_MYTHIC -> settings.petRarityMythicChanceWeight;
-			default -> settings.petRarityCommonChanceWeight;
-		};
-	}
 
-	public static String petRarity(ItemStack stack) {
-		PetRule rule = resolvePetRule(stack);
-		return rule == null ? PET_RARITY_COMMON : rule.rarity;
-	}
 
-	public static String petRarity(Entity entity) {
-		PetRule rule = resolvePetRule(entity);
-		return rule == null ? PET_RARITY_COMMON : rule.rarity;
-	}
 
-	public static boolean hasAbility(ItemStack stack) {
-		PetRule rule = resolvePetRule(stack);
-		return rule != null && rule.hasAbility();
-	}
-
-	public static int abilityCooldownTicks(ItemStack stack) {
-		PetRule rule = resolvePetRule(stack);
-		return rule == null ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, rule.cooldownTicks));
-	}
-
-	public static int abilityCooldownTicks(Player player, int slot, ItemStack stack) {
-		PetRule rule = resolvePetRule(stack);
-		if (rule == null) {
-			return 0;
-		}
-		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
-			return abilityCooldownTicks(stack);
-		}
-		PetInventory inventory = petInventory(player);
-		int batCount = countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN);
-		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(Math.max(1, batCount), rule));
-	}
-
-	public static void applyAbilityLore(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return;
-		}
-
-		PetRule rule = resolvePetRule(stack);
-		if (rule == null) {
-			return;
-		}
-
-		List<Component> lines = new ArrayList<>();
-		String abilityText = rule.abilityDescription();
-		if (!abilityText.isBlank()) {
-			lines.add(Component.literal(abilityText).withStyle(ChatFormatting.GOLD));
-		}
-		String cooldownText = rule.cooldownDescription();
-		if (!cooldownText.isBlank()) {
-			lines.add(Component.literal(cooldownText).withStyle(ChatFormatting.GRAY));
-		}
-		if (lines.isEmpty()) {
-			return;
-		}
-
-		stack.set(DataComponents.LORE, new ItemLore(lines));
-	}
-
-	public static void applySupportedSpawnEggLore(ItemStack stack) {
-		if (!settings.enabled || !isValidPlayerEntity(stack)) {
-			return;
-		}
-		applyAbilityLore(stack);
-	}
-
-	public static double playerDamageAbilityBonus(ServerPlayer player) {
-		if (player == null || !settings.enabled) {
-			return 0.0D;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			return 0.0D;
-		}
-
-		double totalBonus = 0.0D;
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			PetRule rule = resolvePetRule(inventory.getItem(slot));
-			if (rule != null) {
-				totalBonus += rule.playerDamageBonus();
-			}
-		}
-		return totalBonus;
-	}
-
-	public static double playerFallDamageAbilityReduction(ServerPlayer player) {
-		if (player == null || !settings.enabled) {
-			return 0.0D;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			return 0.0D;
-		}
-
-		double totalReduction = 0.0D;
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			PetRule rule = resolvePetRule(inventory.getItem(slot));
-			if (rule != null) {
-				totalReduction += rule.fallDamageReduction();
-			}
-		}
-		return Math.min(1.0D, Math.max(0.0D, totalReduction));
-	}
-
-	public static double playerMaxHealthAbilityBonus(ServerPlayer player) {
-		if (player == null || !settings.enabled) {
-			return 0.0D;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			return 0.0D;
-		}
-
-		double totalBonus = 0.0D;
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			PetRule rule = resolvePetRule(inventory.getItem(slot));
-			if (rule != null) {
-				totalBonus += rule.maxHealthBonus();
-			}
-		}
-		return Math.max(0.0D, totalBonus);
-	}
-
-	public static double playerArmorAbilityBonus(ServerPlayer player) {
-		if (player == null || !settings.enabled) {
-			return 0.0D;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			return 0.0D;
-		}
-
-		double totalBonus = 0.0D;
-		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-			PetRule rule = resolvePetRule(inventory.getItem(slot));
-			if (rule != null) {
-				totalBonus += rule.armorBonus();
-			}
-		}
-		return Math.max(0.0D, totalBonus);
-	}
-
-	public static float applyFallDamageAbilityReduction(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
-		if (!(entity instanceof ServerPlayer player) || source == null || amount <= 0.0F || !source.is(DamageTypeTags.IS_FALL)) {
-			return amount;
-		}
-
-		double reduction = playerFallDamageAbilityReduction(player);
-		if (reduction <= 0.0D) {
-			return amount;
-		}
-
-		return (float) Math.max(0.0D, amount * (1.0D - reduction));
-	}
-
-	public static float applyIncomingDamageBlockAbility(LivingEntity entity, net.minecraft.world.damagesource.DamageSource source, float amount) {
-		if (!(entity instanceof ServerPlayer player) || amount <= 0.0F || !settings.enabled) {
-			return amount;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			return amount;
-		}
-
-		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
-		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
-			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = resolvePetRule(stack);
-			if (rule == null || !rule.canBlockIncomingDamage() || !isPetSlotOffCooldown(player, slot, gameplayTicks)) {
-				continue;
-			}
-
-			setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
-			float blockedAmount = (float) Math.max(0.0D, amount - rule.damageBlockAmount());
-			if (blockedAmount < amount) {
-				player.level().playSound(
-					null,
-					player.getX(),
-					player.getY(),
-					player.getZ(),
-					SoundEvents.SHIELD_BLOCK,
-					SoundSource.PLAYERS,
-					0.8F,
-					1.0F
-				);
-			}
-			return blockedAmount;
-		}
-
-		return amount;
-	}
-
-	public static void applyPlayerMaxHealthAbilityBonus(ServerPlayer player) {
-		if (player == null) {
-			return;
-		}
-
-		AttributeInstance maxHealthAttribute = player.getAttribute(Attributes.MAX_HEALTH);
-		if (maxHealthAttribute == null) {
-			return;
-		}
-
-		maxHealthAttribute.removeModifier(PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID);
-		double bonus = playerMaxHealthAbilityBonus(player);
-		if (bonus > 0.0D) {
-			maxHealthAttribute.addOrUpdateTransientModifier(
-				new AttributeModifier(
-					PLAYER_MAX_HEALTH_ABILITY_MODIFIER_ID,
-					bonus,
-					AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL
-				)
-			);
-		}
-
-		if (player.getHealth() > player.getMaxHealth()) {
-			player.setHealth(player.getMaxHealth());
-		}
-	}
-
-	public static void applyPlayerArmorAbilityBonus(ServerPlayer player) {
-		if (player == null) {
-			return;
-		}
-
-		AttributeInstance armorAttribute = player.getAttribute(Attributes.ARMOR);
-		if (armorAttribute == null) {
-			return;
-		}
-
-		armorAttribute.removeModifier(PLAYER_ARMOR_ABILITY_MODIFIER_ID);
-		double bonus = playerArmorAbilityBonus(player);
-		if (bonus <= 0.0D) {
-			return;
-		}
-
-		armorAttribute.addOrUpdateTransientModifier(
-			new AttributeModifier(
-				PLAYER_ARMOR_ABILITY_MODIFIER_ID,
-				bonus,
-				AttributeModifier.Operation.ADD_VALUE
-			)
-		);
-	}
-
-	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) {
-		if (player == null) {
-			return;
-		}
-
-		AttributeInstance attackDamageAttribute = player.getAttribute(Attributes.ATTACK_DAMAGE);
-		if (attackDamageAttribute == null) {
-			return;
-		}
-
-		attackDamageAttribute.removeModifier(PLAYER_DAMAGE_ABILITY_MODIFIER_ID);
-		double bonus = playerDamageAbilityBonus(player);
-		if (bonus <= 0.0D) {
-			return;
-		}
-
-		attackDamageAttribute.addOrUpdateTransientModifier(
-			new AttributeModifier(
-				PLAYER_DAMAGE_ABILITY_MODIFIER_ID,
-				bonus,
-				AttributeModifier.Operation.ADD_VALUE
-			)
-		);
-	}
-
-	public static List<Item> tradeSpawnEggItems() {
-		List<Item> items = new ArrayList<>();
-		for (PetRule rule : petRulesByItemId.values()) {
-			if (rule == null || !rule.enabled) {
-				continue;
-			}
-
-			Item item = resolveItem(rule.itemId);
-			if (!(item instanceof SpawnEggItem) || item == null) {
-				continue;
-			}
-			items.add(item);
-		}
-		items.sort((left, right) -> BuiltInRegistries.ITEM.getKey(left).toString().compareTo(BuiltInRegistries.ITEM.getKey(right).toString()));
-		return List.copyOf(items);
-	}
 
 	public static void dropAll(ServerPlayer player) {
 		PetInventory petInventory = petInventory(player);
@@ -785,7 +418,7 @@ public final class MadokuPetManager {
 
 		int count = 0;
 		for (int slot = 0; slot < petInventory.getContainerSize(); slot++) {
-			if (isValidPlayerEntity(petInventory.getItem(slot))) {
+			if (PetConfigManager.isValidPet(petInventory.getItem(slot))) {
 				count++;
 			}
 		}
@@ -793,132 +426,7 @@ public final class MadokuPetManager {
 	}
 
 	static void reloadConfig() {
-		loadStaticConfig();
-		loadPetRules();
-	}
-
-	private static void loadStaticConfig() {
-		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
-			Path configFile = resolveJsonFile(rootDirectory, PET_CONFIG_FILE_NAME);
-			JsonObject defaults = PetSettings.defaults().toConfigJson();
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
-			PetSettings configured = PetSettings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
-			settings = configured;
-		} catch (IOException exception) {
-			settings = PetSettings.defaults();
-			LOGGER.error("Failed to load Madoku pet settings; using defaults.", exception);
-		}
-	}
-
-	private static void loadPetRules() {
-		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_CONFIG_ROOT_FOLDER_NAME);
-			Path rulesDirectory = rootDirectory.resolve(PET_RULES_FOLDER_NAME);
-			Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
-				rulesDirectory,
-				buildDefaultPetRuleFiles(),
-				MadokuPetManager::buildDynamicPetRuleDefaults,
-				MadokuPetManager::isSupportedPetRuleFile,
-				null
-			);
-			Map<String, JsonObject> abilityNormalizedFiles = new LinkedHashMap<>();
-			Map<String, JsonObject> abilityDefinitions = loadPetAbilityRules(rootDirectory);
-			for (Map.Entry<String, JsonObject> entry : normalizedFiles.entrySet()) {
-				String fileKey = entry.getKey();
-				JsonObject sourceRoot = entry.getValue();
-				String itemId = resolvePetItemId(fileKey, sourceRoot);
-				if (itemId == null || itemId.isBlank()) {
-					continue;
-				}
-
-				String abilityType = normalizeKey(getString(sourceRoot, "ability", defaultAbilityForItem(itemId)));
-				JsonObject abilityDefinition = abilityDefinitions.get(abilityType);
-				if (abilityDefinition != null) {
-					JsonObject merged = sourceRoot.deepCopy();
-					for (Map.Entry<String, JsonElement> abilityEntry : abilityDefinition.entrySet()) {
-						if (!merged.has(abilityEntry.getKey())) {
-							merged.add(abilityEntry.getKey(), abilityEntry.getValue().deepCopy());
-						}
-					}
-					sourceRoot = merged;
-				}
-				JsonObject abilityDefaults = PetRule.defaultsForItem(itemId, abilityType);
-				Path file = resolveJsonFile(rulesDirectory, fileKey);
-				JsonObject normalized = JSONFormatManager.writeManagedFile(file, sourceRoot, abilityDefaults, null);
-				abilityNormalizedFiles.put(fileKey, normalized);
-			}
-			Map<String, PetRule> resolved = new LinkedHashMap<>();
-			for (Map.Entry<String, JsonObject> entry : abilityNormalizedFiles.entrySet()) {
-				PetRule rule = PetRule.fromJson(entry.getValue(), entry.getKey());
-				if (rule == null || rule.itemId.isBlank()) {
-					continue;
-				}
-				resolved.put(normalizeKey(rule.itemId), rule);
-			}
-			petRulesByItemId = Map.copyOf(resolved);
-		} catch (IOException | RuntimeException exception) {
-			petRulesByItemId = Map.of();
-			LOGGER.error("Failed to load Madoku pet rules; using defaults.", exception);
-		}
-	}
-
-	private static Map<String, JsonObject> loadPetAbilityRules(Path rootDirectory) throws IOException {
-		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		String[] abilityTypes = {
-			PET_ABILITY_NONE,
-			PET_ABILITY_RANGED_HOMING_ARROW,
-			PET_ABILITY_WEB_PROJECTILE,
-			PET_ABILITY_EXPLOSIVE_PROJECTILE,
-			PET_ABILITY_PLAYER_DAMAGE_BONUS,
-			PET_ABILITY_FALL_DAMAGE_REDUCTION,
-			PET_ABILITY_MAX_HEALTH_BONUS,
-			PET_ABILITY_ARMOR_BONUS,
-			PET_ABILITY_DAMAGE_BLOCK,
-			PET_ABILITY_MOB_SCAN,
-			PET_ABILITY_BEE_SWARM
-		};
-		for (String abilityType : abilityTypes) {
-			defaults.put(abilityType, PetRule.defaultsForItem("minecraft:bat_spawn_egg", abilityType));
-		}
-		Path abilitiesDirectory = rootDirectory.resolve(PET_ABILITIES_FOLDER_NAME);
-		return JSONFormatManager.ensureManagedFolder(
-			abilitiesDirectory,
-			defaults,
-			fileKey -> defaults.getOrDefault(normalizeFileKey(fileKey), JSONFormatManager.object().put("ability", normalizeFileKey(fileKey)).build()),
-			(fileKey, sourceRoot) -> true,
-			null
-		);
-	}
-
-	private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
-		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("bat", PetRule.defaultsForItem("minecraft:bat_spawn_egg", PET_ABILITY_MOB_SCAN));
-		defaults.put("bee", PetRule.defaultsForItem("minecraft:bee_spawn_egg", PET_ABILITY_BEE_SWARM));
-		defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", PET_ABILITY_FALL_DAMAGE_REDUCTION));
-		defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", PET_ABILITY_DAMAGE_BLOCK));
-		defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", PET_ABILITY_EXPLOSIVE_PROJECTILE));
-		defaults.put("pig", PetRule.defaultsForItem("minecraft:pig_spawn_egg", PET_ABILITY_MAX_HEALTH_BONUS));
-		defaults.put("sheep", PetRule.defaultsForItem("minecraft:sheep_spawn_egg", PET_ABILITY_ARMOR_BONUS));
-		defaults.put("skeleton", PetRule.defaultsForItem("minecraft:skeleton_spawn_egg", PET_ABILITY_RANGED_HOMING_ARROW));
-		defaults.put("spider", PetRule.defaultsForItem("minecraft:spider_spawn_egg", PET_ABILITY_WEB_PROJECTILE));
-		defaults.put("zombie", PetRule.defaultsForItem("minecraft:zombie_spawn_egg", PET_ABILITY_PLAYER_DAMAGE_BONUS));
-		return defaults;
-	}
-
-	private static JsonObject buildDynamicPetRuleDefaults(String fileKey) {
-		String itemId = resolvePetItemId(fileKey, null);
-		if (itemId == null) {
-			return JSONFormatManager.object().build();
-		}
-		return PetRule.defaultsForItem(itemId, defaultAbilityForItem(itemId));
-	}
-
-	private static boolean isSupportedPetRuleFile(String fileKey, JsonObject sourceRoot) {
-		String itemId = resolvePetItemId(fileKey, sourceRoot);
-		Item item = resolveItem(itemId);
-		return item instanceof SpawnEggItem;
+		PetConfigManager.reload();
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -932,12 +440,12 @@ public final class MadokuPetManager {
 		}
 
 		handlePlayerLeave(server, player.getUUID());
-		markAbilityHudDirty(player.getUUID());
-		applyPlayerMaxHealthAbilityBonus(player);
-		applyPlayerArmorAbilityBonus(player);
-		applyPlayerDamageAbilityBonus(player);
+		PetHudManager.markAbilityHudDirty(player.getUUID());
+		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
+		PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
+		PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
 		syncManagedPetSoundStateTo(player, server);
-		if (settings.enabled) {
+		if (PetConfigManager.settings().enabled) {
 			requestPetProcessing(server, player.getUUID(), 0L);
 		}
 	}
@@ -951,13 +459,13 @@ public final class MadokuPetManager {
 				if (!(entity instanceof Mob pet) || !isManagedPet(pet)) {
 					continue;
 				}
-				PetRule rule = resolvePetRule(pet);
+				PetRule rule = PetConfigManager.resolvePetRule(pet);
 				PetHudManager.sendSoundState(player, pet.getUUID().toString(), rule == null ? "" : rule.itemId);
 			}
 		}
 	}
 
-	private static void broadcastManagedPetSoundState(MinecraftServer server, UUID petId, String itemId) {
+	static void broadcastManagedPetSoundState(MinecraftServer server, UUID petId, String itemId) {
 		if (server == null || petId == null) {
 			return;
 		}
@@ -975,7 +483,7 @@ public final class MadokuPetManager {
 		stopBeeSwarmsForOwner(playerId);
 		PLAYER_SCHEDULER_IDS.remove(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
-		DIRTY_ABILITY_HUD_PLAYERS.remove(playerId);
+		PetHudManager.clearPlayer(playerId);
 		PENDING_RESPAWN_PET_INVENTORIES.remove(playerId);
 	}
 
@@ -986,17 +494,17 @@ public final class MadokuPetManager {
 		float damageTaken,
 		boolean blocked
 	) {
-		if (!settings.enabled || damageTaken <= 0.0F || blocked) {
+		if (!PetConfigManager.settings().enabled || damageTaken <= 0.0F || blocked) {
 			return;
 		}
 		if (entity != null && source.getEntity() instanceof ServerPlayer playerAttacker) {
-			triggerReactivePetAttacks(playerAttacker, entity);
+			PetAbilitiesManager.triggerReactiveAbilities(playerAttacker, entity);
 		}
 
 		if (entity instanceof ServerPlayer playerVictim) {
 			LivingEntity attackerTarget = resolveDamageSourceLivingEntity(source);
 			if (attackerTarget != null) {
-				triggerReactivePetAttacks(playerVictim, attackerTarget);
+				PetAbilitiesManager.triggerReactiveAbilities(playerVictim, attackerTarget);
 			}
 		}
 	}
@@ -1014,7 +522,7 @@ public final class MadokuPetManager {
 		return null;
 	}
 
-	private static void triggerReactivePetAttacks(ServerPlayer player, LivingEntity target) {
+	static void triggerReactivePetAttacks(ServerPlayer player, LivingEntity target) {
 		if (!canReactiveAttackTarget(player, target)) {
 			return;
 		}
@@ -1030,7 +538,7 @@ public final class MadokuPetManager {
 		int readyCount = 0;
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = resolvePetRule(stack);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
 			if (rule == null || !rule.canPerformReactiveAttack()) {
 				continue;
 			}
@@ -1091,12 +599,7 @@ public final class MadokuPetManager {
 		return player.hasLineOfSight(target);
 	}
 
-	private static void triggerAutomaticPetAbilities(ServerPlayer player, long gameplayTicks) {
-		triggerAutomaticBatMobScan(player, gameplayTicks);
-		triggerAutomaticBeeSwarm(player, gameplayTicks);
-	}
-
-	private static void triggerAutomaticBatMobScan(ServerPlayer player, long gameplayTicks) {
+	static void triggerAutomaticBatMobScan(ServerPlayer player, long gameplayTicks) {
 		if (player == null || !player.isAlive()) {
 			return;
 		}
@@ -1190,13 +693,13 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static long effectiveBatScanCooldownTicks(int batCount, PetRule rule) {
+	static long effectiveBatScanCooldownTicks(int batCount, PetRule rule) {
 		long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
 		int additionalBats = Math.max(0, batCount - 1);
 		return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
 	}
 
-	private static void triggerAutomaticBeeSwarm(ServerPlayer player, long gameplayTicks) {
+	static void triggerAutomaticBeeSwarm(ServerPlayer player, long gameplayTicks) {
 		if (player == null || !player.isAlive()) {
 			return;
 		}
@@ -1211,7 +714,7 @@ public final class MadokuPetManager {
 		int readyCount = 0;
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = resolvePetRule(stack);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
 			if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
 				stopBeeSwarmForSlot(player.getUUID(), slot);
 				continue;
@@ -1369,7 +872,7 @@ public final class MadokuPetManager {
 			|| countSlotsWithAbility(inventory, PET_ABILITY_BEE_SWARM) > 0;
 	}
 
-	private static int countSlotsWithAbility(PetInventory inventory, String abilityType) {
+	static int countSlotsWithAbility(PetInventory inventory, String abilityType) {
 		return collectSlotsWithAbility(inventory, abilityType, null, null);
 	}
 
@@ -1386,7 +889,7 @@ public final class MadokuPetManager {
 		int count = 0;
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = resolvePetRule(stack);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
 			if (rule == null || !rule.enabled || !abilityType.equals(rule.abilityType)) {
 				continue;
 			}
@@ -1436,7 +939,7 @@ public final class MadokuPetManager {
 			if (!hasNonZeroCooldown(cooldowns)) {
 				PLAYER_SLOT_COOLDOWNS.remove(playerId);
 			}
-			markAbilityHudDirty(playerId);
+			PetHudManager.markAbilityHudDirty(playerId);
 		}
 		return sharedCooldownTick;
 	}
@@ -1458,11 +961,11 @@ public final class MadokuPetManager {
 			changed = true;
 		}
 		if (changed) {
-			markAbilityHudDirty(playerId);
+			PetHudManager.markAbilityHudDirty(playerId);
 		}
 	}
 
-	private static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
+	static void onPlayerTick(MinecraftServer server, ServerPlayer player, long gameplayTick) {
 		if (server == null || player == null) {
 			return;
 		}
@@ -1474,7 +977,7 @@ public final class MadokuPetManager {
 		}
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
 
-		if (!settings.enabled) {
+		if (!PetConfigManager.settings().enabled) {
 			removeAllPets(server, playerId);
 			return;
 		}
@@ -1486,20 +989,20 @@ public final class MadokuPetManager {
 
 		PetInventory inventory = petInventory(player);
 		long nextDelay;
-		if (petEntitiesEnabled()) {
-			nextDelay = syncPlayerPets(player);
+		if (PetConfigManager.areEntitiesEnabled()) {
+			nextDelay = PetEntitiesManager.syncPlayerPets(player);
 		} else {
 			removeAllPets(server, playerId);
-			nextDelay = hasAutomaticPetAbilities(inventory) ? activeSchedulerTickInterval() : -1L;
+			nextDelay = hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeSchedulerTickInterval() : -1L;
 		}
 		LivingEntity ongoingReactiveTarget = resolveOngoingReactiveTarget(player);
 		if (ongoingReactiveTarget != null) {
-			triggerReactivePetAttacks(player, ongoingReactiveTarget);
+			PetAbilitiesManager.triggerReactiveAbilities(player, ongoingReactiveTarget);
 			nextDelay = nextDelay < 0L
-				? activeSchedulerTickInterval()
-				: Math.min(nextDelay, activeSchedulerTickInterval());
+				? PetEntitiesManager.activeSchedulerTickInterval()
+				: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval());
 		}
-		triggerAutomaticPetAbilities(player, gameplayTick);
+		PetAbilitiesManager.tickAutomaticAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
 			requestPetProcessing(server, playerId, nextDelay);
 		} else {
@@ -1523,7 +1026,7 @@ public final class MadokuPetManager {
 			return;
 		}
 
-		int slot = getInt(payload, FIELD_SLOT, -1);
+		int slot = PetConfigManager.getInt(payload, FIELD_SLOT, -1);
 		if (slot < 0 || slot >= SLOT_COUNT) {
 			return;
 		}
@@ -1534,224 +1037,34 @@ public final class MadokuPetManager {
 		}
 
 		ItemStack stack = inventory.getItem(slot);
-		PetRule rule = resolvePetRule(stack);
+		PetRule rule = PetConfigManager.resolvePetRule(stack);
 		if (rule == null || !rule.canPerformReactiveAttack() || !canPetSlotShoot(player, slot, context.getNowTick(), stack)) {
 			return;
 		}
 
-		UUID targetId = parseUuid(getString(payload, FIELD_TARGET_UUID, ""));
+		UUID targetId = parseUuid(PetConfigManager.getString(payload, FIELD_TARGET_UUID, ""));
 		LivingEntity target = findLivingEntity(server, targetId);
 		if (!canReactiveAttackTarget(player, target)) {
 			return;
 		}
 
 		Vec3 spawnPosition = new Vec3(
-			getDouble(payload, FIELD_SPAWN_X, player.getX()),
-			getDouble(payload, FIELD_SPAWN_Y, player.getEyeY()),
-			getDouble(payload, FIELD_SPAWN_Z, player.getZ())
+			PetConfigManager.getDouble(payload, FIELD_SPAWN_X, player.getX()),
+			PetConfigManager.getDouble(payload, FIELD_SPAWN_Y, player.getEyeY()),
+			PetConfigManager.getDouble(payload, FIELD_SPAWN_Z, player.getZ())
 		);
 		if (spawnPetReactiveAttack(player, target, spawnPosition, rule)) {
 			setSlotCooldown(playerId, slot, context.getNowTick() + rule.cooldownTicks);
 		}
 	}
 
-	private static long syncPlayerPets(ServerPlayer player) {
-		MinecraftServer server = player == null ? null : player.level().getServer();
-		if (server == null) {
-			return -1L;
-		}
-		if (!petEntitiesEnabled()) {
-			removeAllPets(server, player.getUUID());
-			return -1L;
-		}
-
-		PetInventory inventory = petInventory(player);
-		if (inventory == null) {
-			removeAllPets(server, player.getUUID());
-			return -1L;
-		}
-
-		boolean anyActive = false;
-		long nextDelay = idleSchedulerTickInterval();
-		UUID[] petIds = PET_IDS_BY_PLAYER.computeIfAbsent(player.getUUID(), ignored -> new UUID[SLOT_COUNT]);
-		for (int slot = 0; slot < SLOT_COUNT; slot++) {
-			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = resolvePetRule(stack);
-			EntityType<?> desiredType = resolvePetType(stack);
-			Mob pet = findMob(server, petIds[slot]);
-
-			if (desiredType == null || rule == null) {
-				if (!stack.isEmpty()) {
-				}
-				removePet(server, petIds[slot]);
-				petIds[slot] = null;
-				continue;
-			}
-
-			if (pet == null || pet.getType() != desiredType || pet.level() != player.level()) {
-				removePet(server, petIds[slot]);
-				pet = spawnPet(player, desiredType, slot, rule);
-				petIds[slot] = pet == null ? null : pet.getUUID();
-			}
-
-			if (pet != null) {
-				ACTIVE_PET_IDS.add(pet.getUUID());
-				ensurePetConfiguration(pet, rule);
-				boolean beeSwarmActive = PET_ABILITY_BEE_SWARM.equals(rule.abilityType) && isBeeSwarmActive(player.getUUID(), slot);
-				if (beeSwarmActive) {
-					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
-				} else {
-					nextDelay = Math.min(nextDelay, PetMovementController.updatePetPosition(
-						player,
-						pet,
-						slot,
-						rule,
-						settings,
-						NEXT_IDLE_MOVE_BY_PET,
-						FOLLOW_COMMANDS_BY_PET
-					));
-				}
-				anyActive = true;
-			}
-		}
-
-		Set<UUID> expectedPetIds = new HashSet<>();
-		for (UUID petId : petIds) {
-			if (petId != null) {
-				expectedPetIds.add(petId);
-			}
-		}
-		removeStrayManagedPetsForOwner(server, player.getUUID(), expectedPetIds);
-
-		if (!anyActive) {
-			PET_IDS_BY_PLAYER.remove(player.getUUID());
-			pruneCooldowns(player.getUUID(), inventory);
-			return -1L;
-		}
-
-		return Math.max(1L, nextDelay);
-	}
-
-	private static Mob spawnPet(ServerPlayer owner, EntityType<?> entityType, int slot, PetRule rule) {
-		if (owner == null || entityType == null || !(owner.level() instanceof ServerLevel level)) {
-			return null;
-		}
 
 
-		Entity entity = entityType.create(level, EntitySpawnReason.EVENT);
-		if (!(entity instanceof Mob pet)) {
-			return null;
-		}
 
-		Vec3 desiredPosition = PetMovementController.resolveDesiredPosition(owner, slot, pet);
-		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
-		preparePet(pet);
-		configurePet(pet, rule);
-		tagManagedPet(pet, owner.getUUID());
-		if (!level.addFreshEntity(pet)) {
-			return null;
-		}
 
-		ACTIVE_PET_IDS.add(pet.getUUID());
-		broadcastManagedPetSoundState(owner.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
-		return pet;
-	}
 
-	private static void configurePet(Mob pet, PetRule rule) {
-		if (pet == null) {
-			return;
-		}
 
-		pet.setNoAi(false);
-		pet.setInvulnerable(true);
-		pet.setSilent(false);
-		pet.setPersistenceRequired();
-		pet.noPhysics = false;
-		pet.setNoGravity(false);
-		pet.blocksBuilding = false;
-		pet.clearFire();
-		pet.setCanPickUpLoot(false);
-		clearPetTargetGoals(pet);
-		pet.setTarget(null);
-		pet.setAggressive(false);
-		setManagedPetItemId(pet, rule == null ? null : rule.itemId);
-		AttributeInstance scale = pet.getAttribute(Attributes.SCALE);
-		if (scale != null) {
-			scale.setBaseValue(rule == null ? 0.25D : rule.petScale);
-		}
-	}
 
-	private static void ensurePetConfiguration(Mob pet, PetRule rule) {
-		if (pet == null) {
-			return;
-		}
-
-		if (pet.isNoAi()) {
-			pet.setNoAi(false);
-		}
-		if (!pet.isInvulnerable()) {
-			pet.setInvulnerable(true);
-		}
-		if (pet.isSilent()) {
-			pet.setSilent(false);
-		}
-		if (!pet.isPersistenceRequired()) {
-			pet.setPersistenceRequired();
-		}
-		if (pet.noPhysics) {
-			pet.noPhysics = false;
-		}
-		if (pet.isNoGravity()) {
-			pet.setNoGravity(false);
-		}
-		if (pet.blocksBuilding) {
-			pet.blocksBuilding = false;
-		}
-		if (pet.isOnFire()) {
-			pet.clearFire();
-		}
-		if (pet.canPickUpLoot()) {
-			pet.setCanPickUpLoot(false);
-		}
-		clearPetTargetGoals(pet);
-		if (pet.getTarget() != null) {
-			pet.setTarget(null);
-		}
-		if (pet.isAggressive()) {
-			pet.setAggressive(false);
-		}
-		boolean itemIdChanged = setManagedPetItemId(pet, rule == null ? null : rule.itemId);
-		AttributeInstance scale = pet.getAttribute(Attributes.SCALE);
-		if (scale != null) {
-			double desiredScale = rule == null ? 0.25D : rule.petScale;
-			if (Math.abs(scale.getBaseValue() - desiredScale) > 1.0E-4D) {
-				scale.setBaseValue(desiredScale);
-			}
-		}
-		if (itemIdChanged) {
-			broadcastManagedPetSoundState(pet.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
-		}
-	}
-
-	private static long activeSchedulerTickInterval() {
-		return Math.max(1L, settings.schedulerTickInterval);
-	}
-
-	private static boolean petEntitiesEnabled() {
-		return settings.enabled && settings.entitiesEnabled;
-	}
-
-	private static long idleSchedulerTickInterval() {
-		long activeInterval = activeSchedulerTickInterval();
-		return Math.max(activeInterval, Math.min(20L, activeInterval * 3L));
-	}
-
-	private static EntityType<?> resolvePetType(ItemStack stack) {
-		if (!(stack.getItem() instanceof SpawnEggItem)) {
-			return null;
-		}
-		return SpawnEggItem.getType(stack);
-	}
 
 	private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule) {
 		if (player == null || target == null || spawnPosition == null || rule == null || !player.isAlive() || !target.isAlive()) {
@@ -1984,7 +1297,7 @@ public final class MadokuPetManager {
 				ACTIVE_BEE_SWARMS.remove(swarmKey);
 				continue;
 			}
-			PetRule rule = resolvePetRule(inventory.getItem(state.slot));
+			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(state.slot));
 			if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
 				ACTIVE_BEE_SWARMS.remove(swarmKey);
 				continue;
@@ -2153,7 +1466,7 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static boolean isBeeSwarmActive(UUID ownerId, int slot) {
+	static boolean isBeeSwarmActive(UUID ownerId, int slot) {
 		if (ownerId == null || slot < 0) {
 			return false;
 		}
@@ -2380,8 +1693,8 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
-		if (server == null || playerId == null || !settings.enabled) {
+	static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
+		if (server == null || playerId == null || !PetConfigManager.settings().enabled) {
 			return;
 		}
 
@@ -2427,14 +1740,14 @@ public final class MadokuPetManager {
 		if (player == null || slot < 0 || slot >= SLOT_COUNT) {
 			return false;
 		}
-		PetRule rule = resolvePetRule(stack);
-		if (!isValidPlayerEntity(stack) || rule == null || !rule.canPerformReactiveAttack()) {
+		PetRule rule = PetConfigManager.resolvePetRule(stack);
+		if (!PetConfigManager.isValidPet(stack) || rule == null || !rule.canPerformReactiveAttack()) {
 			return false;
 		}
 		return isPetSlotOffCooldown(player, slot, gameplayTicks);
 	}
 
-	private static boolean isPetSlotOffCooldown(ServerPlayer player, int slot, long gameplayTicks) {
+	static boolean isPetSlotOffCooldown(ServerPlayer player, int slot, long gameplayTicks) {
 		if (player == null || slot < 0 || slot >= SLOT_COUNT) {
 			return false;
 		}
@@ -2444,7 +1757,7 @@ public final class MadokuPetManager {
 	private static void clearSlotCooldowns(UUID playerId) {
 		if (playerId != null) {
 			PLAYER_SLOT_COOLDOWNS.remove(playerId);
-			markAbilityHudDirty(playerId);
+			PetHudManager.markAbilityHudDirty(playerId);
 		}
 	}
 
@@ -2454,25 +1767,25 @@ public final class MadokuPetManager {
 		}
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			applyPlayerMaxHealthAbilityBonus(player);
-			applyPlayerArmorAbilityBonus(player);
-			applyPlayerDamageAbilityBonus(player);
+			PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
+			PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
+			PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
 		}
 	}
 
-	private static void setSlotCooldown(UUID playerId, int slot, long cooldownTick) {
+	static void setSlotCooldown(UUID playerId, int slot, long cooldownTick) {
 		if (playerId == null || slot < 0 || slot >= SLOT_COUNT) {
 			return;
 		}
 		slotCooldowns(playerId)[slot] = Math.max(0L, cooldownTick);
-		markAbilityHudDirty(playerId);
+		PetHudManager.markAbilityHudDirty(playerId);
 	}
 
 	private static long[] slotCooldowns(UUID playerId) {
 		return PLAYER_SLOT_COOLDOWNS.computeIfAbsent(playerId, ignored -> new long[SLOT_COUNT]);
 	}
 
-	private static void pruneCooldowns(UUID playerId, PetInventory inventory) {
+	static void pruneCooldowns(UUID playerId, PetInventory inventory) {
 		if (playerId == null || inventory == null) {
 			return;
 		}
@@ -2489,7 +1802,7 @@ public final class MadokuPetManager {
 		if (!hasNonZeroCooldown(cooldowns)) {
 			PLAYER_SLOT_COOLDOWNS.remove(playerId);
 		}
-		markAbilityHudDirty(playerId);
+		PetHudManager.markAbilityHudDirty(playerId);
 	}
 
 	private static void copyToNewPlayer(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
@@ -2500,7 +1813,7 @@ public final class MadokuPetManager {
 		}
 
 		newInventory.copyFrom(oldInventory);
-		markAbilityHudDirty(newPlayer.getUUID());
+		PetHudManager.markAbilityHudDirty(newPlayer.getUUID());
 	}
 
 	private static void cachePendingRespawnPetInventory(ServerPlayer player) {
@@ -2537,33 +1850,11 @@ public final class MadokuPetManager {
 				inventory.setItem(slot, stack);
 			}
 		});
-		markAbilityHudDirty(newPlayer.getUUID());
+		PetHudManager.markAbilityHudDirty(newPlayer.getUUID());
 		return true;
 	}
 
-	private static void markAbilityHudDirty(UUID playerId) {
-		if (playerId != null) {
-			DIRTY_ABILITY_HUD_PLAYERS.add(playerId);
-		}
-	}
-
-	private static void flushAbilityHudSyncs(MinecraftServer server) {
-		if (server == null || DIRTY_ABILITY_HUD_PLAYERS.isEmpty()) {
-			return;
-		}
-
-		List<UUID> dirtyPlayers = new ArrayList<>(DIRTY_ABILITY_HUD_PLAYERS);
-		DIRTY_ABILITY_HUD_PLAYERS.clear();
-		for (UUID playerId : dirtyPlayers) {
-			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player == null) {
-				continue;
-			}
-			PetHudManager.sendAbilityCooldowns(player, currentAbilityCooldowns(playerId));
-		}
-	}
-
-	private static int[] currentAbilityCooldowns(UUID playerId) {
+	static int[] currentAbilityCooldowns(UUID playerId) {
 		int[] remaining = new int[SLOT_COUNT];
 		if (playerId == null) {
 			return remaining;
@@ -2581,7 +1872,7 @@ public final class MadokuPetManager {
 		return remaining;
 	}
 
-	private static void removeAllPets(MinecraftServer server, UUID playerId) {
+	static void removeAllPets(MinecraftServer server, UUID playerId) {
 		stopBeeSwarmsForOwner(playerId);
 		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
 		if (petIds != null) {
@@ -2594,7 +1885,7 @@ public final class MadokuPetManager {
 		removeTaggedPetsForOwner(server, playerId);
 	}
 
-	private static void removePet(MinecraftServer server, UUID petId) {
+	static void removePet(MinecraftServer server, UUID petId) {
 		Mob pet = findMob(server, petId);
 		if (pet != null) {
 			pet.discard();
@@ -2608,7 +1899,7 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static Mob findMob(MinecraftServer server, UUID entityId) {
+	static Mob findMob(MinecraftServer server, UUID entityId) {
 		if (server == null || entityId == null) {
 			return null;
 		}
@@ -2634,7 +1925,7 @@ public final class MadokuPetManager {
 		return null;
 	}
 
-	private static void preparePet(Mob pet) {
+	static void preparePet(Mob pet) {
 		if (pet == null) {
 			return;
 		}
@@ -2649,14 +1940,14 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static void clearPetTargetGoals(Mob pet) {
+	static void clearPetTargetGoals(Mob pet) {
 		if (pet == null) {
 			return;
 		}
 		((MobTargetSelectorAccessor) pet).madokuCraft$getTargetSelector().removeAllGoals(goal -> true);
 	}
 
-	private static void tagManagedPet(Mob pet, UUID ownerId) {
+	static void tagManagedPet(Mob pet, UUID ownerId) {
 		if (pet == null || ownerId == null) {
 			return;
 		}
@@ -2712,7 +2003,7 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static void removeStrayManagedPetsForOwner(MinecraftServer server, UUID ownerId, Set<UUID> expectedPetIds) {
+	static void removeStrayManagedPetsForOwner(MinecraftServer server, UUID ownerId, Set<UUID> expectedPetIds) {
 		if (server == null || ownerId == null) {
 			return;
 		}
@@ -2776,40 +2067,8 @@ public final class MadokuPetManager {
 		return MANAGED_PET_OWNER_PREFIX + ownerId;
 	}
 
-	private static PetInventory petInventory(Player player) {
+	static PetInventory petInventory(Player player) {
 		return player instanceof PetHolder holder ? holder.madokuCraft$getPetInventory() : null;
-	}
-
-	private static PetRule resolvePetRule(ItemStack stack) {
-		if (stack == null || stack.isEmpty()) {
-			return null;
-		}
-
-		Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-		if (itemId == null) {
-			return null;
-		}
-		return resolvePetRule(itemId.toString());
-	}
-
-	private static PetRule resolvePetRule(Entity entity) {
-		if (entity == null) {
-			return null;
-		}
-		String syncedItemId = normalizeKey(PetPayloadManager.soundItemId(entity.getUUID()));
-		if (!syncedItemId.isBlank()) {
-			return resolvePetRule(syncedItemId);
-		}
-		String itemId = getManagedPetItemId(entity);
-		return itemId.isBlank() ? null : resolvePetRule(itemId);
-	}
-
-	private static PetRule resolvePetRule(String itemId) {
-		String normalizedItemId = normalizeKey(itemId);
-		if (normalizedItemId.isEmpty()) {
-			return null;
-		}
-		return petRulesByItemId.get(normalizedItemId);
 	}
 
 	private static UUID parseUuid(String value) {
@@ -2860,7 +2119,7 @@ public final class MadokuPetManager {
 				continue;
 			}
 			JsonObject cooldownData = element.getAsJsonObject();
-			UUID playerId = parseUuid(getString(cooldownData, "uuid", ""));
+			UUID playerId = parseUuid(PetConfigManager.getString(cooldownData, "uuid", ""));
 			JsonArray cooldownValues = getArray(cooldownData, "cooldowns");
 			if (playerId == null || cooldownValues == null) {
 				continue;
@@ -2890,107 +2149,11 @@ public final class MadokuPetManager {
 		return false;
 	}
 
-	private static Item resolveItem(String itemId) {
-		Identifier identifier = Identifier.tryParse(itemId == null ? "" : itemId.trim());
-		return identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
-	}
-
-	private static String defaultAbilityForItem(String itemId) {
-		String normalizedItemId = normalizeKey(itemId);
-		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_MOB_SCAN;
-		}
-		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_BEE_SWARM;
-		}
-		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_FALL_DAMAGE_REDUCTION;
-		}
-		if ("minecraft:cow_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_DAMAGE_BLOCK;
-		}
-		if ("minecraft:pig_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_MAX_HEALTH_BONUS;
-		}
-		if ("minecraft:sheep_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_ARMOR_BONUS;
-		}
-		if ("minecraft:skeleton_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_RANGED_HOMING_ARROW;
-		}
-		if ("minecraft:spider_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_WEB_PROJECTILE;
-		}
-		if ("minecraft:creeper_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_EXPLOSIVE_PROJECTILE;
-		}
-		if ("minecraft:zombie_spawn_egg".equals(normalizedItemId)) {
-			return PET_ABILITY_PLAYER_DAMAGE_BONUS;
-		}
-		return PET_ABILITY_NONE;
-	}
-
-	static double defaultPetScaleForItem(String itemId) {
-		String normalizedItemId = normalizeKey(itemId);
-		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
-			return 0.4D;
-		}
-		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
-			return 0.5D;
-		}
-		if ("minecraft:chicken_spawn_egg".equals(normalizedItemId)) {
-			return 0.3D;
-		}
-		return 0.25D;
-	}
-
-	static String defaultRarityForItem(String itemId) {
-		String normalizedItemId = normalizeKey(itemId);
-		if ("minecraft:bee_spawn_egg".equals(normalizedItemId)) {
-			return PET_RARITY_EPIC;
-		}
-		if ("minecraft:bat_spawn_egg".equals(normalizedItemId)) {
-			return PET_RARITY_EPIC;
-		}
-		if ("minecraft:cow_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:creeper_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:skeleton_spawn_egg".equals(normalizedItemId)
-			|| "minecraft:spider_spawn_egg".equals(normalizedItemId)) {
-			return PET_RARITY_RARE;
-		}
-		return PET_RARITY_COMMON;
-	}
-
-	static String resolvePetItemId(String fileKey, JsonObject sourceRoot) {
-		String configured = getString(sourceRoot, "item-id", "");
-		if (!configured.isBlank()) {
-			return configured.trim();
-		}
-		String normalizedFileKey = normalizeFileKey(fileKey);
-		if (normalizedFileKey.isEmpty()) {
-			return null;
-		}
-		List<String> candidates = new ArrayList<>();
-		if (normalizedFileKey.contains(":")) {
-			candidates.add(normalizedFileKey);
-		} else {
-			candidates.add("minecraft:" + normalizedFileKey);
-			candidates.add("minecraft:" + normalizedFileKey + "_spawn_egg");
-		}
-		for (String itemId : candidates) {
-			Item item = resolveItem(itemId);
-			if (item instanceof SpawnEggItem) {
-				return BuiltInRegistries.ITEM.getKey(item).toString();
-			}
-		}
-		return null;
-	}
-
-	private static boolean setManagedPetItemId(Mob pet, String itemId) {
+	static boolean setManagedPetItemId(Mob pet, String itemId) {
 		if (pet == null) {
 			return false;
 		}
-		String normalizedItemId = normalizeKey(itemId);
+		String normalizedItemId = PetConfigManager.normalizeKey(itemId);
 		PetPayloadManager.setSoundState(pet.getUUID(), normalizedItemId);
 		String existingTag = null;
 		for (String tag : pet.entityTags()) {
@@ -3012,7 +2175,7 @@ public final class MadokuPetManager {
 		return true;
 	}
 
-	private static String getManagedPetItemId(Entity entity) {
+	static String getManagedPetItemId(Entity entity) {
 		if (entity == null) {
 			return "";
 		}
@@ -3024,90 +2187,11 @@ public final class MadokuPetManager {
 		return "";
 	}
 
-	private static Path resolveJsonFile(Path directory, String fileName) {
-		String normalized = fileName == null ? "" : fileName.trim();
-		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("JSON file name must not be blank.");
-		}
-		if (!normalized.endsWith(".json")) {
-			normalized = normalized + ".json";
-		}
-		return directory.resolve(normalized);
-	}
-
-	private static String normalizeFileKey(String rawKey) {
-		return rawKey == null ? "" : rawKey.trim().toLowerCase();
-	}
-
-	static String normalizeKey(String rawKey) {
-		return rawKey == null ? "" : rawKey.trim().toLowerCase();
-	}
-
-	static String normalizePetRarity(String rawRarity) {
-		String normalized = normalizeKey(rawRarity);
-		return switch (normalized) {
-			case PET_RARITY_COMMON, PET_RARITY_RARE, PET_RARITY_EPIC, PET_RARITY_MYTHIC -> normalized;
-			default -> PET_RARITY_COMMON;
-		};
-	}
-
 	private static JsonArray getArray(JsonObject source, String key) {
 		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonArray()) {
 			return null;
 		}
 		return source.getAsJsonArray(key);
-	}
-
-	static String getString(JsonObject source, String key, String fallback) {
-		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
-			return fallback;
-		}
-		try {
-			return source.get(key).getAsString();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	static long getLong(JsonObject source, String key, long fallback) {
-		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
-			return fallback;
-		}
-		try {
-			return source.get(key).getAsLong();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	private static int getInt(JsonObject source, String key, int fallback) {
-		long value = getLong(source, key, fallback);
-		if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
-			return fallback;
-		}
-		return (int) value;
-	}
-
-	static double getDouble(JsonObject source, String key, double fallback) {
-		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
-			return fallback;
-		}
-		try {
-			return source.get(key).getAsDouble();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
-	static boolean getBoolean(JsonObject source, String key, boolean fallback) {
-		if (source == null || key == null || !source.has(key) || !source.get(key).isJsonPrimitive()) {
-			return fallback;
-		}
-		try {
-			return source.get(key).getAsBoolean();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
 	}
 
 	static String formatAbilityAmount(double value) {

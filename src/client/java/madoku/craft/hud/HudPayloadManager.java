@@ -1,8 +1,6 @@
 package madoku.craft.hud;
 
-import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 
 /** Client payload subsystem for synchronized HUD state. */
@@ -22,7 +20,6 @@ public final class HudPayloadManager {
 	private static volatile int serverHungerPending;
 	private static volatile int serverHungerMax = DEFAULT_MAX_HUNGER;
 	private static volatile boolean hasServerHunger;
-	private static final long[] petAbilityCooldownEndTicks = new long[PetEntitiesManager.SLOT_COUNT];
 
 	private HudPayloadManager() {
 	}
@@ -36,7 +33,6 @@ public final class HudPayloadManager {
 		clearServerDifficulty();
 		clearServerSeason();
 		clearServerHunger();
-		clearPetAbilityHudState();
 	}
 
 	public static void setServerTime(long day, int hour, int minute) {
@@ -118,24 +114,6 @@ public final class HudPayloadManager {
 	public static int getServerHungerCurrent() { return serverHungerCurrent; }
 	public static int getServerHungerPending() { return serverHungerPending; }
 	public static int getServerHungerMax() { return serverHungerMax; }
-
-	public static void setPetAbilityCooldowns(int[] remainingTicks) {
-		Minecraft client = Minecraft.getInstance();
-		ClientLevel level = client.level;
-		long now = level == null ? 0L : level.getGameTime();
-		for (int slot = 0; slot < petAbilityCooldownEndTicks.length; slot++) {
-			int remaining = remainingTicks != null && slot < remainingTicks.length ? Math.max(0, remainingTicks[slot]) : 0;
-			petAbilityCooldownEndTicks[slot] = remaining <= 0 ? 0L : now + remaining;
-		}
-	}
-
-	public static long getPetAbilityCooldownEndTick(int slot) {
-		return slot < 0 || slot >= petAbilityCooldownEndTicks.length ? 0L : petAbilityCooldownEndTicks[slot];
-	}
-
-	public static void clearPetAbilityHudState() {
-		java.util.Arrays.fill(petAbilityCooldownEndTicks, 0L);
-	}
 
 	public static boolean canConsumeFoodClient(boolean ignoreHunger) {
 		if (ignoreHunger || !hasServerHunger) return true;

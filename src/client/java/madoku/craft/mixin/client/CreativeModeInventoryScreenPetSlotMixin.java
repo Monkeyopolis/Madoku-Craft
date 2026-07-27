@@ -1,6 +1,6 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.pet.PetInventory;
+import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;

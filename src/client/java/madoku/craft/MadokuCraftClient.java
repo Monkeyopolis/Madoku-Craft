@@ -14,6 +14,7 @@ import madoku.craft.attributes.hunger.HungerPayloadManager;
 import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.pet.PetPayloadManager;
+import madoku.craft.pet.PetHudManagerClient;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import madoku.craft.trade.MerchantEggVariantsClient;
@@ -29,6 +30,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		MadokuSyncManager.initializeClient();
 		MadokuHudManager.initialize();
+		PetHudManagerClient.initialize();
 		MadokuEntitiesClient.initialize();
 		MadokuLevelsClient.initialize();
 		PetInventoryClient.initialize();
@@ -61,7 +63,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
-			HudPayloadManager.setPetAbilityCooldowns(payload.asArray())
+			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetSoundStatePayload.TYPE, (payload, context) ->
 			PetPayloadManager.setSoundState(parseUuid(payload.petUuid()), payload.itemId())
@@ -69,6 +71,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
+			PetHudManagerClient.reset();
 			HudAttributesManager.reset();
 			PetPayloadManager.clearSoundState();
 		});
