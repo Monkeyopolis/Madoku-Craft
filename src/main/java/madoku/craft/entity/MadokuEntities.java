@@ -45,9 +45,9 @@ public final class MadokuEntities {
 	private static final long ENTITY_RUNTIME_TICK_DELAY = 1L;
 	private static final long DAYS_PER_WEEK = 7L;
 	private static final long MIN_HAG_SPAWN_WEEKS = 1L;
-	private static final long MAX_HAG_SPAWN_WEEKS = 2L;
-	private static final int MIN_HAG_SPAWN_DISTANCE = 24;
-	private static final int MAX_HAG_SPAWN_DISTANCE = 48;
+	private static final long MAX_HAG_SPAWN_WEEKS = 1L;
+	private static final int MIN_HAG_SPAWN_DISTANCE = 12;
+	private static final int MAX_HAG_SPAWN_DISTANCE = 12;
 	private static final int HAG_SPAWN_ATTEMPTS_PER_PLAYER = 8;
 	private static final String WANDERING_HAG_TAG = "madoku-craft.hag.wandering";
 	private static final String WANDERING_HAG_DESPAWN_TIME_PREFIX = "madoku-craft.hag.despawn_time:";

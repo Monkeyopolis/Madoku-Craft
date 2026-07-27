@@ -29,11 +29,11 @@ public final class ConfigEntitiesSkeleton {
 					)
 				))
 				.add(LootTableConfigStructures.group(
-					"mythic",
+					"legendary",
 					1,
 					List.of("madoku-pets"),
 					LootTableConfigStructures.entries(
-						LootTableConfigStructures.item("minecraft:skeleton_spawn_egg", 1, 0, 1)
+						LootTableConfigStructures.item("madoku:skeleton-pet", 1, 0, 1)
 					)
 				)))
 			.build();

@@ -51,7 +51,11 @@ public final class PetHudManager {
 		if (stack == null || stack.isEmpty()) return;
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
 		if (rule == null) return;
+		stack.remove(DataComponents.LORE);
 		List<Component> lines = new ArrayList<>();
+		if (PetEntitiesManager.isPetItem(stack)) {
+			lines.add(Component.literal("Level: " + PetEntitiesManager.petLevel(stack)).withStyle(ChatFormatting.AQUA));
+		}
 		if (!rule.abilityDescription().isBlank()) lines.add(Component.literal(rule.abilityDescription()).withStyle(ChatFormatting.GOLD));
 		if (!rule.cooldownDescription().isBlank()) lines.add(Component.literal(rule.cooldownDescription()).withStyle(ChatFormatting.GRAY));
 		if (!lines.isEmpty()) stack.set(DataComponents.LORE, new ItemLore(lines));

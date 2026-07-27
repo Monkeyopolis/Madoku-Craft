@@ -50,16 +50,16 @@ public final class ConfigStructuresShipwreck {
 				LootTableConfigStructures.item("minecraft:heart_of_the_sea", 1, 1, 3)
 			)))
 			.add(LootTableConfigStructures.group("mythic", 25, List.of("madoku-pets"), LootTableConfigStructures.entries(
-				LootTableConfigStructures.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-				LootTableConfigStructures.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-				LootTableConfigStructures.item("minecraft:pig_spawn_egg", 100, 1, 1),
-				LootTableConfigStructures.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-				LootTableConfigStructures.item("minecraft:cow_spawn_egg", 75, 1, 1),
-				LootTableConfigStructures.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-				LootTableConfigStructures.item("minecraft:spider_spawn_egg", 75, 1, 1),
-				LootTableConfigStructures.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-				LootTableConfigStructures.item("minecraft:bat_spawn_egg", 50, 1, 1),
-				LootTableConfigStructures.item("minecraft:bee_spawn_egg", 50, 1, 1)
+				LootTableConfigStructures.item("madoku:chicken-pet", 100, 1, 1),
+				LootTableConfigStructures.item("madoku:zombie-pet", 100, 1, 1),
+				LootTableConfigStructures.item("madoku:pig-pet", 100, 1, 1),
+				LootTableConfigStructures.item("madoku:sheep-pet", 100, 1, 1),
+				LootTableConfigStructures.item("madoku:cow-pet", 75, 1, 1),
+				LootTableConfigStructures.item("madoku:skeleton-pet", 75, 1, 1),
+				LootTableConfigStructures.item("madoku:spider-pet", 75, 1, 1),
+				LootTableConfigStructures.item("madoku:creeper-pet", 75, 1, 1),
+				LootTableConfigStructures.item("madoku:bat-pet", 50, 1, 1),
+				LootTableConfigStructures.item("madoku:bee-pet", 50, 1, 1)
 			)))
 			.build();
 

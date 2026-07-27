@@ -16,7 +16,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -24,7 +23,6 @@ import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -35,9 +33,7 @@ public class Hag extends Witch implements Merchant {
 	private static final String PET_RARITY_COMMON = "common";
 	private static final String PET_RARITY_RARE = "rare";
 	private static final String PET_RARITY_EPIC = "epic";
-	private static final String PET_RARITY_MYTHIC = "mythic";
-	private static final int DEFAULT_SPAWN_EGG_EGG_COST = 64;
-	private static final int DEFAULT_SPAWN_EGG_EMERALD_COST = 16;
+	private static final String PET_RARITY_LEGENDARY = "legendary";
 	private static final long TRADE_REFRESH_DAYS = 7L;
 	private static final int AVAILABLE_TRADE_COUNT = 7;
 	private static final int TRADE_MAX_USES = 999999;
@@ -116,7 +112,7 @@ public class Hag extends Witch implements Merchant {
 	public MerchantOffers getOffers() {
 		long currentWeek = currentOfferWeek();
 		if (this.offers == null || this.offerRefreshWeek != currentWeek) {
-			this.offers = createSpawnEggOffers(currentWeek);
+			this.offers = createPetOffers(currentWeek);
 			this.offerRefreshWeek = currentWeek;
 		}
 		return this.offers;
@@ -173,17 +169,18 @@ public class Hag extends Witch implements Merchant {
 		return goal != null && PLAYER_TARGET_GOAL_NAME.equals(goal.getClass().getSimpleName());
 	}
 
-	private MerchantOffers createSpawnEggOffers(long week) {
+	private MerchantOffers createPetOffers(long week) {
 		MerchantOffers offers = new MerchantOffers();
 		Random random = new Random(
 			this.getUUID().getMostSignificantBits()
 				^ this.getUUID().getLeastSignificantBits()
 				^ week
 		);
-		boolean petSystemEnabled = PetConfigManager.isEnabled();
-		List<Item> spawnEggs = petSystemEnabled ? buildPetSystemSpawnEggs(random) : buildFallbackSpawnEggs(random);
-		for (Item item : spawnEggs) {
-			offers.add(createSpawnEggOffer(item, petSystemEnabled));
+		if (!PetConfigManager.isEnabled()) return offers;
+		List<Item> petItems = buildPetItems(random);
+		for (Item item : petItems) {
+			int level = PetHagManager.randomTradeLevel(random);
+			offers.add(createPetOffer(item, level));
 		}
 		return offers;
 	}
@@ -199,12 +196,12 @@ public class Hag extends Witch implements Merchant {
 		return Math.floorDiv(day, TRADE_REFRESH_DAYS);
 	}
 
-	private List<Item> buildPetSystemSpawnEggs(Random random) {
+	private List<Item> buildPetItems(Random random) {
 		List<Item> pool = new ArrayList<>(PetHagManager.tradeItems());
 		List<Item> selected = new ArrayList<>();
 		int limit = Math.min(AVAILABLE_TRADE_COUNT, pool.size());
 		while (selected.size() < limit && !pool.isEmpty()) {
-			Item item = pickWeightedSpawnEgg(pool, random);
+			Item item = pickWeightedPet(pool, random);
 			if (item == null) {
 				break;
 			}
@@ -215,18 +212,7 @@ public class Hag extends Witch implements Merchant {
 		return selected;
 	}
 
-	private List<Item> buildFallbackSpawnEggs(Random random) {
-		List<Item> spawnEggs = BuiltInRegistries.ITEM.stream()
-			.filter(SpawnEggItem.class::isInstance)
-			.map(Item.class::cast)
-			.filter(item -> item != MadokuEntities.HAG_SPAWN_EGG)
-			.sorted(Comparator.comparing(item -> BuiltInRegistries.ITEM.getKey(item).toString()))
-			.collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
-		Collections.shuffle(spawnEggs, random);
-		return spawnEggs.stream().limit(AVAILABLE_TRADE_COUNT).toList();
-	}
-
-	private Item pickWeightedSpawnEgg(List<Item> pool, Random random) {
+	private Item pickWeightedPet(List<Item> pool, Random random) {
 		if (pool == null || pool.isEmpty()) {
 			return null;
 		}
@@ -250,15 +236,11 @@ public class Hag extends Witch implements Merchant {
 		return pool.getLast();
 	}
 
-	private MerchantOffer createSpawnEggOffer(Item item, boolean petSystemEnabled) {
-		int eggCost = petSystemEnabled ? eggCost(item) : DEFAULT_SPAWN_EGG_EGG_COST;
-		int emeraldCost = petSystemEnabled ? emeraldCost(item) : DEFAULT_SPAWN_EGG_EMERALD_COST;
-		ItemStack resultStack = new ItemStack(item);
-		if (petSystemEnabled) {
-			PetHagManager.applyLore(resultStack);
-		}
+	private MerchantOffer createPetOffer(Item item, int level) {
+		int emeraldCost = emeraldCost(item, level);
+		ItemStack resultStack = PetHagManager.tradeStack(item, level);
 		return new MerchantOffer(
-			new ItemCost(Items.EGG, eggCost),
+			PetHagManager.tradeIngredient(item, level),
 			Optional.of(new ItemCost(Items.EMERALD, emeraldCost)),
 			resultStack,
 			TRADE_MAX_USES,
@@ -271,23 +253,13 @@ public class Hag extends Witch implements Merchant {
 		return PetHagManager.rarityWeight(petRarity(item));
 	}
 
-	private int eggCost(Item item) {
+	private int emeraldCost(Item item, int level) {
 		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 64;
-			case PET_RARITY_EPIC -> 48;
-			case PET_RARITY_RARE -> 32;
-			case PET_RARITY_COMMON -> 16;
-			default -> 16;
-		};
-	}
-
-	private int emeraldCost(Item item) {
-		return switch (petRarity(item)) {
-			case PET_RARITY_MYTHIC -> 128;
-			case PET_RARITY_EPIC -> 96;
-			case PET_RARITY_RARE -> 64;
-			case PET_RARITY_COMMON -> 32;
-			default -> 32;
+			case PET_RARITY_LEGENDARY -> 128 * level;
+			case PET_RARITY_EPIC -> 96 * level;
+			case PET_RARITY_RARE -> 64 * level;
+			case PET_RARITY_COMMON -> 32 * level;
+			default -> 32 * level;
 		};
 	}
 

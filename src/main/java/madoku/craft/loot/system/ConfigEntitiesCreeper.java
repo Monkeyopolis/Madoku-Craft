@@ -24,11 +24,11 @@ public final class ConfigEntitiesCreeper {
 						.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
 							LootTableConfigStructures.item("minecraft:gunpowder", 1, 1, 3)
 						)))
-					.object(mythicGroup -> mythicGroup
-						.put(LootTableConfigManager.FIELD_RARITY, "mythic")
+					.object(legendaryGroup -> legendaryGroup
+						.put(LootTableConfigManager.FIELD_RARITY, "legendary")
 						.put(LootTableConfigManager.FIELD_WEIGHT, 1)
 						.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
-							LootTableConfigStructures.item("minecraft:creeper_spawn_egg", 1, 0, 1)
+										LootTableConfigStructures.item("madoku:creeper-pet", 1, 0, 1)
 						))
 						.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.api.json.JSONFormatManager.array().add("madoku-pets").build()))))
 			.build();

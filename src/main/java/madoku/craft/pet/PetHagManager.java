@@ -3,12 +3,19 @@ package madoku.craft.pet;
 import java.util.List;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.trading.ItemCost;
+import net.minecraft.world.item.Items;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.component.CustomData;
+import java.util.Random;
 
 /** Owns the Hag-facing pet trade pool, rarity, and item presentation helpers. */
 public final class PetHagManager {
+	private static final int[] LEVEL_TRADE_WEIGHTS = {59, 24, 12, 4, 1};
+
 	private PetHagManager() {
 	}
 
@@ -19,8 +26,8 @@ public final class PetHagManager {
 		List<Item> items = new java.util.ArrayList<>();
 		for (PetRule rule : PetConfigManager.rules().values()) {
 			if (rule == null || !rule.enabled) continue;
-			Item item = PetConfigManager.resolveItem(rule.itemId);
-			if (item instanceof SpawnEggItem) items.add(item);
+			Item item = PetEntitiesManager.petItem(rule.petId);
+			if (item != null) items.add(item);
 		}
 		items.sort((left, right) -> BuiltInRegistries.ITEM.getKey(left).toString().compareTo(BuiltInRegistries.ITEM.getKey(right).toString()));
 		return List.copyOf(items);
@@ -30,9 +37,35 @@ public final class PetHagManager {
 		return switch (PetConfigManager.normalizePetRarity(rarity)) {
 			case MadokuPetManager.PET_RARITY_RARE -> PetConfigManager.settings().petRarityRareChanceWeight;
 			case MadokuPetManager.PET_RARITY_EPIC -> PetConfigManager.settings().petRarityEpicChanceWeight;
-			case MadokuPetManager.PET_RARITY_MYTHIC -> PetConfigManager.settings().petRarityMythicChanceWeight;
+			case MadokuPetManager.PET_RARITY_LEGENDARY -> PetConfigManager.settings().petRarityLegendaryChanceWeight;
 			default -> PetConfigManager.settings().petRarityCommonChanceWeight;
 		};
+	}
+
+	public static int randomTradeLevel(Random random) {
+		int roll = random.nextInt(100);
+		for (int level = 0; level < LEVEL_TRADE_WEIGHTS.length; level++) {
+			if (roll < LEVEL_TRADE_WEIGHTS[level]) return level + 1;
+			roll -= LEVEL_TRADE_WEIGHTS[level];
+		}
+		return LEVEL_TRADE_WEIGHTS.length;
+	}
+
+	public static ItemStack tradeStack(Item item, int level) {
+		ItemStack stack = new ItemStack(item);
+		PetEntitiesManager.setPetLevel(stack, level);
+		applyLore(stack);
+		return stack;
+	}
+
+	public static ItemCost tradeIngredient(Item item, int level) {
+		if (level <= 1) return new ItemCost(Items.EGG, 16);
+		CompoundTag levelTag = new CompoundTag();
+		levelTag.putInt("madoku-pet-level", level - 1);
+		ItemCost cost = new ItemCost(item, 4)
+			.withComponents(builder -> builder.expect(DataComponents.CUSTOM_DATA, CustomData.of(levelTag)));
+		PetHudManager.applySupportedPetLore(cost.itemStack());
+		return cost;
 	}
 
 	public static String rarity(ItemStack stack) {

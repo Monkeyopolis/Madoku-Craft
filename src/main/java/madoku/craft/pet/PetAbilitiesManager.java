@@ -61,21 +61,25 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_BEE_SWARM
 				};
 				for (String abilityType : abilityTypes) {
-					defaults.put(abilityType, PetConfigManager.PetRule.defaultsForItem("minecraft:bat_spawn_egg", abilityType));
+					defaults.put(PetConfigManager.abilityConfigId(abilityType), PetConfigManager.PetRule.defaultsForAbility(abilityType));
 				}
 				Path abilitiesDirectory = PetConfigManager.petDirectory().resolve(PetConfigManager.ABILITY_FOLDER);
 				Map<String, JsonObject> loaded = JSONFormatManager.ensureManagedFolder(
 					abilitiesDirectory,
 					defaults,
 					fileKey -> defaults.getOrDefault(
-						PetConfigManager.normalizeFileKey(fileKey),
-						JSONFormatManager.object().put("ability", PetConfigManager.normalizeFileKey(fileKey)).build()
+						PetConfigManager.abilityConfigId(fileKey),
+						PetConfigManager.PetRule.defaultsForAbility(PetConfigManager.normalizeAbilityId(fileKey))
 					),
 					(fileKey, sourceRoot) -> true,
 					null
 				);
 				definitions.clear();
-				definitions.putAll(loaded);
+				for (Map.Entry<String, JsonObject> entry : loaded.entrySet()) {
+					JsonObject abilityGroup = PetConfigManager.objectField(entry.getValue(), "ability-id");
+					String abilityId = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(abilityGroup, "id", entry.getKey()));
+					definitions.put(abilityId, entry.getValue());
+				}
 			} catch (IOException | RuntimeException exception) {
 				definitions.clear();
 				PetConfigManager.logFailure("Failed to load Madoku pet ability definitions; using defaults.", exception);

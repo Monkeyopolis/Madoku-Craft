@@ -1,13 +1,15 @@
 package madoku.craft.pet;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -19,7 +21,9 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.phys.Vec3;
 import java.util.Map;
 import java.util.HashSet;
@@ -39,11 +43,66 @@ public final class PetEntitiesManager {
 	public static final int FIRST_SLOT_INDEX = MadokuPetManager.FIRST_SLOT_INDEX;
 	public static final int SLOT_X = MadokuPetManager.SLOT_X;
 	public static final int[] SLOT_YS = MadokuPetManager.SLOT_YS;
+	private static final String PET_ITEM_NAMESPACE = "madoku";
+	private static final String PET_LEVEL_TAG = "madoku-pet-level";
+	private static final int DEFAULT_PET_LEVEL = 1;
+	private static final Map<String, Item> PET_ITEMS_BY_ID = new LinkedHashMap<>();
+	private static final Map<Item, String> PET_IDS_BY_ITEM = new LinkedHashMap<>();
+	private static boolean itemsRegistered;
 
 	private PetEntitiesManager() {
 	}
 
 	public static void initialize() {
+		registerPetItems();
+	}
+
+	private static void registerPetItems() {
+		if (itemsRegistered) return;
+		String[] petIds = {
+			"minecraft:bat", "minecraft:bee", "minecraft:chicken", "minecraft:cow", "minecraft:creeper",
+			"minecraft:pig", "minecraft:sheep", "minecraft:skeleton", "minecraft:spider", "minecraft:zombie"
+		};
+		for (String petId : petIds) {
+			String itemPath = PetConfigManager.petItemPath(petId);
+			Identifier itemId = Identifier.fromNamespaceAndPath(PET_ITEM_NAMESPACE, itemPath);
+			Item item = Registry.register(
+				BuiltInRegistries.ITEM,
+				itemId,
+				new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM, itemId)))
+			);
+			PET_ITEMS_BY_ID.put(PetConfigManager.normalizePetId(petId), item);
+			PET_IDS_BY_ITEM.put(item, PetConfigManager.normalizePetId(petId));
+		}
+		itemsRegistered = true;
+	}
+
+	public static boolean isPetItem(ItemStack stack) {
+		return stack != null && !stack.isEmpty() && PET_IDS_BY_ITEM.containsKey(stack.getItem());
+	}
+
+	static String petId(ItemStack stack) {
+		return stack == null ? "" : PET_IDS_BY_ITEM.getOrDefault(stack.getItem(), "");
+	}
+
+	static Item petItem(String petId) {
+		return PET_ITEMS_BY_ID.get(PetConfigManager.normalizePetId(petId));
+	}
+
+	public static int petLevel(ItemStack stack) {
+		if (!isPetItem(stack)) return 1;
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		if (customData == null) return DEFAULT_PET_LEVEL;
+		int level = customData.copyTag().getInt(PET_LEVEL_TAG).orElse(DEFAULT_PET_LEVEL);
+		return Math.max(DEFAULT_PET_LEVEL, Math.min(PetConfigManager.maxPetLevel(), level));
+	}
+
+	static void setPetLevel(ItemStack stack, int level) {
+		if (!isPetItem(stack)) return;
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		net.minecraft.nbt.CompoundTag tag = customData == null ? new net.minecraft.nbt.CompoundTag() : customData.copyTag();
+		tag.putInt(PET_LEVEL_TAG, Math.max(DEFAULT_PET_LEVEL, Math.min(PetConfigManager.maxPetLevel(), level)));
+		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
 	}
 
 	/** Owns the dynamic pet entity JSON definitions under madoku-entities. */
@@ -68,33 +127,25 @@ public final class PetEntitiesManager {
 				for (Map.Entry<String, JsonObject> entry : normalizedFiles.entrySet()) {
 					String fileKey = entry.getKey();
 					JsonObject sourceRoot = entry.getValue();
-					String itemId = PetConfigManager.resolvePetItemId(fileKey, sourceRoot);
-					if (itemId == null || itemId.isBlank()) continue;
+					String petId = PetConfigManager.resolvePetId(fileKey, sourceRoot);
+					if (petId == null || petId.isBlank()) continue;
 
-					String abilityType = PetConfigManager.normalizeKey(PetConfigManager.getString(
-						sourceRoot,
-						"ability",
-						PetConfigManager.defaultAbilityForItem(itemId)
+					String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(
+						PetConfigManager.objectField(sourceRoot, "pet-id"),
+						"ability-id",
+						PetConfigManager.defaultAbilityForItem(petId)
 					));
 					JsonObject abilityDefinition = abilityDefinitions.get(abilityType);
-					if (abilityDefinition != null) {
-						JsonObject merged = sourceRoot.deepCopy();
-						for (Map.Entry<String, JsonElement> abilityEntry : abilityDefinition.entrySet()) {
-							if (!merged.has(abilityEntry.getKey())) {
-								merged.add(abilityEntry.getKey(), abilityEntry.getValue().deepCopy());
-							}
-						}
-						sourceRoot = merged;
-					}
 					Path file = PetConfigManager.resolveJsonFile(rulesDirectory, fileKey);
 					JsonObject normalized = JSONFormatManager.writeManagedFile(
 						file,
 						sourceRoot,
-						PetConfigManager.PetRule.defaultsForItem(itemId, abilityType),
+						PetConfigManager.PetRule.defaultsForEntity(petId, abilityType),
 						null
 					);
-					PetRule rule = PetConfigManager.PetRule.fromJson(normalized, fileKey);
+					PetRule rule = PetConfigManager.PetRule.fromJson(normalized, fileKey, abilityDefinition);
 					if (rule != null && !rule.itemId.isBlank()) {
+						resolved.put(PetConfigManager.normalizePetId(rule.petId), rule);
 						resolved.put(PetConfigManager.normalizeKey(rule.itemId), rule);
 					}
 				}
@@ -111,34 +162,37 @@ public final class PetEntitiesManager {
 
 		static PetRule resolve(String itemId) {
 			String normalizedItemId = PetConfigManager.normalizeKey(itemId);
-			return normalizedItemId.isEmpty() ? null : rules.get(normalizedItemId);
+			if (normalizedItemId.isEmpty()) return null;
+			PetRule direct = rules.get(normalizedItemId);
+			if (direct != null) return direct;
+			return rules.get(PetConfigManager.normalizePetId(normalizedItemId));
 		}
 
 		private static Map<String, JsonObject> buildDefaultPetRuleFiles() {
 			Map<String, JsonObject> defaults = new LinkedHashMap<>();
-			defaults.put("bat", PetRule.defaultsForItem("minecraft:bat_spawn_egg", MadokuPetManager.PET_ABILITY_MOB_SCAN));
-			defaults.put("bee", PetRule.defaultsForItem("minecraft:bee_spawn_egg", MadokuPetManager.PET_ABILITY_BEE_SWARM));
-			defaults.put("chicken", PetRule.defaultsForItem("minecraft:chicken_spawn_egg", MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION));
-			defaults.put("cow", PetRule.defaultsForItem("minecraft:cow_spawn_egg", MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK));
-			defaults.put("creeper", PetRule.defaultsForItem("minecraft:creeper_spawn_egg", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
-			defaults.put("pig", PetRule.defaultsForItem("minecraft:pig_spawn_egg", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
-			defaults.put("sheep", PetRule.defaultsForItem("minecraft:sheep_spawn_egg", MadokuPetManager.PET_ABILITY_ARMOR_BONUS));
-			defaults.put("skeleton", PetRule.defaultsForItem("minecraft:skeleton_spawn_egg", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
-			defaults.put("spider", PetRule.defaultsForItem("minecraft:spider_spawn_egg", MadokuPetManager.PET_ABILITY_WEB_PROJECTILE));
-			defaults.put("zombie", PetRule.defaultsForItem("minecraft:zombie_spawn_egg", MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS));
+			defaults.put("bat", PetRule.defaultsForEntity("minecraft:bat", MadokuPetManager.PET_ABILITY_MOB_SCAN));
+			defaults.put("bee", PetRule.defaultsForEntity("minecraft:bee", MadokuPetManager.PET_ABILITY_BEE_SWARM));
+			defaults.put("chicken", PetRule.defaultsForEntity("minecraft:chicken", MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION));
+			defaults.put("cow", PetRule.defaultsForEntity("minecraft:cow", MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK));
+			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
+			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
+			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_ARMOR_BONUS));
+			defaults.put("skeleton", PetRule.defaultsForEntity("minecraft:skeleton", MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW));
+			defaults.put("spider", PetRule.defaultsForEntity("minecraft:spider", MadokuPetManager.PET_ABILITY_WEB_PROJECTILE));
+			defaults.put("zombie", PetRule.defaultsForEntity("minecraft:zombie", MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS));
 			return defaults;
 		}
 
 		private static JsonObject buildDynamicPetRuleDefaults(String fileKey) {
-			String itemId = PetConfigManager.resolvePetItemId(fileKey, null);
-			return itemId == null
+			String petId = PetConfigManager.resolvePetId(fileKey, null);
+			return petId == null
 				? JSONFormatManager.object().build()
-				: PetRule.defaultsForItem(itemId, PetConfigManager.defaultAbilityForItem(itemId));
+				: PetRule.defaultsForEntity(petId, PetConfigManager.defaultAbilityForItem(petId));
 		}
 
 		private static boolean isSupportedPetRuleFile(String fileKey, JsonObject sourceRoot) {
-			String itemId = PetConfigManager.resolvePetItemId(fileKey, sourceRoot);
-			return PetConfigManager.resolveItem(itemId) instanceof SpawnEggItem;
+			String petId = PetConfigManager.resolvePetId(fileKey, sourceRoot);
+			return PetEntitiesManager.petItem(petId) != null;
 		}
 	}
 
@@ -381,10 +435,7 @@ public final class PetEntitiesManager {
 	}
 
 	static EntityType<?> resolvePetType(ItemStack stack) {
-		if (!(stack.getItem() instanceof SpawnEggItem)) {
-			return null;
-		}
-		return SpawnEggItem.getType(stack);
+		return PetConfigManager.resolvePetEntityType(petId(stack));
 	}
 
 	static record FollowCommand(Vec3 target, double speed) {

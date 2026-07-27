@@ -28,11 +28,11 @@ public final class ConfigEntitiesSpider {
 					)
 				))
 				.add(LootTableConfigStructures.group(
-					"mythic",
+					"legendary",
 					1,
 					java.util.List.of("madoku-pets"),
 					LootTableConfigStructures.entries(
-						LootTableConfigStructures.item("minecraft:spider_spawn_egg", 1, 0, 1)
+										LootTableConfigStructures.item("madoku:spider-pet", 1, 0, 1)
 					)
 				)))
 			.build();

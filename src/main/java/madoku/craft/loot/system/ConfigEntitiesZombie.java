@@ -28,11 +28,11 @@ public final class ConfigEntitiesZombie {
 					.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
 						LootTableConfigStructures.item("minecraft:iron_ingot", 1, 0, 2)
 					)))
-				.object(mythicGroup -> mythicGroup
-					.put(LootTableConfigManager.FIELD_RARITY, "mythic")
+				.object(legendaryGroup -> legendaryGroup
+					.put(LootTableConfigManager.FIELD_RARITY, "legendary")
 					.put(LootTableConfigManager.FIELD_WEIGHT, 1)
 					.put(LootTableConfigManager.FIELD_ENTRIES, LootTableConfigStructures.entries(
-						LootTableConfigStructures.item("minecraft:zombie_spawn_egg", 1, 0, 1)
+										LootTableConfigStructures.item("madoku:zombie-pet", 1, 0, 1)
 					))
 					.put(LootTableConfigManager.FIELD_TAGS, madoku.craft.api.json.JSONFormatManager.array().add("madoku-pets").build())))
 			.build();

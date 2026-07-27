@@ -84,7 +84,7 @@ public final class MadokuPetManager {
 	static final String PET_RARITY_COMMON = "common";
 	static final String PET_RARITY_RARE = "rare";
 	static final String PET_RARITY_EPIC = "epic";
-	static final String PET_RARITY_MYTHIC = "mythic";
+	static final String PET_RARITY_LEGENDARY = "legendary";
 	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
 	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
@@ -132,8 +132,8 @@ public final class MadokuPetManager {
 	}
 
 	public static void initialize() {
-		PetConfigManager.initialize();
 		PetEntitiesManager.initialize();
+		PetConfigManager.initialize();
 		PetAbilitiesManager.initialize();
 		PetHudManager.initialize();
 		PetHagManager.initialize();
