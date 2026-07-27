@@ -745,14 +745,15 @@ public final class PetConfigManager {
 				if (!enabled) {
 					return "";
 				}
-				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
-					return "Active: Fires a homing arrow at your target.";
+				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType) && attackDamage > 0.0F) {
+					return "Active: Fires a homing arrow at your target for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage.";
 				}
-				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-					return "Active: Launches a web projectile that slows enemies.";
+				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) && attackDamage > 0.0F) {
+					return "Active: Launches a web projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage that slows enemies.";
 				}
-				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-					return "Active: Fires an explosive projectile at your target.";
+				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && attackDamage > 0.0F && explosionRadius > 0.0F) {
+					return "Active: Fires an explosive projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage)
+						+ " damage within " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " blocks.";
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) && playerDamageBonusAmount > 0.0D) {
 					return "Passive: Increases player damage by " + MadokuPetManager.formatAbilityAmount(playerDamageBonusAmount) + ".";
@@ -773,7 +774,7 @@ public final class PetConfigManager {
 					return "Automatic: Periodically reveals nearby mobs.";
 				}
 				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType) && attackDamage > 0.0F) {
-					return "Automatic: Swarms nearby hostile mobs.";
+					return "Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage per hit.";
 				}
 				return "";
 			}

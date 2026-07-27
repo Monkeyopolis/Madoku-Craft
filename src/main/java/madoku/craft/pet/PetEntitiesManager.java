@@ -97,7 +97,7 @@ public final class PetEntitiesManager {
 		return Math.max(DEFAULT_PET_LEVEL, Math.min(PetConfigManager.maxPetLevel(), level));
 	}
 
-	static void setPetLevel(ItemStack stack, int level) {
+	public static void setPetLevel(ItemStack stack, int level) {
 		if (!isPetItem(stack)) return;
 		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
 		net.minecraft.nbt.CompoundTag tag = customData == null ? new net.minecraft.nbt.CompoundTag() : customData.copyTag();

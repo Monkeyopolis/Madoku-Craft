@@ -10,6 +10,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.ItemLore;
 import java.util.Random;
 
 /** Owns the Hag-facing pet trade pool, rarity, and item presentation helpers. */
@@ -27,7 +28,7 @@ public final class PetHagManager {
 		for (PetRule rule : PetConfigManager.rules().values()) {
 			if (rule == null || !rule.enabled) continue;
 			Item item = PetEntitiesManager.petItem(rule.petId);
-			if (item != null) items.add(item);
+			if (item != null && !items.contains(item)) items.add(item);
 		}
 		items.sort((left, right) -> BuiltInRegistries.ITEM.getKey(left).toString().compareTo(BuiltInRegistries.ITEM.getKey(right).toString()));
 		return List.copyOf(items);
@@ -62,10 +63,15 @@ public final class PetHagManager {
 		if (level <= 1) return new ItemCost(Items.EGG, 16);
 		CompoundTag levelTag = new CompoundTag();
 		levelTag.putInt("madoku-pet-level", level - 1);
-		ItemCost cost = new ItemCost(item, 4)
-			.withComponents(builder -> builder.expect(DataComponents.CUSTOM_DATA, CustomData.of(levelTag)));
-		PetHudManager.applySupportedPetLore(cost.itemStack());
-		return cost;
+		ItemStack requiredStack = new ItemStack(item, 4);
+		PetEntitiesManager.setPetLevel(requiredStack, level - 1);
+		PetHudManager.applyAbilityLore(requiredStack);
+		ItemLore requiredLore = requiredStack.get(DataComponents.LORE);
+		return new ItemCost(item, 4).withComponents(builder -> {
+			builder.expect(DataComponents.CUSTOM_DATA, CustomData.of(levelTag));
+			if (requiredLore != null) builder.expect(DataComponents.LORE, requiredLore);
+			return builder;
+		});
 	}
 
 	public static String rarity(ItemStack stack) {

@@ -3,6 +3,7 @@ package madoku.craft.mixin;
 import madoku.craft.pet.PetComponentsManager.PetHolder;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetEntitiesManager;
+import madoku.craft.pet.PetHudManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -40,6 +41,7 @@ public abstract class PetInventoryMixin implements PetHolder {
 				continue;
 			}
 			output.putString(madokuCraft$slotKey(slot), itemId.toString());
+			output.putInt(madokuCraft$slotLevelKey(slot), PetEntitiesManager.petLevel(stack));
 		}
 	}
 
@@ -61,7 +63,13 @@ public abstract class PetInventoryMixin implements PetHolder {
 				}
 
 				ItemStack stack = new ItemStack(item);
-				madokuCraft$petInventory.setItem(slot, PetEntitiesManager.isValid(stack) ? stack : ItemStack.EMPTY);
+				if (PetEntitiesManager.isValid(stack)) {
+					PetEntitiesManager.setPetLevel(stack, input.getIntOr(madokuCraft$slotLevelKey(slot), 1));
+					PetHudManager.applySupportedPetLore(stack);
+					madokuCraft$petInventory.setItem(slot, stack);
+				} else {
+					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);
+				}
 			}
 		});
 	}
@@ -69,6 +77,11 @@ public abstract class PetInventoryMixin implements PetHolder {
 	@Unique
 	private static String madokuCraft$slotKey(int slot) {
 		return "MadokuPets." + slot;
+	}
+
+	@Unique
+	private static String madokuCraft$slotLevelKey(int slot) {
+		return "MadokuPets." + slot + ".level";
 	}
 
 	@Unique

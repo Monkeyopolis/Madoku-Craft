@@ -237,7 +237,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private MerchantOffer createPetOffer(Item item, int level) {
-		int emeraldCost = emeraldCost(item, level);
+		int emeraldCost = emeraldCost(item);
 		ItemStack resultStack = PetHagManager.tradeStack(item, level);
 		return new MerchantOffer(
 			PetHagManager.tradeIngredient(item, level),
@@ -253,13 +253,13 @@ public class Hag extends Witch implements Merchant {
 		return PetHagManager.rarityWeight(petRarity(item));
 	}
 
-	private int emeraldCost(Item item, int level) {
+	private int emeraldCost(Item item) {
 		return switch (petRarity(item)) {
-			case PET_RARITY_LEGENDARY -> 128 * level;
-			case PET_RARITY_EPIC -> 96 * level;
-			case PET_RARITY_RARE -> 64 * level;
-			case PET_RARITY_COMMON -> 32 * level;
-			default -> 32 * level;
+			case PET_RARITY_LEGENDARY -> 128;
+			case PET_RARITY_EPIC -> 96;
+			case PET_RARITY_RARE -> 64;
+			case PET_RARITY_COMMON -> 32;
+			default -> 32;
 		};
 	}
 
