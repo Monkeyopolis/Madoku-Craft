@@ -111,7 +111,7 @@ public final class PetConfigManager {
 		if (!syncedItemId.isBlank()) {
 			return resolvePetRule(syncedItemId);
 		}
-		String itemId = MadokuPetManager.getManagedPetItemId(entity);
+		String itemId = PetEntitiesManager.getManagedPetItemId(entity);
 		return itemId.isBlank() ? null : resolvePetRule(itemId);
 	}
 

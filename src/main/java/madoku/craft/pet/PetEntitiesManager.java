@@ -5,6 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.mixin.MobTargetSelectorAccessor;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -26,10 +27,13 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.phys.Vec3;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.nio.file.Path;
 import java.io.IOException;
 import net.minecraft.server.level.ServerLevel;
@@ -45,10 +49,17 @@ public final class PetEntitiesManager {
 	public static final int[] SLOT_YS = MadokuPetManager.SLOT_YS;
 	private static final String PET_ITEM_NAMESPACE = "madoku";
 	private static final String PET_LEVEL_TAG = "madoku-pet-level";
+	private static final String MANAGED_PET_TAG = "madoku-craft.pet";
+	private static final String MANAGED_PET_OWNER_PREFIX = "madoku-craft.pet.owner:";
+	private static final String MANAGED_PET_ITEM_PREFIX = "madoku-craft.pet.item:";
 	private static final int DEFAULT_PET_LEVEL = 1;
 	private static final Map<String, Item> PET_ITEMS_BY_ID = new LinkedHashMap<>();
 	private static final Map<Item, String> PET_IDS_BY_ITEM = new LinkedHashMap<>();
 	private static boolean itemsRegistered;
+	static final Map<UUID, UUID[]> PET_IDS_BY_PLAYER = new ConcurrentHashMap<>();
+	static final Set<UUID> ACTIVE_PET_IDS = ConcurrentHashMap.newKeySet();
+	static final Map<UUID, Long> NEXT_IDLE_MOVE_BY_PET = new ConcurrentHashMap<>();
+	static final Map<UUID, FollowCommand> FOLLOW_COMMANDS_BY_PET = new ConcurrentHashMap<>();
 
 	private PetEntitiesManager() {
 	}
@@ -197,7 +208,37 @@ public final class PetEntitiesManager {
 	}
 
 	public static void reset() {
-		MadokuPetManager.reset();
+		PET_IDS_BY_PLAYER.clear();
+		ACTIVE_PET_IDS.clear();
+		NEXT_IDLE_MOVE_BY_PET.clear();
+		FOLLOW_COMMANDS_BY_PET.clear();
+	}
+
+	static void onEntityUnload(Entity entity) {
+		if (entity == null) {
+			return;
+		}
+		UUID entityId = entity.getUUID();
+		ACTIVE_PET_IDS.remove(entityId);
+		NEXT_IDLE_MOVE_BY_PET.remove(entityId);
+		FOLLOW_COMMANDS_BY_PET.remove(entityId);
+		PetPayloadManager.removeSoundState(entityId);
+	}
+
+	static void clearAllManagedPetState(MinecraftServer server) {
+		if (!ACTIVE_PET_IDS.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
+			removeTaggedPets(server);
+		}
+		reset();
+		PetPayloadManager.clearSoundState();
+	}
+
+	static void clearManagedPetEntityState(MinecraftServer server) {
+		if (!ACTIVE_PET_IDS.isEmpty() || !PET_IDS_BY_PLAYER.isEmpty()) {
+			removeTaggedPets(server);
+		}
+		reset();
+		PetPayloadManager.clearSoundState();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -213,7 +254,7 @@ public final class PetEntitiesManager {
 		MinecraftServer server = player.level().getServer();
 		if (server == null) return;
 		if (!PetConfigManager.isEnabled() || !PetConfigManager.areEntitiesEnabled()) {
-			MadokuPetManager.removeAllPets(server, player.getUUID());
+			removeAllPets(server, player.getUUID());
 			return;
 		}
 		MadokuPetManager.requestPetProcessing(server, player.getUUID(), 0L);
@@ -221,7 +262,10 @@ public final class PetEntitiesManager {
 	}
 
 	public static boolean isManaged(Entity entity) {
-		return MadokuPetManager.isManagedPet(entity);
+		return entity != null
+			&& (ACTIVE_PET_IDS.contains(entity.getUUID())
+				|| entity.entityTags().contains(MANAGED_PET_TAG)
+				|| PetPayloadManager.hasSoundState(entity.getUUID()));
 	}
 
 	public static boolean isValid(ItemStack stack) {
@@ -229,19 +273,201 @@ public final class PetEntitiesManager {
 	}
 
 	public static void dropAll(ServerPlayer player) {
-		MadokuPetManager.dropAll(player);
+		PetComponentsManager.dropAll(player);
 	}
 
 	public static int count(Player player) {
-		return MadokuPetManager.countPets(player);
+		return PetComponentsManager.countPets(player);
 	}
 
 	public static Vec3 movementTarget(Mob pet) {
-		return MadokuPetManager.managedPetMovementTarget(pet);
+		return MovementController.managedPetMovementTarget(pet, FOLLOW_COMMANDS_BY_PET);
 	}
 
 	public static double movementSpeed(Mob pet, double fallback) {
-		return MadokuPetManager.managedPetMovementSpeed(pet, fallback);
+		return MovementController.managedPetMovementSpeed(pet, fallback, FOLLOW_COMMANDS_BY_PET);
+	}
+
+	static long managedPetSteeringInterval() {
+		return activeSchedulerTickInterval();
+	}
+
+	static void removeAllPets(MinecraftServer server, UUID playerId) {
+		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
+		UUID[] petIds = PET_IDS_BY_PLAYER.remove(playerId);
+		if (petIds != null) {
+			for (UUID petId : petIds) {
+				removePet(server, petId);
+			}
+		}
+		removeTaggedPetsForOwner(server, playerId);
+	}
+
+	static void removePet(MinecraftServer server, UUID petId) {
+		Mob pet = findMob(server, petId);
+		if (pet != null) {
+			pet.discard();
+		}
+		if (petId != null) {
+			ACTIVE_PET_IDS.remove(petId);
+			NEXT_IDLE_MOVE_BY_PET.remove(petId);
+			FOLLOW_COMMANDS_BY_PET.remove(petId);
+			PetPayloadManager.removeSoundState(petId);
+			PetHudManager.broadcastManagedPetSoundState(server, petId, "");
+		}
+	}
+
+	static Mob findMob(MinecraftServer server, UUID entityId) {
+		if (server == null || entityId == null) {
+			return null;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			if (level.getEntity(entityId) instanceof Mob pet && pet.isAlive()) {
+				return pet;
+			}
+		}
+		return null;
+	}
+
+	static void preparePet(Mob pet) {
+		if (pet == null) {
+			return;
+		}
+		pet.removeAllGoals(goal -> true);
+		clearPetTargetGoals(pet);
+		pet.setTarget(null);
+		pet.setAggressive(false);
+		pet.getNavigation().setCanFloat(true);
+		if (pet instanceof Bat bat) {
+			bat.setResting(false);
+		}
+	}
+
+	static void clearPetTargetGoals(Mob pet) {
+		if (pet != null) {
+			((MobTargetSelectorAccessor) pet).madokuCraft$getTargetSelector().removeAllGoals(goal -> true);
+		}
+	}
+
+	static void tagManagedPet(Mob pet, UUID ownerId) {
+		if (pet != null && ownerId != null) {
+			pet.addTag(MANAGED_PET_TAG);
+			pet.addTag(ownerTag(ownerId));
+		}
+	}
+
+	private static void removeTaggedPets(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			List<Entity> toDiscard = new ArrayList<>();
+			for (Entity entity : level.getAllEntities()) {
+				if (entity != null && entity.entityTags().contains(MANAGED_PET_TAG)) {
+					toDiscard.add(entity);
+				}
+			}
+			for (Entity entity : toDiscard) {
+				entity.discard();
+			}
+		}
+	}
+
+	static void removeAllTaggedPets(MinecraftServer server) {
+		removeTaggedPets(server);
+	}
+
+	private static void removeTaggedPetsForOwner(MinecraftServer server, UUID ownerId) {
+		if (server == null || ownerId == null) {
+			return;
+		}
+		String ownerTag = ownerTag(ownerId);
+		for (ServerLevel level : server.getAllLevels()) {
+			List<Entity> toDiscard = new ArrayList<>();
+			for (Entity entity : level.getAllEntities()) {
+				if (entity != null && entity.entityTags().contains(MANAGED_PET_TAG) && entity.entityTags().contains(ownerTag)) {
+					toDiscard.add(entity);
+				}
+			}
+			for (Entity entity : toDiscard) {
+				entity.discard();
+				removePetState(server, entity.getUUID());
+			}
+		}
+	}
+
+	static void removeStrayManagedPetsForOwner(MinecraftServer server, UUID ownerId, Set<UUID> expectedPetIds) {
+		if (server == null || ownerId == null) {
+			return;
+		}
+		String ownerTag = ownerTag(ownerId);
+		Set<UUID> expected = expectedPetIds == null ? Set.of() : expectedPetIds;
+		for (ServerLevel level : server.getAllLevels()) {
+			List<Mob> toDiscard = new ArrayList<>();
+			for (Entity entity : level.getAllEntities()) {
+				if (entity instanceof Mob pet && pet.entityTags().contains(MANAGED_PET_TAG)
+					&& pet.entityTags().contains(ownerTag) && !expected.contains(pet.getUUID())) {
+					toDiscard.add(pet);
+				}
+			}
+			for (Mob pet : toDiscard) {
+				pet.discard();
+				removePetState(server, pet.getUUID());
+			}
+		}
+	}
+
+	private static void removePetState(MinecraftServer server, UUID petId) {
+		if (petId == null) {
+			return;
+		}
+		ACTIVE_PET_IDS.remove(petId);
+		NEXT_IDLE_MOVE_BY_PET.remove(petId);
+		FOLLOW_COMMANDS_BY_PET.remove(petId);
+		PetPayloadManager.removeSoundState(petId);
+		PetHudManager.broadcastManagedPetSoundState(server, petId, "");
+	}
+
+	private static String ownerTag(UUID ownerId) {
+		return MANAGED_PET_OWNER_PREFIX + ownerId;
+	}
+
+	static boolean setManagedPetItemId(Mob pet, String itemId) {
+		if (pet == null) {
+			return false;
+		}
+		String normalizedItemId = PetConfigManager.normalizeKey(itemId);
+		PetPayloadManager.setSoundState(pet.getUUID(), normalizedItemId);
+		String existingTag = null;
+		for (String tag : pet.entityTags()) {
+			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {
+				existingTag = tag;
+				break;
+			}
+		}
+		String desiredTag = normalizedItemId.isEmpty() ? "" : MANAGED_PET_ITEM_PREFIX + normalizedItemId;
+		if (desiredTag.equals(existingTag)) {
+			return false;
+		}
+		if (existingTag != null) {
+			pet.removeTag(existingTag);
+		}
+		if (!desiredTag.isEmpty()) {
+			pet.addTag(desiredTag);
+		}
+		return true;
+	}
+
+	static String getManagedPetItemId(Entity entity) {
+		if (entity == null) {
+			return "";
+		}
+		for (String tag : entity.entityTags()) {
+			if (tag != null && tag.startsWith(MANAGED_PET_ITEM_PREFIX)) {
+				return tag.substring(MANAGED_PET_ITEM_PREFIX.length());
+			}
+		}
+		return "";
 	}
 	static long syncPlayerPets(ServerPlayer player) {
 		MinecraftServer server = player == null ? null : player.level().getServer();
@@ -249,43 +475,43 @@ public final class PetEntitiesManager {
 			return -1L;
 		}
 		if (!PetConfigManager.areEntitiesEnabled()) {
-			MadokuPetManager.removeAllPets(server, player.getUUID());
+			removeAllPets(server, player.getUUID());
 			return -1L;
 		}
 
-		PetInventory inventory = MadokuPetManager.petInventory(player);
+		PetInventory inventory = PetComponentsManager.petInventory(player);
 		if (inventory == null) {
-			MadokuPetManager.removeAllPets(server, player.getUUID());
+			removeAllPets(server, player.getUUID());
 			return -1L;
 		}
 
 		boolean anyActive = false;
 		long nextDelay = idleSchedulerTickInterval();
-		UUID[] petIds = MadokuPetManager.PET_IDS_BY_PLAYER.computeIfAbsent(player.getUUID(), ignored -> new UUID[SLOT_COUNT]);
+		UUID[] petIds = PET_IDS_BY_PLAYER.computeIfAbsent(player.getUUID(), ignored -> new UUID[SLOT_COUNT]);
 		for (int slot = 0; slot < SLOT_COUNT; slot++) {
 			ItemStack stack = inventory.getItem(slot);
 			PetRule rule = PetConfigManager.resolvePetRule(stack);
 			EntityType<?> desiredType = resolvePetType(stack);
-			Mob pet = MadokuPetManager.findMob(server, petIds[slot]);
+			Mob pet = findMob(server, petIds[slot]);
 
 			if (desiredType == null || rule == null) {
 				if (!stack.isEmpty()) {
 				}
-				MadokuPetManager.removePet(server, petIds[slot]);
+				removePet(server, petIds[slot]);
 				petIds[slot] = null;
 				continue;
 			}
 
 			if (pet == null || pet.getType() != desiredType || pet.level() != player.level()) {
-				MadokuPetManager.removePet(server, petIds[slot]);
+				removePet(server, petIds[slot]);
 				pet = spawnPet(player, desiredType, slot, rule);
 				petIds[slot] = pet == null ? null : pet.getUUID();
 			}
 
 			if (pet != null) {
-				MadokuPetManager.ACTIVE_PET_IDS.add(pet.getUUID());
+				ACTIVE_PET_IDS.add(pet.getUUID());
 				ensurePetConfiguration(pet, rule);
-				boolean beeSwarmActive = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(rule.abilityType) && MadokuPetManager.isBeeSwarmActive(player.getUUID(), slot);
+				boolean beeSwarmActive = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(rule.abilityType) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
 				if (beeSwarmActive) {
 					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval());
 				} else {
@@ -295,8 +521,8 @@ public final class PetEntitiesManager {
 						slot,
 						rule,
 						PetConfigManager.settings(),
-						MadokuPetManager.NEXT_IDLE_MOVE_BY_PET,
-						MadokuPetManager.FOLLOW_COMMANDS_BY_PET
+						NEXT_IDLE_MOVE_BY_PET,
+						FOLLOW_COMMANDS_BY_PET
 					));
 				}
 				anyActive = true;
@@ -309,11 +535,11 @@ public final class PetEntitiesManager {
 				expectedPetIds.add(petId);
 			}
 		}
-		MadokuPetManager.removeStrayManagedPetsForOwner(server, player.getUUID(), expectedPetIds);
+		removeStrayManagedPetsForOwner(server, player.getUUID(), expectedPetIds);
 
 		if (!anyActive) {
-			MadokuPetManager.PET_IDS_BY_PLAYER.remove(player.getUUID());
-			MadokuPetManager.pruneCooldowns(player.getUUID(), inventory);
+			PET_IDS_BY_PLAYER.remove(player.getUUID());
+			PetAbilitiesManager.pruneCooldowns(player.getUUID(), inventory);
 			return -1L;
 		}
 
@@ -333,15 +559,15 @@ public final class PetEntitiesManager {
 
 		Vec3 desiredPosition = MovementController.resolveDesiredPosition(owner, slot, pet);
 		pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
-		MadokuPetManager.preparePet(pet);
+		preparePet(pet);
 		configurePet(pet, rule);
-		MadokuPetManager.tagManagedPet(pet, owner.getUUID());
+		tagManagedPet(pet, owner.getUUID());
 		if (!level.addFreshEntity(pet)) {
 			return null;
 		}
 
-		MadokuPetManager.ACTIVE_PET_IDS.add(pet.getUUID());
-		MadokuPetManager.broadcastManagedPetSoundState(owner.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
+		ACTIVE_PET_IDS.add(pet.getUUID());
+		PetHudManager.broadcastManagedPetSoundState(owner.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
 		return pet;
 	}
 
@@ -359,10 +585,10 @@ public final class PetEntitiesManager {
 		pet.blocksBuilding = false;
 		pet.clearFire();
 		pet.setCanPickUpLoot(false);
-		MadokuPetManager.clearPetTargetGoals(pet);
+		clearPetTargetGoals(pet);
 		pet.setTarget(null);
 		pet.setAggressive(false);
-		MadokuPetManager.setManagedPetItemId(pet, rule == null ? null : rule.itemId);
+		setManagedPetItemId(pet, rule == null ? null : rule.itemId);
 		AttributeInstance scale = pet.getAttribute(Attributes.SCALE);
 		if (scale != null) {
 			scale.setBaseValue(rule == null ? 0.25D : rule.petScale);
@@ -401,14 +627,14 @@ public final class PetEntitiesManager {
 		if (pet.canPickUpLoot()) {
 			pet.setCanPickUpLoot(false);
 		}
-		MadokuPetManager.clearPetTargetGoals(pet);
+		clearPetTargetGoals(pet);
 		if (pet.getTarget() != null) {
 			pet.setTarget(null);
 		}
 		if (pet.isAggressive()) {
 			pet.setAggressive(false);
 		}
-		boolean itemIdChanged = MadokuPetManager.setManagedPetItemId(pet, rule == null ? null : rule.itemId);
+		boolean itemIdChanged = setManagedPetItemId(pet, rule == null ? null : rule.itemId);
 		AttributeInstance scale = pet.getAttribute(Attributes.SCALE);
 		if (scale != null) {
 			double desiredScale = rule == null ? 0.25D : rule.petScale;
@@ -417,7 +643,7 @@ public final class PetEntitiesManager {
 			}
 		}
 		if (itemIdChanged) {
-			MadokuPetManager.broadcastManagedPetSoundState(pet.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
+			PetHudManager.broadcastManagedPetSoundState(pet.level().getServer(), pet.getUUID(), rule == null ? "" : rule.itemId);
 		}
 	}
 

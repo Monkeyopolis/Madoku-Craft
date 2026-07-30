@@ -6,7 +6,10 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
 
@@ -43,7 +46,7 @@ public final class PetHudManager {
 		DIRTY_PLAYERS.clear();
 		for (UUID playerId : dirtyPlayers) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player != null) sendAbilityCooldowns(player, MadokuPetManager.currentAbilityCooldowns(playerId));
+			if (player != null) sendAbilityCooldowns(player, PetAbilitiesManager.currentAbilityCooldowns(playerId));
 		}
 	}
 
@@ -74,6 +77,30 @@ public final class PetHudManager {
 	static void sendSoundState(ServerPlayer player, String petUuid, String itemId) {
 		if (player != null) {
 			SyncPlayerManager.send(player, new PetPayloadManager.PetSoundStatePayload(petUuid, itemId == null ? "" : itemId));
+		}
+	}
+
+	static void syncManagedPetSoundStateTo(ServerPlayer player, MinecraftServer server) {
+		if (player == null || server == null) {
+			return;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			for (Entity entity : level.getAllEntities()) {
+				if (!(entity instanceof Mob pet) || !PetEntitiesManager.isManaged(pet)) {
+					continue;
+				}
+				PetRule rule = PetConfigManager.resolvePetRule(pet);
+				sendSoundState(player, pet.getUUID().toString(), rule == null ? "" : rule.itemId);
+			}
+		}
+	}
+
+	static void broadcastManagedPetSoundState(MinecraftServer server, UUID petId, String itemId) {
+		if (server == null || petId == null) {
+			return;
+		}
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			sendSoundState(player, petId.toString(), itemId);
 		}
 	}
 }
