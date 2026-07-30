@@ -68,9 +68,6 @@ public final class MadokuPetEntity extends PathfinderMob {
 	@Override
 	public void tick() {
 		super.tick();
-		if (!level().isClientSide() && !PetEntitiesManager.isExpectedPet(this)) {
-			discard();
-		}
 	}
 
 	public String petId() {

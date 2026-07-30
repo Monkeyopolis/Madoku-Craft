@@ -38,6 +38,7 @@ public class Hag extends Witch implements Merchant {
 	private static final String PET_RARITY_RARE = "rare";
 	private static final String PET_RARITY_EPIC = "epic";
 	private static final String PET_RARITY_LEGENDARY = "legendary";
+	private static final String PET_RARITY_MYTHIC = "mythic";
 	private static final long TRADE_REFRESH_DAYS = 7L;
 	private static final int AVAILABLE_TRADE_COUNT = 14;
 	private static final int TRADE_MAX_USES = 999999;
@@ -282,9 +283,10 @@ public class Hag extends Witch implements Merchant {
 
 	private int emeraldCost(Item item) {
 		return switch (petRarity(item)) {
-			case PET_RARITY_LEGENDARY -> 128;
-			case PET_RARITY_EPIC -> 96;
-			case PET_RARITY_RARE -> 64;
+			case PET_RARITY_MYTHIC -> 128;
+			case PET_RARITY_LEGENDARY -> 96;
+			case PET_RARITY_EPIC -> 64;
+			case PET_RARITY_RARE -> 48;
 			case PET_RARITY_COMMON -> 32;
 			default -> 32;
 		};

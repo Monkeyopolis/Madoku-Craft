@@ -19,6 +19,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -35,6 +36,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -55,6 +58,7 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
 	private static final String PET_ABILITY_WEB_PROJECTILE = MadokuPetManager.PET_ABILITY_WEB_PROJECTILE;
 	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
+	private static final String PET_ABILITY_EGG_PROJECTILE = MadokuPetManager.PET_ABILITY_EGG_PROJECTILE;
 	private static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS;
 	private static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION;
 	private static final String PET_ABILITY_MAX_HEALTH_BONUS = MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
@@ -69,6 +73,13 @@ public final class PetAbilitiesManager {
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
+	private static final long CHICKEN_EGG_COOLDOWN_TICKS = 30L * 20L;
+	private static final int CHICKEN_EGG_BASE_PROJECTILE_COUNT = 5;
+	private static final long CHICKEN_EGG_PROJECTILE_DELAY_TICKS = 5L;
+	private static final int CHICKEN_EGG_LIFETIME_TICKS = 100;
+	private static final double CHICKEN_FALL_BASE_REDUCTION = 0.20D;
+	private static final double CHICKEN_FALL_EXTRA_REDUCTION = 0.10D;
+	private static final double CHICKEN_FALL_LEVEL_REDUCTION = 0.025D;
 	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
 	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 4;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
@@ -92,6 +103,8 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
+	private static final Map<UUID, ChickenEggProjectileState> ACTIVE_CHICKEN_EGG_PROJECTILES = new ConcurrentHashMap<>();
+	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
 
 	static void reset() {
@@ -99,6 +112,8 @@ public final class PetAbilitiesManager {
 		PLAYER_SLOT_COOLDOWNS.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
+		ACTIVE_CHICKEN_EGG_PROJECTILES.clear();
+		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
 		ACTIVE_BEE_SWARMS.clear();
 	}
 
@@ -123,6 +138,7 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW,
 					MadokuPetManager.PET_ABILITY_WEB_PROJECTILE,
 					MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE,
+					MadokuPetManager.PET_ABILITY_EGG_PROJECTILE,
 					MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS,
 					MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 					MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS,
@@ -171,6 +187,65 @@ public final class PetAbilitiesManager {
 		triggerReactivePetAttacks(player, target);
 	}
 
+	/** Handles a server-side main-hand left-click for multi-ability pets. */
+	public static void handlePlayerLeftClick(ServerPlayer player) {
+		if (player == null || !player.isAlive()) {
+			return;
+		}
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		long now = MadokuTimeManager.getGameplayTicks();
+		int chickenCount = 0;
+		int levelBonus = 0;
+		float damage = 0.0F;
+		float radius = 0.0F;
+		int[] chickenSlots = new int[SLOT_COUNT];
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			if (rule == null || !rule.enabled || !"minecraft:chicken".equals(rule.petId) || !rule.hasAbility(PET_ABILITY_EGG_PROJECTILE)) {
+				continue;
+			}
+			if (!isPetSlotOffCooldown(player, slot, now)) {
+				return;
+			}
+			chickenSlots[chickenCount++] = slot;
+			int level = PetEntitiesManager.petLevel(stack);
+			levelBonus += level / 4;
+			damage = Math.max(damage, rule.attackDamage);
+			radius = Math.max(radius, rule.explosionRadius);
+		}
+		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
+			return;
+		}
+
+		Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
+		int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT + Math.max(0, chickenCount - 1) + levelBonus;
+		damage = Math.max(0.0F, damage);
+		radius = Math.max(0.5F, radius);
+		if (damage <= 0.0F || radius <= 0.0F) {
+			return;
+		}
+		ACTIVE_CHICKEN_EGG_VOLLEYS.put(
+			player.getUUID(),
+			new ChickenEggVolleyState(
+				player.getUUID(),
+				player.level().dimension().toString(),
+				targetPosition,
+				projectileCount,
+				now,
+				damage,
+				radius
+			)
+		);
+		for (int index = 0; index < chickenCount; index++) {
+			setSlotCooldown(player.getUUID(), chickenSlots[index], now + CHICKEN_EGG_COOLDOWN_TICKS);
+		}
+	}
+
 	static void handleAfterDamage(
 		LivingEntity entity,
 		net.minecraft.world.damagesource.DamageSource source,
@@ -214,7 +289,7 @@ public final class PetAbilitiesManager {
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
 		if (rule == null) return 0;
 		long cooldown = rule.cooldownTicks;
-		if (PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
+		if (rule.hasAbility(PET_ABILITY_MOB_SCAN)) {
 			int level = PetEntitiesManager.petLevel(stack);
 			cooldown -= Math.max(0, level - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL;
 		}
@@ -224,7 +299,7 @@ public final class PetAbilitiesManager {
 	public static int cooldownTicks(ServerPlayer player, int slot, ItemStack stack) {
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
 		if (rule == null) return 0;
-		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) return cooldownTicks(stack);
+		if (!rule.hasAbility(PET_ABILITY_MOB_SCAN)) return cooldownTicks(stack);
 		PetInventory inventory = petInventory(player);
 		int[] batSlots = new int[SLOT_COUNT];
 		int count = collectSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN, batSlots, null);
@@ -256,9 +331,16 @@ public final class PetAbilitiesManager {
 		PetInventory inventory = petInventory(player);
 		if (inventory == null) return 0.0D;
 		double total = 0.0D;
+		int chickenCount = 0;
+		int chickenLevelBonus = 0;
 		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
-			if (rule != null && abilityType.equals(rule.abilityType)) {
+			if (rule != null && rule.hasAbility(abilityType)) {
+				if (PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && "minecraft:chicken".equals(rule.petId)) {
+					chickenCount++;
+					chickenLevelBonus += Math.max(0, PetEntitiesManager.petLevel(inventory.getItem(slot)) - 1);
+					continue;
+				}
 				total += switch (abilityType) {
 					case PET_ABILITY_PLAYER_DAMAGE_BONUS -> rule.playerDamageBonus();
 					case PET_ABILITY_FALL_DAMAGE_REDUCTION -> rule.fallDamageReduction();
@@ -267,6 +349,11 @@ public final class PetAbilitiesManager {
 					default -> 0.0D;
 				};
 			}
+		}
+		if (PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && chickenCount > 0) {
+			total += CHICKEN_FALL_BASE_REDUCTION
+				+ (Math.max(0, chickenCount - 1) * CHICKEN_FALL_EXTRA_REDUCTION)
+				+ (chickenLevelBonus * CHICKEN_FALL_LEVEL_REDUCTION);
 		}
 		return total;
 	}
@@ -517,7 +604,7 @@ public final class PetAbilitiesManager {
 			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 				ItemStack stack = inventory.getItem(slot);
 				PetRule rule = PetConfigManager.resolvePetRule(stack);
-				if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
+				if (rule == null || !rule.enabled || !rule.hasAbility(PET_ABILITY_BEE_SWARM)) {
 					stopBeeSwarmForSlot(player.getUUID(), slot);
 					continue;
 				}
@@ -642,7 +729,7 @@ public final class PetAbilitiesManager {
 		}
 
 			private static boolean startBeeSwarm(ServerPlayer player, int slot, LivingEntity target, PetRule rule, long gameplayTicks) {
-			if (player == null || target == null || rule == null || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType) || !(player.level() instanceof ServerLevel level)) {
+			if (player == null || target == null || rule == null || !rule.hasAbility(PET_ABILITY_BEE_SWARM) || !(player.level() instanceof ServerLevel level)) {
 				return false;
 			}
 			if (!isValidBeeSwarmTarget(player, target)) {
@@ -693,7 +780,7 @@ public final class PetAbilitiesManager {
 			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 				ItemStack stack = inventory.getItem(slot);
 				PetRule rule = PetConfigManager.resolvePetRule(stack);
-				if (rule == null || !rule.enabled || !abilityType.equals(rule.abilityType)) {
+				if (rule == null || !rule.enabled || !rule.hasAbility(abilityType)) {
 					continue;
 				}
 				if (slots != null && count < slots.length) {
@@ -827,11 +914,12 @@ public final class PetAbilitiesManager {
 			float soundVolume = Math.max(0.4F, rule.soundVolumeMultiplier);
 			float soundPitch = 1.0F / (player.getRandom().nextFloat() * 0.4F + 0.8F);
 			boolean spawned;
-			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(rule.abilityType)) {
+			String projectileAbility = rule.reactiveProjectileAbility();
+			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(projectileAbility)) {
 				spawned = MobEntityManager.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage);
-			} else if (PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType)) {
+			} else if (PET_ABILITY_WEB_PROJECTILE.equals(projectileAbility)) {
 				spawned = spawnManagedWebProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
-			} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType)) {
+			} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(projectileAbility)) {
 				spawned = spawnManagedExplosiveProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
 			} else {
 				spawned = false;
@@ -965,7 +1053,7 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			static void tickManagedExplosiveProjectiles(MinecraftServer server) {
+		static void tickManagedExplosiveProjectiles(MinecraftServer server) {
 			if (server == null || ACTIVE_EXPLOSIVE_PROJECTILES.isEmpty()) {
 				return;
 			}
@@ -1028,6 +1116,103 @@ public final class PetAbilitiesManager {
 					)
 				);
 			}
+		}
+
+		static void tickManagedChickenEggProjectiles(MinecraftServer server) {
+			if (server == null) {
+				return;
+			}
+			long now = MadokuTimeManager.getGameplayTicks();
+			for (Map.Entry<UUID, ChickenEggVolleyState> entry : ACTIVE_CHICKEN_EGG_VOLLEYS.entrySet()) {
+				UUID ownerId = entry.getKey();
+				ChickenEggVolleyState state = entry.getValue();
+				ServerPlayer owner = server.getPlayerList().getPlayer(ownerId);
+				if (owner == null || !owner.isAlive() || !owner.level().dimension().toString().equals(state.dimensionId)) {
+					ACTIVE_CHICKEN_EGG_VOLLEYS.remove(ownerId);
+					continue;
+				}
+				if (state.remainingProjectiles <= 0) {
+					ACTIVE_CHICKEN_EGG_VOLLEYS.remove(ownerId);
+					continue;
+				}
+				if (now < state.nextLaunchTick) {
+					continue;
+				}
+				spawnChickenEggProjectile(owner, state.targetPosition, state.damage, state.radius);
+				ACTIVE_CHICKEN_EGG_VOLLEYS.put(
+					ownerId,
+					new ChickenEggVolleyState(
+						state.ownerUuid,
+						state.dimensionId,
+						state.targetPosition,
+						state.remainingProjectiles - 1,
+						now + CHICKEN_EGG_PROJECTILE_DELAY_TICKS,
+						state.damage,
+						state.radius
+					)
+				);
+			}
+
+			for (Map.Entry<UUID, ChickenEggProjectileState> entry : ACTIVE_CHICKEN_EGG_PROJECTILES.entrySet()) {
+				UUID projectileId = entry.getKey();
+				ChickenEggProjectileState state = entry.getValue();
+				ServerLevel level = findLevel(server, state.dimensionId);
+				Entity projectile = level == null ? null : level.getEntity(projectileId);
+				if (level == null || projectile == null || projectile.isRemoved()) {
+					ACTIVE_CHICKEN_EGG_PROJECTILES.remove(projectileId);
+					continue;
+				}
+				level.sendParticles(ParticleTypes.SMALL_FLAME, projectile.getX(), projectile.getY(), projectile.getZ(), 1, 0.005D, 0.005D, 0.005D, 0.0D);
+				if (now >= state.expiresAtTick) {
+					handleManagedChickenEggImpact(projectile, new BlockHitResult(projectile.position(), Direction.UP, projectile.blockPosition(), false));
+				}
+			}
+		}
+
+		private static boolean spawnChickenEggProjectile(ServerPlayer owner, Vec3 targetPosition, float damage, float radius) {
+			if (owner == null || targetPosition == null || !(owner.level() instanceof ServerLevel level)) {
+				return false;
+			}
+			Vec3 start = owner.getEyePosition().add(owner.getLookAngle().scale(0.35D));
+			Vec3 direction = targetPosition.subtract(start);
+			if (direction.lengthSqr() <= 1.0E-6D) {
+				return false;
+			}
+			ThrownEgg egg = new ManagedChickenEgg(level, owner, new ItemStack(Items.EGG));
+			egg.setPos(start.x, start.y, start.z);
+			egg.shoot(direction.x, direction.y, direction.z, 1.5F, 0.0F);
+			if (!level.addFreshEntity(egg)) {
+				return false;
+			}
+			ACTIVE_CHICKEN_EGG_PROJECTILES.put(
+				egg.getUUID(),
+				new ChickenEggProjectileState(
+					owner.getUUID(),
+					level.dimension().toString(),
+					damage,
+					radius,
+					MadokuTimeManager.getGameplayTicks() + CHICKEN_EGG_LIFETIME_TICKS
+				)
+			);
+			level.playSound(null, start.x, start.y, start.z, SoundEvents.EGG_THROW, SoundSource.NEUTRAL, 0.5F, 1.0F);
+			return true;
+		}
+
+		public static boolean handleManagedChickenEggImpact(Entity projectile, HitResult hitResult) {
+			if (projectile == null) {
+				return false;
+			}
+			ChickenEggProjectileState state = ACTIVE_CHICKEN_EGG_PROJECTILES.remove(projectile.getUUID());
+			if (state == null) {
+				return false;
+			}
+			if (projectile.level() instanceof ServerLevel level) {
+				ServerPlayer owner = level.getServer().getPlayerList().getPlayer(state.ownerUuid);
+				Vec3 impactPosition = hitResult == null ? projectile.position() : hitResult.getLocation();
+				applyChickenEggImpact(level, owner, impactPosition, state.damage, state.radius);
+			}
+			projectile.discard();
+			return true;
 		}
 
 			static void tickManagedBeeSwarms(MinecraftServer server) {
@@ -1373,7 +1558,7 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			private static void applyExplosiveProjectileHit(ServerLevel level, ServerPlayer owner, Vec3 position, float damage, float radius) {
+		private static void applyExplosiveProjectileHit(ServerLevel level, ServerPlayer owner, Vec3 position, float damage, float radius) {
 			emitExplosiveProjectileImpact(level, position, radius);
 			if (level == null || owner == null || !owner.isAlive() || position == null || radius <= 0.0F || damage <= 0.0F) {
 				return;
@@ -1400,6 +1585,43 @@ public final class PetAbilitiesManager {
 				if (knockback.lengthSqr() > 1.0E-6D) {
 					double strength = Math.max(0.0D, 0.35D * (1.0D - (distance / radius)));
 					mob.push(knockback.normalize().x * strength, 0.12D, knockback.normalize().z * strength);
+				}
+			}
+		}
+
+		private static void applyChickenEggImpact(ServerLevel level, ServerPlayer owner, Vec3 position, float damage, float radius) {
+			if (level == null || position == null) {
+				return;
+			}
+			level.playSound(null, position.x, position.y, position.z, SoundEvents.GENERIC_EXPLODE, SoundSource.NEUTRAL, 1.0F, 1.0F);
+			level.sendParticles(ParticleTypes.EXPLOSION, position.x, position.y, position.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+			double spread = Math.max(0.15D, radius * 0.5D);
+			level.sendParticles(ParticleTypes.FLAME, position.x, position.y, position.z, 18, spread, spread, spread, 0.02D);
+			level.sendParticles(ParticleTypes.SMOKE, position.x, position.y, position.z, 8, spread, spread, spread, 0.01D);
+			if (owner == null || !owner.isAlive() || damage <= 0.0F || radius <= 0.0F) {
+				return;
+			}
+			AABB area = new AABB(
+				position.x - radius,
+				position.y - radius,
+				position.z - radius,
+				position.x + radius,
+				position.y + radius,
+				position.z + radius
+			);
+			for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, area, candidate ->
+				candidate != null
+					&& candidate.isAlive()
+					&& !candidate.getUUID().equals(owner.getUUID())
+					&& !isManagedPet(candidate)
+			)) {
+				if (target.position().distanceTo(position) > radius) {
+					continue;
+				}
+				Vec3 velocity = target.getDeltaMovement();
+				resetDamageImmunity(target);
+				if (target.hurtServer(level, owner.damageSources().generic(), damage)) {
+					target.setDeltaMovement(velocity);
 				}
 			}
 		}
@@ -1685,6 +1907,39 @@ public final class PetAbilitiesManager {
 		float radius,
 		int remainingTicks
 	) {}
+
+	private record ChickenEggProjectileState(
+		UUID ownerUuid,
+		String dimensionId,
+		float damage,
+		float radius,
+		long expiresAtTick
+	) {}
+
+	private record ChickenEggVolleyState(
+		UUID ownerUuid,
+		String dimensionId,
+		Vec3 targetPosition,
+		int remainingProjectiles,
+		long nextLaunchTick,
+		float damage,
+		float radius
+	) {}
+
+	private static final class ManagedChickenEgg extends ThrownEgg {
+		private ManagedChickenEgg(ServerLevel level, ServerPlayer owner, ItemStack itemStack) {
+			super(level, owner, itemStack);
+		}
+
+		@Override
+		protected void onHit(HitResult hitResult) {
+			if (!level().isClientSide()) {
+				PetAbilitiesManager.handleManagedChickenEggImpact(this, hitResult);
+				return;
+			}
+			super.onHit(hitResult);
+		}
+	}
 
 	private record BeeSwarmState(
 		UUID ownerUuid,

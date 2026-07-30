@@ -39,6 +39,7 @@ public final class PetHagManager {
 			case MadokuPetManager.PET_RARITY_RARE -> PetConfigManager.settings().petRarityRareChanceWeight;
 			case MadokuPetManager.PET_RARITY_EPIC -> PetConfigManager.settings().petRarityEpicChanceWeight;
 			case MadokuPetManager.PET_RARITY_LEGENDARY -> PetConfigManager.settings().petRarityLegendaryChanceWeight;
+			case MadokuPetManager.PET_RARITY_MYTHIC -> PetConfigManager.settings().petRarityMythicChanceWeight;
 			default -> PetConfigManager.settings().petRarityCommonChanceWeight;
 		};
 	}

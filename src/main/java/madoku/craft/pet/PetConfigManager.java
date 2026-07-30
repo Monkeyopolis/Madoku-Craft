@@ -1,6 +1,8 @@
 package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.world.item.ItemStack;
@@ -11,7 +13,10 @@ import net.minecraft.sounds.SoundEvents;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.List;
+import java.util.LinkedHashSet;
 
 /** Owns the configured Madoku Pet definitions and configuration lifecycle. */
 public final class PetConfigManager {
@@ -57,6 +62,43 @@ public final class PetConfigManager {
 
 	static String normalizeAbilityId(String value) {
 		return normalizeKey(value).replace('-', '_');
+	}
+
+	static List<String> resolveAbilityTypes(JsonObject sourceRoot) {
+		JsonObject petGroup = objectField(sourceRoot, "pet-id");
+		LinkedHashSet<String> resolved = new LinkedHashSet<>();
+		JsonElement abilityIdsElement = petGroup.get("ability-ids");
+		if (abilityIdsElement != null && abilityIdsElement.isJsonArray()) {
+			JsonArray abilityIds = abilityIdsElement.getAsJsonArray();
+			for (JsonElement element : abilityIds) {
+				if (element != null && element.isJsonPrimitive()) {
+					String abilityType = normalizeAbilityId(element.getAsString());
+					if (!abilityType.isBlank()) resolved.add(abilityType);
+				}
+				if (resolved.size() >= 3) break;
+			}
+		}
+		return List.copyOf(resolved);
+	}
+
+	static JsonObject mergeAbilityDefinitions(Map<String, JsonObject> definitions, List<String> abilityTypes) {
+		JsonObject mergedAbility = new JsonObject();
+		if (definitions != null && abilityTypes != null) {
+			for (String abilityType : abilityTypes) {
+				JsonObject definition = definitions.get(normalizeAbilityId(abilityType));
+				JsonObject abilityGroup = objectField(definition, "ability-id");
+				for (Map.Entry<String, JsonElement> entry : abilityGroup.entrySet()) {
+					if ("id".equals(entry.getKey()) || mergedAbility.has(entry.getKey())) continue;
+					mergedAbility.add(entry.getKey(), entry.getValue().deepCopy());
+				}
+			}
+		}
+		if (abilityTypes != null && !abilityTypes.isEmpty()) {
+			mergedAbility.addProperty("id", normalizeAbilityId(abilityTypes.get(0)));
+		}
+		JsonObject merged = new JsonObject();
+		merged.add("ability-id", mergedAbility);
+		return merged;
 	}
 
 	static String abilityConfigId(String value) {
@@ -158,6 +200,7 @@ public final class PetConfigManager {
 	static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizePetId(itemId);
 		if ("minecraft:bee".equals(normalizedItemId) || "minecraft:bat".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_EPIC;
+		if ("minecraft:chicken".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_LEGENDARY;
 		if ("minecraft:cow".equals(normalizedItemId)
 			|| "minecraft:creeper".equals(normalizedItemId)
 			|| "minecraft:skeleton".equals(normalizedItemId)
@@ -192,7 +235,7 @@ public final class PetConfigManager {
 
 	static String normalizePetRarity(String rawRarity) {
 		return switch (normalizeKey(rawRarity)) {
-			case MadokuPetManager.PET_RARITY_COMMON, MadokuPetManager.PET_RARITY_RARE, MadokuPetManager.PET_RARITY_EPIC, MadokuPetManager.PET_RARITY_LEGENDARY -> normalizeKey(rawRarity);
+			case MadokuPetManager.PET_RARITY_COMMON, MadokuPetManager.PET_RARITY_RARE, MadokuPetManager.PET_RARITY_EPIC, MadokuPetManager.PET_RARITY_LEGENDARY, MadokuPetManager.PET_RARITY_MYTHIC -> normalizeKey(rawRarity);
 			default -> MadokuPetManager.PET_RARITY_COMMON;
 		};
 	}
@@ -229,7 +272,8 @@ public final class PetConfigManager {
 			final int petRarityCommonChanceWeight;
 			final int petRarityRareChanceWeight;
 			final int petRarityEpicChanceWeight;
-		final int petRarityLegendaryChanceWeight;
+			final int petRarityLegendaryChanceWeight;
+			final int petRarityMythicChanceWeight;
 		final int maxLevel;
 
 			PetSettings(
@@ -239,6 +283,7 @@ public final class PetConfigManager {
 				int petRarityRareChanceWeight,
 				int petRarityEpicChanceWeight,
 				int petRarityLegendaryChanceWeight,
+				int petRarityMythicChanceWeight,
 				int maxLevel
 			) {
 				this.enabled = enabled;
@@ -247,6 +292,7 @@ public final class PetConfigManager {
 				this.petRarityRareChanceWeight = petRarityRareChanceWeight;
 				this.petRarityEpicChanceWeight = petRarityEpicChanceWeight;
 				this.petRarityLegendaryChanceWeight = petRarityLegendaryChanceWeight;
+				this.petRarityMythicChanceWeight = petRarityMythicChanceWeight;
 				this.maxLevel = maxLevel;
 			}
 
@@ -254,9 +300,10 @@ public final class PetConfigManager {
 				return new PetSettings(
 					true,
 					true,
-					67,
-					24,
-					8,
+					334,
+					120,
+					40,
+					5,
 					1,
 					5
 				);
@@ -289,6 +336,11 @@ public final class PetConfigManager {
 					0,
 					100000
 				);
+				int petRarityMythicChanceWeight = (int) clampLong(
+					getLong(petRarity, "mythic", defaults.petRarityMythicChanceWeight),
+					0,
+					100000
+				);
 				return new PetSettings(
 					enabled,
 					entitiesEnabled,
@@ -296,6 +348,7 @@ public final class PetConfigManager {
 					petRarityRareChanceWeight,
 					petRarityEpicChanceWeight,
 					petRarityLegendaryChanceWeight,
+					petRarityMythicChanceWeight,
 					maxLevel
 				);
 			}
@@ -309,7 +362,8 @@ public final class PetConfigManager {
 						.put("common", petRarityCommonChanceWeight)
 						.put("rare", petRarityRareChanceWeight)
 						.put("epic", petRarityEpicChanceWeight)
-						.put("legendary", petRarityLegendaryChanceWeight))
+						.put("legendary", petRarityLegendaryChanceWeight)
+						.put("mythic", petRarityMythicChanceWeight))
 					.build();
 			}
 
@@ -349,6 +403,7 @@ public final class PetConfigManager {
 			final long idleMaxIntervalTicks;
 			final float soundVolumeMultiplier;
 			final String abilityType;
+			final List<String> abilityTypes;
 			final float attackDamage;
 			final float attackSpeed;
 			final long effectDurationTicks;
@@ -381,6 +436,7 @@ public final class PetConfigManager {
 				long idleMaxIntervalTicks,
 				float soundVolumeMultiplier,
 				String abilityType,
+				List<String> abilityTypes,
 				float attackDamage,
 				float attackSpeed,
 				long effectDurationTicks,
@@ -415,6 +471,14 @@ public final class PetConfigManager {
 				this.idleMaxIntervalTicks = idleMaxIntervalTicks;
 				this.soundVolumeMultiplier = soundVolumeMultiplier;
 				this.abilityType = abilityType;
+				LinkedHashSet<String> normalizedAbilities = new LinkedHashSet<>();
+				if (abilityTypes != null) {
+					for (String configuredAbility : abilityTypes) {
+						String normalizedAbility = normalizeAbilityId(configuredAbility);
+						if (!normalizedAbility.isBlank() && normalizedAbilities.size() < 3) normalizedAbilities.add(normalizedAbility);
+					}
+				}
+				this.abilityTypes = List.copyOf(normalizedAbilities);
 				this.attackDamage = attackDamage;
 				this.attackSpeed = attackSpeed;
 				this.effectDurationTicks = effectDurationTicks;
@@ -434,18 +498,29 @@ public final class PetConfigManager {
 				this.soundEventId = soundEventId;
 			}
 
-			static JsonObject defaultsForEntity(String petId, String abilityType) {
+			static JsonObject defaultsForEntity(String petId, String... configuredAbilityTypes) {
 				String resolvedPetId = normalizePetId(petId);
-				String resolvedAbilityType = normalizeAbilityId(abilityType);
+				LinkedHashSet<String> resolvedAbilities = new LinkedHashSet<>();
+				if (configuredAbilityTypes != null) {
+					for (String configuredAbilityType : configuredAbilityTypes) {
+						String resolvedAbilityType = normalizeAbilityId(configuredAbilityType);
+						if (!resolvedAbilityType.isBlank() && resolvedAbilities.size() < 3) resolvedAbilities.add(resolvedAbilityType);
+					}
+				}
+				if (resolvedAbilities.isEmpty()) resolvedAbilities.add(MadokuPetManager.PET_ABILITY_NONE);
+				String resolvedAbilityType = resolvedAbilities.iterator().next();
 				return madoku.craft.api.json.JSONFormatManager.object()
-					.object("pet-id", pet -> pet
-						.put("id", resolvedPetId)
-						.put("rarity", defaultRarityForItem(resolvedPetId))
-						.put("ability-id", resolvedAbilityType.isBlank() ? MadokuPetManager.PET_ABILITY_NONE : abilityConfigId(resolvedAbilityType))
-						.put("pet-scale", defaultPetScaleForItem(resolvedPetId))
-						.put("follow-speed", 1.2D)
-						.put("teleport-distance", 8.0D)
-						.put("cooldown", defaultCooldownSeconds(resolvedAbilityType)))
+					.object("pet-id", pet -> {
+						pet.put("id", resolvedPetId)
+							.put("rarity", defaultRarityForItem(resolvedPetId))
+							.put("pet-scale", defaultPetScaleForItem(resolvedPetId))
+							.put("follow-speed", 1.2D)
+							.put("teleport-distance", 8.0D)
+							.put("cooldown", defaultCooldownSecondsForPet(resolvedPetId, resolvedAbilityType));
+						pet.array("ability-ids", abilities -> {
+							for (String abilityType : resolvedAbilities) abilities.add(abilityConfigId(abilityType));
+						});
+					})
 					.build();
 			}
 
@@ -454,6 +529,7 @@ public final class PetConfigManager {
 				boolean usesRangedHomingArrow = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(resolvedAbilityType);
 				boolean usesWebProjectile = MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(resolvedAbilityType);
 				boolean usesExplosiveProjectile = MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(resolvedAbilityType);
+				boolean usesEggProjectile = MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(resolvedAbilityType);
 				boolean usesDamageBlock = MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(resolvedAbilityType);
 				boolean usesMobScan = MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
@@ -487,6 +563,14 @@ public final class PetConfigManager {
 					ability.addProperty("shot-delay-ticks", 10L);
 					ability.addProperty("explosion-radius", 4D);
 				}
+				if (usesEggProjectile) {
+					ability.addProperty("follow-speed", 1.0D);
+					ability.addProperty("attack-damage", 2.0D);
+					ability.addProperty("attack-speed", 1.5D);
+					ability.addProperty("cooldown", 30.0D);
+					ability.addProperty("shot-delay-ticks", 5L);
+					ability.addProperty("explosion-radius", 1.0D);
+				}
 				if (usesDamageBlock) {
 					ability.addProperty("damage-block", 4.0D);
 					ability.addProperty("cooldown", 30.0D);
@@ -512,6 +596,7 @@ public final class PetConfigManager {
 					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 2.0D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 4.0D;
 					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.5D;
+					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 2.0D;
 					default -> 0.0D;
 				};
 			}
@@ -521,10 +606,16 @@ public final class PetConfigManager {
 					case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW -> 5.0D;
 					case MadokuPetManager.PET_ABILITY_WEB_PROJECTILE -> 15.0D;
 					case MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> 60.0D;
+					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 30.0D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 30.0D;
 					case MadokuPetManager.PET_ABILITY_MOB_SCAN -> 150.0D;
 					default -> 0.0D;
 				};
+			}
+
+			private static double defaultCooldownSecondsForPet(String petId, String abilityType) {
+				if ("minecraft:chicken".equals(normalizePetId(petId))) return 30.0D;
+				return defaultCooldownSeconds(abilityType);
 			}
 
 			static PetRule fromJson(JsonObject source, String fileKey) {
@@ -540,9 +631,10 @@ public final class PetConfigManager {
 				if (petId == null || petId.isBlank()) {
 					return null;
 				}
-				JsonObject petGroup = objectField(source, "pet-id");
+
 				JsonObject abilityGroup = objectField(abilityDefinition, "ability-id");
-				String abilityType = normalizeAbilityId(getString(petGroup, "ability-id", getString(abilityGroup, "id", MadokuPetManager.PET_ABILITY_NONE)));
+				List<String> abilityTypes = resolveAbilityTypes(source);
+				String abilityType = abilityTypes.isEmpty() ? MadokuPetManager.PET_ABILITY_NONE : abilityTypes.get(0);
 				JsonObject flattened = flattenRuleSource(source, abilityGroup, abilityType);
 				source = flattened;
 				String itemId = PetEntitiesManager.PET_ITEM_NAMESPACE + ":" + petItemPath(petId);
@@ -618,6 +710,7 @@ public final class PetConfigManager {
 					idleMaxIntervalTicks,
 					soundVolumeMultiplier,
 					abilityType.isBlank() ? MadokuPetManager.PET_ABILITY_NONE : abilityType,
+					abilityTypes,
 					attackDamage,
 					attackSpeed,
 					effectDurationTicks,
@@ -643,7 +736,7 @@ public final class PetConfigManager {
 				JsonObject flattened = source.deepCopy();
 				flattened.remove("pet-id");
 				for (Map.Entry<String, com.google.gson.JsonElement> entry : petGroup.entrySet()) {
-					if ("id".equals(entry.getKey()) || "ability-id".equals(entry.getKey())) continue;
+					if ("id".equals(entry.getKey()) || "ability-ids".equals(entry.getKey())) continue;
 					flattened.add(entry.getKey(), entry.getValue().deepCopy());
 				}
 				for (Map.Entry<String, com.google.gson.JsonElement> entry : abilityGroup.entrySet()) {
@@ -672,75 +765,84 @@ public final class PetConfigManager {
 				if (!enabled || attackSpeed <= 0.0F || cooldownTicks <= 0L) {
 					return false;
 				}
-				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
+				String projectileAbility = reactiveProjectileAbility();
+				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(projectileAbility)) {
 					return attackDamage > 0.0F;
 				}
-				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(projectileAbility)) {
 					return true;
 				}
-				return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && explosionRadius > 0.0F && attackDamage > 0.0F;
+				return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(projectileAbility) && explosionRadius > 0.0F && attackDamage > 0.0F;
+			}
+
+			String reactiveProjectileAbility() {
+				for (String configuredAbility : abilityTypes) {
+					if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(configuredAbility)
+						|| MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(configuredAbility)
+						|| MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(configuredAbility)) {
+						return configuredAbility;
+					}
+				}
+				return "";
 			}
 
 			double playerDamageBonus() {
-				return enabled && MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) ? playerDamageBonusAmount : 0.0D;
+				return hasAbility(MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS) ? playerDamageBonusAmount : 0.0D;
 			}
 
 			double fallDamageReduction() {
-				return enabled && MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) ? fallDamageReductionAmount : 0.0D;
+				return hasAbility(MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION) ? fallDamageReductionAmount : 0.0D;
 			}
 
 			double maxHealthBonus() {
-				return enabled && MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) ? maxHealthBonusAmount : 0.0D;
+				return hasAbility(MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS) ? maxHealthBonusAmount : 0.0D;
 			}
 
 			double armorBonus() {
-				return enabled && MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(abilityType) ? armorBonusAmount : 0.0D;
+				return hasAbility(MadokuPetManager.PET_ABILITY_ARMOR_BONUS) ? armorBonusAmount : 0.0D;
 			}
 
 			double damageBlockAmount() {
-				return enabled && MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) ? damageBlockAmount : 0.0D;
+				return hasAbility(MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK) ? damageBlockAmount : 0.0D;
 			}
 
 			boolean canBlockIncomingDamage() {
-				return enabled && MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D && cooldownTicks > 0L;
+			return hasAbility(MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK) && damageBlockAmount > 0.0D && cooldownTicks > 0L;
 			}
 
-			String abilityDescription() {
+			List<String> abilityDescriptions() {
 				if (!enabled) {
-					return "";
+					return List.of();
 				}
-				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType) && attackDamage > 0.0F) {
-					return "Active: Fires a homing arrow at a target for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage.";
+				List<String> descriptions = new ArrayList<>();
+				for (String configuredAbility : abilityTypes) {
+					if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(configuredAbility) && attackDamage > 0.0F) {
+						descriptions.add("Active: Fires a homing arrow at a target for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage.");
+					} else if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(configuredAbility) && attackDamage > 0.0F) {
+						descriptions.add("Active: Launches a web projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage that slows enemies.");
+					} else if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(configuredAbility) && attackDamage > 0.0F && explosionRadius > 0.0F) {
+						descriptions.add("Active: Fires an explosive projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage)
+							+ " damage within a " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " radius.");
+					} else if (MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(configuredAbility) && attackDamage > 0.0F && explosionRadius > 0.0F) {
+						descriptions.add("Active: Fires egg projectiles for " + MadokuPetManager.formatAbilityAmount(attackDamage)
+							+ " damage within a " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " radius.");
+					} else if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(configuredAbility) && playerDamageBonusAmount > 0.0D) {
+						descriptions.add("Passive: Increases damage by " + MadokuPetManager.formatAbilityAmount(playerDamageBonusAmount) + ".");
+					} else if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(configuredAbility) && fallDamageReductionAmount > 0.0D) {
+						descriptions.add("Passive: Reduces fall damage by " + MadokuPetManager.formatPercent(fallDamageReductionAmount) + ".");
+					} else if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(configuredAbility) && maxHealthBonusAmount > 0.0D) {
+						descriptions.add("Passive: Increases max health by " + MadokuPetManager.formatPercent(maxHealthBonusAmount) + ".");
+					} else if (MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(configuredAbility) && armorBonusAmount > 0.0D) {
+						descriptions.add("Passive: Increases armor by " + MadokuPetManager.formatAbilityAmount(armorBonusAmount) + ".");
+					} else if (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(configuredAbility) && damageBlockAmount > 0.0D) {
+						descriptions.add("Active: Blocks " + MadokuPetManager.formatAbilityAmount(damageBlockAmount) + " incoming damage.");
+					} else if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(configuredAbility)) {
+						descriptions.add("Automatic: Periodically reveals nearby mobs.");
+					} else if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(configuredAbility) && attackDamage > 0.0F) {
+						descriptions.add("Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage per hit.");
+					}
 				}
-				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) && attackDamage > 0.0F) {
-					return "Active: Launches a web projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage that slows enemies.";
-				}
-				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && attackDamage > 0.0F && explosionRadius > 0.0F) {
-					return "Active: Fires an explosive projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage)
-						+ " damage within a " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " radius.";
-				}
-				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) && playerDamageBonusAmount > 0.0D) {
-					return "Passive: Increases damage by " + MadokuPetManager.formatAbilityAmount(playerDamageBonusAmount) + ".";
-				}
-				if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && fallDamageReductionAmount > 0.0D) {
-					return "Passive: Reduces fall damage by " + MadokuPetManager.formatPercent(fallDamageReductionAmount) + ".";
-				}
-				if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType) && maxHealthBonusAmount > 0.0D) {
-					return "Passive: Increases max health by " + MadokuPetManager.formatPercent(maxHealthBonusAmount) + ".";
-				}
-				if (MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(abilityType) && armorBonusAmount > 0.0D) {
-					return "Passive: Increases armor by " + MadokuPetManager.formatAbilityAmount(armorBonusAmount) + ".";
-				}
-				if (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType) && damageBlockAmount > 0.0D) {
-					return "Active: Blocks " + MadokuPetManager.formatAbilityAmount(damageBlockAmount) + " incoming damage.";
-				}
-				if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-					return "Automatic: Periodically reveals nearby mobs.";
-				}
-				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType) && attackDamage > 0.0F) {
-					return "Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage per hit.";
-				}
-				return "";
+				return List.copyOf(descriptions);
 			}
 
 			String cooldownDescription() {
@@ -758,18 +860,33 @@ public final class PetConfigManager {
 				return enabled && !MadokuPetManager.PET_ABILITY_NONE.equals(abilityType);
 			}
 
+			boolean hasAbility(String requestedAbilityType) {
+				String normalized = normalizeAbilityId(requestedAbilityType);
+				return enabled && !normalized.isBlank() && abilityTypes.contains(normalized);
+			}
+
 			PetRule atLevel(int level) {
 				int safeLevel = Math.max(1, Math.min(PetConfigManager.maxPetLevel(), level));
 				if (safeLevel == 1) return this;
 				double multiplier = 1.0D + ((safeLevel - 1) * 0.5D);
+				double resolvedAttackDamage = attackDamage * multiplier;
+				double resolvedFallDamageReduction = fallDamageReductionAmount * multiplier;
+				double resolvedExplosionRadius = explosionRadius * multiplier;
+				if ("minecraft:chicken".equals(petId)) {
+					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.5D);
+					resolvedFallDamageReduction = fallDamageReductionAmount + ((safeLevel - 1) * 0.025D);
+					resolvedExplosionRadius = explosionRadius + ((safeLevel - 1) * 0.5D);
+				} else if ("minecraft:creeper".equals(petId)) {
+					resolvedExplosionRadius = explosionRadius + (safeLevel - 1);
+				}
 				return new PetRule(
 					enabled, itemId, rarity, petScale, followSpeed, idleMoveSpeed, idleDistance, teleportDistance,
 					idleWanderRadius, idleMinIntervalTicks, idleMaxIntervalTicks,
-					soundVolumeMultiplier, abilityType, (float) (attackDamage * multiplier), attackSpeed,
-					effectDurationTicks, playerDamageBonusAmount * multiplier, fallDamageReductionAmount * multiplier,
+					soundVolumeMultiplier, abilityType, abilityTypes, (float) resolvedAttackDamage, attackSpeed,
+					effectDurationTicks, playerDamageBonusAmount * multiplier, resolvedFallDamageReduction,
 					maxHealthBonusAmount * multiplier, armorBonusAmount * multiplier, damageBlockAmount * multiplier,
 					cooldownTicks, shotDelayTicks, attackArcStepDegrees, attackRearOffset, attackRearSpread,
-					attackLateralRadius, attackVerticalOffset, (float) (explosionRadius * multiplier), soundEventId
+					attackLateralRadius, attackVerticalOffset, (float) resolvedExplosionRadius, soundEventId
 				);
 			}
 
@@ -785,6 +902,7 @@ public final class PetConfigManager {
 			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) return SoundEvents.LLAMA_SPIT;
 			if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) return SoundEvents.CREEPER_PRIMED;
 			if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) return SoundEvents.BEE_LOOP;
+			if (hasAbility(MadokuPetManager.PET_ABILITY_EGG_PROJECTILE)) return SoundEvents.EGG_THROW;
 			return SoundEvents.SKELETON_SHOOT;
 		}
 
@@ -793,6 +911,7 @@ public final class PetConfigManager {
 			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString();
 			if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString();
 			if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEE_LOOP).toString();
+			if (MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.EGG_THROW).toString();
 			return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
 		}
 

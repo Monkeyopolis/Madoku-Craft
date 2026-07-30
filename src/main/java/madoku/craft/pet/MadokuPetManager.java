@@ -39,6 +39,7 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";
 	static final String PET_ABILITY_WEB_PROJECTILE = "web_projectile";
 	static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = "explosive_projectile";
+	static final String PET_ABILITY_EGG_PROJECTILE = "egg_projectile";
 	static final String PET_ABILITY_PLAYER_DAMAGE_BONUS = "player_damage_bonus";
 	static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = "fall_damage_reduction";
 	static final String PET_ABILITY_MAX_HEALTH_BONUS = "max_health_bonus";
@@ -50,6 +51,7 @@ public final class MadokuPetManager {
 	static final String PET_RARITY_RARE = "rare";
 	static final String PET_RARITY_EPIC = "epic";
 	static final String PET_RARITY_LEGENDARY = "legendary";
+	static final String PET_RARITY_MYTHIC = "mythic";
 
 
 
@@ -211,6 +213,7 @@ public final class MadokuPetManager {
 
 		PetAbilitiesManager.tickManagedWebProjectiles(server);
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
+		PetAbilitiesManager.tickManagedChickenEggProjectiles(server);
 		PetAbilitiesManager.tickManagedBeeSwarms(server);
 		PetHudManager.flushAbilityHudSyncs(server);
 	}
