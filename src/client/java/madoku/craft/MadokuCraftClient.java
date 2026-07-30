@@ -67,26 +67,11 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
-		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetSoundStatePayload.TYPE, (payload, context) ->
-			PetPayloadManager.setSoundState(parseUuid(payload.petUuid()), payload.itemId())
-		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
 			PetHudManagerClient.reset();
 			HudAttributesManager.reset();
-			PetPayloadManager.clearSoundState();
 		});
-	}
-
-	private static java.util.UUID parseUuid(String value) {
-		if (value == null || value.isBlank()) {
-			return null;
-		}
-		try {
-			return java.util.UUID.fromString(value);
-		} catch (IllegalArgumentException exception) {
-			return null;
-		}
 	}
 }

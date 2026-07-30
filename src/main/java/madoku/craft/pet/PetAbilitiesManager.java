@@ -69,12 +69,11 @@ public final class PetAbilitiesManager {
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
-	private static final int BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS = 8;
+	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
 	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 4;
-	private static final int BAT_SCAN_BASE_CHUNK_RADIUS = 1;
-	private static final int BAT_SCAN_CHUNK_RADIUS_PER_EXTRA_BAT = 1;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
-	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 30L * 20L;
+	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 10L * 20L;
+	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 5L * 20L;
 	private static final double BEE_SWARM_SCAN_RADIUS = 16.0D;
 	private static final double BEE_SWARM_SCAN_VERTICAL_RADIUS = 8.0D;
 	private static final long BEE_SWARM_MAX_TARGET_DURATION_TICKS = 15L * 20L;
@@ -213,7 +212,13 @@ public final class PetAbilitiesManager {
 
 	public static int cooldownTicks(ItemStack stack) {
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
-		return rule == null ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, rule.cooldownTicks));
+		if (rule == null) return 0;
+		long cooldown = rule.cooldownTicks;
+		if (PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) {
+			int level = PetEntitiesManager.petLevel(stack);
+			cooldown -= Math.max(0, level - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL;
+		}
+		return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown));
 	}
 
 	public static int cooldownTicks(ServerPlayer player, int slot, ItemStack stack) {
@@ -221,8 +226,9 @@ public final class PetAbilitiesManager {
 		if (rule == null) return 0;
 		if (!PET_ABILITY_MOB_SCAN.equals(rule.abilityType)) return cooldownTicks(stack);
 		PetInventory inventory = petInventory(player);
-		int count = countSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN);
-		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(Math.max(1, count), rule));
+		int[] batSlots = new int[SLOT_COUNT];
+		int count = collectSlotsWithAbility(inventory, PET_ABILITY_MOB_SCAN, batSlots, null);
+		return (int) Math.min(Integer.MAX_VALUE, effectiveBatScanCooldownTicks(inventory, batSlots, Math.max(1, count), rule));
 	}
 
 	public static int cooldownTicks(Player player, int slot, ItemStack stack) {
@@ -424,29 +430,19 @@ public final class PetAbilitiesManager {
 			}
 
 			applyAutomaticBatMobScan(player, batCount, sharedRule);
-			setSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(batCount, sharedRule));
+			setSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(inventory, batSlots, batCount, sharedRule));
 		}
 
 			private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount, PetRule rule) {
 			if (player == null || batCount <= 0 || !(player.level() instanceof ServerLevel level)) {
 				return;
 			}
-
 			SoundEvent soundEvent = rule == null ? SoundEvents.BEACON_ACTIVATE : rule.resolveSoundEvent();
-			level.playSound(
-				null,
-				player.getX(),
-				player.getEyeY(),
-				player.getZ(),
-				soundEvent,
-				SoundSource.NEUTRAL,
-				0.45F,
-				1.15F
-			);
+			level.playSound(null, player.getX(), player.getEyeY(), player.getZ(), soundEvent, SoundSource.NEUTRAL, 0.45F, 1.15F);
 
-			int chunkRadius = BAT_SCAN_BASE_CHUNK_RADIUS + Math.max(0, batCount - 1) * BAT_SCAN_CHUNK_RADIUS_PER_EXTRA_BAT;
-			int horizontalRadius = chunkRadius * 16;
-			int verticalRadius = BAT_SCAN_BASE_VERTICAL_RADIUS_BLOCKS + Math.max(0, batCount - 1) * BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT;
+			double horizontalRadius = BAT_SCAN_BASE_RADIUS_BLOCKS + Math.max(0, batCount - 1) * 12.0D;
+			int chunkRadius = Math.max(1, (int) Math.ceil(horizontalRadius / 16.0D));
+			int verticalRadius = 12 + Math.max(0, batCount - 1) * BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT;
 			AABB scanArea = new AABB(
 				player.getX() - horizontalRadius,
 				player.getY() - verticalRadius,
@@ -490,10 +486,19 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			static long effectiveBatScanCooldownTicks(int batCount, PetRule rule) {
+		static long effectiveBatScanCooldownTicks(PetInventory inventory, int[] batSlots, int batCount, PetRule rule) {
 			long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
-			int additionalBats = Math.max(0, batCount - 1);
-			return Math.max(20L, baseCooldown - (additionalBats * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT));
+		long cooldownReduction = Math.max(0, batCount - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT;
+		if (inventory != null && batSlots != null) {
+			for (int index = 0; index < Math.min(batCount, batSlots.length); index++) {
+				int slot = batSlots[index];
+				int level = slot < 0 || slot >= inventory.getContainerSize()
+					? 1
+					: PetEntitiesManager.petLevel(inventory.getItem(slot));
+				cooldownReduction += Math.max(0, level - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL;
+			}
+		}
+		return Math.max(20L, baseCooldown - cooldownReduction);
 		}
 
 			static void triggerAutomaticBeeSwarm(ServerPlayer player, long gameplayTicks) {
@@ -834,11 +839,11 @@ public final class PetAbilitiesManager {
 			if (!spawned) {
 				return false;
 			}
-
 			if (!(PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType) || PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType))
 				&& player.level() instanceof ServerLevel level) {
 				level.playSound(null, spawnPosition.x, spawnPosition.y, spawnPosition.z, soundEvent, SoundSource.HOSTILE, soundVolume, soundPitch);
 			}
+
 			return true;
 		}
 
@@ -1161,7 +1166,7 @@ public final class PetAbilitiesManager {
 			);
 		}
 
-			private static void emitBeeSwarmLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		private static void emitBeeSwarmLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
 			if (level == null || position == null) {
 				return;
 			}
@@ -1267,7 +1272,7 @@ public final class PetAbilitiesManager {
 			return new Vec3(target.getX(), target.getY() + target.getBbHeight() * 0.35D, target.getZ());
 		}
 
-			private static void emitWebProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		private static void emitWebProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
 			if (level == null || position == null) {
 				return;
 			}
@@ -1278,7 +1283,7 @@ public final class PetAbilitiesManager {
 			level.sendParticles(ParticleTypes.WHITE_ASH, position.x, position.y, position.z, 2, 0.02D, 0.01D, 0.02D, 0.0D);
 		}
 
-			private static void emitExplosiveProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
+		private static void emitExplosiveProjectileLaunch(ServerLevel level, Vec3 position, SoundEvent soundEvent, float soundVolume, float soundPitch) {
 			if (level == null || position == null) {
 				return;
 			}

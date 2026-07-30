@@ -32,7 +32,7 @@ public final class ConfigEntitiesSpider {
 					1,
 					java.util.List.of("madoku-pets"),
 					LootTableConfigStructures.entries(
-										LootTableConfigStructures.item("madoku:spider-pet", 1, 0, 1)
+										LootTableConfigStructures.item("madoku-craft:spider-pet", 1, 0, 1)
 					)
 				)))
 			.build();

@@ -81,7 +81,6 @@ public final class SyncGlobalManager {
 		registerClientbound(ItemProfilePayloadManager.TYPE, ItemProfilePayloadManager.CODEC);
 		registerClientbound(LevelsPayloadManager.Payload.TYPE, LevelsPayloadManager.Payload.CODEC);
 		registerClientbound(PetPayloadManager.PetAbilityHudPayload.TYPE, PetPayloadManager.PetAbilityHudPayload.CODEC);
-		registerClientbound(PetPayloadManager.PetSoundStatePayload.TYPE, PetPayloadManager.PetSoundStatePayload.CODEC);
 		registerClientbound(MobPayloadManager.TYPE, MobPayloadManager.CODEC);
 		registerClientbound(SeasonPayloadManager.TYPE, SeasonPayloadManager.CODEC);
 		registerClientbound(TimePayloadManager.TYPE, TimePayloadManager.CODEC);

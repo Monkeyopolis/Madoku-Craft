@@ -1,10 +1,10 @@
 package madoku.craft.pet;
 
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -14,9 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import madoku.craft.pet.PetConfigManager.PetRule;
 
-/** Owns the managed-pet component boundary: identity, sound state, and entity checks. */
+/** Owns the managed-pet component boundary and entity checks. */
 public final class PetComponentsManager {
 	private static final Map<UUID, ItemStack[]> PENDING_RESPAWN_PET_INVENTORIES = new ConcurrentHashMap<>();
 	private PetComponentsManager() {
@@ -31,20 +30,6 @@ public final class PetComponentsManager {
 
 	public static boolean isManaged(Entity entity) {
 		return PetEntitiesManager.isManaged(entity);
-	}
-
-	public static float soundVolume(Entity entity, float baseVolume) {
-		PetRule rule = PetConfigManager.resolvePetRule(entity);
-		return Math.max(0.0F, baseVolume * (rule == null ? 1.0F : rule.soundVolumeMultiplier));
-	}
-
-	public static int ambientSoundInterval(Entity entity, int baseInterval) {
-		PetRule rule = PetConfigManager.resolvePetRule(entity);
-		return Math.max(20, baseInterval * Math.max(1, rule == null ? 1 : rule.ambientSoundIntervalMultiplier));
-	}
-
-	public static void clear() {
-		PetPayloadManager.clearSoundState();
 	}
 
 	public static boolean isMob(Entity entity) {

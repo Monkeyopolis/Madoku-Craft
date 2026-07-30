@@ -48,16 +48,16 @@ public final class ConfigStructuresDungeon {
 					LootTableConfigStructures.item("minecraft:netherite_scrap", 1, 0, 2)
 				)))
 				.add(LootTableConfigStructures.group("mythic", 25, List.of("madoku-pets"), LootTableConfigStructures.entries(
-					LootTableConfigStructures.item("madoku:chicken-pet", 100, 1, 1),
-					LootTableConfigStructures.item("madoku:zombie-pet", 100, 1, 1),
-					LootTableConfigStructures.item("madoku:pig-pet", 100, 1, 1),
-					LootTableConfigStructures.item("madoku:sheep-pet", 100, 1, 1),
-					LootTableConfigStructures.item("madoku:cow-pet", 75, 1, 1),
-					LootTableConfigStructures.item("madoku:skeleton-pet", 75, 1, 1),
-					LootTableConfigStructures.item("madoku:spider-pet", 75, 1, 1),
-					LootTableConfigStructures.item("madoku:creeper-pet", 75, 1, 1),
-					LootTableConfigStructures.item("madoku:bat-pet", 50, 1, 1),
-					LootTableConfigStructures.item("madoku:bee-pet", 50, 1, 1)
+					LootTableConfigStructures.item("madoku-craft:chicken-pet", 100, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:zombie-pet", 100, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:pig-pet", 100, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:sheep-pet", 100, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:cow-pet", 75, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:skeleton-pet", 75, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:spider-pet", 75, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:creeper-pet", 75, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:bat-pet", 50, 1, 1),
+					LootTableConfigStructures.item("madoku-craft:bee-pet", 50, 1, 1)
 				))))
 			.build();
 	}

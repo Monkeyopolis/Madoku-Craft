@@ -1,7 +1,6 @@
 package madoku.craft.mixin;
 
 import madoku.craft.pet.PetComponentsManager;
-import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -76,20 +75,5 @@ public abstract class EntityPetBehaviorMixin {
 		}
 	}
 
-	@Inject(method = "playSound(Lnet/minecraft/sounds/SoundEvent;FF)V", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$reduceManagedPetSoundAtSource(SoundEvent soundEvent, float volume, float pitch, CallbackInfo ci) {
-		Entity self = (Entity) (Object) this;
-		if (!PetComponentsManager.isManaged(self)) {
-			return;
-		}
-		float adjustedVolume = PetComponentsManager.soundVolume(self, volume);
-		if (Math.abs(adjustedVolume - volume) < 1.0E-4F) {
-			return;
-		}
-		if (!self.isSilent()) {
-			self.level().playSound(null, self.getX(), self.getY(), self.getZ(), soundEvent, self.getSoundSource(), adjustedVolume, pitch);
-		}
-		ci.cancel();
-	}
 }
 

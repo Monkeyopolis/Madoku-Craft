@@ -33,7 +33,7 @@ public final class ConfigEntitiesSkeleton {
 					1,
 					List.of("madoku-pets"),
 					LootTableConfigStructures.entries(
-						LootTableConfigStructures.item("madoku:skeleton-pet", 1, 0, 1)
+						LootTableConfigStructures.item("madoku-craft:skeleton-pet", 1, 0, 1)
 					)
 				)))
 			.build();

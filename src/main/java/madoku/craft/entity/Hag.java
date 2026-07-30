@@ -24,8 +24,12 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.Random;
 
 public class Hag extends Witch implements Merchant {
@@ -35,7 +39,7 @@ public class Hag extends Witch implements Merchant {
 	private static final String PET_RARITY_EPIC = "epic";
 	private static final String PET_RARITY_LEGENDARY = "legendary";
 	private static final long TRADE_REFRESH_DAYS = 7L;
-	private static final int AVAILABLE_TRADE_COUNT = 7;
+	private static final int AVAILABLE_TRADE_COUNT = 14;
 	private static final int TRADE_MAX_USES = 999999;
 
 	private MerchantOffers offers;
@@ -178,8 +182,9 @@ public class Hag extends Witch implements Merchant {
 		);
 		if (!PetConfigManager.isEnabled()) return offers;
 		List<Item> petItems = buildPetItems(random);
+		Set<String> usedTradeKeys = new HashSet<>();
 		for (Item item : petItems) {
-			int level = PetHagManager.randomTradeLevel(random);
+			int level = pickUniqueTradeLevel(item, random, usedTradeKeys);
 			offers.add(createPetOffer(item, level));
 		}
 		return offers;
@@ -199,17 +204,39 @@ public class Hag extends Witch implements Merchant {
 	private List<Item> buildPetItems(Random random) {
 		List<Item> pool = new ArrayList<>(PetHagManager.tradeItems());
 		List<Item> selected = new ArrayList<>();
-		int limit = Math.min(AVAILABLE_TRADE_COUNT, pool.size());
-		while (selected.size() < limit && !pool.isEmpty()) {
-			Item item = pickWeightedPet(pool, random);
+		Map<Item, Integer> selectedCounts = new HashMap<>();
+		List<Item> selectionPool = new ArrayList<>(pool);
+		while (selected.size() < AVAILABLE_TRADE_COUNT && !pool.isEmpty()) {
+			if (selectionPool.isEmpty()) {
+				for (Item item : pool) {
+					if (selectedCounts.getOrDefault(item, 0) < 5) {
+						selectionPool.add(item);
+					}
+				}
+			}
+			Item item = pickWeightedPet(selectionPool, random);
 			if (item == null) {
 				break;
 			}
 			selected.add(item);
-			pool.remove(item);
+			selectedCounts.merge(item, 1, Integer::sum);
+			selectionPool.remove(item);
 		}
 		selected.sort(Comparator.comparing(item -> BuiltInRegistries.ITEM.getKey(item).toString()));
 		return selected;
+	}
+
+	private int pickUniqueTradeLevel(Item item, Random random, Set<String> usedTradeKeys) {
+		int level = PetHagManager.randomTradeLevel(random);
+		String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
+		for (int attempts = 0; attempts < 5; attempts++) {
+			if (!usedTradeKeys.contains(itemId + ":" + level)) {
+				usedTradeKeys.add(itemId + ":" + level);
+				return level;
+			}
+			level = level % 5 + 1;
+		}
+		return 1;
 	}
 
 	private Item pickWeightedPet(List<Item> pool, Random random) {

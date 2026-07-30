@@ -67,7 +67,6 @@
     "MobEffectTickOverrideMixin",
     "MobEffectUtilOxygenOverrideMixin",
     "MobExperienceAccessor",
-    "MobPetSoundMixin",
     "MobSpawnOverridesMixin",
     "VanillaSpiderJockeyMixin",
     "VanillaZombieJockeyMixin",

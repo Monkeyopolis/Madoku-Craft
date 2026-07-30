@@ -328,7 +328,6 @@ public final class PetConfigManager {
 			private static final double DEFAULT_IDLE_WANDER_RADIUS = 2.0D;
 			private static final long DEFAULT_IDLE_MIN_INTERVAL_TICKS = 20L;
 			private static final long DEFAULT_IDLE_MAX_INTERVAL_TICKS = 60L;
-			private static final int DEFAULT_AMBIENT_SOUND_INTERVAL_MULTIPLIER = 3;
 			private static final float DEFAULT_SOUND_VOLUME_MULTIPLIER = 0.2F;
 			private static final double DEFAULT_ATTACK_ARC_STEP_DEGREES = 18.0D;
 			private static final double DEFAULT_ATTACK_REAR_OFFSET = 0.58D;
@@ -348,7 +347,6 @@ public final class PetConfigManager {
 			final double idleWanderRadius;
 			final long idleMinIntervalTicks;
 			final long idleMaxIntervalTicks;
-			final int ambientSoundIntervalMultiplier;
 			final float soundVolumeMultiplier;
 			final String abilityType;
 			final float attackDamage;
@@ -381,7 +379,6 @@ public final class PetConfigManager {
 				double idleWanderRadius,
 				long idleMinIntervalTicks,
 				long idleMaxIntervalTicks,
-				int ambientSoundIntervalMultiplier,
 				float soundVolumeMultiplier,
 				String abilityType,
 				float attackDamage,
@@ -403,8 +400,8 @@ public final class PetConfigManager {
 				String soundEventId
 			) {
 				this.enabled = enabled;
-				this.petId = itemId != null && itemId.startsWith("madoku:")
-					? normalizePetId(itemId.substring("madoku:".length()).replaceFirst("-pet$", ""))
+				this.petId = itemId != null && itemId.startsWith(PetEntitiesManager.PET_ITEM_NAMESPACE + ":")
+					? normalizePetId(itemId.substring((PetEntitiesManager.PET_ITEM_NAMESPACE + ":").length()).replaceFirst("-pet$", ""))
 					: normalizePetId(itemId);
 				this.itemId = itemId;
 				this.rarity = rarity;
@@ -416,7 +413,6 @@ public final class PetConfigManager {
 				this.idleWanderRadius = idleWanderRadius;
 				this.idleMinIntervalTicks = idleMinIntervalTicks;
 				this.idleMaxIntervalTicks = idleMaxIntervalTicks;
-				this.ambientSoundIntervalMultiplier = ambientSoundIntervalMultiplier;
 				this.soundVolumeMultiplier = soundVolumeMultiplier;
 				this.abilityType = abilityType;
 				this.attackDamage = attackDamage;
@@ -496,7 +492,7 @@ public final class PetConfigManager {
 					ability.addProperty("cooldown", 30.0D);
 				}
 				if (usesMobScan) {
-					ability.addProperty("cooldown", 180.0D);
+					ability.addProperty("cooldown", 150.0D);
 				}
 				if (usesBeeSwarm) {
 					ability.addProperty("follow-speed", 1.5D);
@@ -526,7 +522,7 @@ public final class PetConfigManager {
 					case MadokuPetManager.PET_ABILITY_WEB_PROJECTILE -> 15.0D;
 					case MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> 60.0D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 30.0D;
-					case MadokuPetManager.PET_ABILITY_MOB_SCAN -> 180.0D;
+					case MadokuPetManager.PET_ABILITY_MOB_SCAN -> 150.0D;
 					default -> 0.0D;
 				};
 			}
@@ -549,7 +545,7 @@ public final class PetConfigManager {
 				String abilityType = normalizeAbilityId(getString(petGroup, "ability-id", getString(abilityGroup, "id", MadokuPetManager.PET_ABILITY_NONE)));
 				JsonObject flattened = flattenRuleSource(source, abilityGroup, abilityType);
 				source = flattened;
-				String itemId = "madoku:" + petItemPath(petId);
+				String itemId = PetEntitiesManager.PET_ITEM_NAMESPACE + ":" + petItemPath(petId);
 				String rarity = normalizePetRarity(
 					getString(source, "rarity", MadokuPetManager.PET_RARITY_COMMON)
 				);
@@ -570,7 +566,6 @@ public final class PetConfigManager {
 				double idleWanderRadius = PetSettings.clampDouble(getDouble(source, "idle-wander-radius", DEFAULT_IDLE_WANDER_RADIUS), 0.0D, 16.0D);
 				long idleMinIntervalTicks = PetSettings.clampLong(getLong(source, "idle-min-interval-ticks", DEFAULT_IDLE_MIN_INTERVAL_TICKS), 1L, 20L * 60L);
 				long idleMaxIntervalTicks = PetSettings.clampLong(getLong(source, "idle-max-interval-ticks", DEFAULT_IDLE_MAX_INTERVAL_TICKS), idleMinIntervalTicks, 20L * 60L);
-				int ambientSoundIntervalMultiplier = (int) PetSettings.clampLong(getLong(source, "ambient-sound-interval-multiplier", DEFAULT_AMBIENT_SOUND_INTERVAL_MULTIPLIER), 1L, 20L);
 				float soundVolumeMultiplier = (float) PetSettings.clampDouble(getDouble(source, "sound-volume-multiplier", DEFAULT_SOUND_VOLUME_MULTIPLIER), 0.0D, 4.0D);
 				float attackDamage = (float) PetSettings.clampDouble(getDouble(source, "attack-damage", 0.0D), 0.0D, 1024.0D);
 				float attackSpeed = (float) PetSettings.clampDouble(getDouble(source, "attack-speed", 0.0D), 0.05D, 8.0D);
@@ -608,11 +603,7 @@ public final class PetConfigManager {
 					4.0D
 				);
 				float explosionRadius = (float) PetSettings.clampDouble(getDouble(source, "explosion-radius", 4.0D), 0.25D, 12.0D);
-				String soundEventId = getString(
-					source,
-					"sound-event",
-					defaultSoundEventIdForAbility(abilityType)
-				);
+				String soundEventId = getString(source, "sound-event", defaultSoundEventIdForAbility(abilityType));
 				return new PetRule(
 					getBoolean(source, "enabled", true),
 					itemId.trim(),
@@ -625,7 +616,6 @@ public final class PetConfigManager {
 					idleWanderRadius,
 					idleMinIntervalTicks,
 					idleMaxIntervalTicks,
-					ambientSoundIntervalMultiplier,
 					soundVolumeMultiplier,
 					abilityType.isBlank() ? MadokuPetManager.PET_ABILITY_NONE : abilityType,
 					attackDamage,
@@ -720,17 +710,17 @@ public final class PetConfigManager {
 					return "";
 				}
 				if (MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType) && attackDamage > 0.0F) {
-					return "Active: Fires a homing arrow at your target for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage.";
+					return "Active: Fires a homing arrow at a target for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage.";
 				}
 				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) && attackDamage > 0.0F) {
 					return "Active: Launches a web projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage) + " damage that slows enemies.";
 				}
 				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) && attackDamage > 0.0F && explosionRadius > 0.0F) {
 					return "Active: Fires an explosive projectile for " + MadokuPetManager.formatAbilityAmount(attackDamage)
-						+ " damage within " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " blocks.";
+						+ " damage within a " + MadokuPetManager.formatAbilityAmount(explosionRadius) + " radius.";
 				}
 				if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType) && playerDamageBonusAmount > 0.0D) {
-					return "Passive: Increases player damage by " + MadokuPetManager.formatAbilityAmount(playerDamageBonusAmount) + ".";
+					return "Passive: Increases damage by " + MadokuPetManager.formatAbilityAmount(playerDamageBonusAmount) + ".";
 				}
 				if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType) && fallDamageReductionAmount > 0.0D) {
 					return "Passive: Reduces fall damage by " + MadokuPetManager.formatPercent(fallDamageReductionAmount) + ".";
@@ -754,13 +744,14 @@ public final class PetConfigManager {
 			}
 
 			String cooldownDescription() {
-				if (!enabled || cooldownTicks <= 0L || MadokuPetManager.PET_ABILITY_NONE.equals(abilityType)) {
+				return cooldownDescription(cooldownTicks);
+			}
+
+			String cooldownDescription(long resolvedCooldownTicks) {
+				if (!enabled || resolvedCooldownTicks <= 0L || MadokuPetManager.PET_ABILITY_NONE.equals(abilityType)) {
 					return "";
 				}
-				if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-					return "Cooldown: " + MadokuPetManager.formatCooldownSeconds(cooldownTicks) + "s";
-				}
-				return "Cooldown: " + MadokuPetManager.formatCooldownSeconds(cooldownTicks) + "s";
+				return "Cooldown: " + MadokuPetManager.formatCooldownSeconds(resolvedCooldownTicks) + "s";
 			}
 
 			boolean hasAbility() {
@@ -773,7 +764,7 @@ public final class PetConfigManager {
 				double multiplier = 1.0D + ((safeLevel - 1) * 0.5D);
 				return new PetRule(
 					enabled, itemId, rarity, petScale, followSpeed, idleMoveSpeed, idleDistance, teleportDistance,
-					idleWanderRadius, idleMinIntervalTicks, idleMaxIntervalTicks, ambientSoundIntervalMultiplier,
+					idleWanderRadius, idleMinIntervalTicks, idleMaxIntervalTicks,
 					soundVolumeMultiplier, abilityType, (float) (attackDamage * multiplier), attackSpeed,
 					effectDurationTicks, playerDamageBonusAmount * multiplier, fallDamageReductionAmount * multiplier,
 					maxHealthBonusAmount * multiplier, armorBonusAmount * multiplier, damageBlockAmount * multiplier,
@@ -783,45 +774,27 @@ public final class PetConfigManager {
 			}
 
 			SoundEvent resolveSoundEvent() {
-				Identifier identifier = Identifier.tryParse(soundEventId == null ? "" : soundEventId.trim());
-				if (identifier == null) {
-					return defaultSoundEvent();
-				}
-				SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
-				return soundEvent == null ? defaultSoundEvent() : soundEvent;
-			}
+			Identifier identifier = Identifier.tryParse(soundEventId == null ? "" : soundEventId.trim());
+			if (identifier == null) return defaultSoundEvent();
+			SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
+			return soundEvent == null ? defaultSoundEvent() : soundEvent;
+		}
 
-			SoundEvent defaultSoundEvent() {
-				if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-					return SoundEvents.BEACON_ACTIVATE;
-				}
-				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-					return SoundEvents.LLAMA_SPIT;
-				}
-				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-					return SoundEvents.CREEPER_PRIMED;
-				}
-				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
-					return SoundEvents.BEE_LOOP;
-				}
-				return SoundEvents.SKELETON_SHOOT;
-			}
+		SoundEvent defaultSoundEvent() {
+			if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) return SoundEvents.BEACON_ACTIVATE;
+			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) return SoundEvents.LLAMA_SPIT;
+			if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) return SoundEvents.CREEPER_PRIMED;
+			if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) return SoundEvents.BEE_LOOP;
+			return SoundEvents.SKELETON_SHOOT;
+		}
 
-			private static String defaultSoundEventIdForAbility(String abilityType) {
-				if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-					return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEACON_ACTIVATE).toString();
-				}
-				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-					return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString();
-				}
-				if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-					return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString();
-				}
-				if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
-					return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEE_LOOP).toString();
-				}
-				return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
-			}
+		private static String defaultSoundEventIdForAbility(String abilityType) {
+			if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEACON_ACTIVATE).toString();
+			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.LLAMA_SPIT).toString();
+			if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.CREEPER_PRIMED).toString();
+			if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.BEE_LOOP).toString();
+			return BuiltInRegistries.SOUND_EVENT.getKey(SoundEvents.SKELETON_SHOOT).toString();
+		}
 
 			private static double defaultIdleMoveSpeedForAbility(String abilityType) {
 				if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {

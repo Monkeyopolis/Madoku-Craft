@@ -137,7 +137,6 @@ public final class MadokuPetManager {
 		PetComponentsManager.reset();
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
 		PetHudManager.clear();
-		PetPayloadManager.clearSoundState();
 		PetAbilitiesManager.reset();
 		MadokuSchedulerManager.clearAdaptiveDelayState(PET_RUNTIME_SCHEDULER_OWNER_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
@@ -338,7 +337,6 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
 		PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
 		PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
-		PetHudManager.syncManagedPetSoundStateTo(player, server);
 		if (PetConfigManager.settings().enabled) {
 			requestPetProcessing(server, player.getUUID(), 0L);
 		}
