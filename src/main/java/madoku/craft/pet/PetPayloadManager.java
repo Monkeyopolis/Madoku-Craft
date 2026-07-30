@@ -62,10 +62,6 @@ public final class PetPayloadManager {
 		return petId == null ? "" : SOUND_ITEM_IDS.getOrDefault(petId, "");
 	}
 
-	public static boolean hasSoundState(UUID petId) {
-		return petId != null && SOUND_ITEM_IDS.containsKey(petId);
-	}
-
 	public static void removeSoundState(UUID petId) {
 		if (petId != null) SOUND_ITEM_IDS.remove(petId);
 	}

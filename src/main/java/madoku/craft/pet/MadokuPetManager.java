@@ -6,7 +6,6 @@ import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,7 +31,9 @@ public final class MadokuPetManager {
 
 	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
 	private static final String PET_RUNTIME_SCHEDULER_KEY = "pet_runtime_tick";
-	private static final long PET_RUNTIME_TICK_DELAY = 1L;
+	static final String PET_RUNTIME_SCHEDULER_OWNER_ID = "pet_runtime";
+	static final long PET_RUNTIME_MIN_INTERVAL_TICKS = 1L;
+	static final long PET_RUNTIME_MAX_INTERVAL_TICKS = 5L;
 
 	static final String PET_ABILITY_NONE = "none";
 	static final String PET_ABILITY_RANGED_HOMING_ARROW = "ranged_homing_arrow";
@@ -129,9 +130,6 @@ public final class MadokuPetManager {
 			}
 			handlePlayerLeave(server, handler.player.getUUID());
 		});
-		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-			PetEntitiesManager.onEntityUnload(entity);
-		});
 	}
 
 	public static void reset() {
@@ -141,13 +139,14 @@ public final class MadokuPetManager {
 		PetHudManager.clear();
 		PetPayloadManager.clearSoundState();
 		PetAbilitiesManager.reset();
+		MadokuSchedulerManager.clearAdaptiveDelayState(PET_RUNTIME_SCHEDULER_OWNER_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
 		runtimeSchedulerId = "";
 		runtimeTickQueued = false;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ensureRuntimeQueued(server, PET_RUNTIME_TICK_DELAY);
+		ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -158,7 +157,7 @@ public final class MadokuPetManager {
 		reloadConfig();
 		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME, "slot-cooldowns", "uuid");
 		PetAbilitiesManager.applyPersistedData(data);
-		PetEntitiesManager.removeAllTaggedPets(server);
+		PetEntitiesManager.removeAllPetEntitiesOnServerStart(server);
 		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
@@ -226,7 +225,16 @@ public final class MadokuPetManager {
 		runtimeSchedulerId = context.getSchedulerId();
 		onPlayerTickPhase(server);
 		onServerTick(server);
-		ensureRuntimeQueued(server, PET_RUNTIME_TICK_DELAY);
+		ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
+	}
+
+	static long adaptiveSchedulerInterval(MinecraftServer server) {
+		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+			server,
+			PET_RUNTIME_SCHEDULER_OWNER_ID,
+			PET_RUNTIME_MIN_INTERVAL_TICKS,
+			PET_RUNTIME_MAX_INTERVAL_TICKS
+		);
 	}
 
 	private static void ensureRuntimeQueued(MinecraftServer server, long delayTicks) {
@@ -286,8 +294,8 @@ public final class MadokuPetManager {
 
 
 
-	public static long managedPetSteeringInterval() {
-		return PetEntitiesManager.activeSchedulerTickInterval();
+	public static long managedPetSteeringInterval(MinecraftServer server) {
+		return PetEntitiesManager.activeSchedulerTickInterval(server);
 	}
 
 	public static Vec3 managedPetMovementTarget(Mob pet) {
@@ -376,15 +384,15 @@ public final class MadokuPetManager {
 			nextDelay = PetEntitiesManager.syncPlayerPets(player);
 		} else {
 			PetEntitiesManager.removeAllPets(server, playerId);
-			nextDelay = PetAbilitiesManager.hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeSchedulerTickInterval() : -1L;
+			nextDelay = PetAbilitiesManager.hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeSchedulerTickInterval(server) : -1L;
 		}
 		LivingEntity ongoingReactiveTarget = PetAbilitiesManager.resolveOngoingReactiveTarget(player);
 
 		if (ongoingReactiveTarget != null) {
 			PetAbilitiesManager.triggerReactiveAbilities(player, ongoingReactiveTarget);
 			nextDelay = nextDelay < 0L
-				? PetEntitiesManager.activeSchedulerTickInterval()
-				: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval());
+				? PetEntitiesManager.activeSchedulerTickInterval(server)
+				: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval(server));
 		}
 		PetAbilitiesManager.tickAutomaticAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {

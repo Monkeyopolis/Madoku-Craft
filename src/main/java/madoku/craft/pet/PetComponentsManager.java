@@ -30,7 +30,7 @@ public final class PetComponentsManager {
 	}
 
 	public static boolean isManaged(Entity entity) {
-		return MadokuPetManager.isManagedPet(entity) || (entity != null && PetPayloadManager.hasSoundState(entity.getUUID()));
+		return PetEntitiesManager.isManaged(entity);
 	}
 
 	public static float soundVolume(Entity entity, float baseVolume) {

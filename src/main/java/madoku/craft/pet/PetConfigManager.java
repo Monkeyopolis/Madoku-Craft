@@ -6,7 +6,6 @@ import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 
@@ -56,12 +55,6 @@ public final class PetConfigManager {
 		return normalized.contains(":") ? normalized : "minecraft:" + normalized;
 	}
 
-	static String canonicalPetId(String value) {
-		String normalized = normalizeKey(value);
-		if (!normalized.contains(":")) normalized = "minecraft:" + normalized;
-		return normalized.replace('-', '_');
-	}
-
 	static String normalizeAbilityId(String value) {
 		return normalizeKey(value).replace('-', '_');
 	}
@@ -104,15 +97,12 @@ public final class PetConfigManager {
 	}
 
 	static PetRule resolvePetRule(net.minecraft.world.entity.Entity entity) {
-		if (entity == null) {
+		if (!(entity instanceof MadokuPetEntity pet)) {
 			return null;
 		}
-		String syncedItemId = normalizeKey(PetPayloadManager.soundItemId(entity.getUUID()));
-		if (!syncedItemId.isBlank()) {
-			return resolvePetRule(syncedItemId);
-		}
-		String itemId = PetEntitiesManager.getManagedPetItemId(entity);
-		return itemId.isBlank() ? null : resolvePetRule(itemId);
+		String petId = PetEntitiesManager.getManagedPetItemId(pet);
+		PetRule rule = petId.isBlank() ? null : resolvePetRule(petId);
+		return rule == null ? null : rule.atLevel(pet.petLevel());
 	}
 
 	static PetRule resolvePetRule(String itemId) {
@@ -159,8 +149,8 @@ public final class PetConfigManager {
 
 	static double defaultPetScaleForItem(String itemId) {
 		String normalizedItemId = normalizePetId(itemId);
-		if ("minecraft:bat".equals(normalizedItemId)) return 0.4D;
-		if ("minecraft:bee".equals(normalizedItemId)) return 0.5D;
+		if ("minecraft:bat".equals(normalizedItemId)) return 0.3D;
+		if ("minecraft:bee".equals(normalizedItemId)) return 0.3D;
 		if ("minecraft:chicken".equals(normalizedItemId)) return 0.3D;
 		return 0.25D;
 	}
@@ -182,11 +172,6 @@ public final class PetConfigManager {
 		if (configured.isBlank()) return null;
 		String petId = normalizePetId(configured);
 		return PetEntitiesManager.petItem(petId) == null ? null : petId;
-	}
-
-	static EntityType<?> resolvePetEntityType(String petId) {
-		Identifier identifier = Identifier.tryParse(canonicalPetId(petId));
-		return identifier == null ? null : BuiltInRegistries.ENTITY_TYPE.getValue(identifier);
 	}
 
 	static JsonObject objectField(JsonObject source, String key) {
@@ -241,7 +226,6 @@ public final class PetConfigManager {
 	static final class PetSettings {
 		final boolean enabled;
 			final boolean entitiesEnabled;
-			final long schedulerTickInterval;
 			final int petRarityCommonChanceWeight;
 			final int petRarityRareChanceWeight;
 			final int petRarityEpicChanceWeight;
@@ -251,7 +235,6 @@ public final class PetConfigManager {
 			PetSettings(
 				boolean enabled,
 				boolean entitiesEnabled,
-				long schedulerTickInterval,
 				int petRarityCommonChanceWeight,
 				int petRarityRareChanceWeight,
 				int petRarityEpicChanceWeight,
@@ -260,7 +243,6 @@ public final class PetConfigManager {
 			) {
 				this.enabled = enabled;
 				this.entitiesEnabled = entitiesEnabled;
-				this.schedulerTickInterval = schedulerTickInterval;
 				this.petRarityCommonChanceWeight = petRarityCommonChanceWeight;
 				this.petRarityRareChanceWeight = petRarityRareChanceWeight;
 				this.petRarityEpicChanceWeight = petRarityEpicChanceWeight;
@@ -272,7 +254,6 @@ public final class PetConfigManager {
 				return new PetSettings(
 					true,
 					true,
-					5L,
 					67,
 					24,
 					8,
@@ -308,15 +289,9 @@ public final class PetConfigManager {
 					0,
 					100000
 				);
-				long schedulerTickInterval = clampLong(
-					getLong(source, "scheduler-tick-interval", defaults.schedulerTickInterval),
-					1L,
-					20L
-				);
 				return new PetSettings(
 					enabled,
 					entitiesEnabled,
-					schedulerTickInterval,
 					petRarityCommonChanceWeight,
 					petRarityRareChanceWeight,
 					petRarityEpicChanceWeight,
@@ -335,7 +310,6 @@ public final class PetConfigManager {
 						.put("rare", petRarityRareChanceWeight)
 						.put("epic", petRarityEpicChanceWeight)
 						.put("legendary", petRarityLegendaryChanceWeight))
-					.put("scheduler-tick-interval", schedulerTickInterval)
 					.build();
 			}
 

@@ -15,6 +15,7 @@ import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.pet.PetPayloadManager;
 import madoku.craft.pet.PetHudManagerClient;
+import madoku.craft.pet.PetRendererManager;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import madoku.craft.trade.MerchantEggVariantsClient;
@@ -32,6 +33,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		MadokuHudManager.initialize();
 		PetHudManagerClient.initialize();
 		MadokuEntitiesClient.initialize();
+		PetRendererManager.initialize();
 		MadokuLevelsClient.initialize();
 		PetInventoryClient.initialize();
 		MerchantEggVariantsClient.initialize();
