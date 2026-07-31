@@ -68,6 +68,7 @@
     "MobEffectUtilOxygenOverrideMixin",
     "MobExperienceAccessor",
     "MobSpawnOverridesMixin",
+    "MobWebStunMixin",
     "VanillaSpiderJockeyMixin",
     "VanillaZombieJockeyMixin",
     "ServerLevelMobReplacementMixin",

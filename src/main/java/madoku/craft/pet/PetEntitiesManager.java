@@ -156,7 +156,6 @@ public final class PetEntitiesManager {
 
 					List<String> abilityTypes = PetConfigManager.resolveAbilityTypes(sourceRoot);
 					String abilityType = abilityTypes.isEmpty() ? MadokuPetManager.PET_ABILITY_NONE : abilityTypes.get(0);
-					JsonObject abilityDefinition = PetConfigManager.mergeAbilityDefinitions(abilityDefinitions, abilityTypes);
 					Path file = PetConfigManager.resolveJsonFile(rulesDirectory, fileKey);
 					JsonObject normalized = JSONFormatManager.writeManagedFile(
 						file,
@@ -164,7 +163,7 @@ public final class PetEntitiesManager {
 						PetConfigManager.PetRule.defaultsForEntity(petId, abilityType),
 						null
 					);
-					PetRule rule = PetConfigManager.PetRule.fromJson(normalized, fileKey, abilityDefinition);
+					PetRule rule = PetConfigManager.PetRule.fromJson(normalized, fileKey, abilityDefinitions);
 					if (rule != null && !rule.itemId.isBlank()) {
 						resolved.put(PetConfigManager.normalizePetId(rule.petId), rule);
 						resolved.put(PetConfigManager.normalizeKey(rule.itemId), rule);

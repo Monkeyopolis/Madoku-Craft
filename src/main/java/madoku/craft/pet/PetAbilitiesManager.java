@@ -17,6 +17,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetConfigManager.PetAbilityRule;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.resources.Identifier;
 import net.minecraft.core.Direction;
@@ -63,19 +64,19 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_FALL_DAMAGE_REDUCTION = MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION;
 	private static final String PET_ABILITY_MAX_HEALTH_BONUS = MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
 	private static final String PET_ABILITY_ARMOR_BONUS = MadokuPetManager.PET_ABILITY_ARMOR_BONUS;
+	private static final String PET_ABILITY_DAMAGE_BLOCK = MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK;
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
 	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
 	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
 	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
-	private static final int WEB_PROJECTILE_SLOW_AMPLIFIER = 9;
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
 	private static final long CHICKEN_EGG_COOLDOWN_TICKS = 30L * 20L;
 	private static final int CHICKEN_EGG_BASE_PROJECTILE_COUNT = 5;
-	private static final long CHICKEN_EGG_PROJECTILE_DELAY_TICKS = 5L;
+	private static final long CHICKEN_EGG_PROJECTILE_DELAY_TICKS = 4L;
 	private static final int CHICKEN_EGG_LIFETIME_TICKS = 100;
 	private static final double CHICKEN_FALL_BASE_REDUCTION = 0.20D;
 	private static final double CHICKEN_FALL_EXTRA_REDUCTION = 0.10D;
@@ -95,13 +96,15 @@ public final class PetAbilitiesManager {
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
 	private static final String FIELD_SLOT = "slot";
+	private static final String FIELD_ABILITY_ID = "ability-id";
 	private static final String FIELD_TARGET_UUID = "target-uuid";
 	private static final String FIELD_SPAWN_X = "spawn-x";
 	private static final String FIELD_SPAWN_Y = "spawn-y";
 	private static final String FIELD_SPAWN_Z = "spawn-z";
 	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
-	private static final Map<UUID, long[]> PLAYER_SLOT_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
+	private static final Map<UUID, WebControlState> ACTIVE_WEB_CONTROLS = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggProjectileState> ACTIVE_CHICKEN_EGG_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
@@ -109,12 +112,53 @@ public final class PetAbilitiesManager {
 
 	static void reset() {
 		PLAYER_SCHEDULER_IDS.clear();
-		PLAYER_SLOT_COOLDOWNS.clear();
+		PLAYER_ABILITY_COOLDOWNS.clear();
 		ACTIVE_WEB_PROJECTILES.clear();
+		ACTIVE_WEB_CONTROLS.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
 		ACTIVE_BEE_SWARMS.clear();
+	}
+
+	static void tickWebControls(MinecraftServer server) {
+		if (server == null || ACTIVE_WEB_CONTROLS.isEmpty()) {
+			return;
+		}
+		long now = MadokuTimeManager.getGameplayTicks();
+		for (Map.Entry<UUID, WebControlState> entry : ACTIVE_WEB_CONTROLS.entrySet()) {
+			WebControlState state = entry.getValue();
+			if (state == null || now >= state.slowUntilTick) {
+				ACTIVE_WEB_CONTROLS.remove(entry.getKey());
+			}
+		}
+	}
+
+	public static boolean isWebStunned(Entity entity) {
+		if (!(entity instanceof LivingEntity livingEntity)) {
+			return false;
+		}
+		WebControlState state = ACTIVE_WEB_CONTROLS.get(livingEntity.getUUID());
+		return state != null && MadokuTimeManager.getGameplayTicks() < state.stunUntilTick;
+	}
+
+	public static float scaleWebMovementSpeed(LivingEntity entity, float speed) {
+		if (entity == null || speed <= 0.0F) {
+			return speed;
+		}
+		WebControlState state = ACTIVE_WEB_CONTROLS.get(entity.getUUID());
+		if (state == null) {
+			return speed;
+		}
+		long now = MadokuTimeManager.getGameplayTicks();
+		if (now < state.stunUntilTick) {
+			return 0.0F;
+		}
+		if (now >= state.slowUntilTick) {
+			ACTIVE_WEB_CONTROLS.remove(entity.getUUID(), state);
+			return speed;
+		}
+		return (float) (speed * Math.max(0.0D, 1.0D - state.slowPercentage));
 	}
 
 	private PetAbilitiesManager() {
@@ -205,18 +249,18 @@ public final class PetAbilitiesManager {
 		int[] chickenSlots = new int[SLOT_COUNT];
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			PetRule rule = PetConfigManager.resolvePetRule(stack);
-			if (rule == null || !rule.enabled || !"minecraft:chicken".equals(rule.petId) || !rule.hasAbility(PET_ABILITY_EGG_PROJECTILE)) {
+			PetRule baseRule = PetConfigManager.resolvePetRule(PetEntitiesManager.petId(stack));
+			PetRule rule = baseRule == null ? null : baseRule.atLevel(PetEntitiesManager.petLevel(stack));
+			PetAbilityRule eggAbility = rule == null ? null : rule.ability(PET_ABILITY_EGG_PROJECTILE);
+			if (rule == null || !rule.enabled || !"minecraft:chicken".equals(rule.petId) || eggAbility == null
+				|| !isAbilityOffCooldown(player, slot, eggAbility.abilityType, now)) {
 				continue;
-			}
-			if (!isPetSlotOffCooldown(player, slot, now)) {
-				return;
 			}
 			chickenSlots[chickenCount++] = slot;
 			int level = PetEntitiesManager.petLevel(stack);
 			levelBonus += level / 4;
-			damage = Math.max(damage, rule.attackDamage);
-			radius = Math.max(radius, rule.explosionRadius);
+			damage = Math.max(damage, eggAbility.attackDamage);
+			radius = Math.max(radius, eggAbility.explosionRadius);
 		}
 		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
 			return;
@@ -242,7 +286,7 @@ public final class PetAbilitiesManager {
 			)
 		);
 		for (int index = 0; index < chickenCount; index++) {
-			setSlotCooldown(player.getUUID(), chickenSlots[index], now + CHICKEN_EGG_COOLDOWN_TICKS);
+			setAbilityCooldown(player.getUUID(), chickenSlots[index], PET_ABILITY_EGG_PROJECTILE, now + CHICKEN_EGG_COOLDOWN_TICKS);
 		}
 	}
 
@@ -288,7 +332,7 @@ public final class PetAbilitiesManager {
 	public static int cooldownTicks(ItemStack stack) {
 		PetRule rule = PetConfigManager.resolvePetRule(stack);
 		if (rule == null) return 0;
-		long cooldown = rule.cooldownTicks;
+		long cooldown = rule.minimumCooldownTicks();
 		if (rule.hasAbility(PET_ABILITY_MOB_SCAN)) {
 			int level = PetEntitiesManager.petLevel(stack);
 			cooldown -= Math.max(0, level - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL;
@@ -371,9 +415,10 @@ public final class PetAbilitiesManager {
 		long now = MadokuTimeManager.getGameplayTicks();
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
-			if (rule == null || !rule.canBlockIncomingDamage() || !isPetSlotOffCooldown(player, slot, now)) continue;
-			setSlotCooldown(player.getUUID(), slot, now + rule.cooldownTicks);
-			float blocked = (float) Math.max(0.0D, amount - rule.damageBlockAmount());
+			PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_DAMAGE_BLOCK);
+			if (rule == null || ability == null || ability.damageBlockAmount <= 0.0D || ability.cooldownTicks <= 0L || !isAbilityOffCooldown(player, slot, ability.abilityType, now)) continue;
+			setAbilityCooldown(player.getUUID(), slot, ability.abilityType, now + ability.cooldownTicks);
+			float blocked = (float) Math.max(0.0D, amount - ability.damageBlockAmount);
 			if (blocked < amount) player.level().playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, 0.8F, 1.0F);
 			return blocked;
 		}
@@ -422,40 +467,34 @@ public final class PetAbilitiesManager {
 			}
 
 			long gameplayTicks = MadokuTimeManager.getGameplayTicks();
-			int[] readySlots = new int[SLOT_COUNT];
-			PetRule[] readyRules = new PetRule[SLOT_COUNT];
-			int readyCount = 0;
+			List<ReadyReactiveAttack> readyAttacks = new ArrayList<>();
 			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 				ItemStack stack = inventory.getItem(slot);
 				PetRule rule = PetConfigManager.resolvePetRule(stack);
-				if (rule == null || !rule.canPerformReactiveAttack()) {
+				if (rule == null || !rule.enabled) {
 					continue;
 				}
-				if (!canPetSlotShoot(player, slot, gameplayTicks, stack)) {
-					continue;
+				for (PetAbilityRule ability : rule.reactiveAbilities()) {
+					if (isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
+						readyAttacks.add(new ReadyReactiveAttack(slot, rule, ability));
+					}
 				}
-
-				readySlots[readyCount] = slot;
-				readyRules[readyCount] = rule;
-				readyCount++;
 			}
-			if (readyCount <= 0) {
-
+			if (readyAttacks.isEmpty()) {
 				return;
 			}
 
-			for (int index = 0; index < readyCount; index++) {
-				int slot = readySlots[index];
-				PetRule rule = readyRules[index];
-				Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, readyCount, rule);
+			for (int index = 0; index < readyAttacks.size(); index++) {
+				ReadyReactiveAttack ready = readyAttacks.get(index);
+				Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, readyAttacks.size(), ready.ability);
 				if (index == 0) {
-					if (spawnPetReactiveAttack(player, target, spawnPosition, rule)) {
-						setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
+					if (spawnPetReactiveAttack(player, target, spawnPosition, ready.rule, ready.ability)) {
+						setAbilityCooldown(player.getUUID(), ready.slot, ready.ability.abilityType, gameplayTicks + ready.ability.cooldownTicks);
 					}
 					continue;
 				}
 
-				enqueueDelayedPetAttack(player, slot, target, spawnPosition, index * rule.shotDelayTicks);
+				enqueueDelayedPetAttack(player, ready.slot, ready.ability.abilityType, target, spawnPosition, index * ready.ability.shotDelayTicks);
 			}
 		}
 
@@ -507,25 +546,27 @@ public final class PetAbilitiesManager {
 			}
 
 			PetRule sharedRule = batRules[0];
-			if (sharedRule == null || sharedRule.cooldownTicks <= 0L) {
+			PetAbilityRule batAbility = sharedRule == null ? null : sharedRule.ability(PET_ABILITY_MOB_SCAN);
+			if (batAbility == null || batAbility.cooldownTicks <= 0L) {
 				return;
 			}
 
-			long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks);
+			long sharedCooldownTick = synchronizeSharedAbilityCooldown(player.getUUID(), PET_ABILITY_MOB_SCAN, batSlots, batCount, gameplayTicks);
 			if (gameplayTicks < sharedCooldownTick) {
 				return;
 			}
 
-			applyAutomaticBatMobScan(player, batCount, sharedRule);
-			setSharedAbilityCooldown(player.getUUID(), batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(inventory, batSlots, batCount, sharedRule));
+			applyAutomaticBatMobScan(player, batCount, sharedRule, batAbility);
+			setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_MOB_SCAN, batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(inventory, batSlots, batCount, sharedRule));
 		}
 
-			private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount, PetRule rule) {
+			private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount, PetRule rule, PetAbilityRule ability) {
 			if (player == null || batCount <= 0 || !(player.level() instanceof ServerLevel level)) {
 				return;
 			}
-			SoundEvent soundEvent = rule == null ? SoundEvents.BEACON_ACTIVATE : rule.resolveSoundEvent();
-			level.playSound(null, player.getX(), player.getEyeY(), player.getZ(), soundEvent, SoundSource.NEUTRAL, 0.45F, 1.15F);
+			SoundEvent soundEvent = rule == null || ability == null ? SoundEvents.BEACON_ACTIVATE : rule.resolveSoundEvent(ability.abilityType);
+			float volume = ability == null ? 0.45F : Math.max(0.12F, ability.soundVolumeMultiplier);
+			level.playSound(null, player.getX(), player.getEyeY(), player.getZ(), soundEvent, SoundSource.NEUTRAL, volume, 1.15F);
 
 			double horizontalRadius = BAT_SCAN_BASE_RADIUS_BLOCKS + Math.max(0, batCount - 1) * 12.0D;
 			int chunkRadius = Math.max(1, (int) Math.ceil(horizontalRadius / 16.0D));
@@ -574,7 +615,8 @@ public final class PetAbilitiesManager {
 		}
 
 		static long effectiveBatScanCooldownTicks(PetInventory inventory, int[] batSlots, int batCount, PetRule rule) {
-			long baseCooldown = Math.max(0L, rule == null ? 0L : rule.cooldownTicks);
+		PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_MOB_SCAN);
+		long baseCooldown = Math.max(0L, ability == null ? 0L : ability.cooldownTicks);
 		long cooldownReduction = Math.max(0, batCount - 1) * BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT;
 		if (inventory != null && batSlots != null) {
 			for (int index = 0; index < Math.min(batCount, batSlots.length); index++) {
@@ -598,24 +640,27 @@ public final class PetAbilitiesManager {
 				return;
 			}
 
+			PetAbilityRule[] readyAbilities = new PetAbilityRule[SLOT_COUNT];
 			int[] readySlots = new int[SLOT_COUNT];
 			PetRule[] readyRules = new PetRule[SLOT_COUNT];
 			int readyCount = 0;
 			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 				ItemStack stack = inventory.getItem(slot);
 				PetRule rule = PetConfigManager.resolvePetRule(stack);
-				if (rule == null || !rule.enabled || !rule.hasAbility(PET_ABILITY_BEE_SWARM)) {
+				PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_BEE_SWARM);
+				if (rule == null || !rule.enabled || ability == null) {
 					stopBeeSwarmForSlot(player.getUUID(), slot);
 					continue;
 				}
 				if (ACTIVE_BEE_SWARMS.containsKey(beeSwarmKey(player.getUUID(), slot))) {
 					continue;
 				}
-				if (!isPetSlotOffCooldown(player, slot, gameplayTicks)) {
+				if (!isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
 					continue;
 				}
 				readySlots[readyCount] = slot;
 				readyRules[readyCount] = rule;
+				readyAbilities[readyCount] = ability;
 				readyCount++;
 			}
 			if (readyCount <= 0) {
@@ -631,15 +676,16 @@ public final class PetAbilitiesManager {
 			for (int index = 0; index < readyCount; index++) {
 				int slot = readySlots[index];
 				PetRule rule = readyRules[index];
+				PetAbilityRule ability = readyAbilities[index];
 				LivingEntity target = selectBeeSwarmTarget(prioritizedTargets, claimedTargetIds);
 				if (target == null) {
 					break;
 				}
-				if (!startBeeSwarm(player, slot, target, rule, gameplayTicks)) {
+				if (!startBeeSwarm(player, slot, target, rule, ability, gameplayTicks)) {
 					continue;
 				}
 				claimedTargetIds.add(target.getUUID());
-				setSlotCooldown(player.getUUID(), slot, gameplayTicks + rule.cooldownTicks);
+				setAbilityCooldown(player.getUUID(), slot, ability.abilityType, gameplayTicks + ability.cooldownTicks);
 			}
 		}
 
@@ -728,8 +774,8 @@ public final class PetAbilitiesManager {
 			return target.distanceToSqr(player) <= (BEE_SWARM_SCAN_RADIUS * BEE_SWARM_SCAN_RADIUS);
 		}
 
-			private static boolean startBeeSwarm(ServerPlayer player, int slot, LivingEntity target, PetRule rule, long gameplayTicks) {
-			if (player == null || target == null || rule == null || !rule.hasAbility(PET_ABILITY_BEE_SWARM) || !(player.level() instanceof ServerLevel level)) {
+		private static boolean startBeeSwarm(ServerPlayer player, int slot, LivingEntity target, PetRule rule, PetAbilityRule ability, long gameplayTicks) {
+			if (player == null || target == null || rule == null || ability == null || !PET_ABILITY_BEE_SWARM.equals(ability.abilityType) || !(player.level() instanceof ServerLevel level)) {
 				return false;
 			}
 			if (!isValidBeeSwarmTarget(player, target)) {
@@ -737,7 +783,7 @@ public final class PetAbilitiesManager {
 			}
 
 			Vec3 startPosition = resolveBeeSwarmOrbitPosition(target, player.getRandom().nextDouble() * Math.PI * 2.0D, BEE_SWARM_ORBIT_RADIUS_BASE, 0.05D);
-			emitBeeSwarmLaunch(level, startPosition, rule.resolveSoundEvent(), Math.max(0.12F, rule.soundVolumeMultiplier), 1.2F);
+			emitBeeSwarmLaunch(level, startPosition, rule.resolveSoundEvent(ability.abilityType), Math.max(0.12F, ability.soundVolumeMultiplier), 1.2F);
 			ACTIVE_BEE_SWARMS.put(
 				beeSwarmKey(player.getUUID(), slot),
 
@@ -794,64 +840,38 @@ public final class PetAbilitiesManager {
 			return count;
 		}
 
-			private static long synchronizeSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long gameplayTicks) {
+		private static long synchronizeSharedAbilityCooldown(UUID playerId, String abilityType, int[] slots, int slotCount, long gameplayTicks) {
 			if (playerId == null || slots == null || slotCount <= 0) {
-				return 0L;
-			}
-
-			long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
-			if (cooldowns == null) {
 				return 0L;
 			}
 
 			long sharedCooldownTick = 0L;
 			for (int index = 0; index < slotCount; index++) {
 				int slot = slots[index];
-				if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length)) {
-					continue;
-				}
-				sharedCooldownTick = Math.max(sharedCooldownTick, cooldowns[slot]);
+				if (slot >= 0 && slot < SLOT_COUNT) sharedCooldownTick = Math.max(sharedCooldownTick, abilityCooldown(playerId, slot, abilityType));
 			}
 			if (sharedCooldownTick > 0L && sharedCooldownTick <= gameplayTicks) {
 				sharedCooldownTick = 0L;
 			}
 
-			boolean changed = false;
 			for (int index = 0; index < slotCount; index++) {
 				int slot = slots[index];
-				if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == sharedCooldownTick) {
-					continue;
+				if (slot >= 0 && slot < SLOT_COUNT && abilityCooldown(playerId, slot, abilityType) != sharedCooldownTick) {
+					setAbilityCooldown(playerId, slot, abilityType, sharedCooldownTick);
 				}
-				cooldowns[slot] = sharedCooldownTick;
-				changed = true;
-			}
-			if (changed) {
-				if (!hasNonZeroCooldown(cooldowns)) {
-					PLAYER_SLOT_COOLDOWNS.remove(playerId);
-				}
-				PetHudManager.markAbilityHudDirty(playerId);
 			}
 			return sharedCooldownTick;
 		}
 
-			private static void setSharedAbilityCooldown(UUID playerId, int[] slots, int slotCount, long cooldownTick) {
+		private static void setSharedAbilityCooldown(UUID playerId, String abilityType, int[] slots, int slotCount, long cooldownTick) {
 			if (playerId == null || slots == null || slotCount <= 0) {
 				return;
 			}
 
-			long[] cooldowns = slotCooldowns(playerId);
 			long normalizedCooldownTick = Math.max(0L, cooldownTick);
-			boolean changed = false;
 			for (int index = 0; index < slotCount; index++) {
 				int slot = slots[index];
-				if (slot < 0 || slot >= Math.min(SLOT_COUNT, cooldowns.length) || cooldowns[slot] == normalizedCooldownTick) {
-					continue;
-				}
-				cooldowns[slot] = normalizedCooldownTick;
-				changed = true;
-			}
-			if (changed) {
-				PetHudManager.markAbilityHudDirty(playerId);
+				if (slot >= 0 && slot < SLOT_COUNT) setAbilityCooldown(playerId, slot, abilityType, normalizedCooldownTick);
 			}
 		}
 
@@ -884,7 +904,9 @@ public final class PetAbilitiesManager {
 
 			ItemStack stack = inventory.getItem(slot);
 			PetRule rule = PetConfigManager.resolvePetRule(stack);
-			if (rule == null || !rule.canPerformReactiveAttack() || !canPetSlotShoot(player, slot, context.getNowTick(), stack)) {
+			String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(payload, FIELD_ABILITY_ID, ""));
+			PetAbilityRule ability = rule == null ? null : rule.ability(abilityType);
+			if (rule == null || ability == null || !ability.canPerformReactiveAttack() || !isAbilityOffCooldown(player, slot, ability.abilityType, context.getNowTick())) {
 				return;
 			}
 
@@ -900,34 +922,34 @@ public final class PetAbilitiesManager {
 				PetConfigManager.getDouble(payload, FIELD_SPAWN_Y, player.getEyeY()),
 				PetConfigManager.getDouble(payload, FIELD_SPAWN_Z, player.getZ())
 			);
-			if (spawnPetReactiveAttack(player, target, spawnPosition, rule)) {
-				setSlotCooldown(playerId, slot, context.getNowTick() + rule.cooldownTicks);
+			if (spawnPetReactiveAttack(player, target, spawnPosition, rule, ability)) {
+				setAbilityCooldown(playerId, slot, ability.abilityType, context.getNowTick() + ability.cooldownTicks);
 			}
 		}
 
-			private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule) {
-			if (player == null || target == null || spawnPosition == null || rule == null || !player.isAlive() || !target.isAlive()) {
+			private static boolean spawnPetReactiveAttack(ServerPlayer player, LivingEntity target, Vec3 spawnPosition, PetRule rule, PetAbilityRule ability) {
+			if (player == null || target == null || spawnPosition == null || rule == null || ability == null || !player.isAlive() || !target.isAlive()) {
 				return false;
 			}
 
-			SoundEvent soundEvent = rule.resolveSoundEvent();
-			float soundVolume = Math.max(0.4F, rule.soundVolumeMultiplier);
+			SoundEvent soundEvent = rule.resolveSoundEvent(ability.abilityType);
+			float soundVolume = Math.max(0.4F, ability.soundVolumeMultiplier);
 			float soundPitch = 1.0F / (player.getRandom().nextFloat() * 0.4F + 0.8F);
 			boolean spawned;
-			String projectileAbility = rule.reactiveProjectileAbility();
+			String projectileAbility = ability.abilityType;
 			if (PET_ABILITY_RANGED_HOMING_ARROW.equals(projectileAbility)) {
-				spawned = MobEntityManager.spawnManagedHomingArrow(player, target, spawnPosition, rule.attackSpeed, rule.attackDamage);
+				spawned = MobEntityManager.spawnManagedHomingArrow(player, target, spawnPosition, ability.attackSpeed, ability.attackDamage);
 			} else if (PET_ABILITY_WEB_PROJECTILE.equals(projectileAbility)) {
-				spawned = spawnManagedWebProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
+				spawned = spawnManagedWebProjectile(player, target, spawnPosition, ability, soundEvent, soundVolume, soundPitch);
 			} else if (PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(projectileAbility)) {
-				spawned = spawnManagedExplosiveProjectile(player, target, spawnPosition, rule, soundEvent, soundVolume, soundPitch);
+				spawned = spawnManagedExplosiveProjectile(player, target, spawnPosition, ability, soundEvent, soundVolume, soundPitch);
 			} else {
 				spawned = false;
 			}
 			if (!spawned) {
 				return false;
 			}
-			if (!(PET_ABILITY_WEB_PROJECTILE.equals(rule.abilityType) || PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(rule.abilityType))
+			if (!(PET_ABILITY_WEB_PROJECTILE.equals(ability.abilityType) || PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(ability.abilityType))
 				&& player.level() instanceof ServerLevel level) {
 				level.playSound(null, spawnPosition.x, spawnPosition.y, spawnPosition.z, soundEvent, SoundSource.HOSTILE, soundVolume, soundPitch);
 			}
@@ -935,16 +957,16 @@ public final class PetAbilitiesManager {
 			return true;
 		}
 
-			private static boolean spawnManagedWebProjectile(
+		private static boolean spawnManagedWebProjectile(
 			ServerPlayer player,
 			LivingEntity target,
 			Vec3 spawnPosition,
-			PetRule rule,
+			PetAbilityRule ability,
 			SoundEvent soundEvent,
 			float soundVolume,
 			float soundPitch
 		) {
-			if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+			if (player == null || target == null || spawnPosition == null || ability == null || !(player.level() instanceof ServerLevel level)) {
 				return false;
 			}
 			Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
@@ -957,25 +979,28 @@ public final class PetAbilitiesManager {
 					player.getUUID(),
 					target.getUUID(),
 					initialPosition,
-					Math.max(WEB_PROJECTILE_MIN_SPEED, rule.attackSpeed),
-					Math.max(0.0F, rule.attackDamage),
-					(int) Math.max(0L, rule.effectDurationTicks),
+					Math.max(WEB_PROJECTILE_MIN_SPEED, ability.attackSpeed),
+					Math.max(0.0F, ability.attackDamage),
+					(int) Math.max(0L, ability.effectDurationTicks),
+					(int) Math.max(0L, ability.stunDurationTicks),
+					(int) Math.max(0L, ability.slowDurationTicks),
+					(float) Math.max(0.0D, Math.min(1.0D, ability.slowPercentage)),
 					WEB_PROJECTILE_LIFETIME_TICKS
 				)
 			);
 			return true;
 		}
 
-			private static boolean spawnManagedExplosiveProjectile(
+		private static boolean spawnManagedExplosiveProjectile(
 			ServerPlayer player,
 			LivingEntity target,
 			Vec3 spawnPosition,
-			PetRule rule,
+			PetAbilityRule ability,
 			SoundEvent soundEvent,
 			float soundVolume,
 			float soundPitch
 		) {
-			if (player == null || target == null || spawnPosition == null || rule == null || !(player.level() instanceof ServerLevel level)) {
+			if (player == null || target == null || spawnPosition == null || ability == null || !(player.level() instanceof ServerLevel level)) {
 				return false;
 			}
 			Vec3 initialPosition = new Vec3(spawnPosition.x, spawnPosition.y, spawnPosition.z);
@@ -988,9 +1013,9 @@ public final class PetAbilitiesManager {
 					player.getUUID(),
 					target.getUUID(),
 					initialPosition,
-					Math.max(EXPLOSIVE_PROJECTILE_MIN_SPEED, rule.attackSpeed),
-					Math.max(0.0F, rule.attackDamage),
-					Math.max(0.5F, rule.explosionRadius),
+					Math.max(EXPLOSIVE_PROJECTILE_MIN_SPEED, ability.attackSpeed),
+					Math.max(0.0F, ability.attackDamage),
+					Math.max(0.5F, ability.explosionRadius),
 					EXPLOSIVE_PROJECTILE_LIFETIME_TICKS
 				)
 			);
@@ -1022,7 +1047,7 @@ public final class PetAbilitiesManager {
 				Vec3 toTarget = targetPosition.subtract(state.position);
 				double distance = toTarget.length();
 				if (distance <= 1.0E-6D) {
-					applyWebProjectileHit(level, owner, target, targetPosition, state.damage, state.effectDurationTicks);
+					applyWebProjectileHit(level, owner, target, targetPosition, state);
 					ACTIVE_WEB_PROJECTILES.remove(projectileId);
 					continue;
 				}
@@ -1031,7 +1056,7 @@ public final class PetAbilitiesManager {
 				Vec3 nextPosition = state.position.add(toTarget.normalize().scale(step));
 				emitWebProjectileTrail(level, state.position, nextPosition);
 				if (nextPosition.distanceTo(targetPosition) <= WEB_PROJECTILE_HIT_DISTANCE) {
-					applyWebProjectileHit(level, owner, target, targetPosition, state.damage, state.effectDurationTicks);
+					applyWebProjectileHit(level, owner, target, targetPosition, state);
 					ACTIVE_WEB_PROJECTILES.remove(projectileId);
 					continue;
 				}
@@ -1047,6 +1072,9 @@ public final class PetAbilitiesManager {
 						state.speed,
 						state.damage,
 						state.effectDurationTicks,
+						state.stunDurationTicks,
+						state.slowDurationTicks,
+						state.slowPercentage,
 						state.remainingTicks - 1
 					)
 				);
@@ -1236,7 +1264,8 @@ public final class PetAbilitiesManager {
 					continue;
 				}
 				PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(state.slot));
-				if (rule == null || !rule.enabled || !PET_ABILITY_BEE_SWARM.equals(rule.abilityType)) {
+				PetAbilityRule ability = rule == null ? null : rule.ability(PET_ABILITY_BEE_SWARM);
+				if (rule == null || !rule.enabled || ability == null) {
 					ACTIVE_BEE_SWARMS.remove(swarmKey);
 					continue;
 				}
@@ -1294,7 +1323,7 @@ public final class PetAbilitiesManager {
 
 				long nextDamageTick = state.nextDamageTick;
 				if (gameplayTicks >= nextDamageTick) {
-					float damage = Math.max(0.0F, rule.attackDamage > 0.0F ? rule.attackDamage : BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND);
+					float damage = Math.max(0.0F, ability.attackDamage > 0.0F ? ability.attackDamage : BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND);
 					if (damage > 0.0F) {
 						resetDamageImmunity(target);
 						target.hurtServer(level, owner.damageSources().generic(), damage);
@@ -1532,27 +1561,34 @@ public final class PetAbilitiesManager {
 			level.sendParticles(ParticleTypes.FLAME, position.x, position.y, position.z, 8, spread, spread * 0.5D, spread, 0.01D);
 		}
 
-			private static void applyWebProjectileHit(ServerLevel level, ServerPlayer owner, LivingEntity target, Vec3 position, float damage, int effectDurationTicks) {
+		private static void applyWebProjectileHit(ServerLevel level, ServerPlayer owner, LivingEntity target, Vec3 position, WebProjectileState projectileState) {
 			emitWebProjectileImpact(level, position);
-			if (owner == null || target == null || !target.isAlive()) {
+			if (owner == null || target == null || projectileState == null || !target.isAlive()) {
 				return;
 			}
 
 			target.setDeltaMovement(Vec3.ZERO);
-			if (damage > 0.0F) {
-				target.hurtServer(level, owner.damageSources().generic(), damage);
+			if (projectileState.damage > 0.0F) {
+				target.hurtServer(level, owner.damageSources().generic(), projectileState.damage);
 				target.setDeltaMovement(Vec3.ZERO);
 			}
-			if (effectDurationTicks > 0) {
-				MobEffectInstance existingSlow = target.getEffect(MobEffects.SLOWNESS);
-				int stackedDurationTicks = effectDurationTicks;
-				int amplifier = WEB_PROJECTILE_SLOW_AMPLIFIER;
-				if (existingSlow != null) {
-					stackedDurationTicks += Math.max(0, existingSlow.getDuration());
-					amplifier = Math.max(amplifier, existingSlow.getAmplifier());
-				}
-				target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, stackedDurationTicks, amplifier), owner);
-			}
+
+			long now = MadokuTimeManager.getGameplayTicks();
+		WebControlState existing = ACTIVE_WEB_CONTROLS.get(target.getUUID());
+		int additionalHits = existing != null && now < existing.slowUntilTick ? existing.hitCount : 0;
+		long stunDuration = Math.max(0L, projectileState.stunDurationTicks) + (additionalHits * 20L);
+		long slowDuration = Math.max(0L, projectileState.slowDurationTicks) + (additionalHits * 80L);
+		long stunUntil = now + stunDuration;
+		long slowUntil = stunUntil + slowDuration;
+		ACTIVE_WEB_CONTROLS.put(
+			target.getUUID(),
+			new WebControlState(
+				stunUntil,
+				slowUntil,
+				(float) Math.max(0.0D, Math.min(1.0D, projectileState.slowPercentage)),
+				additionalHits + 1
+			)
+		);
 			if (target instanceof Mob mob) {
 				mob.getNavigation().stop();
 			}
@@ -1634,7 +1670,7 @@ public final class PetAbilitiesManager {
 			entity.hurtTime = 0;
 		}
 
-			private static Vec3 resolveRangedAttackSpawn(ServerPlayer player, int index, int count, PetRule rule) {
+		private static Vec3 resolveRangedAttackSpawn(ServerPlayer player, int index, int count, PetAbilityRule ability) {
 			Vec3 forward = player.getLookAngle();
 			forward = new Vec3(forward.x, 0.0D, forward.z);
 			if (forward.lengthSqr() <= 1.0E-6D) {
@@ -1645,26 +1681,26 @@ public final class PetAbilitiesManager {
 
 			Vec3 back = forward.scale(-1.0D);
 			Vec3 right = new Vec3(forward.z, 0.0D, -forward.x);
-			double angleRadians = Math.toRadians(resolveShotArcAngle(index, count, rule));
-			double lateralOffset = Math.sin(angleRadians) * rule.attackLateralRadius;
-			double rearOffset = rule.attackRearOffset + Math.cos(angleRadians) * rule.attackRearSpread;
+			double angleRadians = Math.toRadians(resolveShotArcAngle(index, count, ability));
+			double lateralOffset = Math.sin(angleRadians) * ability.attackLateralRadius;
+			double rearOffset = ability.attackRearOffset + Math.cos(angleRadians) * ability.attackRearSpread;
 			return player.getEyePosition()
 				.add(back.scale(rearOffset))
 				.add(right.scale(lateralOffset))
-				.add(0.0D, rule.attackVerticalOffset, 0.0D);
+				.add(0.0D, ability.attackVerticalOffset, 0.0D);
 		}
 
-			private static double resolveShotArcAngle(int index, int count, PetRule rule) {
+		private static double resolveShotArcAngle(int index, int count, PetAbilityRule ability) {
 			int clampedCount = Math.max(1, Math.min(SLOT_COUNT, count));
 			if (clampedCount == 1) {
 				return 0.0D;
 			}
 
 			double centeringOffset = (clampedCount - 1) * 0.5D;
-			return (index - centeringOffset) * Math.max(0.0D, rule.attackArcStepDegrees);
+			return (index - centeringOffset) * Math.max(0.0D, ability.attackArcStepDegrees);
 		}
 
-			private static void enqueueDelayedPetAttack(ServerPlayer player, int slot, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
+		private static void enqueueDelayedPetAttack(ServerPlayer player, int slot, String abilityType, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
 			MinecraftServer server = player == null ? null : player.level().getServer();
 			if (server == null || player == null || target == null || spawnPosition == null) {
 				return;
@@ -1672,13 +1708,13 @@ public final class PetAbilitiesManager {
 
 			UUID playerId = player.getUUID();
 			String schedulerId = ensureSchedulerExists(playerId);
-			if (enqueuePetAttackTask(schedulerId, slot, target, spawnPosition, delayTicks)) {
+			if (enqueuePetAttackTask(schedulerId, slot, abilityType, target, spawnPosition, delayTicks)) {
 				return;
 			}
 
 			String created = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
 			PLAYER_SCHEDULER_IDS.put(playerId, created);
-			if (!enqueuePetAttackTask(created, slot, target, spawnPosition, delayTicks)) {
+			if (!enqueuePetAttackTask(created, slot, abilityType, target, spawnPosition, delayTicks)) {
 				LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
 			}
 		}
@@ -1692,13 +1728,14 @@ public final class PetAbilitiesManager {
 			return schedulerId;
 		}
 
-			private static boolean enqueuePetAttackTask(String schedulerId, int slot, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
+		private static boolean enqueuePetAttackTask(String schedulerId, int slot, String abilityType, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
 			if (schedulerId == null || schedulerId.isBlank() || target == null || spawnPosition == null) {
 				return false;
 			}
 
 			JsonObject payload = madoku.craft.api.json.JSONFormatManager.object()
 				.put(FIELD_SLOT, slot)
+				.put(FIELD_ABILITY_ID, abilityType)
 				.put(FIELD_TARGET_UUID, target.getUUID().toString())
 				.put(FIELD_SPAWN_X, spawnPosition.x)
 				.put(FIELD_SPAWN_Y, spawnPosition.y)
@@ -1714,28 +1751,14 @@ public final class PetAbilitiesManager {
 			return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED;
 		}
 
-			private static boolean canPetSlotShoot(ServerPlayer player, int slot, long gameplayTicks, ItemStack stack) {
-			if (player == null || slot < 0 || slot >= SLOT_COUNT) {
-				return false;
-			}
-			PetRule rule = PetConfigManager.resolvePetRule(stack);
-			if (!PetConfigManager.isValidPet(stack) || rule == null || !rule.canPerformReactiveAttack()) {
-				return false;
-			}
-			return isPetSlotOffCooldown(player, slot, gameplayTicks);
+		static boolean isAbilityOffCooldown(ServerPlayer player, int slot, String abilityType, long gameplayTicks) {
+			if (player == null || slot < 0 || slot >= SLOT_COUNT || abilityType == null || abilityType.isBlank()) return false;
+			return gameplayTicks >= abilityCooldown(player.getUUID(), slot, abilityType);
 		}
 
-			static boolean isPetSlotOffCooldown(ServerPlayer player, int slot, long gameplayTicks) {
-
-			if (player == null || slot < 0 || slot >= SLOT_COUNT) {
-				return false;
-			}
-			return gameplayTicks >= slotCooldowns(player.getUUID())[slot];
-		}
-
-			static void clearSlotCooldowns(UUID playerId) {
+		static void clearSlotCooldowns(UUID playerId) {
 			if (playerId != null) {
-				PLAYER_SLOT_COOLDOWNS.remove(playerId);
+				PLAYER_ABILITY_COOLDOWNS.remove(playerId);
 				PetHudManager.markAbilityHudDirty(playerId);
 			}
 		}
@@ -1752,35 +1775,35 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			static void setSlotCooldown(UUID playerId, int slot, long cooldownTick) {
-			if (playerId == null || slot < 0 || slot >= SLOT_COUNT) {
-				return;
-			}
-			slotCooldowns(playerId)[slot] = Math.max(0L, cooldownTick);
+		static void setAbilityCooldown(UUID playerId, int slot, String abilityType, long cooldownTick) {
+			if (playerId == null || slot < 0 || slot >= SLOT_COUNT || abilityType == null || abilityType.isBlank()) return;
+			PLAYER_ABILITY_COOLDOWNS
+				.computeIfAbsent(playerId, ignored -> new HashMap<>())
+				.computeIfAbsent(slot, ignored -> new HashMap<>())
+				.put(PetConfigManager.normalizeAbilityId(abilityType), Math.max(0L, cooldownTick));
 			PetHudManager.markAbilityHudDirty(playerId);
 		}
 
-			private static long[] slotCooldowns(UUID playerId) {
-			return PLAYER_SLOT_COOLDOWNS.computeIfAbsent(playerId, ignored -> new long[SLOT_COUNT]);
+		private static long abilityCooldown(UUID playerId, int slot, String abilityType) {
+			Map<Integer, Map<String, Long>> playerCooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
+			Map<String, Long> slotCooldowns = playerCooldowns == null ? null : playerCooldowns.get(slot);
+			return slotCooldowns == null ? 0L : slotCooldowns.getOrDefault(PetConfigManager.normalizeAbilityId(abilityType), 0L);
 		}
 
-			static void pruneCooldowns(UUID playerId, PetInventory inventory) {
+		static void pruneCooldowns(UUID playerId, PetInventory inventory) {
 			if (playerId == null || inventory == null) {
 				return;
 			}
-			long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
-
-			if (cooldowns == null) {
-				return;
-			}
+			Map<Integer, Map<String, Long>> cooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
 			long gameplayTicks = MadokuTimeManager.getGameplayTicks();
-			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
-				if (cooldowns[slot] > 0L && cooldowns[slot] <= gameplayTicks) {
-					cooldowns[slot] = 0L;
+			if (cooldowns != null) {
+				for (Map<String, Long> slotCooldowns : cooldowns.values()) {
+					if (slotCooldowns != null) {
+						slotCooldowns.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue() <= gameplayTicks);
+					}
 				}
-			}
-			if (!hasNonZeroCooldown(cooldowns)) {
-				PLAYER_SLOT_COOLDOWNS.remove(playerId);
+				cooldowns.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+				if (cooldowns.isEmpty()) PLAYER_ABILITY_COOLDOWNS.remove(playerId);
 			}
 			PetHudManager.markAbilityHudDirty(playerId);
 		}
@@ -1791,70 +1814,60 @@ public final class PetAbilitiesManager {
 				return remaining;
 			}
 
-			long[] cooldowns = PLAYER_SLOT_COOLDOWNS.get(playerId);
-			if (cooldowns == null) {
-				return remaining;
-			}
-
 			long now = MadokuTimeManager.getGameplayTicks();
-			for (int slot = 0; slot < Math.min(SLOT_COUNT, cooldowns.length); slot++) {
-				remaining[slot] = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldowns[slot] - now));
+			Map<Integer, Map<String, Long>> cooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
+			if (cooldowns == null) return remaining;
+			for (Map.Entry<Integer, Map<String, Long>> slotEntry : cooldowns.entrySet()) {
+				int slot = slotEntry.getKey();
+				if (slot < 0 || slot >= remaining.length) continue;
+				for (long cooldown : slotEntry.getValue().values()) {
+					remaining[slot] = Math.max(remaining[slot], (int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown - now)));
+				}
 			}
 			return remaining;
 		}
 
-			static JsonObject toPersistedData() {
+		static JsonObject toPersistedData() {
 			madoku.craft.api.json.JSONFormatManager.ArrayBuilder cooldowns = madoku.craft.api.json.JSONFormatManager.array();
-			for (Map.Entry<UUID, long[]> entry : PLAYER_SLOT_COOLDOWNS.entrySet()) {
-				if (entry.getKey() == null || !hasNonZeroCooldown(entry.getValue())) {
-					continue;
+			for (Map.Entry<UUID, Map<Integer, Map<String, Long>>> playerEntry : PLAYER_ABILITY_COOLDOWNS.entrySet()) {
+				if (playerEntry.getKey() == null) continue;
+				for (Map.Entry<Integer, Map<String, Long>> slotEntry : playerEntry.getValue().entrySet()) {
+					for (Map.Entry<String, Long> abilityEntry : slotEntry.getValue().entrySet()) {
+						if (abilityEntry.getValue() == null || abilityEntry.getValue() <= 0L) continue;
+						cooldowns.object(playerCooldown -> playerCooldown
+							.put("uuid", playerEntry.getKey().toString())
+							.put("slot", slotEntry.getKey())
+							.put("ability-id", abilityEntry.getKey())
+							.put("cooldown", abilityEntry.getValue()));
+					}
 				}
-				long[] source = entry.getValue();
-				madoku.craft.api.json.JSONFormatManager.ArrayBuilder values = madoku.craft.api.json.JSONFormatManager.array();
-				for (int slot = 0; slot < SLOT_COUNT; slot++) {
-					values.add(slot < source.length ? Math.max(0L, source[slot]) : 0L);
-				}
-				cooldowns.object(playerCooldowns -> playerCooldowns
-					.put("uuid", entry.getKey().toString())
-					.put("cooldowns", values.build()));
 			}
 			return madoku.craft.api.json.JSONFormatManager.object()
 
-				.put("slot-cooldowns", cooldowns.build())
+				.put("ability-cooldowns", cooldowns.build())
 				.build();
 		}
 
 			static void applyPersistedData(JsonObject source) {
 			PLAYER_SCHEDULER_IDS.clear();
 
-			PLAYER_SLOT_COOLDOWNS.clear();
+			PLAYER_ABILITY_COOLDOWNS.clear();
 			if (source == null) {
 				return;
 			}
 
-			JsonArray slotCooldowns = getArray(source, "slot-cooldowns");
-			if (slotCooldowns == null) {
-				return;
-			}
-			for (JsonElement element : slotCooldowns) {
+			JsonArray abilityCooldowns = getArray(source, "ability-cooldowns");
+			if (abilityCooldowns != null) for (JsonElement element : abilityCooldowns) {
 				if (!element.isJsonObject()) {
 					continue;
 				}
 				JsonObject cooldownData = element.getAsJsonObject();
 				UUID playerId = parseUuid(PetConfigManager.getString(cooldownData, "uuid", ""));
-				JsonArray cooldownValues = getArray(cooldownData, "cooldowns");
-				if (playerId == null || cooldownValues == null) {
-					continue;
-				}
-				long[] cooldowns = new long[SLOT_COUNT];
-				for (int slot = 0; slot < Math.min(SLOT_COUNT, cooldownValues.size()); slot++) {
-					JsonElement cooldownElement = cooldownValues.get(slot);
-					if (cooldownElement != null && cooldownElement.isJsonPrimitive() && cooldownElement.getAsJsonPrimitive().isNumber()) {
-						cooldowns[slot] = Math.max(0L, cooldownElement.getAsLong());
-					}
-				}
-				if (hasNonZeroCooldown(cooldowns)) {
-					PLAYER_SLOT_COOLDOWNS.put(playerId, cooldowns);
+				int slot = PetConfigManager.getInt(cooldownData, "slot", -1);
+				String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(cooldownData, "ability-id", ""));
+				long cooldown = Math.max(0L, PetConfigManager.getLong(cooldownData, "cooldown", 0L));
+				if (playerId != null && slot >= 0 && slot < SLOT_COUNT && !abilityType.isBlank() && cooldown > 0L) {
+					setAbilityCooldown(playerId, slot, abilityType, cooldown);
 				}
 			}
 		}
@@ -1865,18 +1878,6 @@ public final class PetAbilitiesManager {
 			}
 			return source.getAsJsonArray(key);
 		}
-
-	private static boolean hasNonZeroCooldown(long[] cooldowns) {
-			if (cooldowns == null) {
-				return false;
-			}
-			for (long cooldown : cooldowns) {
-				if (cooldown > 0L) {
-					return true;
-				}
-			}
-		return false;
-	}
 
 	private static PetInventory petInventory(Player player) {
 		return PetComponentsManager.petInventory(player);
@@ -1894,7 +1895,17 @@ public final class PetAbilitiesManager {
 		double speed,
 		float damage,
 		int effectDurationTicks,
+		int stunDurationTicks,
+		int slowDurationTicks,
+		float slowPercentage,
 		int remainingTicks
+	) {}
+
+	private record WebControlState(
+		long stunUntilTick,
+		long slowUntilTick,
+		float slowPercentage,
+		int hitCount
 	) {}
 
 	private record ExplosiveProjectileState(
@@ -1940,6 +1951,8 @@ public final class PetAbilitiesManager {
 			super.onHit(hitResult);
 		}
 	}
+
+	private record ReadyReactiveAttack(int slot, PetRule rule, PetAbilityRule ability) {}
 
 	private record BeeSwarmState(
 		UUID ownerUuid,

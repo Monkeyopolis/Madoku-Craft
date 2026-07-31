@@ -59,8 +59,9 @@ public final class PetHudManager {
 		for (String description : rule.abilityDescriptions()) {
 			lines.add(Component.literal(description).withStyle(ChatFormatting.GOLD));
 		}
-		String cooldownDescription = rule.cooldownDescription(PetAbilitiesManager.cooldownTicks(stack));
-		if (!cooldownDescription.isBlank()) lines.add(Component.literal(cooldownDescription).withStyle(ChatFormatting.GRAY));
+		for (String cooldownDescription : rule.cooldownDescriptions()) {
+			lines.add(Component.literal(cooldownDescription).withStyle(ChatFormatting.GRAY));
+		}
 		if (!lines.isEmpty()) stack.set(DataComponents.LORE, new ItemLore(lines));
 	}
 

@@ -21,6 +21,7 @@ import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -94,13 +95,23 @@ public class Hag extends Witch implements Merchant {
 			return;
 		}
 		if (this.tradingPlayer != null) {
-			this.getNavigation().stop();
+			this.stopInPlace();
 			this.setTarget(null);
 		}
 		super.customServerAiStep(level);
 		if (this.tradingPlayer != null) {
-			this.getNavigation().stop();
+			this.stopInPlace();
 		}
+	}
+
+	@Override
+	public void travel(Vec3 travelVector) {
+		if (this.tradingPlayer != null) {
+			this.stopInPlace();
+			this.setDeltaMovement(Vec3.ZERO);
+			return;
+		}
+		super.travel(travelVector);
 	}
 
 	@Override
