@@ -451,6 +451,7 @@ public final class PetConfigManager {
 			double resolvedSlowPercentage = slowPercentage;
 			String normalizedPetId = normalizePetId(petId);
 			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 1.0D);
 				resolvedStunDurationTicks += (Math.max(1, level) - 1) * 10L;
 				resolvedSlowDurationTicks += (Math.max(1, level) - 1) * 40L;
 				resolvedSlowPercentage += (Math.max(1, level) - 1) * 0.05D;
@@ -1075,7 +1076,7 @@ public final class PetConfigManager {
 					} else if (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(configuredAbility) && ability.damageBlockAmount > 0.0D) {
 						descriptions.add("Active: Blocks " + MadokuPetManager.formatAbilityAmount(ability.damageBlockAmount) + " incoming damage.");
 					} else if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(configuredAbility)) {
-						descriptions.add("Automatic: Periodically reveals nearby mobs.");
+						descriptions.add("Automatic: Reveals nearby mobs; they take 25% more damage.");
 					} else if (MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(configuredAbility) && ability.attackDamage > 0.0F) {
 						descriptions.add("Automatic: Swarms nearby hostile mobs for " + MadokuPetManager.formatAbilityAmount(ability.attackDamage) + " damage per hit.");
 					}

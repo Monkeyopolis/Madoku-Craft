@@ -15,12 +15,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityPetBehaviorMixin {
-	@Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$stopWebStunnedMovement(Vec3 travelVector, CallbackInfo ci) {
+	@Inject(method = "travel", at = @At("TAIL"))
+	private void madokuCraft$stopWebStunnedHorizontalMovement(Vec3 travelVector, CallbackInfo ci) {
 		LivingEntity entity = (LivingEntity) (Object) this;
 		if (PetAbilitiesManager.isWebStunned(entity)) {
-			entity.setDeltaMovement(Vec3.ZERO);
-			ci.cancel();
+			Vec3 movement = entity.getDeltaMovement();
+			entity.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
 		}
 	}
 

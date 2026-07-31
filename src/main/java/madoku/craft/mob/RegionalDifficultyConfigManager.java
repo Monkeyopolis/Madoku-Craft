@@ -43,7 +43,7 @@ public final class RegionalDifficultyConfigManager {
 	public static final double DEFAULT_FLYING_SPEED_INCREMENT = 0.0D;
 	public static final double DEFAULT_SCALE_INCREMENT = 0.0D;
 	public static final double DEFAULT_ARMOR_INCREMENT = 0.02D;
-	public static final double DEFAULT_DAMAGE_INCREMENT = 0.0D;
+	public static final double DEFAULT_DAMAGE_INCREMENT = 0.05D;
 	public static final double DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT = 0.02D;
 	public static final double DEFAULT_EXPERIENCE_DROP_INCREMENT = 0.10D;
 
@@ -166,7 +166,7 @@ public final class RegionalDifficultyConfigManager {
 				attackAccuracy = 0.02D;
 			}
 			case "wither-skeleton" -> {
-				rangedDamage = 0.01D;
+				rangedDamage = 0.05D;
 				attackAccuracy = 0.02D;
 			}
 			case "drowned" -> {

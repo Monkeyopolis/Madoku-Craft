@@ -14,7 +14,8 @@ public abstract class MobWebStunMixin {
 	private void madokuCraft$disableWebStunnedMobAi(CallbackInfo ci) {
 		Mob mob = (Mob) (Object) this;
 		if (PetAbilitiesManager.isWebStunned(mob)) {
-			mob.setDeltaMovement(Vec3.ZERO);
+			Vec3 movement = mob.getDeltaMovement();
+			mob.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
 			mob.getNavigation().stop();
 			ci.cancel();
 		}

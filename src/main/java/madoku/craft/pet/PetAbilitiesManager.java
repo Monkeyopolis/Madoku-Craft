@@ -84,6 +84,8 @@ public final class PetAbilitiesManager {
 	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
 	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 4;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
+	private static final float MOB_SCAN_DAMAGE_MULTIPLIER = 1.25F;
+	private static final String MOB_SCAN_VULNERABILITY_TAG = "madoku-craft.mob-scan-vulnerability";
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 10L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 5L * 20L;
 	private static final double BEE_SWARM_SCAN_RADIUS = 16.0D;
@@ -134,8 +136,22 @@ public final class PetAbilitiesManager {
 		}
 	}
 
+	public static float applyMobScanDamage(LivingEntity entity, float amount) {
+		if (entity == null || amount <= 0.0F) {
+			return amount;
+		}
+		if (!entity.entityTags().contains(MOB_SCAN_VULNERABILITY_TAG)) {
+			return amount;
+		}
+		if (!entity.hasEffect(MobEffects.GLOWING)) {
+			entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
+			return amount;
+		}
+		return amount * MOB_SCAN_DAMAGE_MULTIPLIER;
+	}
+
 	public static boolean isWebStunned(Entity entity) {
-		if (!(entity instanceof LivingEntity livingEntity)) {
+		if (!(entity instanceof LivingEntity livingEntity) || entity instanceof Player) {
 			return false;
 		}
 		WebControlState state = ACTIVE_WEB_CONTROLS.get(livingEntity.getUUID());
@@ -607,7 +623,8 @@ public final class PetAbilitiesManager {
 							&& !candidate.isRemoved()
 							&& !isManagedPet(candidate)
 							&& scanArea.intersects(candidate.getBoundingBox())
-					)) {
+						)) {
+						mob.addTag(MOB_SCAN_VULNERABILITY_TAG);
 						mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
 					}
 				}
@@ -1567,16 +1584,24 @@ public final class PetAbilitiesManager {
 				return;
 			}
 
-			target.setDeltaMovement(Vec3.ZERO);
+			if (!(target instanceof Player)) {
+				Vec3 movement = target.getDeltaMovement();
+				target.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
+			}
 			if (projectileState.damage > 0.0F) {
 				target.hurtServer(level, owner.damageSources().generic(), projectileState.damage);
-				target.setDeltaMovement(Vec3.ZERO);
+				if (!(target instanceof Player)) {
+					Vec3 movement = target.getDeltaMovement();
+					target.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
+				}
 			}
 
-			long now = MadokuTimeManager.getGameplayTicks();
+		long now = MadokuTimeManager.getGameplayTicks();
 		WebControlState existing = ACTIVE_WEB_CONTROLS.get(target.getUUID());
 		int additionalHits = existing != null && now < existing.slowUntilTick ? existing.hitCount : 0;
-		long stunDuration = Math.max(0L, projectileState.stunDurationTicks) + (additionalHits * 20L);
+		long stunDuration = target instanceof Player
+			? 0L
+			: Math.max(0L, projectileState.stunDurationTicks) + (additionalHits * 20L);
 		long slowDuration = Math.max(0L, projectileState.slowDurationTicks) + (additionalHits * 80L);
 		long stunUntil = now + stunDuration;
 		long slowUntil = stunUntil + slowDuration;
