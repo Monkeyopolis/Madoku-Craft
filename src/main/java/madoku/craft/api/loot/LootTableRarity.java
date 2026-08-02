@@ -1,8 +1,8 @@
-package madoku.craft.loot.system;
+package madoku.craft.api.loot;
 
 import java.util.Locale;
 
-public enum MadokuLootRarity {
+public enum LootTableRarity {
 	COMMON("common"),
 	RARE("rare"),
 	EPIC("epic"),
@@ -10,7 +10,7 @@ public enum MadokuLootRarity {
 
 	private final String id;
 
-	MadokuLootRarity(String id) {
+	LootTableRarity(String id) {
 		this.id = id;
 	}
 
@@ -18,12 +18,12 @@ public enum MadokuLootRarity {
 		return id;
 	}
 
-	public static MadokuLootRarity fromString(String value) {
+	public static LootTableRarity fromString(String value) {
 		if (value == null || value.isBlank()) {
 			return COMMON;
 		}
 		String normalized = value.trim().toLowerCase(Locale.ROOT);
-		for (MadokuLootRarity rarity : values()) {
+		for (LootTableRarity rarity : values()) {
 			if (rarity.id.equals(normalized)) {
 				return rarity;
 			}

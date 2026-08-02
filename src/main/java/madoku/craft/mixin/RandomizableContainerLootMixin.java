@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.loot.system.MadokuLootTableManager;
+import madoku.craft.api.loot.MadokuLootTableManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

@@ -1,7 +1,9 @@
-package madoku.craft.loot.system;
+package madoku.craft.api.loot;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
+
+import java.util.Locale;
 
 public final class LootTableConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
@@ -28,6 +30,18 @@ public final class LootTableConfigManager {
 	private LootTableConfigManager() {
 	}
 
+	public static void initialize() {
+		EntitiesConfigManager.initialize();
+		StructuresConfigManager.initialize();
+		EquipmentsConfigManager.initialize();
+	}
+
+	public static void reset() {
+		EntitiesConfigManager.reset();
+		StructuresConfigManager.reset();
+		EquipmentsConfigManager.reset();
+	}
+
 	public static JsonObject buildSettingsDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
@@ -37,6 +51,31 @@ public final class LootTableConfigManager {
 			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT, true)
 			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE, 10.0d)
 			.build();
+	}
+
+	static String fileKeyFromTableId(String tableId, String fallback) {
+		String normalized = tableId == null ? "" : tableId.trim().toLowerCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return fallback;
+		}
+		StringBuilder key = new StringBuilder(normalized.length() + 8);
+		boolean previousDash = false;
+		for (int index = 0; index < normalized.length(); index++) {
+			char value = normalized.charAt(index);
+			if (Character.isLetterOrDigit(value)) {
+				key.append(value);
+				previousDash = false;
+			} else if (!previousDash) {
+				key.append('-');
+				previousDash = true;
+			}
+		}
+		int start = 0;
+		while (start < key.length() && key.charAt(start) == '-') start++;
+		int end = key.length();
+		while (end > start && key.charAt(end - 1) == '-') end--;
+		String collapsed = key.substring(start, end);
+		return collapsed.isBlank() ? fallback : collapsed;
 	}
 }
 

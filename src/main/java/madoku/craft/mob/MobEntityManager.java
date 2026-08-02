@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.loot.system.EquipmentConfigManager;
+import madoku.craft.api.loot.EquipmentsConfigManager;
 import madoku.craft.mixin.CreeperAccessor;
 import madoku.craft.mixin.CreeperPoweredAccessor;
 import madoku.craft.pet.PetComponentsManager;
@@ -228,7 +228,7 @@ public final class MobEntityManager {
 	private static void applyConfiguredEquipmentAtVanillaSpawn(Mob mob, RandomSource random) {
 		if (mob == null || random == null || !MobConfigManager.isEnabled()
 			|| !shouldApplyConfiguredSpawnRulesForRuntime(mob)
-			|| !EquipmentConfigManager.isCustomEntityEquipmentEnabled()) {
+			|| !EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
 			return;
 		}
 		JsonObject variant = resolveConfiguredEntityVariantForRuntime(mob);
@@ -242,7 +242,7 @@ public final class MobEntityManager {
 			return;
 		}
 		String equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
-		EquipmentConfigManager.EquipmentProfile profile = EquipmentConfigManager.resolveProfile(equipmentReference, mob.getType());
+		EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, mob.getType());
 		if (profile == null || !profile.enabled()) {
 			return;
 		}
@@ -266,7 +266,7 @@ public final class MobEntityManager {
 
 		Map<EquipmentSlot, ItemStack> selected = new java.util.EnumMap<>(EquipmentSlot.class);
 		for (EquipmentSlot slot : slots) {
-			EquipmentConfigManager.WeightedArmorEntry item = selectWeightedArmorEntry(profile.slotEntries().get(slot), random);
+			EquipmentsConfigManager.WeightedArmorEntry item = selectWeightedArmorEntry(profile.slotEntries().get(slot), random);
 			if (item == null || item.item() == null) {
 				return;
 			}
@@ -278,15 +278,15 @@ public final class MobEntityManager {
 		}
 	}
 
-	private static EquipmentConfigManager.WeightedArmorEntry selectWeightedArmorEntry(
-		List<EquipmentConfigManager.WeightedArmorEntry> entries,
+	private static EquipmentsConfigManager.WeightedArmorEntry selectWeightedArmorEntry(
+		List<EquipmentsConfigManager.WeightedArmorEntry> entries,
 		RandomSource random
 	) {
 		if (entries == null || entries.isEmpty() || random == null) {
 			return null;
 		}
 		double totalWeight = 0.0D;
-		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+		for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
 			if (entry != null && entry.item() != null && entry.weight() > 0.0D) {
 				totalWeight += entry.weight();
 			}
@@ -295,7 +295,7 @@ public final class MobEntityManager {
 			return null;
 		}
 		double roll = random.nextDouble() * totalWeight;
-		for (EquipmentConfigManager.WeightedArmorEntry entry : entries) {
+		for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
 			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
 				continue;
 			}

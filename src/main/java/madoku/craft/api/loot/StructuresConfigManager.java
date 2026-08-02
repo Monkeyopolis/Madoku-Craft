@@ -1,4 +1,4 @@
-package madoku.craft.loot.system;
+package madoku.craft.api.loot;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -6,12 +6,14 @@ import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
-public final class LootTableConfigStructures {
-	private LootTableConfigStructures() {
+public final class StructuresConfigManager {
+	private StructuresConfigManager() {
 	}
+
+	public static void initialize() { }
+	public static void reset() { }
 
 	public static JsonObject buildStructureTableTemplate(String tableId) {
 		return JSONFormatManager.object()
@@ -102,63 +104,29 @@ public final class LootTableConfigStructures {
 
 	public static Map<String, JsonObject> buildDefaultStructureTableFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		put(defaults, "minecraft:structure_chests/abandoned_mineshaft", ConfigStructuresAbandonedMineshaft.buildDefaults());
-		put(defaults, "minecraft:structure_chests/ancient_city", ConfigStructuresAncientCity.buildDefaults());
-		put(defaults, "minecraft:structure_chests/bastion_remnant", ConfigStructuresBastionRemnant.buildDefaults());
-		put(defaults, "minecraft:structure_chests/buried_treasure", ConfigStructuresBuriedTreasure.buildDefaults());
-		put(defaults, "minecraft:structure_chests/desert_pyramid", ConfigStructuresDesertPyramid.buildDefaults());
-		put(defaults, "minecraft:structure_chests/dungeon", ConfigStructuresDungeon.buildDefaults());
-		put(defaults, "minecraft:structure_chests/end_city", ConfigStructuresEndCity.buildDefaults());
-		put(defaults, "minecraft:structure_chests/igloo", ConfigStructuresIgloo.buildDefaults());
-		put(defaults, "minecraft:structure_chests/jungle_temple", ConfigStructuresJungleTemple.buildDefaults());
-		put(defaults, "minecraft:structure_chests/nether_fortress", ConfigStructuresNetherFortress.buildDefaults());
-		put(defaults, "minecraft:structure_chests/ruined_portal", ConfigStructuresRuinedPortal.buildDefaults());
-		put(defaults, "minecraft:structure_chests/shipwreck", ConfigStructuresShipwreck.buildDefaults());
-		put(defaults, "minecraft:structure_chests/starter_chest", ConfigStructuresStarterChest.buildDefaults());
-		put(defaults, "minecraft:structure_chests/stronghold", ConfigStructuresStronghold.buildDefaults());
-		put(defaults, "minecraft:structure_chests/trial_chambers", ConfigStructuresTrialChambers.buildDefaults());
-		put(defaults, "minecraft:structure_chests/underwater_ruin", ConfigStructuresUnderwaterRuin.buildDefaults());
-		put(defaults, "minecraft:structure_chests/village", ConfigStructuresVillage.buildDefaults());
-		put(defaults, "minecraft:structure_chests/woodland_mansion", ConfigStructuresWoodlandMansion.buildDefaults());
+		String[] ids = {"abandoned_mineshaft", "ancient_city", "bastion_remnant", "buried_treasure", "desert_pyramid", "dungeon", "end_city", "igloo", "jungle_temple", "nether_fortress", "ruined_portal", "shipwreck", "starter_chest", "stronghold", "trial_chambers", "underwater_ruin", "village", "woodland_mansion"};
+		for (String id : ids) {
+			String tableId = "minecraft:structure_chests/" + id;
+			put(defaults, tableId, buildDefaultStructure(tableId));
+		}
 		return defaults;
+	}
+
+	private static JsonObject buildDefaultStructure(String tableId) {
+		return JSONFormatManager.object()
+			.putAll(buildStructureTable(tableId, 3, 7))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+				.add(group("common", 100, entries(item("minecraft:bread", 1, 2, 6), item("minecraft:baked_potato", 1, 2, 6))))
+				.add(group("rare", 75, entries(item("minecraft:emerald", 1, 1, 3))))
+				.add(group("epic", 50, entries(item("minecraft:coal", 42, 5, 7), item("minecraft:iron_ingot", 17, 3, 5), item("minecraft:gold_ingot", 10, 2, 4), item("minecraft:diamond", 3, 1, 3)))))
+			.build();
 	}
 
 	private static void put(Map<String, JsonObject> defaults, String tableId, JsonObject root) {
 		if (defaults == null || root == null || tableId == null || tableId.isBlank()) {
 			return;
 		}
-		defaults.put(fileKeyFromTableId(tableId), root);
-	}
-
-	private static String fileKeyFromTableId(String tableId) {
-		String normalized = tableId == null ? "" : tableId.trim().toLowerCase(Locale.ROOT);
-		if (normalized.isBlank()) {
-			return "structure-table";
-		}
-		StringBuilder key = new StringBuilder(normalized.length() + 8);
-		boolean previousDash = false;
-		for (int index = 0; index < normalized.length(); index++) {
-			char value = normalized.charAt(index);
-			if (Character.isLetterOrDigit(value)) {
-				key.append(value);
-				previousDash = false;
-				continue;
-			}
-			if (!previousDash) {
-				key.append('-');
-				previousDash = true;
-			}
-		}
-		int start = 0;
-		while (start < key.length() && key.charAt(start) == '-') {
-			start++;
-		}
-		int end = key.length();
-		while (end > start && key.charAt(end - 1) == '-') {
-			end--;
-		}
-		String collapsed = key.substring(start, end);
-		return collapsed.isBlank() ? "structure-table" : collapsed;
+		defaults.put(LootTableConfigManager.fileKeyFromTableId(tableId, "structure-table"), root);
 	}
 }
 

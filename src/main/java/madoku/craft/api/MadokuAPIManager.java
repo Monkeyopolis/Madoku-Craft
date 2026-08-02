@@ -8,6 +8,7 @@ import madoku.craft.api.data.MadokuDataManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.api.recipes.MadokuRecipesManager;
+import madoku.craft.api.loot.MadokuLootTableManager;
 
 import java.nio.file.Path;
 
@@ -27,6 +28,7 @@ public final class MadokuAPIManager {
 		MadokuSchedulerManager.initialize();
 		MadokuSyncManager.initialize();
 		MadokuRecipesManager.initialize();
+		MadokuLootTableManager.initialize();
 	}
 
 	public static Path getApiRootDirectory() {
@@ -42,6 +44,7 @@ public final class MadokuAPIManager {
 		MadokuSchedulerManager.reset();
 		MadokuSyncManager.reset();
 		MadokuRecipesManager.reset();
+		MadokuLootTableManager.reset();
 	}
 
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {

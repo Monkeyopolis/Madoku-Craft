@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.loot.system.MadokuLootTableManager;
+import madoku.craft.api.loot.MadokuLootTableManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootTable;

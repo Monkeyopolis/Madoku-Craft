@@ -1,4 +1,4 @@
-package madoku.craft.loot.system;
+package madoku.craft.api.loot;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -44,10 +44,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public final class MadokuLootTableEntities {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuLootTableEntities.class);
+public final class LootTableEntitiesManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(LootTableEntitiesManager.class);
 
-	private static final String LOOT_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-loot-tables";
+	private static final String LOOT_CONFIG_ROOT_FOLDER_NAME = MadokuLootTableManager.CONFIG_ROOT_FOLDER_NAME;
 	private static final String LOOT_CONFIG_SETTINGS_FILE_NAME = "madoku-loot-tables";
 	private static final String LOOT_CONFIG_TABLES_FOLDER_NAME = "madoku-entities";
 	private static final String ENTITY_LOOT_NAMESPACE = "minecraft";
@@ -55,18 +55,24 @@ public final class MadokuLootTableEntities {
 	private static final String GROUP_TAG_MADOKU_PETS = "madoku-pets";
 	private static final String GROUP_TAG_MADOKU_LUCK = "madoku-luck";
 	private static final String GROUP_TAG_MADOKU_RARITY = "madoku-rarity";
-	private static final long RELOAD_INTERVAL_MILLIS = 1_500L;
 
 	private static volatile Settings settings = Settings.defaults();
 	private static volatile Map<String, ManagedLootTable> tablesById = Map.of();
 	private static volatile Map<String, ManagedLootTable> tablesByFileKey = Map.of();
 	private static volatile long nextReloadAtMillis;
 
-	private MadokuLootTableEntities() {
+	private LootTableEntitiesManager() {
 	}
 
 	public static void initialize() {
-		reloadNow();
+		reloadNow(null);
+	}
+
+	public static void reset() {
+		settings = Settings.defaults();
+		tablesById = Map.of();
+		tablesByFileKey = Map.of();
+		nextReloadAtMillis = 0L;
 	}
 
 	public static boolean applyManagedLootTable(
@@ -80,7 +86,7 @@ public final class MadokuLootTableEntities {
 			return false;
 		}
 
-		reloadIfNeeded();
+		reloadIfNeeded(level.getServer());
 		Settings activeSettings = settings;
 		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
 			return false;
@@ -103,7 +109,8 @@ public final class MadokuLootTableEntities {
 			return null;
 		}
 
-		reloadIfNeeded();
+		ServerLevel contextLevel = lootContext.getLevel();
+		reloadIfNeeded(contextLevel == null ? null : contextLevel.getServer());
 		Settings activeSettings = settings;
 		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
 			return null;
@@ -150,7 +157,7 @@ public final class MadokuLootTableEntities {
 	}
 
 	public static List<ItemStack> generateManagedLootForReference(String configuredReference, ServerPlayer player, RandomSource random) {
-		reloadIfNeeded();
+		reloadIfNeeded(null);
 		Settings activeSettings = settings;
 		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
 			return null;
@@ -387,7 +394,7 @@ public final class MadokuLootTableEntities {
 	}
 
 	private static double resolveRarityLuckMultiplier(
-		MadokuLootRarity rarity,
+		LootTableRarity rarity,
 		double luckStat,
 		boolean luckActive,
 		Settings activeSettings
@@ -585,15 +592,15 @@ public final class MadokuLootTableEntities {
 		return null;
 	}
 
-	private static void reloadIfNeeded() {
+	private static void reloadIfNeeded(net.minecraft.server.MinecraftServer server) {
 		long now = System.currentTimeMillis();
 		if (now < nextReloadAtMillis) {
 			return;
 		}
-		reloadNow();
+		reloadNow(server);
 	}
 
-	private static synchronized void reloadNow() {
+	private static synchronized void reloadNow(net.minecraft.server.MinecraftServer server) {
 		long now = System.currentTimeMillis();
 		try {
 			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(LOOT_CONFIG_ROOT_FOLDER_NAME);
@@ -610,8 +617,8 @@ public final class MadokuLootTableEntities {
 				tablesDirectory,
 				staticDefaults,
 				ignored -> new JsonObject(),
-				MadokuLootTableEntities::isSupportedLootTableFile,
-				MadokuLootTableEntities::copyDynamicEntry
+				LootTableEntitiesManager::isSupportedLootTableFile,
+				LootTableEntitiesManager::copyDynamicEntry
 			);
 
 			Map<String, ManagedLootTable> resolvedTables = new HashMap<>();
@@ -635,7 +642,7 @@ public final class MadokuLootTableEntities {
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to reload Madoku loot tables; preserving last valid cache.", exception);
 		} finally {
-			nextReloadAtMillis = now + RELOAD_INTERVAL_MILLIS;
+			nextReloadAtMillis = now + MadokuLootTableManager.resolveReloadIntervalMillis(server);
 		}
 	}
 
@@ -680,7 +687,7 @@ public final class MadokuLootTableEntities {
 	}
 
 	private static Map<String, JsonObject> buildEntityStaticDefaults() {
-		return LootTableConfigEntities.buildDefaultEntityTableFiles();
+		return EntitiesConfigManager.buildDefaultEntityTableFiles();
 	}
 
 	private static List<ManagedLootGroup> parseGroups(JsonElement element) {
@@ -694,8 +701,8 @@ public final class MadokuLootTableEntities {
 				continue;
 			}
 
-			MadokuLootRarity rarity = MadokuLootRarity.fromString(
-				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, MadokuLootRarity.COMMON.id())
+		LootTableRarity rarity = LootTableRarity.fromString(
+				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, LootTableRarity.COMMON.id())
 			);
 			double weight = Math.max(0.0d, readDouble(groupRoot, LootTableConfigManager.FIELD_WEIGHT, 0.0d));
 			if (weight <= 0.0d) {
@@ -941,7 +948,7 @@ public final class MadokuLootTableEntities {
 	}
 
 	private record ManagedLootGroup(
-		MadokuLootRarity rarity,
+		LootTableRarity rarity,
 		double weight,
 		List<ManagedLootEntry> entries,
 		List<String> tags
@@ -1000,7 +1007,7 @@ public final class MadokuLootTableEntities {
 		private final boolean overrideStructureLootTables;
 		private final boolean overrideEntityLootTables;
 		private final LuckCurve rollCurve;
-		private final EnumMap<MadokuLootRarity, LuckCurve> rarityCurves;
+		private final EnumMap<LootTableRarity, LuckCurve> rarityCurves;
 
 		private Settings(
 			boolean enabled,
@@ -1008,7 +1015,7 @@ public final class MadokuLootTableEntities {
 			boolean overrideStructureLootTables,
 			boolean overrideEntityLootTables,
 			LuckCurve rollCurve,
-			EnumMap<MadokuLootRarity, LuckCurve> rarityCurves
+			EnumMap<LootTableRarity, LuckCurve> rarityCurves
 		) {
 			this.enabled = enabled;
 			this.useMadokuLuck = useMadokuLuck;
@@ -1019,9 +1026,9 @@ public final class MadokuLootTableEntities {
 		}
 
 		private static Settings defaults() {
-			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
+			EnumMap<LootTableRarity, LuckCurve> curves = new EnumMap<>(LootTableRarity.class);
 			JsonObject defaults = LootTableConfigManager.buildSettingsDefaults();
-			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
+			for (LootTableRarity rarity : LootTableRarity.values()) {
 				curves.put(rarity, defaultCurve(rarity));
 			}
 			LuckCurve rollCurve = defaultRollCurve();
@@ -1037,8 +1044,8 @@ public final class MadokuLootTableEntities {
 
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
-			EnumMap<MadokuLootRarity, LuckCurve> curves = new EnumMap<>(MadokuLootRarity.class);
-			for (MadokuLootRarity rarity : MadokuLootRarity.values()) {
+			EnumMap<LootTableRarity, LuckCurve> curves = new EnumMap<>(LootTableRarity.class);
+			for (LootTableRarity rarity : LootTableRarity.values()) {
 				curves.put(rarity, defaults.rarityCurves.get(rarity));
 			}
 			LuckCurve rollCurve = defaults.rollCurve;
@@ -1077,7 +1084,7 @@ public final class MadokuLootTableEntities {
 			);
 		}
 
-		private static LuckCurve defaultCurve(MadokuLootRarity rarity) {
+		private static LuckCurve defaultCurve(LootTableRarity rarity) {
 			return switch (rarity) {
 				case COMMON -> new LuckCurve(
 					List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),

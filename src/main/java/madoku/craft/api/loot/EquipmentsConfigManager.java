@@ -1,4 +1,4 @@
-package madoku.craft.loot.system;
+package madoku.craft.api.loot;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -21,14 +21,71 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class EquipmentConfigManager {
-	private static final String ROOT_FOLDER = "madoku-craft-loot-tables";
+public final class EquipmentsConfigManager {
+	public static final String FIELD_ENABLED = "enabled";
+	public static final String FIELD_MOB_ID = "mob_id";
+	public static final String FIELD_ARMOR_SET = "armor-set";
+	public static final String FIELD_PARTIAL_SET = "partial-set";
+	public static final String FIELD_HALF_SET = "half-set";
+	public static final String FIELD_FULL_SET = "full-set";
+	public static final String FIELD_HELMET = "helmet";
+	public static final String FIELD_CHESTPLATE = "chestplate";
+	public static final String FIELD_LEGGINGS = "leggings";
+	public static final String FIELD_BOOTS = "boots";
+	public static final String FIELD_ITEM = "item";
+	public static final String FIELD_WEIGHT = "weight";
+	private static final String ROOT_FOLDER = MadokuLootTableManager.CONFIG_ROOT_FOLDER_NAME;
 	private static final String SETTINGS_FILE = "madoku-loot-tables";
 	private static final String EQUIPMENT_FOLDER = "madoku-equipments";
 
 	private static volatile Snapshot snapshot = Snapshot.disabled();
 
-	private EquipmentConfigManager() {
+	private EquipmentsConfigManager() {
+	}
+
+	public static void initialize() { }
+
+	public static void reset() {
+		snapshot = Snapshot.disabled();
+	}
+
+	public static Map<String, JsonObject> buildDefaultEquipmentTableFiles() {
+		Map<String, JsonObject> defaults = new java.util.LinkedHashMap<>();
+		String[] mobs = {"skeleton", "stray", "bogged", "parched", "wither_skeleton", "zombie", "husk", "drowned", "zombie_villager"};
+		for (String mob : mobs) {
+			defaults.put("minecraft-equipment-" + mob, buildDefaultProfile("minecraft:" + mob));
+		}
+		return defaults;
+	}
+
+	private static JsonObject buildDefaultProfile(String mobId) {
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_MOB_ID, mobId)
+			.object(FIELD_ARMOR_SET, armorSet -> armorSet
+				.put(FIELD_PARTIAL_SET, 60.0D)
+				.put(FIELD_HALF_SET, 30.0D)
+				.put(FIELD_FULL_SET, 10.0D))
+			.put(FIELD_HELMET, buildDefaultSlotEntries("helmet"))
+			.put(FIELD_CHESTPLATE, buildDefaultSlotEntries("chestplate"))
+			.put(FIELD_LEGGINGS, buildDefaultSlotEntries("leggings"))
+			.put(FIELD_BOOTS, buildDefaultSlotEntries("boots"))
+			.build();
+	}
+
+	private static JsonArray buildDefaultSlotEntries(String piece) {
+		return JSONFormatManager.array()
+			.add(defaultItem("minecraft:netherite_" + piece, 1.0D))
+			.add(defaultItem("minecraft:diamond_" + piece, 5.0D))
+			.add(defaultItem("minecraft:golden_" + piece, 10.0D))
+			.add(defaultItem("minecraft:iron_" + piece, 17.0D))
+			.add(defaultItem("minecraft:copper_" + piece, 28.0D))
+			.add(defaultItem("minecraft:leather_" + piece, 39.0D))
+			.build();
+	}
+
+	private static JsonObject defaultItem(String itemId, double weight) {
+		return JSONFormatManager.object().put(FIELD_ITEM, itemId).put(FIELD_WEIGHT, weight).build();
 	}
 
 	public static void reloadConfig() {
@@ -52,7 +109,7 @@ public final class EquipmentConfigManager {
 			);
 
 			Path equipmentDirectory = rootDirectory.resolve(EQUIPMENT_FOLDER);
-			Map<String, JsonObject> defaultFiles = LootTableEquipmentsConfig.buildDefaultEquipmentTableFiles();
+			Map<String, JsonObject> defaultFiles = buildDefaultEquipmentTableFiles();
 			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				equipmentDirectory,
 				defaultFiles,
@@ -135,7 +192,7 @@ public final class EquipmentConfigManager {
 		}
 		JsonObject profileRoot = resolveMainRoot(root);
 		boolean enabled = resolveFileEnabled(root);
-		JsonObject armorSet = readObject(profileRoot, LootTableEquipmentsConfig.FIELD_ARMOR_SET);
+		JsonObject armorSet = readObject(profileRoot, FIELD_ARMOR_SET);
 		ArmorSetWeights setWeights = new ArmorSetWeights(
 			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_PARTIAL_SET, 60.0D)),
 			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_HALF_SET, 30.0D)),
@@ -159,7 +216,7 @@ public final class EquipmentConfigManager {
 			if (!(entry instanceof JsonObject entryRoot)) {
 				continue;
 			}
-			String itemId = normalizeItemId(readString(entryRoot, LootTableEquipmentsConfig.FIELD_ITEM, ""));
+			String itemId = normalizeItemId(readString(entryRoot, FIELD_ITEM, ""));
 			if (itemId.isBlank()) {
 				continue;
 			}
@@ -171,7 +228,7 @@ public final class EquipmentConfigManager {
 			if (item == null || item == Items.AIR) {
 				continue;
 			}
-			double weight = Math.max(0.0D, readDouble(entryRoot, LootTableEquipmentsConfig.FIELD_WEIGHT, 0.0D));
+			double weight = Math.max(0.0D, readDouble(entryRoot, FIELD_WEIGHT, 0.0D));
 			if (weight <= 0.0D) {
 				continue;
 			}
@@ -186,7 +243,7 @@ public final class EquipmentConfigManager {
 		if (mapped != null) {
 			return mapped.deepCopy();
 		}
-		return EquipmentConfigZombie.buildZombieDefaults();
+		return buildDefaultEquipmentTableFiles().get("minecraft-equipment-zombie");
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {

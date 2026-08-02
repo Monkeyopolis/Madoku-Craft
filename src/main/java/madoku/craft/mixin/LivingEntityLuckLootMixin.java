@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.loot.system.MadokuLootTableEntities;
+import madoku.craft.api.loot.LootTableEntitiesManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.resources.ResourceKey;
@@ -59,7 +59,7 @@ public abstract class LivingEntityLuckLootMixin {
 			return;
 		}
 
-		List<ItemStack> generated = MadokuLootTableEntities.generateManagedLootForReference(
+		List<ItemStack> generated = LootTableEntitiesManager.generateManagedLootForReference(
 			configuredReference,
 			resolveLootPlayer(damageSource),
 			level.getRandom()
