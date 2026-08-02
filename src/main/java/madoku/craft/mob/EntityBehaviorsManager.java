@@ -4,15 +4,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.EnumMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.farming.system.MadokuFarming;
-import madoku.craft.api.loot.EquipmentsConfigManager;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -22,7 +19,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.effect.MobEffect;
@@ -1566,7 +1562,6 @@ public final class EntityBehaviorsManager {
 				return;
 			}
 			if (!MobEntityManager.isEnabled()) {
-				applySpawnEquipmentLoadoutWhenMobSystemDisabled(drowned, world.getRandom());
 				return;
 			}
 			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -1832,79 +1827,7 @@ public final class EntityBehaviorsManager {
 			return merged;
 		}
 
-		private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(Drowned drowned, RandomSource random) {
-			if (drowned == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
-			}
-			if (!EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
-				return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
-			}
-			String equipmentReference = resolveDefaultMobEquipmentReference(drowned.getType());
-			if (equipmentReference.isBlank()) {
-				return new EquipmentLoadoutResult(false, "default_reference_blank", equipmentReference, 0.0D, "none", 0, 0);
-			}
-			return applyEquipmentSetLoadout(
-				drowned,
-				equipmentReference,
-				EquipmentsConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
-				random
-			);
-		}
 
-		private static EquipmentLoadoutResult applyEquipmentSetLoadout(
-			Drowned drowned,
-			String equipmentReference,
-			double chancePercent,
-			RandomSource random
-		) {
-			if (drowned == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
-				return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, drowned.getType());
-			if (profile == null || !profile.enabled()) {
-				return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
-			}
-
-			ArmorSetSelection selection = rollArmorSetSelection(profile.armorSetWeights(), random);
-			if (selection == null) {
-				return new EquipmentLoadoutResult(false, "armor_set_roll_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
-			for (EquipmentSlot slot : selection.requiredSlots()) {
-				ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
-				if (rolled.isEmpty()) {
-					continue;
-				}
-				rolledBySlot.put(slot, rolled);
-			}
-			if (rolledBySlot.isEmpty()) {
-				return new EquipmentLoadoutResult(
-					false,
-					"slot_pool_empty",
-					equipmentReference,
-					chancePercent,
-					selection.name().toLowerCase(Locale.ROOT),
-					0,
-					selection.requiredSlots().size()
-				);
-			}
-			MobEntityManager.clearArmorSlotsForRuntime(drowned);
-			for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
-				drowned.setItemSlot(entry.getKey(), entry.getValue());
-			}
-			return new EquipmentLoadoutResult(
-				true,
-				"applied",
-				equipmentReference,
-				chancePercent,
-				selection.name().toLowerCase(Locale.ROOT),
-				rolledBySlot.size(),
-				selection.requiredSlots().size()
-			);
-		}
 
 		private static void applyDrownedBehaviorToggles(Drowned drowned, JsonObject fileRoot, JsonObject variantRoot) {
 			if (drowned == null) {
@@ -2284,67 +2207,6 @@ public final class EntityBehaviorsManager {
 			return type == madoku.craft.entity.MadokuEntityTypes.DROWNED ? MobConfigManager.FILE_DROWNED : "";
 		}
 
-		private static String resolveDefaultMobEquipmentReference(net.minecraft.world.entity.EntityType<?> type) {
-			return type == madoku.craft.entity.MadokuEntityTypes.DROWNED ? "minecraft-equipment-drowned.json" : "";
-		}
-
-		private static ItemStack rollArmorItemForSlot(
-			EquipmentsConfigManager.EquipmentProfile profile,
-			EquipmentSlot slot,
-			RandomSource random
-		) {
-			if (profile == null || slot == null || random == null) {
-				return ItemStack.EMPTY;
-			}
-			List<EquipmentsConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
-			if (entries == null || entries.isEmpty()) {
-				return ItemStack.EMPTY;
-			}
-			double totalWeight = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry != null) {
-					totalWeight += Math.max(0.0D, entry.weight());
-				}
-			}
-			if (totalWeight <= 0.0D) {
-				return ItemStack.EMPTY;
-			}
-			double roll = random.nextDouble() * totalWeight;
-			double cursor = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
-					continue;
-				}
-				cursor += entry.weight();
-				if (roll < cursor) {
-					return new ItemStack(entry.item());
-				}
-			}
-			EquipmentsConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
-			return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
-		}
-
-		private static ArmorSetSelection rollArmorSetSelection(EquipmentsConfigManager.ArmorSetWeights weights, RandomSource random) {
-			if (weights == null || random == null) {
-				return null;
-			}
-			double partial = Math.max(0.0D, weights.partialSetWeight());
-			double half = Math.max(0.0D, weights.halfSetWeight());
-			double full = Math.max(0.0D, weights.fullSetWeight());
-			double total = partial + half + full;
-			if (total <= 0.0D) {
-				return null;
-			}
-			double roll = random.nextDouble() * total;
-			if (roll < partial) {
-				return ArmorSetSelection.PARTIAL_SET;
-			}
-			roll -= partial;
-			if (roll < half) {
-				return ArmorSetSelection.HALF_SET;
-			}
-			return ArmorSetSelection.FULL_SET;
-		}
 
 		private record PendingRangedTridentCharge(UUID targetUuid, int remainingTicks) {
 			private PendingRangedTridentCharge withRemainingTicks(int remainingTicks) {
@@ -2352,32 +2214,7 @@ public final class EntityBehaviorsManager {
 			}
 		}
 
-		private record EquipmentLoadoutResult(
-			boolean applied,
-			String reason,
-			String equipmentReference,
-			double chancePercent,
-			String armorSet,
-			int equippedPieces,
-			int requiredPieces
-		) {
-		}
 
-		private enum ArmorSetSelection {
-			PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
-			HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
-			FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
-
-			private final List<EquipmentSlot> requiredSlots;
-
-			ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
-				this.requiredSlots = requiredSlots;
-			}
-
-			private List<EquipmentSlot> requiredSlots() {
-				return requiredSlots;
-			}
-		}
 	}
 
 	public static final class HagBehavior {
@@ -2404,20 +2241,12 @@ public final class EntityBehaviorsManager {
 				return;
 			}
 			String fileKey = fileKeyForType(husk.getType());
-			if (fileKey.isBlank()) {
+			if (fileKey.isBlank() || !MobEntityManager.isEnabled()
+				|| !MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
 				return;
 			}
-			if (!MobEntityManager.isEnabled()) {
-				applySpawnEquipmentLoadoutWhenMobSystemDisabled(husk, world.getRandom());
-				return;
-			}
-			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
-				return;
-			}
-
 			JsonObject fileConfigRoot = MobEntityManager.resolveMobFileConfigRootForRuntime(fileKey);
 			boolean overrideStats = readBoolean(fileConfigRoot, MobConfigManager.FIELD_OVERRIDE_COMPONENTS, true);
-
 			JsonObject variant = MobEntityManager.resolveConfiguredEntityVariantForRuntime(husk);
 			if (variant.entrySet().isEmpty()) {
 				return;
@@ -2508,74 +2337,7 @@ public final class EntityBehaviorsManager {
 			return MobEntityManager.resolveConfiguredEntityVariantForRuntime(husk);
 		}
 
-		private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(Husk husk, RandomSource random) {
-			if (husk == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
-			}
-			if (!EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
-				return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
-			}
-			String equipmentReference = resolveDefaultMobEquipmentReference();
-			if (equipmentReference.isBlank()) {
-				return new EquipmentLoadoutResult(false, "default_reference_blank", equipmentReference, 0.0D, "none", 0, 0);
-			}
-			return applyEquipmentSetLoadout(
-				husk,
-				equipmentReference,
-				EquipmentsConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
-				random
-			);
-		}
 
-		private static EquipmentLoadoutResult applyEquipmentSetLoadout(Husk husk, String equipmentReference, double chancePercent, RandomSource random) {
-			if (husk == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
-				return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, husk.getType());
-			if (profile == null || !profile.enabled()) {
-				return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
-			}
-
-			ArmorSetSelection selection = rollArmorSetSelection(profile.armorSetWeights(), random);
-			if (selection == null) {
-				return new EquipmentLoadoutResult(false, "armor_set_roll_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
-			for (EquipmentSlot slot : selection.requiredSlots()) {
-				ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
-				if (rolled.isEmpty()) {
-					continue;
-				}
-				rolledBySlot.put(slot, rolled);
-			}
-			if (rolledBySlot.isEmpty()) {
-				return new EquipmentLoadoutResult(
-					false,
-					"slot_pool_empty",
-					equipmentReference,
-					chancePercent,
-					selection.name().toLowerCase(Locale.ROOT),
-					0,
-					selection.requiredSlots().size()
-				);
-			}
-			MobEntityManager.clearArmorSlotsForRuntime(husk);
-			for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
-				husk.setItemSlot(entry.getKey(), entry.getValue());
-			}
-			return new EquipmentLoadoutResult(
-				true,
-				"applied",
-				equipmentReference,
-				chancePercent,
-				selection.name().toLowerCase(Locale.ROOT),
-				rolledBySlot.size(),
-				selection.requiredSlots().size()
-			);
-		}
 
 		private static void applyHuskBehaviorToggles(Husk husk, JsonObject fileRoot, JsonObject variantRoot) {
 			if (husk == null) {
@@ -2659,93 +2421,8 @@ public final class EntityBehaviorsManager {
 			return type == madoku.craft.entity.MadokuEntityTypes.HUSK ? MobConfigManager.FILE_HUSK : "";
 		}
 
-		private static String resolveDefaultMobEquipmentReference() {
-			return "minecraft-equipment-husk.json";
-		}
 
-		private record EquipmentLoadoutResult(
-			boolean applied,
-			String reason,
-			String equipmentReference,
-			double chancePercent,
-			String armorSet,
-			int equippedPieces,
-			int requiredPieces
-		) {}
 
-		private static ItemStack rollArmorItemForSlot(
-			EquipmentsConfigManager.EquipmentProfile profile,
-			EquipmentSlot slot,
-			RandomSource random
-		) {
-			if (profile == null || slot == null || random == null) {
-				return ItemStack.EMPTY;
-			}
-			List<EquipmentsConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
-			if (entries == null || entries.isEmpty()) {
-				return ItemStack.EMPTY;
-			}
-			double totalWeight = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry != null) {
-					totalWeight += Math.max(0.0D, entry.weight());
-				}
-			}
-			if (totalWeight <= 0.0D) {
-				return ItemStack.EMPTY;
-			}
-			double roll = random.nextDouble() * totalWeight;
-			double cursor = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
-					continue;
-				}
-				cursor += entry.weight();
-				if (roll < cursor) {
-					return new ItemStack(entry.item());
-				}
-			}
-			EquipmentsConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
-			return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
-		}
-
-		private static ArmorSetSelection rollArmorSetSelection(EquipmentsConfigManager.ArmorSetWeights weights, RandomSource random) {
-			if (weights == null || random == null) {
-				return null;
-			}
-			double partial = Math.max(0.0D, weights.partialSetWeight());
-			double half = Math.max(0.0D, weights.halfSetWeight());
-			double full = Math.max(0.0D, weights.fullSetWeight());
-			double total = partial + half + full;
-			if (total <= 0.0D) {
-				return null;
-			}
-			double roll = random.nextDouble() * total;
-			if (roll < partial) {
-				return ArmorSetSelection.PARTIAL_SET;
-			}
-			roll -= partial;
-			if (roll < half) {
-				return ArmorSetSelection.HALF_SET;
-			}
-			return ArmorSetSelection.FULL_SET;
-		}
-
-		private enum ArmorSetSelection {
-			PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
-			HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
-			FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
-
-			private final List<EquipmentSlot> requiredSlots;
-
-			ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
-				this.requiredSlots = requiredSlots;
-			}
-
-			private List<EquipmentSlot> requiredSlots() {
-				return requiredSlots;
-			}
-		}
 	}
 
 	public static final class ParchedBehavior {
@@ -5138,7 +4815,6 @@ public final class EntityBehaviorsManager {
 				return;
 			}
 			if (!mobSystemEnabled) {
-				applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombie, world.getRandom());
 				return;
 			}
 			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -5240,24 +4916,6 @@ public final class EntityBehaviorsManager {
 			return mergeZombieFileSettings(fileRoot, variant);
 		}
 
-		private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(Zombie zombie, RandomSource random) {
-			if (zombie == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
-			}
-			if (!EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
-				return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
-			}
-			String equipmentReference = resolveDefaultMobEquipmentReference(zombie.getType());
-			if (equipmentReference.isBlank()) {
-				return new EquipmentLoadoutResult(false, "default_reference_blank", equipmentReference, 0.0D, "none", 0, 0);
-			}
-			return applyEquipmentSetLoadout(
-				zombie,
-				equipmentReference,
-				EquipmentsConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
-				random
-			);
-		}
 
 		private static boolean applyConfiguredZombieAlternativeMobReplacement(
 			Zombie zombie,
@@ -5280,118 +4938,9 @@ public final class EntityBehaviorsManager {
 			return true;
 		}
 
-		private static EquipmentLoadoutResult applyEquipmentSetLoadout(Zombie zombie, String equipmentReference, double chancePercent, RandomSource random) {
-			if (zombie == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
-				return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, zombie.getType());
-			if (profile == null || !profile.enabled()) {
-				return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
-			}
-
-			ArmorSetSelection selection = rollArmorSetSelection(profile.armorSetWeights(), random);
-			if (selection == null) {
-				return new EquipmentLoadoutResult(false, "armor_set_roll_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
-			for (EquipmentSlot slot : selection.requiredSlots()) {
-				ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
-				if (rolled.isEmpty()) {
-					continue;
-				}
-				rolledBySlot.put(slot, rolled);
-			}
-			if (rolledBySlot.isEmpty()) {
-				return new EquipmentLoadoutResult(
-					false,
-					"slot_pool_empty",
-					equipmentReference,
-					chancePercent,
-					selection.name().toLowerCase(Locale.ROOT),
-					0,
-					selection.requiredSlots().size()
-				);
-			}
-			MobEntityManager.clearArmorSlotsForRuntime(zombie);
-			for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
-				zombie.setItemSlot(entry.getKey(), entry.getValue());
-			}
-			return new EquipmentLoadoutResult(
-				true,
-				"applied",
-				equipmentReference,
-				chancePercent,
-				selection.name().toLowerCase(Locale.ROOT),
-				rolledBySlot.size(),
-				selection.requiredSlots().size()
-			);
-		}
 
 
 
-		private static ItemStack rollArmorItemForSlot(
-			EquipmentsConfigManager.EquipmentProfile profile,
-			EquipmentSlot slot,
-			RandomSource random
-		) {
-			if (profile == null || slot == null || random == null) {
-				return ItemStack.EMPTY;
-			}
-			List<EquipmentsConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
-			if (entries == null || entries.isEmpty()) {
-				return ItemStack.EMPTY;
-			}
-			double totalWeight = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry != null) {
-					totalWeight += Math.max(0.0D, entry.weight());
-				}
-			}
-			if (totalWeight <= 0.0D) {
-				return ItemStack.EMPTY;
-			}
-			double roll = random.nextDouble() * totalWeight;
-			double cursor = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
-					continue;
-				}
-				cursor += entry.weight();
-				if (roll < cursor) {
-					return new ItemStack(entry.item());
-				}
-			}
-			EquipmentsConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
-			return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
-		}
-
-		private static ArmorSetSelection rollArmorSetSelection(
-			EquipmentsConfigManager.ArmorSetWeights weights,
-			RandomSource random
-		) {
-			if (weights == null || random == null) {
-				return null;
-			}
-			double partial = Math.max(0.0D, weights.partialSetWeight());
-			double half = Math.max(0.0D, weights.halfSetWeight());
-			double full = Math.max(0.0D, weights.fullSetWeight());
-			double total = partial + half + full;
-			if (total <= 0.0D) {
-				return null;
-			}
-			double roll = random.nextDouble() * total;
-			if (roll < partial) {
-				return ArmorSetSelection.PARTIAL_SET;
-			}
-			roll -= partial;
-			if (roll < half) {
-				return ArmorSetSelection.HALF_SET;
-			}
-			return ArmorSetSelection.FULL_SET;
-		}
 
 		private static JsonObject resolveZombieVariantGroupRoot(
 			Zombie zombie,
@@ -5603,38 +5152,6 @@ public final class EntityBehaviorsManager {
 			return "";
 		}
 
-		private static String resolveDefaultMobEquipmentReference(EntityType<?> type) {
-			if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
-				return "minecraft-equipment-zombie.json";
-			}
-			return "";
-		}
-
-		private record EquipmentLoadoutResult(
-			boolean applied,
-			String reason,
-			String equipmentReference,
-			double chancePercent,
-			String armorSet,
-			int equippedPieces,
-			int requiredPieces
-		) {}
-
-		private enum ArmorSetSelection {
-			PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
-			HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
-			FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
-
-			private final List<EquipmentSlot> requiredSlots;
-
-			ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
-				this.requiredSlots = requiredSlots;
-			}
-
-			private List<EquipmentSlot> requiredSlots() {
-				return requiredSlots;
-			}
-		}
 	}
 
 	public static final class ZombieVillagerBehavior {
@@ -5652,7 +5169,6 @@ public final class EntityBehaviorsManager {
 			}
 			String fileKey = MobConfigManager.FILE_ZOMBIE_VILLAGER;
 			if (!MobEntityManager.isEnabled()) {
-				applySpawnEquipmentLoadoutWhenMobSystemDisabled(zombieVillager, world.getRandom());
 				return;
 			}
 			if (!MobEntityManager.isMobFileEnabledForRuntime(fileKey)) {
@@ -5765,79 +5281,6 @@ public final class EntityBehaviorsManager {
 			return merged;
 		}
 
-		private static EquipmentLoadoutResult applySpawnEquipmentLoadoutWhenMobSystemDisabled(ZombieVillager zombieVillager, RandomSource random) {
-			if (zombieVillager == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", "", 0.0D, "none", 0, 0);
-			}
-			if (!EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
-				return new EquipmentLoadoutResult(false, "custom_entity_equipment_disabled", "", 0.0D, "none", 0, 0);
-			}
-			String equipmentReference = resolveDefaultMobEquipmentReference();
-			if (equipmentReference.isBlank()) {
-				return new EquipmentLoadoutResult(false, "default_reference_blank", equipmentReference, 0.0D, "none", 0, 0);
-			}
-			return applyEquipmentSetLoadout(
-				zombieVillager,
-				equipmentReference,
-				EquipmentsConfigManager.customEntityEquipmentChanceWhenMobSystemDisabled(),
-				random
-			);
-		}
-
-		private static EquipmentLoadoutResult applyEquipmentSetLoadout(
-			ZombieVillager zombieVillager,
-			String equipmentReference,
-			double chancePercent,
-			RandomSource random
-		) {
-			if (zombieVillager == null || random == null) {
-				return new EquipmentLoadoutResult(false, "invalid_inputs", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
-				return new EquipmentLoadoutResult(false, "chance_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, zombieVillager.getType());
-			if (profile == null || !profile.enabled()) {
-				return new EquipmentLoadoutResult(false, "profile_missing_or_disabled", equipmentReference, chancePercent, "none", 0, 0);
-			}
-
-			ArmorSetSelection selection = rollArmorSetSelection(profile.armorSetWeights(), random);
-			if (selection == null) {
-				return new EquipmentLoadoutResult(false, "armor_set_roll_failed", equipmentReference, chancePercent, "none", 0, 0);
-			}
-			Map<EquipmentSlot, ItemStack> rolledBySlot = new EnumMap<>(EquipmentSlot.class);
-			for (EquipmentSlot slot : selection.requiredSlots()) {
-				ItemStack rolled = rollArmorItemForSlot(profile, slot, random);
-				if (rolled.isEmpty()) {
-					continue;
-				}
-				rolledBySlot.put(slot, rolled);
-			}
-			if (rolledBySlot.isEmpty()) {
-				return new EquipmentLoadoutResult(
-					false,
-					"slot_pool_empty",
-					equipmentReference,
-					chancePercent,
-					selection.name().toLowerCase(Locale.ROOT),
-					0,
-					selection.requiredSlots().size()
-				);
-			}
-			MobEntityManager.clearArmorSlotsForRuntime(zombieVillager);
-			for (Map.Entry<EquipmentSlot, ItemStack> entry : rolledBySlot.entrySet()) {
-				zombieVillager.setItemSlot(entry.getKey(), entry.getValue());
-			}
-			return new EquipmentLoadoutResult(
-				true,
-				"applied",
-				equipmentReference,
-				chancePercent,
-				selection.name().toLowerCase(Locale.ROOT),
-				rolledBySlot.size(),
-				selection.requiredSlots().size()
-			);
-		}
 
 		private static void applyZombieVillagerBehaviorToggles(ZombieVillager zombieVillager, JsonObject fileRoot, JsonObject variantRoot) {
 			if (zombieVillager == null) {
@@ -5883,66 +5326,6 @@ public final class EntityBehaviorsManager {
 			zombieVillager.setItemSlot(slot, normalized);
 		}
 
-		private static ItemStack rollArmorItemForSlot(
-			EquipmentsConfigManager.EquipmentProfile profile,
-			EquipmentSlot slot,
-			RandomSource random
-		) {
-			if (profile == null || slot == null || random == null) {
-				return ItemStack.EMPTY;
-			}
-			List<EquipmentsConfigManager.WeightedArmorEntry> entries = profile.slotEntries().get(slot);
-			if (entries == null || entries.isEmpty()) {
-				return ItemStack.EMPTY;
-			}
-			double totalWeight = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry != null) {
-					totalWeight += Math.max(0.0D, entry.weight());
-				}
-			}
-			if (totalWeight <= 0.0D) {
-				return ItemStack.EMPTY;
-			}
-			double roll = random.nextDouble() * totalWeight;
-			double cursor = 0.0D;
-			for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-				if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
-					continue;
-				}
-				cursor += entry.weight();
-				if (roll < cursor) {
-					return new ItemStack(entry.item());
-				}
-			}
-			EquipmentsConfigManager.WeightedArmorEntry fallback = entries.get(entries.size() - 1);
-			return fallback == null || fallback.item() == null ? ItemStack.EMPTY : new ItemStack(fallback.item());
-		}
-
-		private static ArmorSetSelection rollArmorSetSelection(
-			EquipmentsConfigManager.ArmorSetWeights weights,
-			RandomSource random
-		) {
-			if (weights == null || random == null) {
-				return null;
-			}
-			double partial = Math.max(0.0D, weights.partialSetWeight());
-			double half = Math.max(0.0D, weights.halfSetWeight());
-			double full = Math.max(0.0D, weights.fullSetWeight());
-			double total = partial + half + full;
-			if (total <= 0.0D) {
-				return null;
-			}
-			double roll = random.nextDouble() * total;
-			if (roll < partial) {
-				return ArmorSetSelection.PARTIAL_SET;
-			}
-			roll -= partial;
-			if (roll < half) {
-				return ArmorSetSelection.HALF_SET;
-			}
-			return ArmorSetSelection.FULL_SET;
-		}
 
 
 
@@ -5975,36 +5358,6 @@ public final class EntityBehaviorsManager {
 			return element.getAsBoolean();
 		}
 
-		private static String resolveDefaultMobEquipmentReference() {
-			return "minecraft-equipment-zombie-villager.json";
-		}
-
-		private record EquipmentLoadoutResult(
-			boolean applied,
-			String reason,
-			String equipmentReference,
-			double chancePercent,
-			String armorSet,
-			int equippedPieces,
-			int requiredPieces
-		) {
-		}
-
-		private enum ArmorSetSelection {
-			PARTIAL_SET(List.of(EquipmentSlot.HEAD)),
-			HALF_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET)),
-			FULL_SET(List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET));
-
-			private final List<EquipmentSlot> requiredSlots;
-
-			ArmorSetSelection(List<EquipmentSlot> requiredSlots) {
-				this.requiredSlots = requiredSlots;
-			}
-
-			private List<EquipmentSlot> requiredSlots() {
-				return requiredSlots;
-			}
-		}
 	}
 }
 

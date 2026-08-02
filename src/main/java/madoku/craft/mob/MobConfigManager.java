@@ -105,7 +105,6 @@ public final class MobConfigManager {
 	public static final String FIELD_CUSTOM_MOB_DROPS = "custom-mob-drops";
 	public static final String FIELD_EQUIPMENT_SET = "equipment-set";
 	public static final String FIELD_MOB_EQUIPMENT = "mob-equipment";
-	public static final String FIELD_EQUIPMENT_CHANCE = "equipment-chance";
 	public static final String FIELD_MOB_JOCKEY = "mob-jockey";
 	public static final String FIELD_JOCKEY_PASSENGERS = "passengers";
 	public static final String FIELD_JOCKEY_MOBS = "mobs";
@@ -527,7 +526,6 @@ public final class MobConfigManager {
 			JsonObject equipment = new JsonObject();
 			equipment.addProperty(FIELD_ENABLED, true);
 			equipment.addProperty(FIELD_MOB_EQUIPMENT, equipmentReference);
-			equipment.addProperty(FIELD_EQUIPMENT_CHANCE, 10.0D);
 			rules.add(FIELD_EQUIPMENT_SET, equipment);
 		}
 		return rules;

@@ -226,85 +226,34 @@ public final class MobEntityManager {
 	}
 
 	private static void applyConfiguredEquipmentAtVanillaSpawn(Mob mob, RandomSource random) {
-		if (mob == null || random == null || !MobConfigManager.isEnabled()
-			|| !shouldApplyConfiguredSpawnRulesForRuntime(mob)
-			|| !EquipmentsConfigManager.isCustomEntityEquipmentEnabled()) {
+		if (mob == null || random == null || !EquipmentsConfigManager.isEntityEquipmentOverrideEnabled()) {
 			return;
 		}
-		JsonObject variant = resolveConfiguredEntityVariantForRuntime(mob);
-		JsonObject spawnRules = readObject(variant, MobConfigManager.FIELD_SPAWN_RULES);
-		JsonObject equipmentSet = readObject(spawnRules, MobConfigManager.FIELD_EQUIPMENT_SET);
-		if (equipmentSet.entrySet().isEmpty() || !readBoolean(equipmentSet, MobConfigManager.FIELD_ENABLED, false)) {
-			return;
+
+		String configuredFileKey = resolveRuntimeMobFileKey(mob);
+		String equipmentReference = "";
+		if (!configuredFileKey.isBlank()) {
+			if (!MobConfigManager.isEnabled() || !shouldApplyConfiguredSpawnRulesForRuntime(mob)) {
+				return;
+			}
+			JsonObject variant = resolveConfiguredEntityVariantForRuntime(mob);
+			JsonObject spawnRules = readObject(variant, MobConfigManager.FIELD_SPAWN_RULES);
+			JsonObject equipmentSet = readObject(spawnRules, MobConfigManager.FIELD_EQUIPMENT_SET);
+			if (equipmentSet.entrySet().isEmpty() || !readBoolean(equipmentSet, MobConfigManager.FIELD_ENABLED, false)) {
+				return;
+			}
+			equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
 		}
-		double chancePercent = Math.max(0.0D, Math.min(100.0D, readDouble(equipmentSet, MobConfigManager.FIELD_EQUIPMENT_CHANCE, 10.0D)));
-		if (chancePercent <= 0.0D || random.nextDouble() * 100.0D >= chancePercent) {
-			return;
-		}
-		String equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
 		EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, mob.getType());
 		if (profile == null || !profile.enabled()) {
 			return;
 		}
 
-		double partialWeight = Math.max(0.0D, profile.armorSetWeights().partialSetWeight());
-		double halfWeight = Math.max(0.0D, profile.armorSetWeights().halfSetWeight());
-		double fullWeight = Math.max(0.0D, profile.armorSetWeights().fullSetWeight());
-		double totalWeight = partialWeight + halfWeight + fullWeight;
-		if (totalWeight <= 0.0D) {
-			return;
-		}
-		double roll = random.nextDouble() * totalWeight;
-		List<EquipmentSlot> slots;
-		if (roll < partialWeight) {
-			slots = List.of(EquipmentSlot.HEAD);
-		} else if ((roll - partialWeight) < halfWeight) {
-			slots = List.of(EquipmentSlot.HEAD, EquipmentSlot.FEET);
-		} else {
-			slots = List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET);
-		}
-
-		Map<EquipmentSlot, ItemStack> selected = new java.util.EnumMap<>(EquipmentSlot.class);
-		for (EquipmentSlot slot : slots) {
-			EquipmentsConfigManager.WeightedArmorEntry item = selectWeightedArmorEntry(profile.slotEntries().get(slot), random);
-			if (item == null || item.item() == null) {
-				return;
-			}
-			selected.put(slot, new ItemStack(item.item()));
-		}
-		clearArmorSlots(mob);
+		Map<EquipmentSlot, ItemStack> selected = EquipmentsConfigManager.rollEquipment(profile, random);
+		clearEquipmentSlots(mob);
 		for (Map.Entry<EquipmentSlot, ItemStack> entry : selected.entrySet()) {
 			mob.setItemSlot(entry.getKey(), entry.getValue());
 		}
-	}
-
-	private static EquipmentsConfigManager.WeightedArmorEntry selectWeightedArmorEntry(
-		List<EquipmentsConfigManager.WeightedArmorEntry> entries,
-		RandomSource random
-	) {
-		if (entries == null || entries.isEmpty() || random == null) {
-			return null;
-		}
-		double totalWeight = 0.0D;
-		for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-			if (entry != null && entry.item() != null && entry.weight() > 0.0D) {
-				totalWeight += entry.weight();
-			}
-		}
-		if (totalWeight <= 0.0D) {
-			return null;
-		}
-		double roll = random.nextDouble() * totalWeight;
-		for (EquipmentsConfigManager.WeightedArmorEntry entry : entries) {
-			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
-				continue;
-			}
-			if (roll < entry.weight()) {
-				return entry;
-			}
-			roll -= entry.weight();
-		}
-		return null;
 	}
 
 	private static void applyConfiguredJockeyAtVanillaSpawn(
@@ -1475,6 +1424,10 @@ public final class MobEntityManager {
 		clearArmorSlots(mob);
 	}
 
+	static void clearEquipmentSlotsForRuntime(Mob mob) {
+		clearEquipmentSlots(mob);
+	}
+
 	private static void clearArmorSlots(Mob mob) {
 		if (mob == null) {
 			return;
@@ -1483,6 +1436,15 @@ public final class MobEntityManager {
 		mob.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
 		mob.setItemSlot(EquipmentSlot.LEGS, ItemStack.EMPTY);
 		mob.setItemSlot(EquipmentSlot.FEET, ItemStack.EMPTY);
+	}
+
+	private static void clearEquipmentSlots(Mob mob) {
+		clearArmorSlots(mob);
+		if (mob == null) {
+			return;
+		}
+		mob.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+		mob.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
 	}
 
 	static void applyExperienceDropForRuntime(LivingEntity entity, Integer experienceDrop) {

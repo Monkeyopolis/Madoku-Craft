@@ -24,8 +24,7 @@ public final class LootTableConfigManager {
 	public static final String FIELD_USE_MADOKU_LUCK = "use-madoku-luck";
 	public static final String FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES = "override-structure-loot-tables";
 	public static final String FIELD_OVERRIDE_ENTITY_LOOT_TABLES = "override-entity-loot-tables";
-	public static final String FIELD_CUSTOM_ENTITY_EQUIPMENT = "custom-entity-equipment";
-	public static final String FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE = "custom-entity-equipment-chance";
+	public static final String FIELD_OVERRIDE_ENTITY_EQUIPMENT = "override-entity-equipment";
 
 	private LootTableConfigManager() {
 	}
@@ -48,8 +47,7 @@ public final class LootTableConfigManager {
 			.put(FIELD_USE_MADOKU_LUCK, true)
 			.put(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true)
 			.put(FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true)
-			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT, true)
-			.put(FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE, 10.0d)
+			.put(FIELD_OVERRIDE_ENTITY_EQUIPMENT, true)
 			.build();
 	}
 

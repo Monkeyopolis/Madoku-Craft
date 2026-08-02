@@ -59,6 +59,7 @@ public final class MadokuAPIManager {
 		MadokuChunkManager.onServerStarted(server);
 		MadokuSeasonManager.onServerStarted(server);
 		MadokuSyncManager.onServerStarted(server);
+		MadokuLootTableManager.initialize();
 	}
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {

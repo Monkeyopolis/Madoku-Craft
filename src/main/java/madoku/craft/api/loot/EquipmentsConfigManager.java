@@ -5,33 +5,34 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.mob.MobConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public final class EquipmentsConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
-	public static final String FIELD_MOB_ID = "mob_id";
-	public static final String FIELD_ARMOR_SET = "armor-set";
-	public static final String FIELD_PARTIAL_SET = "partial-set";
-	public static final String FIELD_HALF_SET = "half-set";
-	public static final String FIELD_FULL_SET = "full-set";
-	public static final String FIELD_HELMET = "helmet";
-	public static final String FIELD_CHESTPLATE = "chestplate";
-	public static final String FIELD_LEGGINGS = "leggings";
-	public static final String FIELD_BOOTS = "boots";
+	public static final String FIELD_MOB_ID = "mob-id";
+	public static final String FIELD_EQUIPMENTS = "equipments";
+	public static final String FIELD_HEAD = "head";
+	public static final String FIELD_CHEST = "chest";
+	public static final String FIELD_LEGS = "legs";
+	public static final String FIELD_FEET = "feet";
+	public static final String FIELD_MAIN_HAND = "main-hand";
+	public static final String FIELD_OFF_HAND = "off-hand";
 	public static final String FIELD_ITEM = "item";
 	public static final String FIELD_WEIGHT = "weight";
 	private static final String ROOT_FOLDER = MadokuLootTableManager.CONFIG_ROOT_FOLDER_NAME;
@@ -50,8 +51,11 @@ public final class EquipmentsConfigManager {
 	}
 
 	public static Map<String, JsonObject> buildDefaultEquipmentTableFiles() {
-		Map<String, JsonObject> defaults = new java.util.LinkedHashMap<>();
-		String[] mobs = {"skeleton", "stray", "bogged", "parched", "wither_skeleton", "zombie", "husk", "drowned", "zombie_villager"};
+		Map<String, JsonObject> defaults = new LinkedHashMap<>();
+		String[] mobs = {
+			"skeleton", "stray", "bogged", "parched", "wither-skeleton",
+			"zombie", "husk", "drowned", "zombie-villager"
+		};
 		for (String mob : mobs) {
 			defaults.put("minecraft-equipment-" + mob, buildDefaultProfile("minecraft:" + mob));
 		}
@@ -62,26 +66,30 @@ public final class EquipmentsConfigManager {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_MOB_ID, mobId)
-			.object(FIELD_ARMOR_SET, armorSet -> armorSet
-				.put(FIELD_PARTIAL_SET, 60.0D)
-				.put(FIELD_HALF_SET, 30.0D)
-				.put(FIELD_FULL_SET, 10.0D))
-			.put(FIELD_HELMET, buildDefaultSlotEntries("helmet"))
-			.put(FIELD_CHESTPLATE, buildDefaultSlotEntries("chestplate"))
-			.put(FIELD_LEGGINGS, buildDefaultSlotEntries("leggings"))
-			.put(FIELD_BOOTS, buildDefaultSlotEntries("boots"))
+			.object(FIELD_EQUIPMENTS, equipments -> equipments
+				.put(FIELD_HEAD, buildDefaultArmorEntries("helmet"))
+				.put(FIELD_CHEST, buildDefaultArmorEntries("chestplate"))
+				.put(FIELD_LEGS, buildDefaultArmorEntries("leggings"))
+				.put(FIELD_FEET, buildDefaultArmorEntries("boots"))
+				.put(FIELD_MAIN_HAND, buildEmptySlotEntries())
+				.put(FIELD_OFF_HAND, buildEmptySlotEntries()))
 			.build();
 	}
 
-	private static JsonArray buildDefaultSlotEntries(String piece) {
+	private static JsonArray buildDefaultArmorEntries(String piece) {
 		return JSONFormatManager.array()
-			.add(defaultItem("minecraft:netherite_" + piece, 1.0D))
-			.add(defaultItem("minecraft:diamond_" + piece, 5.0D))
-			.add(defaultItem("minecraft:golden_" + piece, 10.0D))
-			.add(defaultItem("minecraft:iron_" + piece, 17.0D))
-			.add(defaultItem("minecraft:copper_" + piece, 28.0D))
-			.add(defaultItem("minecraft:leather_" + piece, 39.0D))
+			.add(defaultItem("minecraft:netherite-" + piece, 1.0D))
+			.add(defaultItem("minecraft:diamond-" + piece, 5.0D))
+			.add(defaultItem("minecraft:golden-" + piece, 10.0D))
+			.add(defaultItem("minecraft:iron-" + piece, 17.0D))
+			.add(defaultItem("minecraft:copper-" + piece, 28.0D))
+			.add(defaultItem("minecraft:leather-" + piece, 39.0D))
+			.add(defaultItem("empty", 900.0D))
 			.build();
+	}
+
+	private static JsonArray buildEmptySlotEntries() {
+		return JSONFormatManager.array().add(defaultItem("empty", 1000.0D)).build();
 	}
 
 	private static JsonObject defaultItem(String itemId, double weight) {
@@ -95,17 +103,10 @@ public final class EquipmentsConfigManager {
 			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, LootTableConfigManager.buildSettingsDefaults());
 			JsonObject settingsMainRoot = resolveMainRoot(settingsRoot);
 			boolean enabled = resolveFileEnabled(settingsRoot);
-			boolean customEntityEquipmentEnabled = readBoolean(
+			boolean overrideEntityEquipment = readBoolean(
 				settingsMainRoot,
-				LootTableConfigManager.FIELD_CUSTOM_ENTITY_EQUIPMENT,
-				readBoolean(settingsRoot, LootTableConfigManager.FIELD_CUSTOM_ENTITY_EQUIPMENT, true)
-			);
-			double customEntityEquipmentChance = clampChancePercent(
-				readDouble(
-					settingsMainRoot,
-					LootTableConfigManager.FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE,
-					readDouble(settingsRoot, LootTableConfigManager.FIELD_CUSTOM_ENTITY_EQUIPMENT_CHANCE, 10.0D)
-				)
+				LootTableConfigManager.FIELD_OVERRIDE_ENTITY_EQUIPMENT,
+				readBoolean(settingsRoot, LootTableConfigManager.FIELD_OVERRIDE_ENTITY_EQUIPMENT, true)
 			);
 
 			Path equipmentDirectory = rootDirectory.resolve(EQUIPMENT_FOLDER);
@@ -117,28 +118,28 @@ public final class EquipmentsConfigManager {
 				(fileKey, sourceRoot) -> true,
 				(key, sourceValue) -> null
 			);
-			Map<String, EquipmentProfile> profiles = new java.util.LinkedHashMap<>();
+			Map<String, EquipmentProfile> profiles = new LinkedHashMap<>();
 			for (Map.Entry<String, JsonObject> entry : files.entrySet()) {
 				EquipmentProfile profile = parseProfile(entry.getValue());
 				if (profile != null) {
 					profiles.put(normalizeFileKey(entry.getKey()), profile);
 				}
 			}
-			snapshot = enabled
-				? new Snapshot(customEntityEquipmentEnabled, customEntityEquipmentChance, Map.copyOf(profiles))
+			snapshot = enabled && overrideEntityEquipment
+				? new Snapshot(true, Map.copyOf(profiles))
 				: Snapshot.disabled();
 		} catch (IOException | RuntimeException exception) {
 			snapshot = Snapshot.disabled();
 		}
 	}
 
-	public static boolean isCustomEntityEquipmentEnabled() {
-		return snapshot.customEntityEquipmentEnabled();
+	public static boolean isEntityEquipmentOverrideEnabled() {
+		return snapshot.overrideEntityEquipment();
 	}
 
 	public static EquipmentProfile resolveProfile(String rawReference, EntityType<?> mobType) {
 		Snapshot active = snapshot;
-		if (!active.customEntityEquipmentEnabled()) {
+		if (!active.overrideEntityEquipment()) {
 			return null;
 		}
 		String key = normalizeFileKey(rawReference);
@@ -151,39 +152,66 @@ public final class EquipmentsConfigManager {
 		return active.profilesByFileKey().get(key);
 	}
 
-	public static double customEntityEquipmentChanceWhenMobSystemDisabled() {
-		return snapshot.customEntityEquipmentChanceWhenMobSystemDisabled();
+	public static Map<EquipmentSlot, ItemStack> rollEquipment(EquipmentProfile profile, RandomSource random) {
+		if (profile == null || !profile.enabled() || random == null) {
+			return Map.of();
+		}
+		Map<EquipmentSlot, ItemStack> selected = new EnumMap<>(EquipmentSlot.class);
+		for (EquipmentSlot slot : EquipmentSlot.values()) {
+			WeightedArmorEntry entry = selectWeightedEntry(profile.slotEntries().get(slot), random);
+			if (entry != null && entry.item() != null && entry.item() != Items.AIR) {
+				selected.put(slot, new ItemStack(entry.item()));
+			}
+		}
+		return selected.isEmpty() ? Map.of() : Map.copyOf(selected);
+	}
+
+	private static WeightedArmorEntry selectWeightedEntry(List<WeightedArmorEntry> entries, RandomSource random) {
+		if (entries == null || entries.isEmpty() || random == null) {
+			return null;
+		}
+		double totalWeight = 0.0D;
+		for (WeightedArmorEntry entry : entries) {
+			if (entry != null && entry.item() != null && entry.weight() > 0.0D) {
+				totalWeight += entry.weight();
+			}
+		}
+		if (totalWeight <= 0.0D) {
+			return null;
+		}
+		double roll = random.nextDouble() * totalWeight;
+		for (WeightedArmorEntry entry : entries) {
+			if (entry == null || entry.item() == null || entry.weight() <= 0.0D) {
+				continue;
+			}
+			if (roll < entry.weight()) {
+				return entry;
+			}
+			roll -= entry.weight();
+		}
+		return null;
 	}
 
 	private static String defaultFileKeyForType(EntityType<?> type) {
-		if (type == madoku.craft.entity.MadokuEntityTypes.SKELETON) {
-			return "minecraft-equipment-skeleton";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.STRAY) {
-			return "minecraft-equipment-stray";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.BOGGED) {
-			return "minecraft-equipment-bogged";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.PARCHED) {
-			return "minecraft-equipment-parched";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
-			return "minecraft-equipment-wither-skeleton";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.HUSK) {
-			return "minecraft-equipment-husk";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.DROWNED) {
-			return "minecraft-equipment-drowned";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER) {
-			return "minecraft-equipment-zombie-villager";
-		}
-		if (type == madoku.craft.entity.MadokuEntityTypes.ZOMBIE) {
-			return "minecraft-equipment-zombie";
-		}
+		if (matches(type, vanillaEntityType("skeleton"), madoku.craft.entity.MadokuEntityTypes.SKELETON)) return "minecraft-equipment-skeleton";
+		if (matches(type, vanillaEntityType("stray"), madoku.craft.entity.MadokuEntityTypes.STRAY)) return "minecraft-equipment-stray";
+		if (matches(type, vanillaEntityType("bogged"), madoku.craft.entity.MadokuEntityTypes.BOGGED)) return "minecraft-equipment-bogged";
+		if (type == madoku.craft.entity.MadokuEntityTypes.PARCHED) return "minecraft-equipment-parched";
+		if (matches(type, vanillaEntityType("wither_skeleton"), madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON)) return "minecraft-equipment-wither-skeleton";
+		if (matches(type, vanillaEntityType("husk"), madoku.craft.entity.MadokuEntityTypes.HUSK)) return "minecraft-equipment-husk";
+		if (matches(type, vanillaEntityType("drowned"), madoku.craft.entity.MadokuEntityTypes.DROWNED)) return "minecraft-equipment-drowned";
+		if (matches(type, vanillaEntityType("zombie_villager"), madoku.craft.entity.MadokuEntityTypes.ZOMBIE_VILLAGER)) return "minecraft-equipment-zombie-villager";
+		if (matches(type, vanillaEntityType("zombie"), madoku.craft.entity.MadokuEntityTypes.ZOMBIE)) return "minecraft-equipment-zombie";
 		return "";
+	}
+
+	private static EntityType<?> vanillaEntityType(String path) {
+		Identifier identifier = Identifier.tryParse("minecraft:" + path);
+		return identifier == null ? null : BuiltInRegistries.ENTITY_TYPE.getValue(identifier);
+	}
+
+	private static boolean matches(EntityType<?> actual, EntityType<?> vanilla, EntityType<?> madoku) {
+		return actual == vanilla || actual == madoku;
 	}
 
 	private static EquipmentProfile parseProfile(JsonObject root) {
@@ -192,19 +220,16 @@ public final class EquipmentsConfigManager {
 		}
 		JsonObject profileRoot = resolveMainRoot(root);
 		boolean enabled = resolveFileEnabled(root);
-		JsonObject armorSet = readObject(profileRoot, FIELD_ARMOR_SET);
-		ArmorSetWeights setWeights = new ArmorSetWeights(
-			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_PARTIAL_SET, 60.0D)),
-			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_HALF_SET, 30.0D)),
-			Math.max(0.0D, readDouble(armorSet, MobConfigManager.FIELD_FULL_SET, 10.0D))
-		);
-
+		String mobId = normalizeMobId(readString(profileRoot, FIELD_MOB_ID, ""));
+		JsonObject equipments = readObject(profileRoot, FIELD_EQUIPMENTS);
 		Map<EquipmentSlot, List<WeightedArmorEntry>> slotEntries = new EnumMap<>(EquipmentSlot.class);
-		slotEntries.put(EquipmentSlot.HEAD, parseSlotEntries(readArray(profileRoot, MobConfigManager.FIELD_HELMET)));
-		slotEntries.put(EquipmentSlot.CHEST, parseSlotEntries(readArray(profileRoot, MobConfigManager.FIELD_CHESTPLATE)));
-		slotEntries.put(EquipmentSlot.LEGS, parseSlotEntries(readArray(profileRoot, MobConfigManager.FIELD_LEGGINGS)));
-		slotEntries.put(EquipmentSlot.FEET, parseSlotEntries(readArray(profileRoot, MobConfigManager.FIELD_BOOTS)));
-		return new EquipmentProfile(enabled, setWeights, Map.copyOf(slotEntries));
+		slotEntries.put(EquipmentSlot.HEAD, parseSlotEntries(readArray(equipments, FIELD_HEAD)));
+		slotEntries.put(EquipmentSlot.CHEST, parseSlotEntries(readArray(equipments, FIELD_CHEST)));
+		slotEntries.put(EquipmentSlot.LEGS, parseSlotEntries(readArray(equipments, FIELD_LEGS)));
+		slotEntries.put(EquipmentSlot.FEET, parseSlotEntries(readArray(equipments, FIELD_FEET)));
+		slotEntries.put(EquipmentSlot.MAINHAND, parseSlotEntries(readArray(equipments, FIELD_MAIN_HAND)));
+		slotEntries.put(EquipmentSlot.OFFHAND, parseSlotEntries(readArray(equipments, FIELD_OFF_HAND)));
+		return new EquipmentProfile(enabled, mobId, Map.copyOf(slotEntries));
 	}
 
 	private static List<WeightedArmorEntry> parseSlotEntries(JsonArray entries) {
@@ -216,23 +241,23 @@ public final class EquipmentsConfigManager {
 			if (!(entry instanceof JsonObject entryRoot)) {
 				continue;
 			}
-			String itemId = normalizeItemId(readString(entryRoot, FIELD_ITEM, ""));
-			if (itemId.isBlank()) {
-				continue;
-			}
-			Identifier identifier = Identifier.tryParse(itemId);
-			if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
-				continue;
-			}
-			Item item = BuiltInRegistries.ITEM.getValue(identifier);
-			if (item == null || item == Items.AIR) {
-				continue;
-			}
 			double weight = Math.max(0.0D, readDouble(entryRoot, FIELD_WEIGHT, 0.0D));
 			if (weight <= 0.0D) {
 				continue;
 			}
-			parsed.add(new WeightedArmorEntry(item, weight));
+			String rawItemId = readString(entryRoot, FIELD_ITEM, "").trim();
+			if ("empty".equalsIgnoreCase(rawItemId)) {
+				parsed.add(new WeightedArmorEntry(Items.AIR, weight));
+				continue;
+			}
+			Identifier identifier = Identifier.tryParse(normalizeItemId(rawItemId));
+			if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
+				continue;
+			}
+			Item item = BuiltInRegistries.ITEM.getValue(identifier);
+			if (item != null) {
+				parsed.add(new WeightedArmorEntry(item, weight));
+			}
 		}
 		return parsed.isEmpty() ? List.of() : List.copyOf(parsed);
 	}
@@ -240,16 +265,15 @@ public final class EquipmentsConfigManager {
 	private static JsonObject buildDynamicEquipmentDefaults(String fileKey, Map<String, JsonObject> defaultsByKey) {
 		String normalized = normalizeFileKey(fileKey);
 		JsonObject mapped = defaultsByKey.get(normalized);
-		if (mapped != null) {
-			return mapped.deepCopy();
-		}
-		return buildDefaultEquipmentTableFiles().get("minecraft-equipment-zombie");
+		return mapped == null
+			? buildDefaultEquipmentTableFiles().get("minecraft-equipment-zombie")
+			: mapped.deepCopy();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
 		String normalized = fileName == null ? "" : fileName.trim();
 		if (normalized.isEmpty()) {
-			throw new IllegalArgumentException("Zombie equipment config file name must not be blank.");
+			throw new IllegalArgumentException("Equipment config file name must not be blank.");
 		}
 		if (!normalized.endsWith(".json")) {
 			normalized = normalized + ".json";
@@ -258,25 +282,24 @@ public final class EquipmentsConfigManager {
 	}
 
 	private static String normalizeFileKey(String value) {
-		if (value == null || value.isBlank()) {
-			return "";
-		}
+		if (value == null || value.isBlank()) return "";
 		String normalized = value.trim().toLowerCase(Locale.ROOT).replace('\\', '/');
 		int slashIndex = normalized.lastIndexOf('/');
-		if (slashIndex >= 0 && slashIndex < normalized.length() - 1) {
-			normalized = normalized.substring(slashIndex + 1);
-		}
-		if (normalized.endsWith(".json")) {
-			normalized = normalized.substring(0, normalized.length() - ".json".length());
-		}
-		return normalized;
+		if (slashIndex >= 0 && slashIndex < normalized.length() - 1) normalized = normalized.substring(slashIndex + 1);
+		if (normalized.endsWith(".json")) normalized = normalized.substring(0, normalized.length() - 5);
+		return normalized.replace('_', '-');
 	}
 
 	private static String normalizeItemId(String value) {
-		if (value == null || value.isBlank()) {
-			return "";
-		}
-		return value.trim().toLowerCase(Locale.ROOT);
+		String normalized = value.trim().toLowerCase(Locale.ROOT);
+		int separator = normalized.indexOf(':');
+		if (separator < 0) normalized = "minecraft:" + normalized.replace('-', '_');
+		else normalized = normalized.substring(0, separator + 1) + normalized.substring(separator + 1).replace('-', '_');
+		return normalized;
+	}
+
+	private static String normalizeMobId(String value) {
+		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
 	}
 
 	private static JsonObject resolveMainRoot(JsonObject root) {
@@ -286,47 +309,34 @@ public final class EquipmentsConfigManager {
 
 	private static boolean resolveFileEnabled(JsonObject root) {
 		JsonObject generalRoot = readObject(root, "general");
-		if (!generalRoot.entrySet().isEmpty()) {
-			return readBoolean(generalRoot, MobConfigManager.FIELD_ENABLED, true);
-		}
-		return readBoolean(root, MobConfigManager.FIELD_ENABLED, true);
+		return !generalRoot.entrySet().isEmpty()
+			? readBoolean(generalRoot, FIELD_ENABLED, true)
+			: readBoolean(root, FIELD_ENABLED, true);
 	}
 
 	private static JsonObject readObject(JsonObject root, String key) {
-		if (root == null || key == null || key.isBlank()) {
-			return new JsonObject();
-		}
+		if (root == null || key == null || key.isBlank()) return new JsonObject();
 		JsonElement element = root.get(key);
 		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
 	private static JsonArray readArray(JsonObject root, String key) {
-		if (root == null || key == null || key.isBlank()) {
-			return new JsonArray();
-		}
+		if (root == null || key == null || key.isBlank()) return new JsonArray();
 		JsonElement element = root.get(key);
 		return element != null && element.isJsonArray() ? element.getAsJsonArray() : new JsonArray();
 	}
 
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
-		if (root == null || key == null || key.isBlank()) {
-			return fallback;
-		}
+		if (root == null || key == null || key.isBlank()) return fallback;
 		JsonElement element = root.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isBoolean()) {
-			return fallback;
-		}
-		return element.getAsBoolean();
+		return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isBoolean()
+			? element.getAsBoolean() : fallback;
 	}
 
 	private static double readDouble(JsonObject root, String key, double fallback) {
-		if (root == null || key == null || key.isBlank()) {
-			return fallback;
-		}
+		if (root == null || key == null || key.isBlank()) return fallback;
 		JsonElement element = root.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) return fallback;
 		try {
 			double value = element.getAsDouble();
 			return Double.isFinite(value) ? value : fallback;
@@ -335,41 +345,26 @@ public final class EquipmentsConfigManager {
 		}
 	}
 
-	private static double clampChancePercent(double value) {
-		if (!Double.isFinite(value)) {
-			return 0.0D;
-		}
-		return Math.max(0.0D, Math.min(100.0D, value));
-	}
-
 	private static String readString(JsonObject root, String key, String fallback) {
-		if (root == null || key == null || key.isBlank()) {
-			return fallback;
-		}
+		if (root == null || key == null || key.isBlank()) return fallback;
 		JsonElement element = root.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-			return fallback;
-		}
-		return element.getAsString();
+		return element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
+			? element.getAsString() : fallback;
 	}
 
-	public record EquipmentProfile(boolean enabled, ArmorSetWeights armorSetWeights, Map<EquipmentSlot, List<WeightedArmorEntry>> slotEntries) {
-	}
-
-	public record ArmorSetWeights(double partialSetWeight, double halfSetWeight, double fullSetWeight) {
+	public record EquipmentProfile(
+		boolean enabled,
+		String mobId,
+		Map<EquipmentSlot, List<WeightedArmorEntry>> slotEntries
+	) {
 	}
 
 	public record WeightedArmorEntry(Item item, double weight) {
 	}
 
-	private record Snapshot(
-		boolean customEntityEquipmentEnabled,
-		double customEntityEquipmentChanceWhenMobSystemDisabled,
-		Map<String, EquipmentProfile> profilesByFileKey
-	) {
+	private record Snapshot(boolean overrideEntityEquipment, Map<String, EquipmentProfile> profilesByFileKey) {
 		private static Snapshot disabled() {
-			return new Snapshot(false, 0.0D, Map.of());
+			return new Snapshot(false, Map.of());
 		}
 	}
 }
-
