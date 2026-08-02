@@ -2,6 +2,7 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
@@ -1081,15 +1082,9 @@ public final class MobRegionalDifficultyManager {
 		if (rawValue == null) {
 			return null;
 		}
-		String normalized = rawValue.trim().toLowerCase(Locale.ROOT);
+		String normalized = MadokuJSONManager.normalizeRegistryIdentifierForLookup(rawValue);
 		if (normalized.isBlank()) {
 			return null;
-		}
-		if (!normalized.contains(":")) {
-			normalized = "minecraft:" + normalized;
-		}
-		if (normalized.startsWith("minecraft:")) {
-			normalized = "minecraft:" + normalized.substring("minecraft:".length()).replace('-', '_');
 		}
 		return Identifier.tryParse(normalized);
 	}

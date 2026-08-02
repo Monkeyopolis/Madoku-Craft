@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -495,7 +496,9 @@ public final class MadokuRecipesManager {
 			return "unknown";
 		}
 
-		var identifier = net.minecraft.resources.Identifier.tryParse(itemId.trim().toLowerCase(Locale.ROOT));
+		var identifier = net.minecraft.resources.Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
 		if (identifier == null) {
 			return itemId.trim().toLowerCase(Locale.ROOT).replace(':', '-');
 		}
@@ -705,7 +708,9 @@ public final class MadokuRecipesManager {
 		if (itemId == null || itemId.isBlank()) {
 			return null;
 		}
-		var identifier = net.minecraft.resources.Identifier.tryParse(itemId.trim().toLowerCase(Locale.ROOT));
+		var identifier = net.minecraft.resources.Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return null;
 		}

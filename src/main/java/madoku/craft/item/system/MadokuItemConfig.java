@@ -2,6 +2,7 @@ package madoku.craft.item.system;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
 
 import java.util.LinkedHashMap;
@@ -150,7 +151,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
-		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
+		String normalizedItemId = MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId);
 		if ("minecraft:bone_meal".equals(normalizedItemId)) {
 			return buildBaseDefaults(itemId, stackValue, category(CATEGORY_MISC, 100), category(CATEGORY_FARMING, 75));
 		}
@@ -262,7 +263,7 @@ public final class MadokuItemConfig {
 
 	public static JsonObject buildBaseDefaults(String itemId, String stackValue, CategoryWeight... categories) {
 		return JSONFormatManager.object()
-			.put(FIELD_ITEM_ID, itemId == null ? "" : itemId)
+			.put(FIELD_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
 			.put(FIELD_CATEGORY, buildCategoryArray(categories))
 			.put(FIELD_STACK, normalizeStackValue(stackValue))
 			.build();

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -29,7 +30,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -284,8 +284,13 @@ public final class RecipesFormatManager {
 
 	private static Item resolveItem(String itemId) {
 		if (itemId == null || itemId.isBlank()) return null;
-		var identifier = net.minecraft.resources.Identifier.tryParse(itemId.trim().toLowerCase(Locale.ROOT));
-		return identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier) ? null : BuiltInRegistries.ITEM.getValue(identifier);
+		var identifier = net.minecraft.resources.Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
+		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
+			return null;
+		}
+		return BuiltInRegistries.ITEM.getValue(identifier);
 	}
 
 	private static String readString(JsonObject root, String key, String fallback) {

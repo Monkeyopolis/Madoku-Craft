@@ -179,7 +179,7 @@ public final class EcosystemConfigManager {
 	}
 
 	public static Block resolveBlock(String blockId) {
-		Identifier id = Identifier.tryParse(blockId == null ? "" : blockId.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(blockId));
 		if (id == null) {
 			return null;
 		}

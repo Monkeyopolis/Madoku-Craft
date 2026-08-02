@@ -3,6 +3,7 @@ package madoku.craft.farming.system;
 import com.google.gson.JsonObject;
 
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -196,15 +197,16 @@ public final class MadokuCropConfig {
 		int maxHarvestCount,
 		List<String> blockedSeasons
 	) {
+		String normalizedCropId = normalizeRegistryId(cropId);
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
-			.put(FIELD_CROP_ID, normalizeRegistryId(cropId))
+			.put(FIELD_CROP_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedCropId))
 			.put(FIELD_GROWTH_TIME, growthMinecraftDays)
 			.put(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount))
 			.put(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
 
 		String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
 		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizeRegistryId(cropBlockId))) {
-			root.put(FIELD_MATURE_BLOCK_ID, normalizedMatureBlockId);
+			root.put(FIELD_MATURE_BLOCK_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedMatureBlockId));
 		}
 
 		String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
@@ -227,14 +229,7 @@ public final class MadokuCropConfig {
 	}
 
 	public static String normalizeRegistryId(String value) {
-		if (value == null) {
-			return "";
-		}
-		String trimmed = value.trim();
-		if (trimmed.isEmpty()) {
-			return "";
-		}
-		return trimmed.contains(":") ? trimmed.toLowerCase(Locale.ROOT) : "minecraft:" + trimmed.toLowerCase(Locale.ROOT);
+		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
 	public static String normalizeSeasonId(String value) {

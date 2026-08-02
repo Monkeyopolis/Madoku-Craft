@@ -804,7 +804,9 @@ public final class LootTableEntitiesManager {
 		if (itemId == null || itemId.isBlank()) {
 			return null;
 		}
-		var identifier = net.minecraft.resources.Identifier.tryParse(itemId.trim().toLowerCase(Locale.ROOT));
+		var identifier = net.minecraft.resources.Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return null;
 		}
@@ -827,7 +829,7 @@ public final class LootTableEntitiesManager {
 		if (tableId == null || tableId.isBlank()) {
 			return "";
 		}
-		return tableId.trim().toLowerCase(Locale.ROOT);
+		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(tableId);
 	}
 
 	private static String normalizeFileKey(String value) {

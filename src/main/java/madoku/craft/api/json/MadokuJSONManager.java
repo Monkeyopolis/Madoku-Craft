@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -124,6 +125,34 @@ public final class MadokuJSONManager {
 		cachedModVersion = FabricLoader.getInstance().getModContainer(MadokuCraft.MOD_ID)
 			.map(container -> container.getMetadata().getVersion().getFriendlyString()).orElse("unknown");
 		return cachedModVersion;
+	}
+
+	/** Converts a JSON registry identifier to the underscore-based Minecraft registry form. */
+	public static String normalizeRegistryIdentifierForLookup(String value) {
+		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return "";
+		}
+		int separator = normalized.indexOf(':');
+		if (separator < 0) {
+			return "minecraft:" + normalized.replace('-', '_');
+		}
+		return normalized.substring(0, separator + 1)
+			+ normalized.substring(separator + 1).replace('-', '_');
+	}
+
+	/** Converts a registry identifier to the hyphen-based form used by Madoku JSON files. */
+	public static String normalizeRegistryIdentifierForJson(String value) {
+		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return "";
+		}
+		int separator = normalized.indexOf(':');
+		if (separator < 0) {
+			return "minecraft:" + normalized.replace('_', '-');
+		}
+		return normalized.substring(0, separator + 1)
+			+ normalized.substring(separator + 1).replace('_', '-');
 	}
 
 	static void cacheSettings(Path file, JsonObject settings) { if (file != null && settings != null) SETTINGS_CACHE.put(file, settings.deepCopy()); }

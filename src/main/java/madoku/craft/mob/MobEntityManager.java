@@ -11,6 +11,7 @@ import madoku.craft.mixin.CreeperPoweredAccessor;
 import madoku.craft.pet.PetComponentsManager;
 import madoku.craft.mixin.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -2691,7 +2692,9 @@ public final class MobEntityManager {
 		if (entityTypeId == null || entityTypeId.isBlank()) {
 			return null;
 		}
-		Identifier identifier = Identifier.tryParse(entityTypeId.trim());
+		Identifier identifier = Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(entityTypeId)
+		);
 		if (identifier == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(identifier)) {
 			return null;
 		}
@@ -2702,7 +2705,9 @@ public final class MobEntityManager {
 		if (itemId == null || itemId.isBlank()) {
 			return ItemStack.EMPTY;
 		}
-		Identifier identifier = Identifier.tryParse(itemId.trim());
+		Identifier identifier = Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return ItemStack.EMPTY;
 		}
@@ -2718,7 +2723,7 @@ public final class MobEntityManager {
 			return "empty";
 		}
 		Identifier identifier = BuiltInRegistries.ITEM.getKey(stack.getItem());
-		return identifier == null ? "unknown" : identifier.toString();
+		return identifier == null ? "unknown" : MadokuJSONManager.normalizeRegistryIdentifierForJson(identifier.toString());
 	}
 
 	private record HomingArrowState(UUID targetUuid, double speed, int remainingTicks) {}

@@ -1,5 +1,6 @@
 package madoku.craft.mixin;
 
+import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.pet.PetComponentsManager.PetHolder;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetEntitiesManager;
@@ -55,7 +56,9 @@ public abstract class PetInventoryMixin implements PetHolder {
 					continue;
 				}
 
-				Identifier identifier = Identifier.tryParse(itemId);
+				Identifier identifier = Identifier.tryParse(
+					MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+				);
 				Item item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
 				if (item == null) {
 					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);

@@ -518,7 +518,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveBlockId(String value) {
-		Identifier id = Identifier.tryParse(value == null ? "" : value.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
 			return null;
 		}
@@ -526,7 +526,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveBlockEntityTypeId(String value) {
-		Identifier id = Identifier.tryParse(value == null ? "" : value.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.BLOCK_ENTITY_TYPE.containsKey(id)) {
 			return null;
 		}
@@ -534,7 +534,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveRecipeTypeId(String value) {
-		Identifier id = Identifier.tryParse(value == null ? "" : value.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.RECIPE_TYPE.containsKey(id)) {
 			return null;
 		}
@@ -579,7 +579,7 @@ public final class MadokuSmeltingManager {
 		if (key == null || key.isBlank()) {
 			return null;
 		}
-		Identifier id = Identifier.tryParse(key);
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(key));
 		if (id == null || !BuiltInRegistries.BLOCK_ENTITY_TYPE.containsKey(id)) {
 			return null;
 		}

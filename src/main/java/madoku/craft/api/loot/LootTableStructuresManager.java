@@ -748,7 +748,9 @@ public final class LootTableStructuresManager {
 		if (itemId == null || itemId.isBlank()) {
 			return null;
 		}
-		var identifier = net.minecraft.resources.Identifier.tryParse(itemId.trim().toLowerCase(Locale.ROOT));
+		var identifier = net.minecraft.resources.Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return null;
 		}
@@ -771,7 +773,7 @@ public final class LootTableStructuresManager {
 		if (tableId == null || tableId.isBlank()) {
 			return "";
 		}
-		return tableId.trim().toLowerCase(Locale.ROOT);
+		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(tableId);
 	}
 
 	private static ManagedLootTable resolveManagedTableByLootId(String rawLootTableId) {

@@ -250,7 +250,7 @@ public final class EquipmentsConfigManager {
 				parsed.add(new WeightedArmorEntry(Items.AIR, weight));
 				continue;
 			}
-			Identifier identifier = Identifier.tryParse(normalizeItemId(rawItemId));
+			Identifier identifier = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(rawItemId));
 			if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 				continue;
 			}
@@ -290,16 +290,8 @@ public final class EquipmentsConfigManager {
 		return normalized.replace('_', '-');
 	}
 
-	private static String normalizeItemId(String value) {
-		String normalized = value.trim().toLowerCase(Locale.ROOT);
-		int separator = normalized.indexOf(':');
-		if (separator < 0) normalized = "minecraft:" + normalized.replace('-', '_');
-		else normalized = normalized.substring(0, separator + 1) + normalized.substring(separator + 1).replace('-', '_');
-		return normalized;
-	}
-
 	private static String normalizeMobId(String value) {
-		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+		return MadokuJSONManager.normalizeRegistryIdentifierForJson(value);
 	}
 
 	private static JsonObject resolveMainRoot(JsonObject root) {

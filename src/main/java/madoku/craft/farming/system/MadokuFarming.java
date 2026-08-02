@@ -1816,15 +1816,7 @@ public final class MadokuFarming {
 	}
 
 	private static String normalizeRegistryId(String value) {
-		if (value == null) {
-			return "";
-		}
-		String trimmed = value.trim();
-		if (trimmed.isEmpty()) {
-			return "";
-		}
-		Identifier identifier = Identifier.tryParse(trimmed);
-		return identifier == null ? trimmed.toLowerCase(Locale.ROOT) : identifier.toString();
+		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
 	private static String normalizeSeasonId(String value) {
@@ -2686,5 +2678,3 @@ public final class MadokuFarming {
 		}
 	}
 }
-
-

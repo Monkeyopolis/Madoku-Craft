@@ -2,6 +2,7 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
 
@@ -151,7 +152,8 @@ public final class RegionalDifficultyConfigManager {
 		String normalized = normalizeFileKey(fileKey);
 		String mobId = "hag".equals(normalized)
 			? "madoku-craft:hag"
-			: "minecraft:" + normalized.replace('-', '_');
+			: "minecraft:" + normalized;
+		mobId = MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId);
 		Double swimmingSpeed = null;
 		Double flyingSpeed = null;
 		Double scale = null;
@@ -242,6 +244,6 @@ public final class RegionalDifficultyConfigManager {
 
 	private static String normalizeMobId(String mobId) {
 		String value = mobId == null ? "" : mobId.trim().toLowerCase(Locale.ROOT);
-		return value.contains(":") ? value : "minecraft:" + value.replace('-', '_');
+		return MadokuJSONManager.normalizeRegistryIdentifierForJson(value);
 	}
 }

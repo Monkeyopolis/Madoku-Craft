@@ -827,7 +827,7 @@ public final class MadokuItem {
 	}
 
 	private static Item resolveItem(String itemId) {
-		Identifier id = Identifier.tryParse(itemId == null ? "" : itemId.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId));
 		if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
 			return null;
 		}
@@ -835,7 +835,7 @@ public final class MadokuItem {
 	}
 
 	private static String normalizeItemId(String rawValue) {
-		Identifier id = Identifier.tryParse(rawValue == null ? "" : rawValue.trim());
+		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(rawValue));
 		if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
 			return null;
 		}

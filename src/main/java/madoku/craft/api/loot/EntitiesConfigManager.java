@@ -3,6 +3,7 @@ package madoku.craft.api.loot;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.api.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,7 +18,7 @@ public final class EntitiesConfigManager {
 	public static JsonObject buildEntityTableTemplate(String tableId) {
 		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, false)
-			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(tableId))
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
 				.put(LootTableConfigManager.FIELD_MIN, 1)
 				.put(LootTableConfigManager.FIELD_MAX, 2))
@@ -29,7 +30,7 @@ public final class EntitiesConfigManager {
 	public static JsonObject buildEntityTable(String tableId, boolean enabled, int minRolls, int maxRolls) {
 		return JSONFormatManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, enabled)
-			.put(LootTableConfigManager.FIELD_TABLE_ID, tableId == null ? "" : tableId)
+			.put(LootTableConfigManager.FIELD_TABLE_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(tableId))
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
 				.put(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls))
 				.put(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls)))

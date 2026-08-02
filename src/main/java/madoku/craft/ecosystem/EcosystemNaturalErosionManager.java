@@ -342,7 +342,7 @@ public final class EcosystemNaturalErosionManager {
 			if (normalized.startsWith("#")) {
 				normalized = normalized.substring(1);
 			}
-			Identifier id = Identifier.tryParse(normalized);
+			Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(normalized));
 			if (id == null) {
 				continue;
 			}

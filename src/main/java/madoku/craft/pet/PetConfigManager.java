@@ -56,8 +56,7 @@ public final class PetConfigManager {
 	}
 
 	static String normalizePetId(String value) {
-		String normalized = normalizeKey(value).replace('_', '-');
-		return normalized.contains(":") ? normalized : "minecraft:" + normalized;
+		return MadokuJSONManager.normalizeRegistryIdentifierForJson(value);
 	}
 
 	static String normalizeAbilityId(String value) {
@@ -1160,7 +1159,9 @@ public final class PetConfigManager {
 		SoundEvent resolveSoundEvent(String requestedAbilityType) {
 		PetAbilityRule ability = ability(requestedAbilityType);
 		String configuredSoundEventId = ability == null ? soundEventId : ability.soundEventId;
-		Identifier identifier = Identifier.tryParse(configuredSoundEventId == null ? "" : configuredSoundEventId.trim());
+		Identifier identifier = Identifier.tryParse(
+			MadokuJSONManager.normalizeRegistryIdentifierForLookup(configuredSoundEventId)
+		);
 		if (identifier == null) return defaultSoundEvent(requestedAbilityType);
 		SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
 		return soundEvent == null ? defaultSoundEvent(requestedAbilityType) : soundEvent;

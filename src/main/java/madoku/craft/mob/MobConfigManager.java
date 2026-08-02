@@ -318,7 +318,8 @@ public final class MobConfigManager {
 		String key = normalizeFileKey(fileKey);
 		String mobId = key.contains(":")
 			? key
-			: "hag".equals(key) ? "madoku-craft:hag" : "minecraft:" + key.replace('-', '_');
+			: "hag".equals(key) ? "madoku-craft:hag" : "minecraft:" + key;
+		mobId = MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId);
 		JsonObject entityVariant = buildEntityVariantDefaults(key);
 		if (List.of(FILE_BOGGED, FILE_DROWNED, FILE_HUSK, FILE_PARCHED, FILE_SKELETON, FILE_STRAY,
 			FILE_WITHER_SKELETON, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key)) {
@@ -594,7 +595,9 @@ public final class MobConfigManager {
 			buildSpawnRules(90.0D, equipmentReference), buildBehavior(false, true, false, false),
 			buildGoals("hurt-by-target", "target-player", "ranged-attack")
 		);
-		String passengerType = "minecraft:" + jockeyKey.replace("-jockey", "").replace('-', '_');
+		String passengerType = MadokuJSONManager.normalizeRegistryIdentifierForJson(
+			"minecraft:" + jockeyKey.replace("-jockey", "")
+		);
 		variant.add(jockeyKey, buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, passengerType, "minecraft:bow", "minecraft:spider"), new JsonObject(), new JsonObject()));
 		return variant;
 	}
@@ -622,7 +625,7 @@ public final class MobConfigManager {
 		passengers.add(FIELD_JOCKEY_MOBS, passengerMobs);
 		jockey.add(FIELD_JOCKEY_PASSENGERS, passengers);
 		JsonObject mount = new JsonObject();
-		mount.addProperty(FIELD_MOB_ID, mountType);
+		mount.addProperty(FIELD_MOB_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(mountType));
 		jockey.add(FIELD_JOCKEY_MOUNT, mount);
 		JsonObject rules = buildSpawnRules(weight);
 		rules.add(FIELD_MOB_JOCKEY, jockey);
@@ -631,10 +634,10 @@ public final class MobConfigManager {
 
 	private static JsonObject buildJockeyMobDefinition(String mobId, String weaponId) {
 		JsonObject definition = new JsonObject();
-		definition.addProperty(FIELD_MOB_ID, mobId);
+		definition.addProperty(FIELD_MOB_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId));
 		if (weaponId != null && !weaponId.isBlank()) {
 			JsonObject weapon = new JsonObject();
-			weapon.addProperty(FIELD_ITEM, weaponId);
+			weapon.addProperty(FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(weaponId));
 			definition.add(FIELD_MOB_WEAPON, weapon);
 		}
 		return definition;
@@ -765,7 +768,7 @@ public final class MobConfigManager {
 		);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
-		alternative.addProperty(FIELD_MOB, "minecraft:cave_spider");
+		alternative.addProperty(FIELD_MOB, MadokuJSONManager.normalizeRegistryIdentifierForJson("minecraft:cave_spider"));
 		JsonObject caveSpiderRules = buildSpawnRules(10.0D);
 		caveSpiderRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
 		variant.add("cave-spider", buildSpawnAlternativeVariant(caveSpiderRules));
@@ -807,7 +810,7 @@ public final class MobConfigManager {
 		variant.add("zombie-jockey", zombieJockey);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
-		alternative.addProperty(FIELD_MOB, "minecraft:zombie_villager");
+		alternative.addProperty(FIELD_MOB, MadokuJSONManager.normalizeRegistryIdentifierForJson("minecraft:zombie_villager"));
 		JsonObject villagerRules = buildSpawnRules(10.0D);
 		villagerRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
 		JsonObject zombieVillager = buildSpawnAlternativeVariant(villagerRules);
@@ -955,7 +958,7 @@ public final class MobConfigManager {
 	static JsonObject buildMobWeaponDefaults(String itemId) {
 		JSONFormatManager.ObjectBuilder weapon = JSONFormatManager.object();
 		if (itemId != null && !itemId.isBlank()) {
-			weapon.put(FIELD_ITEM, itemId);
+			weapon.put(FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId));
 		}
 		return weapon.build();
 	}
