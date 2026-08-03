@@ -22,11 +22,23 @@ public final class RegionalDifficultyStructuresManager {
 	public static JsonObject buildDefaults() {
 		JSONFormatManager.ObjectBuilder list = JSONFormatManager.object();
 		for (String structure : DEFAULT_STRUCTURES) {
-			list.object(structure, entry -> entry.put(MobConfigManager.FIELD_ADJUSTMENT, 0));
+			list.object(structure, entry -> entry.put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultAdjustment(structure)));
 		}
 		return JSONFormatManager.object()
-			.put(MobConfigManager.FIELD_ENABLED, true)
-			.put(MobConfigManager.FIELD_STRUCTURE_LIST, list.build())
+			.put(RegionalDifficultyConfigManager.FIELD_ENABLED, true)
+			.put(RegionalDifficultyConfigManager.FIELD_STRUCTURE_LIST, list.build())
 			.build();
+	}
+
+	private static int defaultAdjustment(String structure) {
+		return switch (structure) {
+			case "trial-ruins", "shipwreck", "shipwreck-beached", "ruined-portal", "ruined-portal-desert",
+				"ruined-portal-jungle", "ruined-portal-mountain", "ruined-portal-nether", "ruined-portal-ocean",
+				"ruined-portal-swamp" -> 1;
+			case "jungle-pyramid", "desert-pyramid", "pillager-outpost", "mineshaft", "mineshaft-mesa" -> 2;
+			case "fortress", "mansion", "monument", "stronghold", "trial-chambers", "end-city", "ancient-city",
+				"bastion-remnant" -> 3;
+			default -> 0;
+		};
 	}
 }

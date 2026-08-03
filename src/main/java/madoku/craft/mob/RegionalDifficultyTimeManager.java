@@ -14,12 +14,12 @@ public final class RegionalDifficultyTimeManager {
 
 	public static JsonObject buildDefaults() {
 		return JSONFormatManager.object()
-			.put(MobConfigManager.FIELD_ENABLED, true)
-			.object(MobConfigManager.FIELD_DAY_LIST, days -> days
-				.object("difficulty-zero", tier -> tier.put(MobConfigManager.FIELD_DAY_COUNT, 0).put(MobConfigManager.FIELD_ADJUSTMENT, 0))
-				.object("difficulty-one", tier -> tier.put(MobConfigManager.FIELD_DAY_COUNT, 29).put(MobConfigManager.FIELD_ADJUSTMENT, 1))
-				.object("difficulty-two", tier -> tier.put(MobConfigManager.FIELD_DAY_COUNT, 113).put(MobConfigManager.FIELD_ADJUSTMENT, 2))
-				.object("difficulty-three", tier -> tier.put(MobConfigManager.FIELD_DAY_COUNT, 337).put(MobConfigManager.FIELD_ADJUSTMENT, 3)))
+			.put(RegionalDifficultyConfigManager.FIELD_ENABLED, true)
+			.object(RegionalDifficultyConfigManager.FIELD_DAY_LIST, days -> days
+				.object("difficulty-zero", tier -> tier.put(RegionalDifficultyConfigManager.FIELD_DAY_COUNT, 0).put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, 0))
+				.object("difficulty-one", tier -> tier.put(RegionalDifficultyConfigManager.FIELD_DAY_COUNT, 29).put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, 1))
+				.object("difficulty-two", tier -> tier.put(RegionalDifficultyConfigManager.FIELD_DAY_COUNT, 113).put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, 2))
+				.object("difficulty-three", tier -> tier.put(RegionalDifficultyConfigManager.FIELD_DAY_COUNT, 337).put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, 3)))
 			.build();
 	}
 

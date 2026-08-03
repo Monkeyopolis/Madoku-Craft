@@ -436,7 +436,7 @@ public final class MobRegionalDifficultyManager {
 		boolean biomesEnabled = true;
 		boolean structuresEnabled = true;
 		boolean timeEnabled = true;
-		int defaultUnknownAdjustment = 0;
+		int defaultUnknownAdjustment = RegionalDifficultyConfigManager.DEFAULT_UNKNOWN_ADJUSTMENT;
 
 		JsonObject scaling = readObject(settingsRoot, RegionalDifficultyConfigManager.FIELD_DIFFICULTY_SCALING);
 			StatIncrements increments = new StatIncrements(
@@ -525,13 +525,13 @@ public final class MobRegionalDifficultyManager {
 			if (root == null) {
 				continue;
 			}
-			JsonElement dayList = root.get(MobConfigManager.FIELD_DAY_LIST);
+			JsonElement dayList = root.get(RegionalDifficultyConfigManager.FIELD_DAY_LIST);
 			if (dayList != null && dayList.isJsonObject()) {
 				int previousDay = 0;
 				for (JsonElement entry : dayList.getAsJsonObject().entrySet().stream().map(Map.Entry::getValue).toList()) {
 					if (!entry.isJsonObject()) continue;
 					JsonObject tier = entry.getAsJsonObject();
-					int minDay = Math.max(previousDay, readInt(tier, MobConfigManager.FIELD_DAY_COUNT, previousDay));
+					int minDay = Math.max(previousDay, readInt(tier, RegionalDifficultyConfigManager.FIELD_DAY_COUNT, previousDay));
 					int adjustment = Math.max(0, readInt(tier, RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultUnknownAdjustment));
 					tiers.add(new TimeTier(minDay, Integer.MAX_VALUE, adjustment));
 					previousDay = minDay;

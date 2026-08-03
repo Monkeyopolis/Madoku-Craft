@@ -176,6 +176,16 @@ public final class PetConfigManager {
 		return 0.25D;
 	}
 
+	static double defaultTeleportDistanceForItem(String itemId) {
+		String normalizedItemId = normalizePetId(itemId);
+		return "minecraft:bat".equals(normalizedItemId) || "minecraft:bee".equals(normalizedItemId) ? 12.0D : 8.0D;
+	}
+
+	static double defaultIdleDistanceForItem(String itemId) {
+		String normalizedItemId = normalizePetId(itemId);
+		return "minecraft:bat".equals(normalizedItemId) || "minecraft:bee".equals(normalizedItemId) ? 6.0D : 4.0D;
+	}
+
 	static String defaultRarityForItem(String itemId) {
 		String normalizedItemId = normalizePetId(itemId);
 		if ("minecraft:bee".equals(normalizedItemId) || "minecraft:bat".equals(normalizedItemId)) return MadokuPetManager.PET_RARITY_EPIC;
@@ -523,7 +533,6 @@ public final class PetConfigManager {
 
 	static final class PetRule {
 		private static final double DEFAULT_IDLE_MOVE_SPEED = 0.8D;
-			private static final double DEFAULT_IDLE_DISTANCE = 4.0D;
 			private static final double DEFAULT_IDLE_WANDER_RADIUS = 2.0D;
 			private static final long DEFAULT_IDLE_MIN_INTERVAL_TICKS = 20L;
 			private static final long DEFAULT_IDLE_MAX_INTERVAL_TICKS = 60L;
@@ -682,7 +691,7 @@ public final class PetConfigManager {
 							.put("rarity", defaultRarityForItem(resolvedPetId))
 							.put("pet-scale", defaultPetScaleForItem(resolvedPetId))
 							.put("follow-speed", 1.2D)
-							.put("teleport-distance", 8.0D)
+							.put("teleport-distance", defaultTeleportDistanceForItem(resolvedPetId))
 							.put("cooldown", defaultCooldownSecondsForPet(resolvedPetId, resolvedAbilityType));
 						pet.array("ability-ids", abilities -> {
 							for (String abilityType : resolvedAbilities) abilities.add(abilityConfigId(abilityType));
@@ -710,7 +719,7 @@ public final class PetConfigManager {
 					.build();
 				if (usesRangedHomingArrow) {
 					ability.addProperty("attack-damage", 3.0D);
-					ability.addProperty("attack-speed", 1.5D);
+					ability.addProperty("attack-speed", 3.0D);
 					ability.addProperty("cooldown", 5.0D);
 					ability.addProperty("shot-delay-ticks", 10L);
 				}
@@ -735,8 +744,8 @@ public final class PetConfigManager {
 				}
 				if (usesEggProjectile) {
 					ability.addProperty("follow-speed", 1.0D);
-					ability.addProperty("attack-damage", 2.0D);
-					ability.addProperty("attack-speed", 1.5D);
+					ability.addProperty("attack-damage", 3.0D);
+					ability.addProperty("attack-speed", 2.5D);
 					ability.addProperty("cooldown", 30.0D);
 					ability.addProperty("shot-delay-ticks", 5L);
 					ability.addProperty("explosion-radius", 1.0D);
@@ -766,7 +775,7 @@ public final class PetConfigManager {
 					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 2.0D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 4.0D;
 					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.5D;
-					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 2.0D;
+					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 3.0D;
 					default -> 0.0D;
 				};
 			}
@@ -820,8 +829,8 @@ public final class PetConfigManager {
 					0.05D,
 					4.0D
 				);
-				double idleDistance = PetSettings.clampDouble(getDouble(source, "idle-distance", DEFAULT_IDLE_DISTANCE), 0.5D, 32.0D);
-				double teleportDistance = PetSettings.clampDouble(getDouble(source, "teleport-distance", 8.0D), idleDistance, 64.0D);
+				double idleDistance = PetSettings.clampDouble(getDouble(source, "idle-distance", defaultIdleDistanceForItem(itemId)), 0.5D, 32.0D);
+				double teleportDistance = PetSettings.clampDouble(getDouble(source, "teleport-distance", defaultTeleportDistanceForItem(itemId)), idleDistance, 64.0D);
 				double idleWanderRadius = PetSettings.clampDouble(getDouble(source, "idle-wander-radius", DEFAULT_IDLE_WANDER_RADIUS), 0.0D, 16.0D);
 				long idleMinIntervalTicks = PetSettings.clampLong(getLong(source, "idle-min-interval-ticks", DEFAULT_IDLE_MIN_INTERVAL_TICKS), 1L, 20L * 60L);
 				long idleMaxIntervalTicks = PetSettings.clampLong(getLong(source, "idle-max-interval-ticks", DEFAULT_IDLE_MAX_INTERVAL_TICKS), idleMinIntervalTicks, 20L * 60L);

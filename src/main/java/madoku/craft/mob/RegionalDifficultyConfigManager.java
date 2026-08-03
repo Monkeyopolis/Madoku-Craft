@@ -36,6 +36,8 @@ public final class RegionalDifficultyConfigManager {
 	public static final String FIELD_ADJUSTMENT = "adjustment";
 	public static final String FIELD_BIOME_LIST = "biome-list";
 	public static final String FIELD_STRUCTURE_LIST = "structure-list";
+	public static final String FIELD_DAY_LIST = "day-list";
+	public static final String FIELD_DAY_COUNT = "day-count";
 	public static final String FIELD_MOB_ID = "mob-id";
 
 	public static final double DEFAULT_HEALTH_INCREMENT = 0.20D;
@@ -47,6 +49,7 @@ public final class RegionalDifficultyConfigManager {
 	public static final double DEFAULT_DAMAGE_INCREMENT = 0.05D;
 	public static final double DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT = 0.02D;
 	public static final double DEFAULT_EXPERIENCE_DROP_INCREMENT = 0.10D;
+	public static final int DEFAULT_UNKNOWN_ADJUSTMENT = 0;
 
 	private RegionalDifficultyConfigManager() {
 	}

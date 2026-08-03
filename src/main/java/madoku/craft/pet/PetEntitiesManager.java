@@ -470,14 +470,14 @@ public final class PetEntitiesManager {
 			}
 
 			if (rule == null) {
-				if (!stack.isEmpty()) {
-				}
+				PetAbilitiesManager.stopBeeSwarmForSlot(player.getUUID(), slot);
 				removePet(server, petIds[slot]);
 				petIds[slot] = null;
 				continue;
 			}
 
 			if (pet == null || pet.level() != player.level() || !rule.petId.equals(pet.petId()) || pet.petSlot() != slot || !player.getUUID().equals(pet.ownerUuid())) {
+				PetAbilitiesManager.stopBeeSwarmForSlot(player.getUUID(), slot);
 				removePet(server, petIds[slot]);
 				pet = spawnPet(player, slot, rule, PetEntitiesManager.petLevel(stack));
 				petIds[slot] = pet == null ? null : pet.getUUID();
@@ -491,7 +491,7 @@ public final class PetEntitiesManager {
 				if (beeSwarmActive) {
 					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval(server));
 				} else {
-						nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(
+					nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(
 						player,
 						pet,
 						slot,
@@ -644,7 +644,9 @@ public final class PetEntitiesManager {
 				double teleportDistance = (rule == null ? 8.0D : rule.teleportDistance) * creativeDistanceMultiplier;
 				double teleportDistanceSqr = teleportDistance * teleportDistance;
 				if (ownerDistanceSqr > teleportDistanceSqr) {
-					pet.snapTo(desiredPosition.x, desiredPosition.y, desiredPosition.z, owner.getYRot(), 0.0F);
+					pet.teleportTo(desiredPosition.x, desiredPosition.y, desiredPosition.z);
+					pet.setYRot(owner.getYRot());
+					pet.setYHeadRot(owner.getYRot());
 					pet.getNavigation().stop();
 					pet.setDeltaMovement(Vec3.ZERO);
 					clearFollowCommand(pet.getUUID(), followCommandsByPet);

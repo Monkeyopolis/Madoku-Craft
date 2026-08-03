@@ -7,6 +7,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.control.FlyingMoveControl;
+import net.minecraft.world.entity.ai.control.MoveControl;
+import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -30,6 +33,7 @@ public final class MadokuPetEntity extends PathfinderMob {
 	public static AttributeSupplier.Builder createAttributes() {
 		return PathfinderMob.createMobAttributes()
 			.add(Attributes.MAX_HEALTH, 20.0D)
+			.add(Attributes.FLYING_SPEED, 0.60D)
 			.add(Attributes.MOVEMENT_SPEED, 0.25D);
 	}
 
@@ -76,6 +80,35 @@ public final class MadokuPetEntity extends PathfinderMob {
 
 	public void setPetId(String petId) {
 		entityData.set(PET_ID, petId == null ? "" : petId);
+		refreshNavigation();
+	}
+
+	private void refreshNavigation() {
+		if (navigation == null) {
+			return;
+		}
+		boolean shouldUseFlyingNavigation = usesFlyingNavigation();
+		if (shouldUseFlyingNavigation == (navigation instanceof FlyingPathNavigation)) {
+			return;
+		}
+
+		navigation.stop();
+		if (shouldUseFlyingNavigation) {
+			moveControl = new FlyingMoveControl<>(this, 20, true);
+			FlyingPathNavigation flyingNavigation = new FlyingPathNavigation(this, level());
+			flyingNavigation.setCanOpenDoors(false);
+			flyingNavigation.setCanFloat(false);
+			flyingNavigation.setRequiredPathLength(48.0F);
+			navigation = flyingNavigation;
+		} else {
+			moveControl = new MoveControl<>(this);
+			navigation = super.createNavigation(level());
+		}
+	}
+
+	private boolean usesFlyingNavigation() {
+		String id = petId();
+		return "minecraft:bat".equals(id) || "minecraft:bee".equals(id);
 	}
 
 	public UUID ownerUuid() {

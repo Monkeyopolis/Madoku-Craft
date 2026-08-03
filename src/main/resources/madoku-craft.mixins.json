@@ -94,6 +94,7 @@
     "ServerPlayerDrowningDamageMixin",
     "ServerPlayerGameModeFarmingMixin",
     "ServerPlayerSleepTimeMixin",
+    "ServerPlayerTeleportPetMixin",
     "ServerPlayerTeleportHungerMixin",
     "SkeletonRuntimeTickMixin",
     "SmithingTransformRecipeRarityMixin",

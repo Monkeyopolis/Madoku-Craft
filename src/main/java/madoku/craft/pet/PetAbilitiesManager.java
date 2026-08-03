@@ -39,6 +39,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg;
+import net.minecraft.world.level.ClipContext;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -74,6 +75,7 @@ public final class PetAbilitiesManager {
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final double EXPLOSIVE_PROJECTILE_HIT_DISTANCE = 1.0D;
 	private static final double EXPLOSIVE_PROJECTILE_MIN_SPEED = 0.5D;
+	private static final double LEFT_CLICK_TARGET_RANGE = 32.0D;
 	private static final long CHICKEN_EGG_COOLDOWN_TICKS = 30L * 20L;
 	private static final int CHICKEN_EGG_BASE_PROJECTILE_COUNT = 5;
 	private static final long CHICKEN_EGG_PROJECTILE_DELAY_TICKS = 4L;
@@ -88,8 +90,12 @@ public final class PetAbilitiesManager {
 	private static final String MOB_SCAN_VULNERABILITY_TAG = "madoku-craft.mob-scan-vulnerability";
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 10L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 5L * 20L;
-	private static final double BEE_SWARM_SCAN_RADIUS = 16.0D;
-	private static final double BEE_SWARM_SCAN_VERTICAL_RADIUS = 8.0D;
+	private static final double BEE_SWARM_SCAN_RADIUS = 20.0D;
+	private static final double BEE_SWARM_SCAN_VERTICAL_RADIUS = 10.0D;
+	private static final int BEE_SWARM_MIN_TARGET_SCAN_INTERVAL_TICKS = 4;
+	private static final int BEE_SWARM_MAX_TARGET_SCAN_INTERVAL_TICKS = 20;
+	private static final int BEE_SWARM_MAX_TARGET_CANDIDATES = 4;
+	private static final String BEE_TARGET_SCAN_SCHEDULER_OWNER_ID = "madoku-pets-bee-target-scan";
 	private static final long BEE_SWARM_MAX_TARGET_DURATION_TICKS = 15L * 20L;
 	private static final long BEE_SWARM_DAMAGE_INTERVAL_TICKS = 20L;
 	private static final float BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND = 2.0F;
@@ -105,6 +111,7 @@ public final class PetAbilitiesManager {
 	private static final String FIELD_SPAWN_Z = "spawn-z";
 	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, WebControlState> ACTIVE_WEB_CONTROLS = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
@@ -115,6 +122,8 @@ public final class PetAbilitiesManager {
 	static void reset() {
 		PLAYER_SCHEDULER_IDS.clear();
 		PLAYER_ABILITY_COOLDOWNS.clear();
+		NEXT_BEE_TARGET_SCAN_TICK.clear();
+		MadokuSchedulerManager.clearAdaptiveDelayState(BEE_TARGET_SCAN_SCHEDULER_OWNER_ID);
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_WEB_CONTROLS.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
@@ -262,11 +271,20 @@ public final class PetAbilitiesManager {
 		int levelBonus = 0;
 		float damage = 0.0F;
 		float radius = 0.0F;
+		boolean hasReadyTargetedPet = false;
 		int[] chickenSlots = new int[SLOT_COUNT];
 		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
 			PetRule baseRule = PetConfigManager.resolvePetRule(PetEntitiesManager.petId(stack));
 			PetRule rule = baseRule == null ? null : baseRule.atLevel(PetEntitiesManager.petLevel(stack));
+			if (rule != null && rule.enabled) {
+				for (PetAbilityRule ability : rule.reactiveAbilities()) {
+					if (isLeftClickProjectileAbility(ability) && isAbilityOffCooldown(player, slot, ability.abilityType, now)) {
+						hasReadyTargetedPet = true;
+						break;
+					}
+				}
+			}
 			PetAbilityRule eggAbility = rule == null ? null : rule.ability(PET_ABILITY_EGG_PROJECTILE);
 			if (rule == null || !rule.enabled || !"minecraft:chicken".equals(rule.petId) || eggAbility == null
 				|| !isAbilityOffCooldown(player, slot, eggAbility.abilityType, now)) {
@@ -278,32 +296,39 @@ public final class PetAbilitiesManager {
 			damage = Math.max(damage, eggAbility.attackDamage);
 			radius = Math.max(radius, eggAbility.explosionRadius);
 		}
-		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
+		if (chickenCount <= 0 && !hasReadyTargetedPet) {
 			return;
+		}
+		LivingEntity target = hasReadyTargetedPet ? resolveLeftClickTarget(player) : null;
+		if (target == null && isLeftClickTargetingBlock(player)) {
+			return;
+		}
+		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
+		} else {
+			Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
+			int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT + Math.max(0, chickenCount - 1) + levelBonus;
+			damage = Math.max(0.0F, damage);
+			radius = Math.max(0.5F, radius);
+			if (damage > 0.0F && radius > 0.0F) {
+				ACTIVE_CHICKEN_EGG_VOLLEYS.put(
+					player.getUUID(),
+					new ChickenEggVolleyState(
+						player.getUUID(),
+						player.level().dimension().toString(),
+						targetPosition,
+						projectileCount,
+						now,
+						damage,
+						radius
+					)
+				);
+				for (int index = 0; index < chickenCount; index++) {
+					setAbilityCooldown(player.getUUID(), chickenSlots[index], PET_ABILITY_EGG_PROJECTILE, now + CHICKEN_EGG_COOLDOWN_TICKS);
+				}
+			}
 		}
 
-		Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
-		int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT + Math.max(0, chickenCount - 1) + levelBonus;
-		damage = Math.max(0.0F, damage);
-		radius = Math.max(0.5F, radius);
-		if (damage <= 0.0F || radius <= 0.0F) {
-			return;
-		}
-		ACTIVE_CHICKEN_EGG_VOLLEYS.put(
-			player.getUUID(),
-			new ChickenEggVolleyState(
-				player.getUUID(),
-				player.level().dimension().toString(),
-				targetPosition,
-				projectileCount,
-				now,
-				damage,
-				radius
-			)
-		);
-		for (int index = 0; index < chickenCount; index++) {
-			setAbilityCooldown(player.getUUID(), chickenSlots[index], PET_ABILITY_EGG_PROJECTILE, now + CHICKEN_EGG_COOLDOWN_TICKS);
-		}
+		triggerLeftClickPetAttacks(player, target);
 	}
 
 	static void handleAfterDamage(
@@ -471,6 +496,103 @@ public final class PetAbilitiesManager {
 
 	public static boolean hasAbility(Entity entity) {
 		return entity != null && PetComponentsManager.isManaged(entity);
+	}
+
+	private static void triggerLeftClickPetAttacks(ServerPlayer player, LivingEntity target) {
+		if (!canReactiveAttackTarget(player, target)) {
+			return;
+		}
+
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+
+		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
+		List<ReadyReactiveAttack> readyAttacks = new ArrayList<>();
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			if (rule == null || !rule.enabled) {
+				continue;
+			}
+			for (PetAbilityRule ability : rule.reactiveAbilities()) {
+				if (isLeftClickProjectileAbility(ability) && isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
+					readyAttacks.add(new ReadyReactiveAttack(slot, rule, ability));
+				}
+			}
+		}
+		if (readyAttacks.isEmpty()) {
+			return;
+		}
+
+		for (int index = 0; index < readyAttacks.size(); index++) {
+			ReadyReactiveAttack ready = readyAttacks.get(index);
+			Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, readyAttacks.size(), ready.ability);
+			if (index == 0) {
+				if (spawnPetReactiveAttack(player, target, spawnPosition, ready.rule, ready.ability)) {
+					setAbilityCooldown(player.getUUID(), ready.slot, ready.ability.abilityType, gameplayTicks + ready.ability.cooldownTicks);
+				}
+				continue;
+			}
+			long delayTicks = index * ready.ability.shotDelayTicks;
+			if (enqueueDelayedPetAttack(player, ready.slot, ready.ability.abilityType, target, spawnPosition, delayTicks)) {
+				setAbilityCooldown(player.getUUID(), ready.slot, ready.ability.abilityType, gameplayTicks + delayTicks);
+			}
+		}
+	}
+
+	private static boolean isLeftClickProjectileAbility(PetAbilityRule ability) {
+		if (ability == null || !ability.canPerformReactiveAttack()) {
+			return false;
+		}
+		return PET_ABILITY_RANGED_HOMING_ARROW.equals(ability.abilityType)
+			|| PET_ABILITY_WEB_PROJECTILE.equals(ability.abilityType)
+			|| PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(ability.abilityType);
+	}
+
+	private static LivingEntity resolveLeftClickTarget(ServerPlayer player) {
+		if (player == null || !(player.level() instanceof ServerLevel level)) {
+			return null;
+		}
+
+		Vec3 start = player.getEyePosition();
+		Vec3 direction = player.getLookAngle();
+		if (direction.lengthSqr() <= 1.0E-6D) {
+			return null;
+		}
+		direction = direction.normalize();
+		Vec3 end = start.add(direction.scale(LEFT_CLICK_TARGET_RANGE));
+		AABB searchArea = player.getBoundingBox().expandTowards(direction.scale(LEFT_CLICK_TARGET_RANGE)).inflate(1.0D);
+		LivingEntity closest = null;
+		double closestDistance = Double.MAX_VALUE;
+		for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, searchArea, entity ->
+			entity != player && entity.isAlive() && !PetComponentsManager.isManaged(entity) && canReactiveAttackTarget(player, entity))) {
+			if (candidate.getBoundingBox().inflate(0.3D).clip(start, end).isEmpty()) {
+				continue;
+			}
+			double distance = player.distanceToSqr(candidate);
+			if (distance < closestDistance) {
+				closest = candidate;
+				closestDistance = distance;
+			}
+		}
+		return closest;
+	}
+
+	private static boolean isLeftClickTargetingBlock(ServerPlayer player) {
+		if (player == null) {
+			return false;
+		}
+		Vec3 start = player.getEyePosition();
+		Vec3 end = start.add(player.getLookAngle().normalize().scale(player.blockInteractionRange()));
+		return player.level().clip(new ClipContext(
+			start,
+			end,
+			ClipContext.Block.OUTLINE,
+			ClipContext.Fluid.NONE,
+			player
+		)).getType() == HitResult.Type.BLOCK;
 	}
 		static void triggerReactivePetAttacks(ServerPlayer player, LivingEntity target) {
 			if (!canReactiveAttackTarget(player, target)) {
@@ -683,8 +805,12 @@ public final class PetAbilitiesManager {
 			if (readyCount <= 0) {
 				return;
 			}
+			if (!isBeeTargetScanDue(player.getUUID(), gameplayTicks)) {
+				return;
+			}
 
 			List<LivingEntity> prioritizedTargets = resolveAutomaticBeeSwarmTargets(player);
+			scheduleNextBeeTargetScan(player, gameplayTicks);
 			if (prioritizedTargets.isEmpty()) {
 				return;
 			}
@@ -711,9 +837,9 @@ public final class PetAbilitiesManager {
 				return List.of();
 			}
 
-			Map<UUID, LivingEntity> prioritizedTargets = new LinkedHashMap<>();
-			addBeeSwarmTargetCandidate(player, player.getLastHurtMob(), prioritizedTargets);
-			addBeeSwarmTargetCandidate(player, player.getLastHurtByMob(), prioritizedTargets);
+			List<LivingEntity> nearestCandidates = new ArrayList<>(BEE_SWARM_MAX_TARGET_CANDIDATES);
+			addNearestBeeTargetCandidate(player, player.getLastHurtMob(), nearestCandidates);
+			addNearestBeeTargetCandidate(player, player.getLastHurtByMob(), nearestCandidates);
 
 			AABB scanArea = new AABB(
 				player.getX() - BEE_SWARM_SCAN_RADIUS,
@@ -724,11 +850,13 @@ public final class PetAbilitiesManager {
 				player.getZ() + BEE_SWARM_SCAN_RADIUS
 			);
 			List<Mob> hostileMobs = level.getEntitiesOfClass(Mob.class, scanArea, candidate -> isValidBeeSwarmTarget(player, candidate));
-			if (!hostileMobs.isEmpty()) {
-				hostileMobs.sort((left, right) -> Double.compare(left.distanceToSqr(player), right.distanceToSqr(player)));
-				for (Mob hostile : hostileMobs) {
-					addBeeSwarmTargetCandidate(player, hostile, prioritizedTargets);
-				}
+			for (Mob hostile : hostileMobs) {
+				addNearestBeeTargetCandidate(player, hostile, nearestCandidates);
+			}
+
+			Map<UUID, LivingEntity> prioritizedTargets = new LinkedHashMap<>();
+			for (LivingEntity candidate : nearestCandidates) {
+				addBeeSwarmTargetCandidate(player, candidate, prioritizedTargets);
 			}
 			if (prioritizedTargets.isEmpty()) {
 				return List.of();
@@ -736,8 +864,54 @@ public final class PetAbilitiesManager {
 			return new ArrayList<>(prioritizedTargets.values());
 		}
 
-			private static void addBeeSwarmTargetCandidate(ServerPlayer player, LivingEntity target, Map<UUID, LivingEntity> out) {
-			if (out == null || !isValidBeeSwarmTarget(player, target)) {
+		private static void addNearestBeeTargetCandidate(ServerPlayer player, LivingEntity target, List<LivingEntity> candidates) {
+			if (candidates == null || !isValidBeeSwarmTarget(player, target) || !canBeeSwarmReachTarget(player, target)) {
+				return;
+			}
+			for (LivingEntity candidate : candidates) {
+				if (candidate.getUUID().equals(target.getUUID())) {
+					return;
+				}
+			}
+
+			double targetDistance = target.distanceToSqr(player);
+			int insertionIndex = 0;
+			while (insertionIndex < candidates.size()
+				&& candidates.get(insertionIndex).distanceToSqr(player) <= targetDistance) {
+				insertionIndex++;
+			}
+			if (insertionIndex >= BEE_SWARM_MAX_TARGET_CANDIDATES && candidates.size() >= BEE_SWARM_MAX_TARGET_CANDIDATES) {
+				return;
+			}
+			candidates.add(insertionIndex, target);
+			if (candidates.size() > BEE_SWARM_MAX_TARGET_CANDIDATES) {
+				candidates.remove(candidates.size() - 1);
+			}
+		}
+
+		private static boolean isBeeTargetScanDue(UUID ownerId, long gameplayTicks) {
+			if (ownerId == null) {
+				return false;
+			}
+			return gameplayTicks >= NEXT_BEE_TARGET_SCAN_TICK.getOrDefault(ownerId, Long.MIN_VALUE);
+		}
+
+		private static void scheduleNextBeeTargetScan(ServerPlayer player, long gameplayTicks) {
+			if (player == null) {
+				return;
+			}
+			MinecraftServer server = player.level().getServer();
+			long interval = MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+				server,
+				BEE_TARGET_SCAN_SCHEDULER_OWNER_ID,
+				BEE_SWARM_MIN_TARGET_SCAN_INTERVAL_TICKS,
+				BEE_SWARM_MAX_TARGET_SCAN_INTERVAL_TICKS
+			);
+			NEXT_BEE_TARGET_SCAN_TICK.put(player.getUUID(), gameplayTicks + interval);
+		}
+
+		private static void addBeeSwarmTargetCandidate(ServerPlayer player, LivingEntity target, Map<UUID, LivingEntity> out) {
+			if (out == null || !isValidBeeSwarmTarget(player, target) || !canBeeSwarmReachTarget(player, target)) {
 				return;
 			}
 			out.putIfAbsent(target.getUUID(), target);
@@ -778,8 +952,11 @@ public final class PetAbilitiesManager {
 			return null;
 		}
 
-			private static boolean isValidBeeSwarmTarget(ServerPlayer player, LivingEntity target) {
-			if (!canReactiveAttackTarget(player, target)) {
+		private static boolean isValidBeeSwarmTarget(ServerPlayer player, LivingEntity target) {
+			if (player == null || target == null || target == player || !player.isAlive() || !target.isAlive()) {
+				return false;
+			}
+			if (target.level() != player.level()) {
 				return false;
 			}
 			if (target instanceof Hag) {
@@ -791,11 +968,15 @@ public final class PetAbilitiesManager {
 			return target.distanceToSqr(player) <= (BEE_SWARM_SCAN_RADIUS * BEE_SWARM_SCAN_RADIUS);
 		}
 
+		private static boolean canBeeSwarmReachTarget(ServerPlayer player, LivingEntity target) {
+			return player != null && target != null && player.hasLineOfSight(target);
+		}
+
 		private static boolean startBeeSwarm(ServerPlayer player, int slot, LivingEntity target, PetRule rule, PetAbilityRule ability, long gameplayTicks) {
 			if (player == null || target == null || rule == null || ability == null || !PET_ABILITY_BEE_SWARM.equals(ability.abilityType) || !(player.level() instanceof ServerLevel level)) {
 				return false;
 			}
-			if (!isValidBeeSwarmTarget(player, target)) {
+			if (!isValidBeeSwarmTarget(player, target) || !canBeeSwarmReachTarget(player, target)) {
 				return false;
 			}
 
@@ -1366,7 +1547,7 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			private static boolean shouldStopBeeSwarmFromTargetPriorityChange(ServerPlayer owner, LivingEntity target, BeeSwarmState state) {
+		private static boolean shouldStopBeeSwarmFromTargetPriorityChange(ServerPlayer owner, LivingEntity target, BeeSwarmState state) {
 			if (owner == null || target == null || state == null) {
 				return true;
 			}
@@ -1433,15 +1614,19 @@ public final class PetAbilitiesManager {
 			return ownerId + ":" + slot;
 		}
 
-			private static void stopBeeSwarmForSlot(UUID ownerId, int slot) {
+			static void stopBeeSwarmForSlot(UUID ownerId, int slot) {
 			if (ownerId == null) {
 				return;
 			}
 			ACTIVE_BEE_SWARMS.remove(beeSwarmKey(ownerId, slot));
 		}
 
-			static void stopBeeSwarmsForOwner(UUID ownerId) {
-			if (ownerId == null || ACTIVE_BEE_SWARMS.isEmpty()) {
+		static void stopBeeSwarmsForOwner(UUID ownerId) {
+			if (ownerId == null) {
+				return;
+			}
+			NEXT_BEE_TARGET_SCAN_TICK.remove(ownerId);
+			if (ACTIVE_BEE_SWARMS.isEmpty()) {
 				return;
 			}
 			for (String swarmKey : new ArrayList<>(ACTIVE_BEE_SWARMS.keySet())) {
@@ -1725,23 +1910,25 @@ public final class PetAbilitiesManager {
 			return (index - centeringOffset) * Math.max(0.0D, ability.attackArcStepDegrees);
 		}
 
-		private static void enqueueDelayedPetAttack(ServerPlayer player, int slot, String abilityType, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
+		private static boolean enqueueDelayedPetAttack(ServerPlayer player, int slot, String abilityType, LivingEntity target, Vec3 spawnPosition, long delayTicks) {
 			MinecraftServer server = player == null ? null : player.level().getServer();
 			if (server == null || player == null || target == null || spawnPosition == null) {
-				return;
+				return false;
 			}
 
 			UUID playerId = player.getUUID();
 			String schedulerId = ensureSchedulerExists(playerId);
 			if (enqueuePetAttackTask(schedulerId, slot, abilityType, target, spawnPosition, delayTicks)) {
-				return;
+				return true;
 			}
 
 			String created = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId));
 			PLAYER_SCHEDULER_IDS.put(playerId, created);
 			if (!enqueuePetAttackTask(created, slot, abilityType, target, spawnPosition, delayTicks)) {
 				LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
+				return false;
 			}
+			return true;
 		}
 
 			private static String ensureSchedulerExists(UUID playerId) {
@@ -1987,9 +2174,9 @@ public final class PetAbilitiesManager {
 		long startedGameplayTick,
 		int ownerLastHurtMobTimestampAtStart,
 		int ownerLastHurtByMobTimestampAtStart,
-		long nextDamageTick,
-		double orbitAngle,
-		Vec3 position
+			long nextDamageTick,
+			double orbitAngle,
+			Vec3 position
 	) {}
 	private static UUID parseUuid(String value) {
 			if (value == null || value.isBlank()) {

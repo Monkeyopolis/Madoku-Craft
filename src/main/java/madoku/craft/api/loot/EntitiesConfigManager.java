@@ -45,14 +45,14 @@ public final class EntitiesConfigManager {
 		put(defaults, "minecraft:entities/bogged", buildMobTable("minecraft:entities/bogged", 0, 2, "minecraft:bone", 60, "minecraft:arrow", 40, null, null));
 		put(defaults, "minecraft:entities/parched", buildMobTable("minecraft:entities/parched", 0, 2, "minecraft:bone", 60, "minecraft:arrow", 40, null, null));
 		put(defaults, "minecraft:entities/cave_spider", buildMobTable("minecraft:entities/cave_spider", 1, 2, "minecraft:string", 60, "minecraft:spider_eye", 40, null, null));
-		put(defaults, "minecraft:entities/creeper", buildMobTable("minecraft:entities/creeper", 0, 2, "minecraft:gunpowder", 99, "madoku-craft:creeper-pet", 1, "madoku-craft:creeper-pet", "legendary"));
+		put(defaults, "minecraft:entities/creeper", buildMobTable("minecraft:entities/creeper", 0, 2, "minecraft:gunpowder", 99, "madoku-craft:creeper-pet", 1, "madoku-craft:creeper-pet", "mythic"));
 		put(defaults, "minecraft:entities/drowned", buildMobTable("minecraft:entities/drowned", 1, 2, "minecraft:rotten_flesh", 95, "minecraft:copper_ingot", 5, null, null));
 		put(defaults, "minecraft:entities/husk", buildMobTable("minecraft:entities/husk", 1, 2, "minecraft:rotten_flesh", 91, "minecraft:charcoal", 9, null, null));
-		put(defaults, "minecraft:entities/skeleton", buildMobTable("minecraft:entities/skeleton", 0, 2, "minecraft:bone", 59, "minecraft:arrow", 40, "madoku-craft:skeleton-pet", "legendary"));
-		put(defaults, "minecraft:entities/spider", buildMobTable("minecraft:entities/spider", 1, 2, "minecraft:string", 59, "minecraft:spider_eye", 40, "madoku-craft:spider-pet", "legendary"));
+		put(defaults, "minecraft:entities/skeleton", buildMobTable("minecraft:entities/skeleton", 0, 2, "minecraft:bone", 59, "minecraft:arrow", 40, "madoku-craft:skeleton-pet", "mythic"));
+		put(defaults, "minecraft:entities/spider", buildMobTable("minecraft:entities/spider", 1, 2, "minecraft:string", 59, "minecraft:spider_eye", 40, "madoku-craft:spider-pet", "mythic"));
 		put(defaults, "minecraft:entities/stray", buildMobTable("minecraft:entities/stray", 0, 2, "minecraft:bone", 60, "minecraft:arrow", 40, null, null));
 		put(defaults, "minecraft:entities/wither_skeleton", buildMobTable("minecraft:entities/wither_skeleton", 0, 2, "minecraft:bone", 69, "minecraft:coal", 30, "minecraft:wither_skeleton_skull", "mythic"));
-		put(defaults, "minecraft:entities/zombie", buildMobTable("minecraft:entities/zombie", 0, 2, "minecraft:rotten_flesh", 94, "minecraft:iron_ingot", 5, "madoku-craft:zombie-pet", "legendary"));
+		put(defaults, "minecraft:entities/zombie", buildMobTable("minecraft:entities/zombie", 0, 2, "minecraft:rotten_flesh", 94, "minecraft:iron_ingot", 5, "madoku-craft:zombie-pet", "mythic"));
 		put(defaults, "minecraft:entities/zombie_villager", buildMobTable("minecraft:entities/zombie_villager", 0, 2, "minecraft:rotten_flesh", 97, "minecraft:gold_ingot", 3, null, null));
 		return defaults;
 	}

@@ -53,36 +53,7 @@ public final class MadokuPetManager {
 	static final String PET_RARITY_LEGENDARY = "legendary";
 	static final String PET_RARITY_MYTHIC = "mythic";
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
-
-
-
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String runtimeSchedulerId = "";
@@ -403,73 +374,16 @@ public final class MadokuPetManager {
 		}
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	/** Requests immediate pet reconciliation after a player position or dimension change. */
+	public static void handlePlayerTeleport(ServerPlayer player) {
+		if (player == null) {
+			return;
+		}
+		MinecraftServer server = player.level().getServer();
+		if (server != null) {
+			requestPetProcessing(server, player.getUUID(), 0L);
+		}
+	}
 
 	static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
 		if (server == null || playerId == null || !PetConfigManager.settings().enabled) {
@@ -482,24 +396,6 @@ public final class MadokuPetManager {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
 		}
 	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 	static String formatAbilityAmount(double value) {
 		double rounded = Math.round(value * 100.0D) / 100.0D;
