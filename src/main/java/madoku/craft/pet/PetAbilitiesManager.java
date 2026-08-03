@@ -268,7 +268,7 @@ public final class PetAbilitiesManager {
 
 		long now = MadokuTimeManager.getGameplayTicks();
 		int chickenCount = 0;
-		int levelBonus = 0;
+		double levelBonus = 0.0D;
 		float damage = 0.0F;
 		float radius = 0.0F;
 		boolean hasReadyTargetedPet = false;
@@ -292,7 +292,7 @@ public final class PetAbilitiesManager {
 			}
 			chickenSlots[chickenCount++] = slot;
 			int level = PetEntitiesManager.petLevel(stack);
-			levelBonus += level / 4;
+			levelBonus += Math.max(0, level - 1) * 0.25D;
 			damage = Math.max(damage, eggAbility.attackDamage);
 			radius = Math.max(radius, eggAbility.explosionRadius);
 		}
@@ -306,7 +306,13 @@ public final class PetAbilitiesManager {
 		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
 		} else {
 			Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
-			int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT + Math.max(0, chickenCount - 1) + levelBonus;
+			int wholeLevelBonus = (int) Math.floor(levelBonus);
+			double fractionalLevelBonus = levelBonus - wholeLevelBonus;
+			int stochasticLevelBonus = wholeLevelBonus
+				+ (fractionalLevelBonus > 0.0D && player.getRandom().nextDouble() < fractionalLevelBonus ? 1 : 0);
+			int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT
+				+ Math.max(0, chickenCount - 1)
+				+ stochasticLevelBonus;
 			damage = Math.max(0.0F, damage);
 			radius = Math.max(0.5F, radius);
 			if (damage > 0.0F && radius > 0.0F) {

@@ -449,11 +449,20 @@ public final class PetConfigManager {
 		PetAbilityRule atLevel(int level, String petId) {
 			double multiplier = 1.0D + ((Math.max(1, level) - 1) * 0.5D);
 			double resolvedAttackDamage = attackDamage * multiplier;
-			double resolvedPlayerDamageBonus = playerDamageBonusAmount * multiplier;
+			double resolvedPlayerDamageBonus = playerDamageBonusAmount;
+			if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)) {
+				resolvedPlayerDamageBonus += (Math.max(1, level) - 1) * 0.25D;
+			}
 			double resolvedFallDamageReduction = fallDamageReductionAmount * multiplier;
-			double resolvedMaxHealthBonus = maxHealthBonusAmount * multiplier;
+			double resolvedMaxHealthBonus = maxHealthBonusAmount;
+			if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)) {
+				resolvedMaxHealthBonus += (Math.max(1, level) - 1) * 0.05D;
+			}
 			double resolvedArmorBonus = armorBonusAmount * multiplier;
-			double resolvedDamageBlock = damageBlockAmount * multiplier;
+			double resolvedDamageBlock = damageBlockAmount;
+			if (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType)) {
+				resolvedDamageBlock += (Math.max(1, level) - 1) * 2.0D;
+			}
 			double resolvedExplosionRadius = explosionRadius * multiplier;
 			long resolvedStunDurationTicks = stunDurationTicks;
 			long resolvedSlowDurationTicks = slowDurationTicks;
@@ -751,7 +760,7 @@ public final class PetConfigManager {
 					ability.addProperty("explosion-radius", 1.0D);
 				}
 				if (usesDamageBlock) {
-					ability.addProperty("damage-block", 4.0D);
+					ability.addProperty("damage-block", 5.0D);
 					ability.addProperty("cooldown", 30.0D);
 				}
 				if (usesMobScan) {
@@ -769,11 +778,11 @@ public final class PetConfigManager {
 
 			private static double defaultAbilityValue(String abilityType) {
 				return switch (abilityType) {
-					case MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> 1.25D;
+					case MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> 2.0D;
 					case MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> 0.20D;
-					case MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS -> 0.125D;
+					case MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS -> 0.15D;
 					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 2.0D;
-					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 4.0D;
+					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 5.0D;
 					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.5D;
 					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 3.0D;
 					default -> 0.0D;
@@ -1153,8 +1162,17 @@ public final class PetConfigManager {
 					enabled, itemId, rarity, petScale, followSpeed, idleMoveSpeed, idleDistance, teleportDistance,
 					idleWanderRadius, idleMinIntervalTicks, idleMaxIntervalTicks,
 					soundVolumeMultiplier, abilityType, abilityTypes, (float) resolvedAttackDamage, attackSpeed,
-					effectDurationTicks, playerDamageBonusAmount * multiplier, resolvedFallDamageReduction,
-					maxHealthBonusAmount * multiplier, armorBonusAmount * multiplier, damageBlockAmount * multiplier,
+					effectDurationTicks, playerDamageBonusAmount + (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)
+						? (safeLevel - 1) * 0.25D
+						: 0.0D),
+					resolvedFallDamageReduction,
+					maxHealthBonusAmount + (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)
+						? (safeLevel - 1) * 0.05D
+						: 0.0D),
+					armorBonusAmount * multiplier,
+					damageBlockAmount + (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType)
+						? (safeLevel - 1) * 2.0D
+						: 0.0D),
 					cooldownTicks, shotDelayTicks, attackArcStepDegrees, attackRearOffset, attackRearSpread,
 					attackLateralRadius, attackVerticalOffset, (float) resolvedExplosionRadius, soundEventId,
 					resolvedAbilities
