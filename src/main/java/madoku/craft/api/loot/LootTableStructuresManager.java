@@ -32,7 +32,6 @@ import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -182,15 +181,14 @@ public final class LootTableStructuresManager {
 	) {
 		boolean luckActive = isLuckActiveForLoot(player, activeSettings);
 		double luckStat = resolveLuckStat(player, activeSettings);
-		return rollTable(managed, random, luckStat, luckActive, activeSettings);
+		return rollTable(managed, random, luckStat, luckActive);
 	}
 
 	private static List<ItemStack> rollTable(
 		ManagedLootTable table,
 		RandomSource random,
 		double luckStat,
-		boolean luckActive,
-		Settings activeSettings
+		boolean luckActive
 	) {
 		if (table == null || random == null || table.groups().isEmpty()) {
 			return List.of();
@@ -202,11 +200,11 @@ public final class LootTableStructuresManager {
 		if (maxRolls > minRolls) {
 			rolls = minRolls + random.nextInt((maxRolls - minRolls) + 1);
 		}
-		rolls = applyRollLuckMultiplier(rolls, luckStat, luckActive, activeSettings, random);
+		rolls = applyRollLuckMultiplier(rolls, luckStat, luckActive, random);
 
 		List<ItemStack> generated = new ArrayList<>(rolls);
 		for (int roll = 0; roll < rolls; roll++) {
-			ManagedLootGroup group = pickGroup(table.groups(), random, luckStat, luckActive, activeSettings);
+			ManagedLootGroup group = pickGroup(table.groups(), random, luckStat, luckActive);
 			if (group == null) {
 				continue;
 			}
@@ -226,8 +224,7 @@ public final class LootTableStructuresManager {
 		List<ManagedLootGroup> groups,
 		RandomSource random,
 		double luckStat,
-		boolean luckActive,
-		Settings activeSettings
+		boolean luckActive
 	) {
 		if (groups == null || groups.isEmpty()) {
 			return null;
@@ -243,7 +240,7 @@ public final class LootTableStructuresManager {
 				effectiveWeights.add(0.0d);
 				continue;
 			}
-			double rarityMultiplier = resolveRarityLuckMultiplier(group.rarity(), luckStat, luckActive, activeSettings);
+			double rarityMultiplier = resolveGroupWeightMultiplier(group.rarity(), luckStat, luckActive);
 			double weight = Math.max(0.0d, group.weight() * rarityMultiplier);
 			effectiveWeights.add(weight);
 			totalWeight += weight;
@@ -325,13 +322,12 @@ public final class LootTableStructuresManager {
 		int baseRolls,
 		double luckStat,
 		boolean luckActive,
-		Settings activeSettings,
 		RandomSource random
 	) {
 		if (baseRolls <= 0) {
 			return 0;
 		}
-		double multiplier = resolveRollLuckMultiplier(luckStat, luckActive, activeSettings);
+		double multiplier = resolveRollLuckMultiplier(luckStat, luckActive);
 		if (!Double.isFinite(multiplier)) {
 			return baseRolls;
 		}
@@ -344,28 +340,25 @@ public final class LootTableStructuresManager {
 		return Math.max(0, whole);
 	}
 
-	private static double resolveRarityLuckMultiplier(
-		LootTableRarity rarity,
-		double luckStat,
-		boolean luckActive,
-		Settings activeSettings
-	) {
-		if (!luckActive || rarity == null || activeSettings == null) {
+	private static double resolveRollLuckMultiplier(double luckStat, boolean luckActive) {
+		if (!luckActive || !Double.isFinite(luckStat)) {
 			return 1.0d;
 		}
-
-		LuckCurve curve = activeSettings.rarityCurves.get(rarity);
-		if (curve == null) {
-			return 1.0d;
-		}
-		return Math.max(0.0d, curve.sample(luckStat));
+		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d));
 	}
 
-	private static double resolveRollLuckMultiplier(double luckStat, boolean luckActive, Settings activeSettings) {
-		if (!luckActive || activeSettings == null || activeSettings.rollCurve == null) {
+	private static double resolveGroupWeightMultiplier(LootTableRarity rarity, double luckStat, boolean luckActive) {
+		if (!luckActive || rarity == null || !Double.isFinite(luckStat)) {
 			return 1.0d;
 		}
-		return Math.max(0.0d, activeSettings.rollCurve.sample(luckStat));
+		double rarityModifier = switch (rarity) {
+			case COMMON -> 0.5d;
+			case RARE -> 0.75d;
+			case EPIC -> 1.25d;
+			case LEGENDARY -> 2.0d;
+			case MYTHIC -> 3.0d;
+		};
+		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d * rarityModifier));
 	}
 
 	private static boolean isLuckActiveForLoot(ServerPlayer player, Settings activeSettings) {
@@ -912,97 +905,36 @@ public final class LootTableStructuresManager {
 	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount, MadokuRarityTier itemRarity) {
 	}
 
-	private record LuckCurve(List<Double> points, List<Double> values) {
-		private double sample(double x) {
-			if (points == null || values == null || points.isEmpty() || values.isEmpty()) {
-				return 1.0d;
-			}
-			if (points.size() != values.size()) {
-				return values.getFirst();
-			}
-			if (points.size() == 1) {
-				return values.getFirst();
-			}
-
-			double clampedX = x;
-			double minPoint = points.getFirst();
-			double maxPoint = points.getLast();
-			if (clampedX <= minPoint) {
-				return values.getFirst();
-			}
-			if (clampedX >= maxPoint) {
-				return values.getLast();
-			}
-
-			for (int index = 1; index < points.size(); index++) {
-				double right = points.get(index);
-				double left = points.get(index - 1);
-				if (clampedX > right) {
-					continue;
-				}
-
-				double leftValue = values.get(index - 1);
-				double rightValue = values.get(index);
-				double range = right - left;
-				if (range <= 0.0d) {
-					return rightValue;
-				}
-				double t = (clampedX - left) / range;
-				return leftValue + ((rightValue - leftValue) * t);
-			}
-
-			return values.getLast();
-		}
-	}
-
 	private static final class Settings {
 		private final boolean enabled;
 		private final boolean useMadokuLuck;
 		private final boolean overrideStructureLootTables;
 		private final boolean overrideEntityLootTables;
-		private final LuckCurve rollCurve;
-		private final EnumMap<LootTableRarity, LuckCurve> rarityCurves;
 
 		private Settings(
 			boolean enabled,
 			boolean useMadokuLuck,
 			boolean overrideStructureLootTables,
-			boolean overrideEntityLootTables,
-			LuckCurve rollCurve,
-			EnumMap<LootTableRarity, LuckCurve> rarityCurves
+			boolean overrideEntityLootTables
 		) {
 			this.enabled = enabled;
 			this.useMadokuLuck = useMadokuLuck;
 			this.overrideStructureLootTables = overrideStructureLootTables;
 			this.overrideEntityLootTables = overrideEntityLootTables;
-			this.rollCurve = rollCurve;
-			this.rarityCurves = rarityCurves;
 		}
 
 		private static Settings defaults() {
-			EnumMap<LootTableRarity, LuckCurve> curves = new EnumMap<>(LootTableRarity.class);
 			JsonObject defaults = LootTableConfigManager.buildSettingsDefaults();
-			for (LootTableRarity rarity : LootTableRarity.values()) {
-				curves.put(rarity, defaultCurve(rarity));
-			}
-			LuckCurve rollCurve = defaultRollCurve();
 			return new Settings(
 				readBoolean(defaults, LootTableConfigManager.FIELD_ENABLED, true),
 				readBoolean(defaults, LootTableConfigManager.FIELD_USE_MADOKU_LUCK, true),
 				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true),
-				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true),
-				rollCurve,
-				curves
+				readBoolean(defaults, LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true)
 			);
 		}
 
 		private static Settings fromJson(JsonObject source) {
 			Settings defaults = defaults();
-			EnumMap<LootTableRarity, LuckCurve> curves = new EnumMap<>(LootTableRarity.class);
-			for (LootTableRarity rarity : LootTableRarity.values()) {
-				curves.put(rarity, defaults.rarityCurves.get(rarity));
-			}
-			LuckCurve rollCurve = defaults.rollCurve;
 
 			return new Settings(
 				readBoolean(source, LootTableConfigManager.FIELD_ENABLED, defaults.enabled),
@@ -1016,9 +948,7 @@ public final class LootTableStructuresManager {
 					source,
 					LootTableConfigManager.FIELD_OVERRIDE_ENTITY_LOOT_TABLES,
 					defaults.overrideEntityLootTables
-				),
-				rollCurve,
-				curves
+				)
 			);
 		}
 
@@ -1031,33 +961,6 @@ public final class LootTableStructuresManager {
 				.build();
 		}
 
-		private static LuckCurve defaultRollCurve() {
-			return new LuckCurve(
-				List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),
-				List.of(1.0d, 1.25d, 1.5d, 1.75d, 2.0d)
-			);
-		}
-
-		private static LuckCurve defaultCurve(LootTableRarity rarity) {
-			return switch (rarity) {
-				case COMMON -> new LuckCurve(
-					List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),
-					List.of(1.0d, 0.875d, 0.75d, 0.625d, 0.5d)
-				);
-				case RARE -> new LuckCurve(
-					List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),
-					List.of(1.0d, 0.9375d, 0.875d, 0.8125d, 0.75d)
-				);
-				case EPIC -> new LuckCurve(
-					List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),
-					List.of(1.0d, 1.25d, 1.5d, 1.75d, 2.0d)
-				);
-				case MYTHIC -> new LuckCurve(
-					List.of(0.0d, 25.0d, 50.0d, 75.0d, 100.0d),
-					List.of(1.0d, 1.5d, 2.0d, 3.0d, 4.0d)
-				);
-			};
-		}
 	}
 }
 

@@ -127,7 +127,7 @@ public final class MadokuJSONManager {
 		return cachedModVersion;
 	}
 
-	/** Converts a JSON registry identifier to the underscore-based Minecraft registry form. */
+	/** Converts vanilla JSON registry paths to Minecraft's underscore-based form while preserving custom registry paths. */
 	public static String normalizeRegistryIdentifierForLookup(String value) {
 		String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
 		if (normalized.isBlank()) {
@@ -137,8 +137,9 @@ public final class MadokuJSONManager {
 		if (separator < 0) {
 			return "minecraft:" + normalized.replace('-', '_');
 		}
-		return normalized.substring(0, separator + 1)
-			+ normalized.substring(separator + 1).replace('-', '_');
+		String namespace = normalized.substring(0, separator);
+		String path = normalized.substring(separator + 1);
+		return namespace + ":" + ("minecraft".equals(namespace) ? path.replace('-', '_') : path);
 	}
 
 	/** Converts a registry identifier to the hyphen-based form used by Madoku JSON files. */

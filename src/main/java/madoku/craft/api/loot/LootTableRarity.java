@@ -6,6 +6,7 @@ public enum LootTableRarity {
 	COMMON("common"),
 	RARE("rare"),
 	EPIC("epic"),
+	LEGENDARY("legendary"),
 	MYTHIC("mythic");
 
 	private final String id;

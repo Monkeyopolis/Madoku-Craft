@@ -103,6 +103,21 @@ public final class StructuresConfigManager {
 		return entry.build();
 	}
 
+	private static JsonArray defaultMadokuPetEntries() {
+		return StructuresConfigManager.entries(
+			StructuresConfigManager.item("madoku-craft:zombie-pet", 100, 1, 1),
+			StructuresConfigManager.item("madoku-craft:pig-pet", 100, 1, 1),
+			StructuresConfigManager.item("madoku-craft:sheep-pet", 100, 1, 1),
+			StructuresConfigManager.item("madoku-craft:cow-pet", 80, 1, 1),
+			StructuresConfigManager.item("madoku-craft:skeleton-pet", 80, 1, 1),
+			StructuresConfigManager.item("madoku-craft:spider-pet", 80, 1, 1),
+			StructuresConfigManager.item("madoku-craft:creeper-pet", 80, 1, 1),
+			StructuresConfigManager.item("madoku-craft:bat-pet", 60, 1, 1),
+			StructuresConfigManager.item("madoku-craft:bee-pet", 60, 1, 1),
+			StructuresConfigManager.item("madoku-craft:chicken-pet", 40, 1, 1)
+		);
+	}
+
 	public static Map<String, JsonObject> buildDefaultStructureTableFiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		put(defaults, "minecraft:structure_chests/abandoned_mineshaft", buildDefaultAbandonedMineshaft());
@@ -128,13 +143,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultAbandonedMineshaft() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/abandoned_mineshaft", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/abandoned_mineshaft", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -155,40 +178,31 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-				))))
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultAncientCity() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ancient_city", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ancient_city", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 2, 2, 6),
-					StructuresConfigManager.item("minecraft:baked_potato", 2, 2, 6),
+					StructuresConfigManager.item("minecraft:baked_potato", 2, 2, 6)
+				)))
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:echo_shard", 1, 1, 3)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -209,26 +223,7 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_chestplate", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_leggings", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_boots", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_pickaxe", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_axe", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:diamond_shovel", 100, 1, 1, "epic")
-				)))
-				.add(StructuresConfigManager.group("mythic", 10, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "mythic"),
@@ -245,13 +240,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultBastionRemnant() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/bastion_remnant", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/bastion_remnant", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 2, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 2, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -272,16 +275,7 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:netherite_upgrade_smithing_template", 100, 1, 1),
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_spear", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_helmet", 100, 1, 1, "rare"),
@@ -292,17 +286,8 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:netherite_axe", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_shovel", 100, 1, 1, "rare")
 				)))
-				.add(StructuresConfigManager.group("mythic", 10, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:netherite_upgrade_smithing_template", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_spear", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_helmet", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_chestplate", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_leggings", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_boots", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_pickaxe", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_axe", 100, 1, 1, "epic"),
-					StructuresConfigManager.item("minecraft:netherite_shovel", 100, 1, 1, "epic")
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:netherite_upgrade_smithing_template", 100, 1, 1)
 				))))
 			.build();
 
@@ -310,13 +295,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultBuriedTreasure() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/buried_treasure", 7, 11))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/buried_treasure", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -337,39 +330,28 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-				))))
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultDesertPyramid() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/desert_pyramid", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/desert_pyramid", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -390,39 +372,28 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-				))))
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultDungeon() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/dungeon", 7, 11))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/dungeon", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -443,39 +414,28 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-				))))
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultEndCity() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/end_city", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/end_city", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -496,15 +456,7 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_spear", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_helmet", 100, 1, 1, "rare"),
@@ -515,7 +467,7 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:netherite_axe", 100, 1, 1, "rare"),
 					StructuresConfigManager.item("minecraft:netherite_shovel", 100, 1, 1, "rare")
 				)))
-				.add(StructuresConfigManager.group("mythic", 10, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "mythic"),
@@ -532,13 +484,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultIgloo() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/igloo", 7, 11))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/igloo", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -558,14 +518,6 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
-				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
 				))))
 			.build();
 
@@ -573,13 +525,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultJungleTemple() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/jungle_temple", 7, 11))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/jungle_temple", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -600,39 +560,28 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-				))))
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultNetherFortress() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/nether_fortress", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/nether_fortress", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -653,15 +602,18 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_spear", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_helmet", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_chestplate", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_leggings", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_boots", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_pickaxe", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_axe", 100, 1, 1, "common"),
+					StructuresConfigManager.item("minecraft:netherite_shovel", 100, 1, 1, "common")
 				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "epic"),
 					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "epic"),
 					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "epic"),
@@ -678,13 +630,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultRuinedPortal() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ruined_portal", 7, 11))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ruined_portal", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -705,15 +665,7 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:golden_sword", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:golden_spear", 100, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:golden_helmet", 100, 1, 1, "mythic"),
@@ -729,114 +681,25 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultShipwreck() {
-		JsonArray groups = JSONFormatManager.array()
-			.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
-				StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
-			)))
-			.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_chirp", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_far", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_mall", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_mellohi", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_stal", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_strad", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_ward", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_11", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_wait", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_otherside", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_5", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_pigstep", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_relic", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_creator", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
-				StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
-			)))
-			.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-				StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-				StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-				StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-				StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-				StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-			)))
-			.add(StructuresConfigManager.group("epic", 20, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:heart_of_the_sea", 1, 1, 3)
-			)))
-			.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-				StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-				StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-				StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-				StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-				StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-				StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-				StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-				StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-				StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
-			)))
-			.build();
-
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/shipwreck", 7, 11))
-			.put(LootTableConfigManager.FIELD_GROUPS, groups)
-			.build();
-
-	}
-
-	private static JsonObject buildDefaultStarterChest() {
-		JsonArray groups = JSONFormatManager.array()
-			.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:potato", 1, 2, 6),
-				StructuresConfigManager.item("minecraft:carrot", 1, 2, 6)
-			)))
-			.add(StructuresConfigManager.group("common", 40, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:stone_axe", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:stone_pickaxe", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:stone_sword", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:stone_spear", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:stone_shovel", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:leather_helmet", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:leather_chestplate", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:leather_leggings", 1, 1, 1, "mythic"),
-				StructuresConfigManager.item("minecraft:leather_boots", 1, 1, 1, "mythic")
-			)))
-			.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6),
-				StructuresConfigManager.item("minecraft:bread", 1, 2, 6)
-			)))
-			.add(StructuresConfigManager.group("rare", 30, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:copper_axe", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_pickaxe", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_sword", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_spear", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_shovel", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_helmet", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_chestplate", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_leggings", 1, 1, 1, "epic"),
-				StructuresConfigManager.item("minecraft:copper_boots", 1, 1, 1, "epic")
-			)))
-			.build();
-
-		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/starter_chest", 7, 11))
-			.put(LootTableConfigManager.FIELD_GROUPS, groups)
-			.build();
-
-	}
-
-	private static JsonObject buildDefaultStronghold() {
-		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/stronghold", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/shipwreck", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:heart_of_the_sea", 1, 1, 3)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -857,7 +720,58 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
+			.build();
+
+	}
+
+	private static JsonObject buildDefaultStarterChest() {
+		return JSONFormatManager.object()
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/starter_chest", 12, 16))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:potato", 1, 2, 6),
+					StructuresConfigManager.item("minecraft:carrot", 1, 2, 6)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:stone_axe", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:stone_pickaxe", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:stone_sword", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:stone_spear", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:stone_shovel", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:leather_helmet", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:leather_chestplate", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:leather_leggings", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:leather_boots", 1, 1, 1, "mythic")
+				)))
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6),
+					StructuresConfigManager.item("minecraft:bread", 1, 2, 6)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:copper_axe", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_pickaxe", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_sword", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_spear", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_shovel", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_helmet", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_chestplate", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_leggings", 1, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:copper_boots", 1, 1, 1, "epic")
+				))))
+			.build();
+
+	}
+
+	private static JsonObject buildDefaultStronghold() {
+		return JSONFormatManager.object()
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/stronghold", 5, 9))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
+					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
+				)))
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
 					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
 					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
@@ -865,7 +779,29 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
 					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
 				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_chirp", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_far", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_mall", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_mellohi", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_stal", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_strad", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_ward", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_11", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_wait", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_otherside", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_5", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_pigstep", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "epic"),
 					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "epic"),
 					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "epic"),
@@ -882,13 +818,21 @@ public final class StructuresConfigManager {
 
 	private static JsonObject buildDefaultTrialChambers() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/trial_chambers", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/trial_chambers", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -909,41 +853,17 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("rare", 30, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:wind_charge", 1, 2, 6)
-				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("epic", 20, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:emerald", 1, 2, 6)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:golden_sword", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_spear", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_helmet", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_chestplate", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_leggings", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_boots", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_pickaxe", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_axe", 100, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:golden_shovel", 100, 1, 1, "mythic")
-				)))
-				.add(StructuresConfigManager.group("mythic", 10, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_chestplate", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_leggings", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_boots", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_pickaxe", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_axe", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_shovel", 100, 1, 1, "rare")
+				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_chestplate", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_leggings", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_boots", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_pickaxe", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_axe", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_shovel", 100, 1, 1, "epic")
 				))))
 			.build();
 
@@ -957,7 +877,18 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:heart_of_the_sea", 1, 1, 3)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -978,68 +909,51 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
+			.build();
+
+	}
+
+	private static JsonObject buildDefaultVillage() {
+		return JSONFormatManager.object()
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/village", 5, 9))
+			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
+				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
+					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:emerald", 1, 3, 5)
+				)))
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
 					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
 					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
 					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
 					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
 					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("epic", 20, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:heart_of_the_sea", 1, 1, 3)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, List.of("madoku-pets"), StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:chicken_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:zombie_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:pig_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:sheep_spawn_egg", 100, 1, 1),
-					StructuresConfigManager.item("minecraft:cow_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:skeleton_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:spider_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:creeper_spawn_egg", 75, 1, 1),
-					StructuresConfigManager.item("minecraft:bat_spawn_egg", 50, 1, 1),
-					StructuresConfigManager.item("minecraft:bee_spawn_egg", 50, 1, 1)
 				))))
-			.build();
-
-	}
-
-	private static JsonObject buildDefaultVillage() {
-		JsonArray groups = JSONFormatManager.array()
-			.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
-				StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
-			)))
-			.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:emerald", 1, 3, 5)
-			)))
-			.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-				StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-				StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-				StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-				StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-				StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-				StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-			)))
-			.build();
-
-		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/village", 3, 7))
-			.put(LootTableConfigManager.FIELD_GROUPS, groups)
 			.build();
 
 	}
 
 	private static JsonObject buildDefaultWoodlandMansion() {
 		return JSONFormatManager.object()
-			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/woodland_mansion", 3, 7))
+			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/woodland_mansion", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:bread", 1, 2, 6),
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6)
 				)))
-				.add(StructuresConfigManager.group("rare", 75, StructuresConfigManager.entries(
+				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
+					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
+					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
+					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
+					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
+					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
+				)))
+				.add(StructuresConfigManager.group("epic", 60, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:music_disc_13", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_cat", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_blocks", 1, 1, 1),
@@ -1060,27 +974,17 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 1, 1),
 					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 1, 1)
 				)))
-				.add(StructuresConfigManager.group("rare", 30, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:emerald", 1, 4, 6)
-				)))
-				.add(StructuresConfigManager.group("epic", 50, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:coal", 42, 5, 7),
-					StructuresConfigManager.item("minecraft:copper_ingot", 27, 4, 6),
-					StructuresConfigManager.item("minecraft:iron_ingot", 17, 3, 5),
-					StructuresConfigManager.item("minecraft:gold_ingot", 10, 2, 4),
-					StructuresConfigManager.item("minecraft:diamond", 3, 1, 3),
-					StructuresConfigManager.item("minecraft:netherite_scrap", 1, 0, 2)
-				)))
-				.add(StructuresConfigManager.group("mythic", 25, StructuresConfigManager.entries(
-					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_chestplate", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_leggings", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_boots", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_pickaxe", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_axe", 100, 1, 1, "rare"),
-					StructuresConfigManager.item("minecraft:diamond_shovel", 100, 1, 1, "rare")
+				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
+				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
+					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_spear", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_helmet", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_chestplate", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_leggings", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_boots", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_pickaxe", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_axe", 100, 1, 1, "epic"),
+					StructuresConfigManager.item("minecraft:diamond_shovel", 100, 1, 1, "epic")
 				))))
 			.build();
 
@@ -1092,4 +996,3 @@ public final class StructuresConfigManager {
 		defaults.put(LootTableConfigManager.fileKeyFromTableId(tableId, "structure-table"), root);
 	}
 }
-
