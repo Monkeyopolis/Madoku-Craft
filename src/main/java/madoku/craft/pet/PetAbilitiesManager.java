@@ -86,7 +86,9 @@ public final class PetAbilitiesManager {
 	private static final int BAT_SCAN_BASE_RADIUS_BLOCKS = 24;
 	private static final int BAT_SCAN_VERTICAL_RADIUS_PER_EXTRA_BAT = 4;
 	private static final long BAT_SCAN_GLOWING_DURATION_TICKS = 90L * 20L;
-	private static final float MOB_SCAN_DAMAGE_MULTIPLIER = 1.25F;
+	private static final float BAT_SCAN_BASE_VULNERABILITY = 0.15F;
+	private static final float BAT_SCAN_VULNERABILITY_PER_LEVEL = 0.0125F;
+	private static final float BAT_SCAN_VULNERABILITY_PER_EXTRA_BAT = 0.05F;
 	private static final String MOB_SCAN_VULNERABILITY_TAG = "madoku-craft.mob-scan-vulnerability";
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_EXTRA_BAT = 10L * 20L;
 	private static final long BAT_SCAN_COOLDOWN_REDUCTION_PER_LEVEL = 5L * 20L;
@@ -118,6 +120,7 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ChickenEggProjectileState> ACTIVE_CHICKEN_EGG_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
 	private static final Map<String, BeeSwarmState> ACTIVE_BEE_SWARMS = new ConcurrentHashMap<>();
+	private static final Map<UUID, Float> MOB_SCAN_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 
 	static void reset() {
 		PLAYER_SCHEDULER_IDS.clear();
@@ -130,6 +133,7 @@ public final class PetAbilitiesManager {
 		ACTIVE_CHICKEN_EGG_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
 		ACTIVE_BEE_SWARMS.clear();
+		MOB_SCAN_VULNERABILITY_BY_ENTITY.clear();
 	}
 
 	static void tickWebControls(MinecraftServer server) {
@@ -150,13 +154,20 @@ public final class PetAbilitiesManager {
 			return amount;
 		}
 		if (!entity.entityTags().contains(MOB_SCAN_VULNERABILITY_TAG)) {
+			MOB_SCAN_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
+			return amount;
+		}
+		Float vulnerability = MOB_SCAN_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
+		if (vulnerability == null) {
+			entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
 			return amount;
 		}
 		if (!entity.hasEffect(MobEffects.GLOWING)) {
 			entity.removeTag(MOB_SCAN_VULNERABILITY_TAG);
+			MOB_SCAN_VULNERABILITY_BY_ENTITY.remove(entity.getUUID());
 			return amount;
 		}
-		return amount * MOB_SCAN_DAMAGE_MULTIPLIER;
+		return amount * (1.0F + vulnerability);
 	}
 
 	public static boolean isWebStunned(Entity entity) {
@@ -700,17 +711,26 @@ public final class PetAbilitiesManager {
 				return;
 			}
 
-			applyAutomaticBatMobScan(player, batCount, sharedRule, batAbility);
+			applyAutomaticBatMobScan(player, inventory, batSlots, batRules, batCount, sharedRule, batAbility);
 			setSharedAbilityCooldown(player.getUUID(), PET_ABILITY_MOB_SCAN, batSlots, batCount, gameplayTicks + effectiveBatScanCooldownTicks(inventory, batSlots, batCount, sharedRule));
 		}
 
-			private static void applyAutomaticBatMobScan(ServerPlayer player, int batCount, PetRule rule, PetAbilityRule ability) {
+		private static void applyAutomaticBatMobScan(
+			ServerPlayer player,
+			PetInventory inventory,
+			int[] batSlots,
+			PetRule[] batRules,
+			int batCount,
+			PetRule rule,
+			PetAbilityRule ability
+		) {
 			if (player == null || batCount <= 0 || !(player.level() instanceof ServerLevel level)) {
 				return;
 			}
 			SoundEvent soundEvent = rule == null || ability == null ? SoundEvents.BEACON_ACTIVATE : rule.resolveSoundEvent(ability.abilityType);
 			float volume = ability == null ? 0.45F : Math.max(0.12F, ability.soundVolumeMultiplier);
 			level.playSound(null, player.getX(), player.getEyeY(), player.getZ(), soundEvent, SoundSource.NEUTRAL, volume, 1.15F);
+			float vulnerability = resolveBatScanVulnerability(inventory, batSlots, batRules, batCount);
 
 			double horizontalRadius = BAT_SCAN_BASE_RADIUS_BLOCKS + Math.max(0, batCount - 1) * 12.0D;
 			int chunkRadius = Math.max(1, (int) Math.ceil(horizontalRadius / 16.0D));
@@ -753,10 +773,33 @@ public final class PetAbilitiesManager {
 							&& scanArea.intersects(candidate.getBoundingBox())
 						)) {
 						mob.addTag(MOB_SCAN_VULNERABILITY_TAG);
+						MOB_SCAN_VULNERABILITY_BY_ENTITY.put(mob.getUUID(), vulnerability);
 						mob.addEffect(new MobEffectInstance(MobEffects.GLOWING, (int) BAT_SCAN_GLOWING_DURATION_TICKS, 0, false, false, true));
 					}
 				}
 			}
+		}
+
+		private static float resolveBatScanVulnerability(PetInventory inventory, int[] batSlots, PetRule[] batRules, int batCount) {
+			double vulnerability = 0.0D;
+			if (inventory != null && batSlots != null) {
+				for (int index = 0; index < Math.min(batCount, batSlots.length); index++) {
+					int slot = batSlots[index];
+					PetAbilityRule batAbility = batRules != null && index < batRules.length && batRules[index] != null
+						? batRules[index].ability(PET_ABILITY_MOB_SCAN)
+						: null;
+					int level = slot < 0 || slot >= inventory.getContainerSize()
+						? 1
+						: PetEntitiesManager.petLevel(inventory.getItem(slot));
+					double perBatVulnerability = batAbility == null
+						? BAT_SCAN_BASE_VULNERABILITY + Math.max(0, level - 1) * BAT_SCAN_VULNERABILITY_PER_LEVEL
+						: batAbility.mobScanVulnerabilityAmount;
+					vulnerability += index == 0
+						? perBatVulnerability
+						: (perBatVulnerability - BAT_SCAN_BASE_VULNERABILITY) + BAT_SCAN_VULNERABILITY_PER_EXTRA_BAT;
+				}
+			}
+			return (float) Math.max(0.0D, vulnerability);
 		}
 
 		static long effectiveBatScanCooldownTicks(PetInventory inventory, int[] batSlots, int batCount, PetRule rule) {
