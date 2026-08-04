@@ -20,7 +20,13 @@ public abstract class LivingEntityPetBehaviorMixin {
 		LivingEntity entity = (LivingEntity) (Object) this;
 		if (PetAbilitiesManager.isWebStunned(entity)) {
 			Vec3 movement = entity.getDeltaMovement();
-			entity.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
+			double verticalVelocity = movement.y;
+			if (entity.isNoGravity()) {
+				verticalVelocity = Math.max(-0.5D, Math.min(-0.08D, movement.y - 0.08D));
+			}
+			entity.setDeltaMovement(new Vec3(0.0D, verticalVelocity, 0.0D));
+		} else if (entity.isNoGravity()) {
+			entity.setDeltaMovement(PetAbilitiesManager.scaleWebMovement(entity, entity.getDeltaMovement()));
 		}
 	}
 

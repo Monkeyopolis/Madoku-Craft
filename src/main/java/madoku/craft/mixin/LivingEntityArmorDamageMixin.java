@@ -31,7 +31,7 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
 		boolean shouldOverrideVanillaArmor = MadokuArmorManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
-			cir.setReturnValue(PetAbilitiesManager.applyMobScanDamage(entity, amount));
+			cir.setReturnValue(PetAbilitiesManager.applyDamageVulnerabilities(entity, amount));
 			return;
 		}
 
@@ -48,7 +48,7 @@ public abstract class LivingEntityArmorDamageMixin {
 
 		damageAfterArmor = PetAbilitiesManager.applyFallDamage(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
-		damageAfterArmor = PetAbilitiesManager.applyMobScanDamage(entity, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
 	}
 

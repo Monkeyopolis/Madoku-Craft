@@ -387,6 +387,8 @@ public final class PetConfigManager {
 		final long stunDurationTicks;
 		final long slowDurationTicks;
 		final double slowPercentage;
+		final double vulnerabilityAmount;
+		final long vulnerabilityDurationTicks;
 		final double mobScanVulnerabilityAmount;
 		final double playerDamageBonusAmount;
 		final double fallDamageReductionAmount;
@@ -413,6 +415,8 @@ public final class PetConfigManager {
 			long stunDurationTicks,
 			long slowDurationTicks,
 			double slowPercentage,
+			double vulnerabilityAmount,
+			long vulnerabilityDurationTicks,
 			double mobScanVulnerabilityAmount,
 			double playerDamageBonusAmount,
 			double fallDamageReductionAmount,
@@ -438,6 +442,8 @@ public final class PetConfigManager {
 			this.stunDurationTicks = stunDurationTicks;
 			this.slowDurationTicks = slowDurationTicks;
 			this.slowPercentage = slowPercentage;
+			this.vulnerabilityAmount = vulnerabilityAmount;
+			this.vulnerabilityDurationTicks = vulnerabilityDurationTicks;
 			this.mobScanVulnerabilityAmount = mobScanVulnerabilityAmount;
 			this.playerDamageBonusAmount = playerDamageBonusAmount;
 			this.fallDamageReductionAmount = fallDamageReductionAmount;
@@ -469,7 +475,7 @@ public final class PetConfigManager {
 			double resolvedAttackDamage = attackDamage;
 			double resolvedMobScanVulnerability = mobScanVulnerabilityAmount;
 			if (MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(abilityType)) {
-				resolvedMobScanVulnerability += (Math.max(1, level) - 1) * 0.0125D;
+				resolvedMobScanVulnerability += (Math.max(1, level) - 1) * 0.025D;
 			}
 			double resolvedPlayerDamageBonus = playerDamageBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS.equals(abilityType)) {
@@ -478,7 +484,7 @@ public final class PetConfigManager {
 			double resolvedFallDamageReduction = fallDamageReductionAmount;
 			double resolvedMaxHealthBonus = maxHealthBonusAmount;
 			if (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)) {
-				resolvedMaxHealthBonus += (Math.max(1, level) - 1) * 0.05D;
+				resolvedMaxHealthBonus += (Math.max(1, level) - 1) * 0.025D;
 			}
 			double resolvedArmorBonus = armorBonusAmount;
 			double resolvedDamageBlock = damageBlockAmount;
@@ -495,20 +501,27 @@ public final class PetConfigManager {
 			long resolvedStunDurationTicks = stunDurationTicks;
 			long resolvedSlowDurationTicks = slowDurationTicks;
 			double resolvedSlowPercentage = slowPercentage;
+			double resolvedVulnerabilityAmount = vulnerabilityAmount;
+			long resolvedVulnerabilityDurationTicks = vulnerabilityDurationTicks;
 			String normalizedPetId = normalizePetId(petId);
 			if ("minecraft:sheep".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(abilityType)) {
-				resolvedArmorBonus = armorBonusAmount + ((Math.max(1, level) - 1) * 0.5D);
+				resolvedArmorBonus = armorBonusAmount + ((Math.max(1, level) - 1) * 0.25D);
 			}
 			if (MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 1.0D);
-				resolvedStunDurationTicks += (Math.max(1, level) - 1) * 10L;
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.5D);
+				resolvedStunDurationTicks += (Math.max(1, level) - 1) * 5L;
 				resolvedSlowDurationTicks += (Math.max(1, level) - 1) * 40L;
 				resolvedSlowPercentage += (Math.max(1, level) - 1) * 0.05D;
 			}
+			if (MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 3.0D);
+				resolvedVulnerabilityAmount += (Math.max(1, level) - 1) * 0.0125D;
+				resolvedVulnerabilityDurationTicks += (Math.max(1, level) - 1) * 25L;
+			}
 			if ("minecraft:chicken".equals(normalizedPetId)) {
 				if (MadokuPetManager.PET_ABILITY_EGG_PROJECTILE.equals(abilityType)) {
-					resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.5D);
+					resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.25D);
 					resolvedExplosionRadius = explosionRadius + ((Math.max(1, level) - 1) * 0.25D);
 				}
 				if (MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION.equals(abilityType)) {
@@ -516,14 +529,13 @@ public final class PetConfigManager {
 				}
 			} else if ("minecraft:creeper".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 7.0D);
 				resolvedExplosionRadius = explosionRadius + (Math.max(1, level) - 1);
 			} else if ("minecraft:skeleton".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 1.5D);
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.5D);
 			} else if ("minecraft:bee".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.5D);
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.15D);
 			}
 			return new PetAbilityRule(
 				abilityType,
@@ -534,6 +546,8 @@ public final class PetConfigManager {
 				resolvedStunDurationTicks,
 				resolvedSlowDurationTicks,
 				resolvedSlowPercentage,
+				resolvedVulnerabilityAmount,
+				resolvedVulnerabilityDurationTicks,
 				resolvedMobScanVulnerability,
 				resolvedPlayerDamageBonus,
 				resolvedFallDamageReduction,
@@ -563,6 +577,8 @@ public final class PetConfigManager {
 				stunDurationTicks,
 				slowDurationTicks,
 				slowPercentage,
+				vulnerabilityAmount,
+				vulnerabilityDurationTicks,
 				mobScanVulnerabilityAmount,
 				playerDamageBonusAmount,
 				fallDamageReductionAmount,
@@ -722,15 +738,13 @@ public final class PetConfigManager {
 					}
 				}
 				if (resolvedAbilities.isEmpty()) resolvedAbilities.add(MadokuPetManager.PET_ABILITY_NONE);
-				String resolvedAbilityType = resolvedAbilities.iterator().next();
 				return madoku.craft.api.json.JSONFormatManager.object()
 					.object("pet-id", pet -> {
 						pet.put("id", resolvedPetId)
 							.put("rarity", defaultRarityForItem(resolvedPetId))
 							.put("pet-scale", defaultPetScaleForItem(resolvedPetId))
 							.put("follow-speed", 1.2D)
-							.put("teleport-distance", defaultTeleportDistanceForItem(resolvedPetId))
-							.put("cooldown", defaultCooldownSecondsForPet(resolvedPetId, resolvedAbilityType));
+							.put("teleport-distance", defaultTeleportDistanceForItem(resolvedPetId));
 						pet.array("ability-ids", abilities -> {
 							for (String abilityType : resolvedAbilities) abilities.add(abilityConfigId(abilityType));
 						});
@@ -757,35 +771,37 @@ public final class PetConfigManager {
 					.object("value-type", value -> value.put("type", valueType).put("value", defaultAbilityValue(resolvedAbilityType)))
 					.build();
 				if (usesRangedHomingArrow) {
-					ability.addProperty("attack-damage", 4.0D);
+					ability.addProperty("attack-damage", 3.0D);
 					ability.addProperty("attack-speed", 3.0D);
 					ability.addProperty("cooldown", 5.0D);
 					ability.addProperty("shot-delay-ticks", 10L);
 				}
 				if (usesWebProjectile) {
-					ability.addProperty("follow-speed", 1.0D);
-					ability.addProperty("attack-damage", 2.0D);
-					ability.addProperty("attack-speed", 1.0D);
+					ability.addProperty("follow-speed", 1.5D);
+					ability.addProperty("attack-damage", 6.0D);
+					ability.addProperty("attack-speed", 2.0D);
 					ability.addProperty("effect-duration-ticks", 240L);
-					ability.addProperty("stun-duration-ticks", 60L);
+					ability.addProperty("stun-duration-ticks", 50L);
 					ability.addProperty("slow-duration-ticks", 240L);
 					ability.addProperty("slow-percentage", 0.40D);
-					ability.addProperty("cooldown", 15.0D);
+					ability.addProperty("cooldown", 30.0D);
 					ability.addProperty("shot-delay-ticks", 10L);
 				}
 				if (usesExplosiveProjectile) {
 					ability.addProperty("follow-speed", 1.2D);
 					ability.addProperty("attack-damage", 12.0D);
-					ability.addProperty("attack-speed", 2.0D);
+					ability.addProperty("attack-speed", 2.5D);
+					ability.addProperty("vulnerability", 0.10D);
+					ability.addProperty("vulnerability-duration-ticks", 100L);
 					ability.addProperty("cooldown", 60.0D);
 					ability.addProperty("shot-delay-ticks", 10L);
 					ability.addProperty("explosion-radius", 4D);
 				}
 				if (usesEggProjectile) {
 					ability.addProperty("follow-speed", 1.0D);
-					ability.addProperty("attack-damage", 3.0D);
+					ability.addProperty("attack-damage", 4.0D);
 					ability.addProperty("attack-speed", 2.5D);
-					ability.addProperty("cooldown", 30.0D);
+					ability.addProperty("cooldown", 15.0D);
 					ability.addProperty("shot-delay-ticks", 5L);
 					ability.addProperty("explosion-radius", 2.0D);
 				}
@@ -798,13 +814,13 @@ public final class PetConfigManager {
 					ability.addProperty("cooldown", 60.0D);
 				}
 				if (usesMobScan) {
-					ability.addProperty("cooldown", 150.0D);
+					ability.addProperty("cooldown", 120.0D);
 				}
 				if (usesBeeSwarm) {
 					ability.addProperty("follow-speed", 1.5D);
 					ability.addProperty("idle-move-speed", 1.25D);
 					ability.addProperty("idle-wander-radius", 4.0D);
-					ability.addProperty("attack-damage", 2.0D);
+					ability.addProperty("attack-damage", 1.8D);
 					ability.addProperty("cooldown", 0.0D);
 				}
 				return madoku.craft.api.json.JSONFormatManager.object().put("ability-id", ability).build();
@@ -812,34 +828,17 @@ public final class PetConfigManager {
 
 			private static double defaultAbilityValue(String abilityType) {
 				return switch (abilityType) {
-					case MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> 2.0D;
+					case MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> 1.0D;
 					case MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> 0.20D;
 					case MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS -> 0.15D;
 					case MadokuPetManager.PET_ABILITY_MOB_SCAN -> 0.15D;
-					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 3.0D;
+					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 1.5D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 5.0D;
 					case MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION -> 0.05D;
-					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 2.0D;
-					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 3.0D;
+					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.8D;
+					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 4.0D;
 					default -> 0.0D;
 				};
-			}
-
-			private static double defaultCooldownSeconds(String abilityType) {
-				return switch (normalizeAbilityId(abilityType)) {
-					case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW -> 5.0D;
-					case MadokuPetManager.PET_ABILITY_WEB_PROJECTILE -> 15.0D;
-					case MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> 60.0D;
-					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 30.0D;
-					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 30.0D;
-					case MadokuPetManager.PET_ABILITY_MOB_SCAN -> 150.0D;
-					default -> 0.0D;
-				};
-			}
-
-			private static double defaultCooldownSecondsForPet(String petId, String abilityType) {
-				if ("minecraft:chicken".equals(normalizePetId(petId))) return 30.0D;
-				return defaultCooldownSeconds(abilityType);
 			}
 
 			static PetRule fromJson(JsonObject source, String fileKey, Map<String, JsonObject> abilityDefinitions) {
@@ -982,6 +981,8 @@ public final class PetConfigManager {
 						PetSettings.clampLong(getLong(resolvedSource, "stun-duration-ticks", defaultStunDurationTicksForAbility(abilityType)), 0L, 20L * 60L),
 						PetSettings.clampLong(getLong(resolvedSource, "slow-duration-ticks", defaultSlowDurationTicksForAbility(abilityType)), 0L, 20L * 60L * 10L),
 						PetSettings.clampDouble(getDouble(resolvedSource, "slow-percentage", defaultSlowPercentageForAbility(abilityType)), 0.0D, 1.0D),
+						PetSettings.clampDouble(getDouble(resolvedSource, "vulnerability", defaultVulnerabilityForAbility(abilityType)), 0.0D, 10.0D),
+						PetSettings.clampLong(getLong(resolvedSource, "vulnerability-duration-ticks", defaultVulnerabilityDurationTicksForAbility(abilityType)), 0L, 20L * 60L * 10L),
 						PetSettings.clampDouble(getDouble(
 							resolvedSource,
 							"mob-scan-vulnerability",
@@ -1014,7 +1015,7 @@ public final class PetConfigManager {
 			}
 
 			private static long defaultStunDurationTicksForAbility(String abilityType) {
-				return MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) ? 60L : 0L;
+				return MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) ? 50L : 0L;
 			}
 
 			private static long defaultSlowDurationTicksForAbility(String abilityType) {
@@ -1023,6 +1024,14 @@ public final class PetConfigManager {
 
 			private static double defaultSlowPercentageForAbility(String abilityType) {
 				return MadokuPetManager.PET_ABILITY_WEB_PROJECTILE.equals(abilityType) ? 0.40D : 0.0D;
+			}
+
+			private static double defaultVulnerabilityForAbility(String abilityType) {
+				return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) ? 0.10D : 0.0D;
+			}
+
+			private static long defaultVulnerabilityDurationTicksForAbility(String abilityType) {
+				return MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE.equals(abilityType) ? 100L : 0L;
 			}
 
 			private static JsonObject resolveAbilitySource(JsonObject source, JsonObject abilityGroup, String abilityType) {
@@ -1052,11 +1061,7 @@ public final class PetConfigManager {
 				};
 				if (valueKey != null && !flattened.has(valueKey)) flattened.addProperty(valueKey, value);
 				double abilityCooldownSeconds = getDouble(abilityGroup, "cooldown", 0.0D);
-				double petCooldownSeconds = getDouble(petGroup, "cooldown", -1.0D);
-				double cooldownSeconds = abilityCooldownSeconds > 0.0D && petCooldownSeconds >= 0.0D
-					? petCooldownSeconds
-					: abilityCooldownSeconds;
-				flattened.addProperty("cooldown-ticks", Math.max(0L, Math.round(cooldownSeconds * 20.0D)));
+				flattened.addProperty("cooldown-ticks", Math.max(0L, Math.round(abilityCooldownSeconds * 20.0D)));
 				flattened.addProperty("ability", abilityType);
 				return flattened;
 			}
@@ -1212,14 +1217,14 @@ public final class PetConfigManager {
 						resolvedExplosionRadius = explosionRadius + ((safeLevel - 1) * 0.25D);
 					}
 				} else if ("minecraft:creeper".equals(petId)) {
-					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 7.0D);
+					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 3.0D);
 					resolvedExplosionRadius = explosionRadius + (safeLevel - 1);
 				} else if ("minecraft:sheep".equals(petId)) {
-					resolvedArmorBonus = armorBonusAmount + ((safeLevel - 1) * 0.5D);
+					resolvedArmorBonus = armorBonusAmount + ((safeLevel - 1) * 0.25D);
 				} else if ("minecraft:skeleton".equals(petId)) {
-					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 1.5D);
-				} else if ("minecraft:bee".equals(petId)) {
 					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.5D);
+				} else if ("minecraft:bee".equals(petId)) {
+					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.15D);
 				}
 				List<PetAbilityRule> resolvedAbilities = new ArrayList<>();
 				for (PetAbilityRule ability : abilities) {
@@ -1234,7 +1239,7 @@ public final class PetConfigManager {
 						: 0.0D),
 					resolvedFallDamageReduction,
 					maxHealthBonusAmount + (MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS.equals(abilityType)
-						? (safeLevel - 1) * 0.05D
+						? (safeLevel - 1) * 0.025D
 						: 0.0D),
 					resolvedArmorBonus,
 					damageBlockAmount + (MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK.equals(abilityType)

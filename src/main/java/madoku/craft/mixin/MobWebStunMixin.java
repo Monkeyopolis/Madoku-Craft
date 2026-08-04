@@ -15,7 +15,11 @@ public abstract class MobWebStunMixin {
 		Mob mob = (Mob) (Object) this;
 		if (PetAbilitiesManager.isWebStunned(mob)) {
 			Vec3 movement = mob.getDeltaMovement();
-			mob.setDeltaMovement(new Vec3(0.0D, movement.y, 0.0D));
+			double downwardVelocity = movement.y;
+			if (mob.isNoGravity()) {
+				downwardVelocity = Math.max(-0.5D, Math.min(-0.08D, movement.y - 0.08D));
+			}
+			mob.setDeltaMovement(new Vec3(0.0D, downwardVelocity, 0.0D));
 			mob.getNavigation().stop();
 			ci.cancel();
 		}
