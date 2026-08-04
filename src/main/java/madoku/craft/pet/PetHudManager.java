@@ -43,7 +43,7 @@ public final class PetHudManager {
 		DIRTY_PLAYERS.clear();
 		for (UUID playerId : dirtyPlayers) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player != null) sendAbilityCooldowns(player, PetAbilitiesManager.currentAbilityCooldowns(playerId));
+			if (player != null) sendAbilityCooldowns(player, PetAbilitiesManager.currentAbilityCooldowns(player));
 		}
 	}
 

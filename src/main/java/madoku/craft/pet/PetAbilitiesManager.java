@@ -53,6 +53,7 @@ public final class PetAbilitiesManager {
 	private static final Identifier PLAYER_DAMAGE_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_damage_bonus");
 	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_max_health_bonus");
 	private static final Identifier PLAYER_ARMOR_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
+	private static final Identifier PLAYER_ARMOR_TOUGHNESS_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_toughness_bonus");
 
 	private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(PetAbilitiesManager.class);
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
@@ -66,10 +67,15 @@ public final class PetAbilitiesManager {
 	private static final String PET_ABILITY_MAX_HEALTH_BONUS = MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS;
 	private static final String PET_ABILITY_ARMOR_BONUS = MadokuPetManager.PET_ABILITY_ARMOR_BONUS;
 	private static final String PET_ABILITY_DAMAGE_BLOCK = MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK;
+	private static final String PET_ABILITY_HEALTH_REGENERATION = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION;
 	private static final String PET_ABILITY_MOB_SCAN = MadokuPetManager.PET_ABILITY_MOB_SCAN;
 	private static final String PET_ABILITY_BEE_SWARM = MadokuPetManager.PET_ABILITY_BEE_SWARM;
 	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
 	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
+	private static final double HEALTH_REGEN_BASE_PERCENTAGE = 0.05D;
+	private static final long HEALTH_REGEN_BASE_DURATION_TICKS = 3L * 20L;
+	private static final long HEALTH_REGEN_DUPLICATE_DURATION_TICKS = 20L;
+	private static final long HEALTH_REGEN_TICK_INTERVAL_TICKS = 20L;
 	private static final double WEB_PROJECTILE_HIT_DISTANCE = 0.75D;
 	private static final double WEB_PROJECTILE_MIN_SPEED = 0.20D;
 	private static final int EXPLOSIVE_PROJECTILE_LIFETIME_TICKS = 20;
@@ -116,6 +122,7 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, WebControlState> ACTIVE_WEB_CONTROLS = new ConcurrentHashMap<>();
+	private static final Map<UUID, HealthRegenerationState> ACTIVE_HEALTH_REGENERATIONS = new ConcurrentHashMap<>();
 	private static final Map<UUID, ExplosiveProjectileState> ACTIVE_EXPLOSIVE_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggProjectileState> ACTIVE_CHICKEN_EGG_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ChickenEggVolleyState> ACTIVE_CHICKEN_EGG_VOLLEYS = new ConcurrentHashMap<>();
@@ -129,6 +136,7 @@ public final class PetAbilitiesManager {
 		MadokuSchedulerManager.clearAdaptiveDelayState(BEE_TARGET_SCAN_SCHEDULER_OWNER_ID);
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_WEB_CONTROLS.clear();
+		ACTIVE_HEALTH_REGENERATIONS.clear();
 		ACTIVE_EXPLOSIVE_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_PROJECTILES.clear();
 		ACTIVE_CHICKEN_EGG_VOLLEYS.clear();
@@ -143,8 +151,48 @@ public final class PetAbilitiesManager {
 		long now = MadokuTimeManager.getGameplayTicks();
 		for (Map.Entry<UUID, WebControlState> entry : ACTIVE_WEB_CONTROLS.entrySet()) {
 			WebControlState state = entry.getValue();
-			if (state == null || now >= state.slowUntilTick) {
+			if (state == null) {
 				ACTIVE_WEB_CONTROLS.remove(entry.getKey());
+				continue;
+			}
+			if (now >= state.slowUntilTick) {
+				boolean liveEntityLoaded = false;
+				for (ServerLevel level : server.getAllLevels()) {
+					if (level.getEntity(entry.getKey()) instanceof LivingEntity livingEntity && livingEntity.isAlive()) {
+						liveEntityLoaded = true;
+						break;
+					}
+				}
+				if (!liveEntityLoaded) {
+					ACTIVE_WEB_CONTROLS.remove(entry.getKey(), state);
+				}
+			}
+		}
+	}
+
+	static void tickHealthRegeneration(MinecraftServer server) {
+		if (server == null || ACTIVE_HEALTH_REGENERATIONS.isEmpty()) {
+			return;
+		}
+		long now = MadokuTimeManager.getGameplayTicks();
+		for (Map.Entry<UUID, HealthRegenerationState> entry : ACTIVE_HEALTH_REGENERATIONS.entrySet()) {
+			HealthRegenerationState state = entry.getValue();
+			ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+			if (state == null || player == null || !player.isAlive() || now >= state.untilTick) {
+				ACTIVE_HEALTH_REGENERATIONS.remove(entry.getKey(), state);
+				continue;
+			}
+
+			long nextHealTick = state.nextHealTick;
+			while (nextHealTick < state.untilTick && nextHealTick <= now) {
+				applyHealthRegenerationHeal(player, state.healPercentage);
+				nextHealTick += HEALTH_REGEN_TICK_INTERVAL_TICKS;
+			}
+			if (nextHealTick != state.nextHealTick) {
+				ACTIVE_HEALTH_REGENERATIONS.put(
+					entry.getKey(),
+					new HealthRegenerationState(nextHealTick, state.untilTick, state.healPercentage)
+				);
 			}
 		}
 	}
@@ -191,7 +239,6 @@ public final class PetAbilitiesManager {
 			return 0.0F;
 		}
 		if (now >= state.slowUntilTick) {
-			ACTIVE_WEB_CONTROLS.remove(entity.getUUID(), state);
 			return speed;
 		}
 		return (float) (speed * Math.max(0.0D, 1.0D - state.slowPercentage));
@@ -224,6 +271,7 @@ public final class PetAbilitiesManager {
 					MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS,
 					MadokuPetManager.PET_ABILITY_ARMOR_BONUS,
 					MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,
+					MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION,
 					MadokuPetManager.PET_ABILITY_MOB_SCAN,
 					MadokuPetManager.PET_ABILITY_BEE_SWARM
 				};
@@ -355,10 +403,16 @@ public final class PetAbilitiesManager {
 		float damageTaken,
 		boolean blocked
 	) {
-		if (!PetConfigManager.settings().enabled || damageTaken <= 0.0F || blocked) {
+		if (!PetConfigManager.settings().enabled || damageTaken <= 0.0F) {
 			return;
 		}
-		if (entity != null && source.getEntity() instanceof ServerPlayer playerAttacker) {
+		if (entity instanceof ServerPlayer playerVictim) {
+			triggerHealthRegeneration(playerVictim);
+		}
+		if (blocked) {
+			return;
+		}
+		if (entity != null && source != null && source.getEntity() instanceof ServerPlayer playerAttacker) {
 			triggerReactiveAbilities(playerAttacker, entity);
 		}
 		if (entity instanceof ServerPlayer playerVictim) {
@@ -367,6 +421,86 @@ public final class PetAbilitiesManager {
 				triggerReactiveAbilities(playerVictim, attackerTarget);
 			}
 		}
+	}
+
+	private static void triggerHealthRegeneration(ServerPlayer player) {
+		if (player == null || !player.isAlive() || !PetConfigManager.isEnabled()) {
+			return;
+		}
+		long now = MadokuTimeManager.getGameplayTicks();
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) {
+			return;
+		}
+		int abilityCount = 0;
+		int[] healthSlots = new int[SLOT_COUNT];
+		int healthSlotCount = 0;
+		long sharedCooldownTicks = 0L;
+		double healPercentage = HEALTH_REGEN_BASE_PERCENTAGE;
+		long durationTicks = HEALTH_REGEN_BASE_DURATION_TICKS;
+		for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+			ItemStack stack = inventory.getItem(slot);
+			PetRule rule = PetConfigManager.resolvePetRule(stack);
+			if (rule == null || !rule.enabled) {
+				continue;
+			}
+			for (PetAbilityRule ability : rule.abilities) {
+				if (!PET_ABILITY_HEALTH_REGENERATION.equals(ability.abilityType)) {
+					continue;
+				}
+				abilityCount++;
+				if (healthSlotCount == 0 || healthSlots[healthSlotCount - 1] != slot) {
+					healthSlots[healthSlotCount++] = slot;
+				}
+				sharedCooldownTicks = Math.max(sharedCooldownTicks, ability.cooldownTicks);
+				healPercentage += Math.max(0.0D, ability.healthRegenerationAmount - HEALTH_REGEN_BASE_PERCENTAGE);
+				durationTicks += Math.max(0L, ability.effectDurationTicks - HEALTH_REGEN_BASE_DURATION_TICKS);
+			}
+		}
+		if (abilityCount <= 0) {
+			return;
+		}
+		long sharedCooldownTick = synchronizeSharedAbilityCooldown(
+			player.getUUID(),
+			PET_ABILITY_HEALTH_REGENERATION,
+			healthSlots,
+			healthSlotCount,
+			now
+		);
+		if (now < sharedCooldownTick) {
+			return;
+		}
+		healPercentage += (abilityCount - 1) * HEALTH_REGEN_BASE_PERCENTAGE;
+		durationTicks += (long) (abilityCount - 1) * HEALTH_REGEN_DUPLICATE_DURATION_TICKS;
+		if (healPercentage <= 0.0D || durationTicks <= 0L) {
+			return;
+		}
+		if (sharedCooldownTicks > 0L) {
+			setSharedAbilityCooldown(
+				player.getUUID(),
+				PET_ABILITY_HEALTH_REGENERATION,
+				healthSlots,
+				healthSlotCount,
+				now + sharedCooldownTicks
+			);
+		}
+
+		applyHealthRegenerationHeal(player, healPercentage);
+		ACTIVE_HEALTH_REGENERATIONS.put(
+			player.getUUID(),
+			new HealthRegenerationState(
+				now + HEALTH_REGEN_TICK_INTERVAL_TICKS,
+				now + durationTicks,
+				healPercentage
+			)
+		);
+	}
+
+	private static void applyHealthRegenerationHeal(ServerPlayer player, double healPercentage) {
+		if (player == null || !player.isAlive() || healPercentage <= 0.0D) {
+			return;
+		}
+		player.heal((float) (player.getMaxHealth() * healPercentage));
 	}
 
 	private static LivingEntity resolveDamageSourceLivingEntity(net.minecraft.world.damagesource.DamageSource source) {
@@ -500,6 +634,15 @@ public final class PetAbilitiesManager {
 		attribute.removeModifier(PLAYER_ARMOR_MODIFIER);
 		double bonus = armorBonus(player);
 		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_ARMOR_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
+	}
+
+	public static void applyPlayerArmorToughnessAbilityBonus(ServerPlayer player) {
+		if (player == null) return;
+		AttributeInstance attribute = player.getAttribute(Attributes.ARMOR_TOUGHNESS);
+		if (attribute == null) return;
+		attribute.removeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER);
+		double bonus = armorBonus(player);
+		if (bonus > 0.0D) attribute.addOrUpdateTransientModifier(new AttributeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER, bonus, AttributeModifier.Operation.ADD_VALUE));
 	}
 
 	public static void applyPlayerDamageAbilityBonus(ServerPlayer player) {
@@ -1143,6 +1286,7 @@ public final class PetAbilitiesManager {
 			if (slot < 0 || slot >= SLOT_COUNT) {
 				return;
 			}
+			long gameplayTicks = MadokuTimeManager.getGameplayTicks();
 
 			PetInventory inventory = petInventory(player);
 			if (inventory == null || slot >= inventory.getContainerSize()) {
@@ -1153,7 +1297,7 @@ public final class PetAbilitiesManager {
 			PetRule rule = PetConfigManager.resolvePetRule(stack);
 			String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(payload, FIELD_ABILITY_ID, ""));
 			PetAbilityRule ability = rule == null ? null : rule.ability(abilityType);
-			if (rule == null || ability == null || !ability.canPerformReactiveAttack() || !isAbilityOffCooldown(player, slot, ability.abilityType, context.getNowTick())) {
+			if (rule == null || ability == null || !ability.canPerformReactiveAttack() || !isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
 				return;
 			}
 
@@ -1170,7 +1314,7 @@ public final class PetAbilitiesManager {
 				PetConfigManager.getDouble(payload, FIELD_SPAWN_Z, player.getZ())
 			);
 			if (spawnPetReactiveAttack(player, target, spawnPosition, rule, ability)) {
-				setAbilityCooldown(playerId, slot, ability.abilityType, context.getNowTick() + ability.cooldownTicks);
+				setAbilityCooldown(playerId, slot, ability.abilityType, gameplayTicks + ability.cooldownTicks);
 			}
 		}
 
@@ -1832,20 +1976,28 @@ public final class PetAbilitiesManager {
 
 		long now = MadokuTimeManager.getGameplayTicks();
 		WebControlState existing = ACTIVE_WEB_CONTROLS.get(target.getUUID());
-		int additionalHits = existing != null && now < existing.slowUntilTick ? existing.hitCount : 0;
-		long stunDuration = target instanceof Player
+		long initialStunDuration = target instanceof Player
 			? 0L
-			: Math.max(0L, projectileState.stunDurationTicks) + (additionalHits * 20L);
-		long slowDuration = Math.max(0L, projectileState.slowDurationTicks) + (additionalHits * 80L);
-		long stunUntil = now + stunDuration;
-		long slowUntil = stunUntil + slowDuration;
+			: Math.max(0L, projectileState.stunDurationTicks);
+		long initialSlowDuration = Math.max(0L, projectileState.slowDurationTicks);
+		long halfStunDuration = initialStunDuration / 2L;
+		long halfSlowDuration = initialSlowDuration / 2L;
+		long stunUntil = existing == null
+			? now + initialStunDuration
+			: now < existing.stunUntilTick
+				? existing.stunUntilTick + halfStunDuration
+				: now + halfStunDuration;
+		long slowUntil = existing == null
+			? stunUntil + initialSlowDuration
+			: now < existing.slowUntilTick
+				? Math.max(stunUntil, existing.slowUntilTick) + halfSlowDuration
+				: stunUntil + halfSlowDuration;
 		ACTIVE_WEB_CONTROLS.put(
 			target.getUUID(),
 			new WebControlState(
 				stunUntil,
 				slowUntil,
-				(float) Math.max(0.0D, Math.min(1.0D, projectileState.slowPercentage)),
-				additionalHits + 1
+				(float) Math.max(0.0D, Math.min(1.0D, projectileState.slowPercentage))
 			)
 		);
 			if (target instanceof Mob mob) {
@@ -2032,6 +2184,7 @@ public final class PetAbilitiesManager {
 			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 				PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
 				PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
+				PetAbilitiesManager.applyPlayerArmorToughnessAbilityBonus(player);
 				PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
 			}
 		}
@@ -2057,55 +2210,78 @@ public final class PetAbilitiesManager {
 			}
 			Map<Integer, Map<String, Long>> cooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
 			long gameplayTicks = MadokuTimeManager.getGameplayTicks();
+			boolean changed = false;
 			if (cooldowns != null) {
 				for (Map<String, Long> slotCooldowns : cooldowns.values()) {
 					if (slotCooldowns != null) {
+						int sizeBefore = slotCooldowns.size();
 						slotCooldowns.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue() <= gameplayTicks);
+						changed |= sizeBefore != slotCooldowns.size();
 					}
 				}
+				int slotsBefore = cooldowns.size();
 				cooldowns.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
-				if (cooldowns.isEmpty()) PLAYER_ABILITY_COOLDOWNS.remove(playerId);
+				changed |= slotsBefore != cooldowns.size();
+				if (cooldowns.isEmpty()) {
+					PLAYER_ABILITY_COOLDOWNS.remove(playerId);
+					changed = true;
+				}
 			}
-			PetHudManager.markAbilityHudDirty(playerId);
+			if (changed) PetHudManager.markAbilityHudDirty(playerId);
 		}
 
-			static int[] currentAbilityCooldowns(UUID playerId) {
-			int[] remaining = new int[SLOT_COUNT];
-			if (playerId == null) {
+		static int[] currentAbilityCooldowns(ServerPlayer player) {
+			int[] remaining = new int[SLOT_COUNT * MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET];
+			if (player == null) {
 				return remaining;
 			}
 
+			UUID playerId = player.getUUID();
+			PetInventory inventory = petInventory(player);
+			if (inventory == null) return remaining;
 			long now = MadokuTimeManager.getGameplayTicks();
-			Map<Integer, Map<String, Long>> cooldowns = PLAYER_ABILITY_COOLDOWNS.get(playerId);
-			if (cooldowns == null) return remaining;
-			for (Map.Entry<Integer, Map<String, Long>> slotEntry : cooldowns.entrySet()) {
-				int slot = slotEntry.getKey();
-				if (slot < 0 || slot >= remaining.length) continue;
-				for (long cooldown : slotEntry.getValue().values()) {
-					remaining[slot] = Math.max(remaining[slot], (int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown - now)));
+			for (int slot = 0; slot < Math.min(SLOT_COUNT, inventory.getContainerSize()); slot++) {
+				PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
+				if (rule == null || !rule.enabled) continue;
+				int cooldownIndex = 0;
+				for (PetAbilityRule ability : rule.abilities) {
+					if (ability.cooldownTicks <= 0L || cooldownIndex >= MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
+					long cooldown = abilityCooldown(playerId, slot, ability.abilityType);
+					remaining[slot * MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex] =
+						(int) Math.min(Integer.MAX_VALUE, Math.max(0L, cooldown - now));
+					cooldownIndex++;
 				}
 			}
 			return remaining;
 		}
 
 		static JsonObject toPersistedData() {
-			madoku.craft.api.json.JSONFormatManager.ArrayBuilder cooldowns = madoku.craft.api.json.JSONFormatManager.array();
+			madoku.craft.api.json.JSONFormatManager.ArrayBuilder players = madoku.craft.api.json.JSONFormatManager.array();
+			long now = MadokuTimeManager.getGameplayTicks();
 			for (Map.Entry<UUID, Map<Integer, Map<String, Long>>> playerEntry : PLAYER_ABILITY_COOLDOWNS.entrySet()) {
 				if (playerEntry.getKey() == null) continue;
+				madoku.craft.api.json.JSONFormatManager.ArrayBuilder playerCooldowns = madoku.craft.api.json.JSONFormatManager.array();
+				boolean hasActiveCooldown = false;
 				for (Map.Entry<Integer, Map<String, Long>> slotEntry : playerEntry.getValue().entrySet()) {
 					for (Map.Entry<String, Long> abilityEntry : slotEntry.getValue().entrySet()) {
-						if (abilityEntry.getValue() == null || abilityEntry.getValue() <= 0L) continue;
-						cooldowns.object(playerCooldown -> playerCooldown
-							.put("uuid", playerEntry.getKey().toString())
+						if (abilityEntry.getValue() == null) continue;
+						long remainingTicks = abilityEntry.getValue() - now;
+						if (remainingTicks <= 0L) continue;
+						hasActiveCooldown = true;
+						playerCooldowns.object(playerCooldown -> playerCooldown
 							.put("slot", slotEntry.getKey())
 							.put("ability-id", abilityEntry.getKey())
-							.put("cooldown", abilityEntry.getValue()));
+							.put("remaining-ticks", remainingTicks));
 					}
+				}
+				if (hasActiveCooldown) {
+					players.object(player -> player
+						.put("uuid", playerEntry.getKey().toString())
+						.put("cooldowns", playerCooldowns.build()));
 				}
 			}
 			return madoku.craft.api.json.JSONFormatManager.object()
-
-				.put("ability-cooldowns", cooldowns.build())
+				.put("ability-cooldowns", players.build())
 				.build();
 		}
 
@@ -2124,13 +2300,33 @@ public final class PetAbilitiesManager {
 				}
 				JsonObject cooldownData = element.getAsJsonObject();
 				UUID playerId = parseUuid(PetConfigManager.getString(cooldownData, "uuid", ""));
-				int slot = PetConfigManager.getInt(cooldownData, "slot", -1);
-				String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(cooldownData, "ability-id", ""));
-				long cooldown = Math.max(0L, PetConfigManager.getLong(cooldownData, "cooldown", 0L));
-				if (playerId != null && slot >= 0 && slot < SLOT_COUNT && !abilityType.isBlank() && cooldown > 0L) {
-					setAbilityCooldown(playerId, slot, abilityType, cooldown);
+				JsonArray groupedCooldowns = getArray(cooldownData, "cooldowns");
+				if (playerId != null && groupedCooldowns != null) {
+					for (JsonElement groupedElement : groupedCooldowns) {
+						if (groupedElement != null && groupedElement.isJsonObject()) {
+							restorePersistedCooldown(playerId, groupedElement.getAsJsonObject());
+						}
+					}
+				} else {
+					restorePersistedCooldown(playerId, cooldownData);
 				}
 			}
+		}
+
+		private static void restorePersistedCooldown(UUID playerId, JsonObject cooldownData) {
+			if (playerId == null || cooldownData == null) return;
+			int slot = PetConfigManager.getInt(cooldownData, "slot", -1);
+			String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(cooldownData, "ability-id", ""));
+			long remainingTicks = Math.max(0L, PetConfigManager.getLong(cooldownData, "remaining-ticks", 0L));
+			if (remainingTicks <= 0L && cooldownData.has("cooldown")) {
+				long legacyCooldownTick = Math.max(0L, PetConfigManager.getLong(cooldownData, "cooldown", 0L));
+				long now = MadokuTimeManager.getGameplayTicks();
+				remainingTicks = legacyCooldownTick > now ? legacyCooldownTick - now : 0L;
+			}
+			if (slot < 0 || slot >= SLOT_COUNT || abilityType.isBlank() || remainingTicks <= 0L) return;
+			long now = MadokuTimeManager.getGameplayTicks();
+			long cooldownTick = remainingTicks > Long.MAX_VALUE - now ? Long.MAX_VALUE : now + remainingTicks;
+			setAbilityCooldown(playerId, slot, abilityType, cooldownTick);
 		}
 
 			private static JsonArray getArray(JsonObject source, String key) {
@@ -2165,8 +2361,13 @@ public final class PetAbilitiesManager {
 	private record WebControlState(
 		long stunUntilTick,
 		long slowUntilTick,
-		float slowPercentage,
-		int hitCount
+		float slowPercentage
+	) {}
+
+	private record HealthRegenerationState(
+		long nextHealTick,
+		long untilTick,
+		double healPercentage
 	) {}
 
 	private record ExplosiveProjectileState(

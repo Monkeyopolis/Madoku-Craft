@@ -197,7 +197,11 @@ public final class PetEntitiesManager {
 				MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION,
 				MadokuPetManager.PET_ABILITY_EGG_PROJECTILE
 			));
-			defaults.put("cow", PetRule.defaultsForEntity("minecraft:cow", MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK));
+			defaults.put("cow", PetRule.defaultsForEntity(
+				"minecraft:cow",
+				MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK,
+				MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION
+			));
 			defaults.put("creeper", PetRule.defaultsForEntity("minecraft:creeper", MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE));
 			defaults.put("pig", PetRule.defaultsForEntity("minecraft:pig", MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS));
 			defaults.put("sheep", PetRule.defaultsForEntity("minecraft:sheep", MadokuPetManager.PET_ABILITY_ARMOR_BONUS));
