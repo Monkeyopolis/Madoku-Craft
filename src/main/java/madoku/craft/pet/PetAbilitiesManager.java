@@ -114,7 +114,7 @@ public final class PetAbilitiesManager {
 	private static final String BEE_TARGET_SCAN_SCHEDULER_OWNER_ID = "madoku-pets-bee-target-scan";
 	private static final long BEE_SWARM_MAX_TARGET_DURATION_TICKS = 15L * 20L;
 	private static final long BEE_SWARM_DAMAGE_INTERVAL_TICKS = 20L;
-	private static final float BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND = 1.8F;
+	private static final float BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND = 1.6F;
 	private static final double BEE_SWARM_ORBIT_RADIUS_BASE = 0.70D;
 	private static final double BEE_SWARM_ORBIT_RADIUS_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
@@ -2320,8 +2320,8 @@ public final class PetAbilitiesManager {
 					continue;
 				}
 				resetDamageImmunity(mob);
-				addExplosiveVulnerability(mob, vulnerability, vulnerabilityDurationTicks);
 				mob.hurtServer(level, owner.damageSources().generic(), damage);
+				addExplosiveVulnerability(mob, vulnerability, vulnerabilityDurationTicks);
 				Vec3 knockback = mob.position().subtract(position);
 				if (knockback.lengthSqr() > 1.0E-6D) {
 					double strength = Math.max(0.0D, 0.35D * (1.0D - (distance / radius)));
