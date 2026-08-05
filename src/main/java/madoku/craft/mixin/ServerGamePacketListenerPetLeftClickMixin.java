@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerPetLeftClickMixin {
 	private static final long MADOKU_CRAFT_BLOCK_ACTION_SUPPRESSION_TICKS = 10L;
+	private static final long MADOKU_CRAFT_INTERACTION_SUPPRESSION_TICKS = 1L;
 	@org.spongepowered.asm.mixin.Unique
 	private boolean madokuCraft$destroyingBlock;
 	@org.spongepowered.asm.mixin.Unique
@@ -29,7 +30,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 			return;
 		}
 		long gameTime = listener.getPlayer().level().getGameTime();
-		if (gameTime <= madokuCraft$suppressSwingUntilTick) {
+		if (gameTime < madokuCraft$suppressSwingUntilTick) {
 			return;
 		}
 		PetAbilitiesManager.handlePlayerLeftClick(listener.getPlayer());
@@ -63,11 +64,11 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 			return;
 		}
 		long gameTime = listener.getPlayer().level().getGameTime();
-		if (madokuCraft$destroyingBlock || gameTime <= madokuCraft$suppressSwingUntilTick) {
+		if (madokuCraft$destroyingBlock || gameTime < madokuCraft$suppressSwingUntilTick) {
 			return;
 		}
 		PetAbilitiesManager.handlePlayerLeftClick(listener.getPlayer());
-		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + 2L;
+		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + MADOKU_CRAFT_INTERACTION_SUPPRESSION_TICKS;
 	}
 
 	@Inject(method = "handleInteract", at = @At("HEAD"), cancellable = true)
@@ -80,7 +81,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 			ci.cancel();
 			return;
 		}
-		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + 2L;
+		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + MADOKU_CRAFT_INTERACTION_SUPPRESSION_TICKS;
 	}
 
 	@Inject(method = "handleUseItem", at = @At("HEAD"), cancellable = true)
@@ -93,7 +94,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 			ci.cancel();
 			return;
 		}
-		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + 2L;
+		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + MADOKU_CRAFT_INTERACTION_SUPPRESSION_TICKS;
 	}
 
 	@Inject(method = "handleUseItemOn", at = @At("HEAD"), cancellable = true)
@@ -106,6 +107,6 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 			ci.cancel();
 			return;
 		}
-		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + 2L;
+		madokuCraft$suppressSwingUntilTick = listener.getPlayer().level().getGameTime() + MADOKU_CRAFT_INTERACTION_SUPPRESSION_TICKS;
 	}
 }

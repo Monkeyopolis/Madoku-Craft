@@ -73,7 +73,8 @@ public final class PetAbilitiesManager {
 	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
 	private static final int WEB_PROJECTILE_LIFETIME_TICKS = 20;
 	private static final int WEB_PROJECTILE_BASE_RICOCHETS = 3;
-	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 4.0D;
+	private static final double WEB_PROJECTILE_RICOCHET_RADIUS = 5.0D;
+	private static final double WEB_PROJECTILE_RICOCHET_RADIUS_PER_DUPLICATE = 1.0D;
 	private static final double WEB_PROJECTILE_RICOCHETS_PER_LEVEL = 0.25D;
 	private static final int WEB_PROJECTILE_DUPLICATE_DAMAGE = 1;
 	private static final int WEB_PROJECTILE_DUPLICATE_STUN_TICKS = 10;
@@ -394,7 +395,6 @@ public final class PetAbilitiesManager {
 
 		long now = MadokuTimeManager.getGameplayTicks();
 		int chickenCount = 0;
-		double levelBonus = 0.0D;
 		float damage = 0.0F;
 		float radius = 0.0F;
 		boolean hasReadyTargetedPet = false;
@@ -417,8 +417,6 @@ public final class PetAbilitiesManager {
 				continue;
 			}
 			chickenSlots[chickenCount++] = slot;
-			int level = PetEntitiesManager.petLevel(stack);
-			levelBonus += Math.max(0, level - 1) * 0.5D;
 			damage = Math.max(damage, eggAbility.attackDamage);
 			radius = Math.max(radius, eggAbility.explosionRadius);
 		}
@@ -432,13 +430,8 @@ public final class PetAbilitiesManager {
 		if (chickenCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
 		} else {
 			Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
-			int wholeLevelBonus = (int) Math.floor(levelBonus);
-			double fractionalLevelBonus = levelBonus - wholeLevelBonus;
-			int stochasticLevelBonus = wholeLevelBonus
-				+ (fractionalLevelBonus > 0.0D && player.getRandom().nextDouble() < fractionalLevelBonus ? 1 : 0);
 			int projectileCount = CHICKEN_EGG_BASE_PROJECTILE_COUNT
-				+ Math.max(0, chickenCount - 1)
-				+ stochasticLevelBonus;
+				+ Math.max(0, chickenCount - 1);
 			damage += Math.max(0, chickenCount - 1);
 			damage = Math.max(0.0F, damage);
 			radius = Math.max(0.5F, radius);
@@ -1529,6 +1522,8 @@ public final class PetAbilitiesManager {
 			int duplicateCount = Math.max(0, attacks.size() - 1);
 			float damage = Math.max(0.0F, ability.attackDamage + (duplicateCount * WEB_PROJECTILE_DUPLICATE_DAMAGE));
 			int stunDurationTicks = (int) Math.max(0L, ability.stunDurationTicks + (duplicateCount * WEB_PROJECTILE_DUPLICATE_STUN_TICKS));
+			double ricochetRadius = WEB_PROJECTILE_RICOCHET_RADIUS
+				+ (duplicateCount * WEB_PROJECTILE_RICOCHET_RADIUS_PER_DUPLICATE);
 			double ricochetAmount = WEB_PROJECTILE_BASE_RICOCHETS
 				+ (Math.max(0, strongestLevel - 1) * WEB_PROJECTILE_RICOCHETS_PER_LEVEL)
 				+ duplicateCount;
@@ -1558,6 +1553,7 @@ public final class PetAbilitiesManager {
 					(float) Math.max(0.0D, Math.min(1.0D, ability.slowPercentage)),
 					false,
 					ricochetCount,
+					ricochetRadius,
 					Set.of(),
 					WEB_PROJECTILE_LIFETIME_TICKS
 				)
@@ -1653,9 +1649,10 @@ public final class PetAbilitiesManager {
 						state.stunDurationTicks,
 						state.slowDurationTicks,
 						state.slowPercentage,
-						state.ricochet,
-						state.remainingRicochets,
-						state.hitEntityUuids,
+					state.ricochet,
+					state.remainingRicochets,
+					state.ricochetRadius,
+					state.hitEntityUuids,
 						state.remainingTicks - 1
 					)
 				);
@@ -2178,7 +2175,7 @@ public final class PetAbilitiesManager {
 			if (projectileState.remainingRicochets <= 0) {
 				return false;
 			}
-			LivingEntity ricochetTarget = findNearestWebRicochetTarget(level, owner, target, hitEntityUuids);
+			LivingEntity ricochetTarget = findNearestWebRicochetTarget(level, owner, target, hitEntityUuids, projectileState.ricochetRadius);
 			if (ricochetTarget == null) {
 				return false;
 			}
@@ -2198,6 +2195,7 @@ public final class PetAbilitiesManager {
 					projectileState.ricochet ? projectileState.slowPercentage : projectileState.slowPercentage * 0.5F,
 					true,
 					projectileState.remainingRicochets - 1,
+					projectileState.ricochetRadius,
 					Set.copyOf(hitEntityUuids),
 					projectileState.remainingTicks
 				)
@@ -2209,12 +2207,13 @@ public final class PetAbilitiesManager {
 			ServerLevel level,
 			ServerPlayer owner,
 			LivingEntity source,
-			Set<UUID> hitEntityUuids
+			Set<UUID> hitEntityUuids,
+			double radius
 		) {
-			if (level == null || owner == null || source == null || hitEntityUuids == null) {
+			if (level == null || owner == null || source == null || hitEntityUuids == null || radius <= 0.0D) {
 				return null;
 			}
-			AABB searchArea = source.getBoundingBox().inflate(WEB_PROJECTILE_RICOCHET_RADIUS);
+			AABB searchArea = source.getBoundingBox().inflate(radius);
 			LivingEntity nearest = null;
 			double nearestDistance = Double.MAX_VALUE;
 			for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, searchArea, entity ->
@@ -2224,7 +2223,7 @@ public final class PetAbilitiesManager {
 					&& !entity.getUUID().equals(owner.getUUID())
 					&& !hitEntityUuids.contains(entity.getUUID())
 					&& !isManagedPet(entity)
-					&& source.distanceToSqr(entity) <= WEB_PROJECTILE_RICOCHET_RADIUS * WEB_PROJECTILE_RICOCHET_RADIUS
+					&& source.distanceToSqr(entity) <= radius * radius
 			)) {
 				double distance = source.distanceToSqr(candidate);
 				if (distance < nearestDistance) {
@@ -2651,6 +2650,7 @@ public final class PetAbilitiesManager {
 		float slowPercentage,
 		boolean ricochet,
 		int remainingRicochets,
+		double ricochetRadius,
 		Set<UUID> hitEntityUuids,
 		int remainingTicks
 	) {}

@@ -56,7 +56,7 @@ public final class BiomeClimateConfigManager {
 			"stony-peaks,10,30", "meadow,50,50", "cherry-grove,50,50", "grove,10,90", "snowy-slopes,0,60",
 			"windswept-hills,40,40", "windswept-gravelly-hills,50,30", "windswept-forest,50,50", "forest,50,50",
 			"flower-forest,60,60", "taiga,40,40", "old-growth-pine-taiga,30,60", "old-growth-spruce-taiga,30,40",
-			"snowy-taiga,20,50", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,80,100",
+			"snowy-taiga,20,50", "birch-forest,60,60", "old-growth-birch-forest,50,70", "dark-forest,70,90",
 			"pale-garden,70,70", "jungle,90,90", "bamboo-jungle,110,110", "sparse-jungle,70,70", "river,50,70",
 			"frozen-river,0,70", "swamp,90,110", "beach,60,70", "snowy-beach,20,70", "stony-shore,40,60",
 			"plains,50,50", "sunflower-plains,60,60", "snowy-plains,10,30", "ice-spikes,-10,60", "desert,100,0",
