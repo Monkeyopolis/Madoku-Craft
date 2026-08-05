@@ -1052,7 +1052,7 @@ public final class PetAbilitiesManager {
 						: batAbility.mobScanVulnerabilityAmount;
 					vulnerability += index == 0
 						? perBatVulnerability
-						: (perBatVulnerability - BAT_SCAN_BASE_VULNERABILITY) + BAT_SCAN_VULNERABILITY_PER_EXTRA_BAT;
+						: BAT_SCAN_VULNERABILITY_PER_EXTRA_BAT;
 				}
 			}
 			return (float) Math.max(0.0D, vulnerability);

@@ -532,7 +532,7 @@ public final class PetConfigManager {
 				resolvedExplosionRadius = explosionRadius + (Math.max(1, level) - 1);
 			} else if ("minecraft:skeleton".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
-				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 1.0D);
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.75D);
 			} else if ("minecraft:bee".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
 				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.2D);
@@ -835,7 +835,7 @@ public final class PetConfigManager {
 					case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> 1.5D;
 					case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> 5.0D;
 					case MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION -> 0.05D;
-					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.8D;
+					case MadokuPetManager.PET_ABILITY_BEE_SWARM -> 1.6D;
 					case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> 4.0D;
 					default -> 0.0D;
 				};
@@ -1222,7 +1222,7 @@ public final class PetConfigManager {
 				} else if ("minecraft:sheep".equals(petId)) {
 					resolvedArmorBonus = armorBonusAmount + ((safeLevel - 1) * 0.25D);
 				} else if ("minecraft:skeleton".equals(petId)) {
-					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 1.0D);
+					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.75D);
 				} else if ("minecraft:bee".equals(petId)) {
 					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.2D);
 				}
