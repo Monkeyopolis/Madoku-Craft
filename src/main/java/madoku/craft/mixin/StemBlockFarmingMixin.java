@@ -25,8 +25,7 @@ public abstract class StemBlockFarmingMixin {
 			return;
 		}
 
-		MadokuFarmingManager.trackCrop(level, pos, state);
-		if (MadokuFarmingManager.isManagedPlot(level, pos.below())) {
+		if (MadokuFarmingManager.handleCropRandomTick(level, pos, state, random)) {
 			ci.cancel();
 		}
 	}

@@ -1,4 +1,4 @@
-package madoku.craft.farming.crops;
+package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
@@ -26,21 +26,21 @@ public final class CropsConfigManager {
 
 	public static Map<String, JsonObject> buildDefaultCropFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(35, 55, 50, 70),
-			new YieldDefault("minecraft:potato", 7, 9)));
-		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(40, 60, 45, 65),
-			new YieldDefault("minecraft:carrot", 5, 7)));
-		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(45, 65, 50, 70),
-			new YieldDefault("minecraft:beetroot", 7, 9),
+		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(60, 80, 10, 30),
+			new YieldDefault("minecraft:potato", 4, 8)));
+		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(20, 40, 70, 90),
+			new YieldDefault("minecraft:carrot", 4, 8)));
+		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(55, 65, 35, 45),
+			new YieldDefault("minecraft:beetroot", 2, 6),
 			new YieldDefault("minecraft:beetroot-seeds", 1, 3)));
-		defaults.put("melon", buildCropDefaults("minecraft:melon", 11.0d, new ConditionDefault(50, 80, 35, 55),
-			new YieldDefault("minecraft:melon-slice", 15, 17),
+		defaults.put("melon", buildCropDefaults("minecraft:melon", 11.0d, new ConditionDefault(45, 55, 60, 80),
+			new YieldDefault("minecraft:melon-slice", 10, 14),
 			new YieldDefault("minecraft:melon-seeds", 1, 3)));
-		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 70, 40, 60),
-			new YieldDefault("minecraft:pumpkin", 3, 5),
+		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 55, 20, 40),
+			new YieldDefault("minecraft:pumpkin", 2, 6),
 			new YieldDefault("minecraft:pumpkin-seeds", 1, 3)));
-		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(40, 60, 45, 55),
-			new YieldDefault("minecraft:wheat", 9, 13),
+		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(30, 50, 50, 70),
+			new YieldDefault("minecraft:wheat", 6, 10),
 			new YieldDefault("minecraft:wheat-seeds", 1, 3)));
 		return defaults;
 	}
@@ -63,8 +63,8 @@ public final class CropsConfigManager {
 				String yieldId = normalizeRegistryId(yield.id());
 				if (yieldId.isBlank()) continue;
 				yieldGroup.object(yieldId, values -> values
-					.put(FIELD_YIELD_MINIMUM_AMOUNT, Math.max(1, yield.minimumAmount()))
-					.put(FIELD_YIELD_MAXIMUM_AMOUNT, Math.max(Math.max(1, yield.minimumAmount()), yield.maximumAmount())));
+					.put(FIELD_YIELD_MINIMUM_AMOUNT, Math.max(0, yield.minimumAmount()))
+					.put(FIELD_YIELD_MAXIMUM_AMOUNT, Math.max(Math.max(0, yield.minimumAmount()), yield.maximumAmount())));
 			}
 		});
 

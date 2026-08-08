@@ -3,6 +3,8 @@ package madoku.craft.farming;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
+import madoku.craft.api.data.DataSystemsManager;
+import madoku.craft.api.data.DataWorldManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
@@ -12,7 +14,6 @@ import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
-import madoku.craft.farming.crops.CropsConfigManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -59,8 +60,7 @@ public final class FarmingCropsManager {
 	private static final String LORE_FERTILIZER_PREFIX = "Farmland fertilizer.";
 	private static final String LORE_FERTILIZER_EFFECT_PREFIX = "Increases crop growth speed and yield.";
 
-	private static final String DATA_FOLDER_NAME = "madoku-craft-farming";
-	private static final String DATA_FILE_NAME = "madoku-farming";
+	private static final String DATA_SYSTEM_ID = "farming";
 	private static final String FARMING_PROCESS_SCHEDULER_OWNER_ID = "farming_process_gameplay";
 	private static final String TASK_TYPE_FARMING_PROCESS_TICK = "farming_process_gameplay_tick";
 	private static final long FARMING_SCHEDULER_MIN_INTERVAL_TICKS = 1L;
@@ -90,7 +90,6 @@ public final class FarmingCropsManager {
 	private static volatile Settings settings = Settings.defaults();
 	private static volatile String farmingProcessSchedulerId = "";
 	private static volatile boolean farmingProcessTaskScheduled = false;
-	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile int chunkScanCursor = 0;
 	private static volatile boolean dirty = false;
 
@@ -144,6 +143,7 @@ public final class FarmingCropsManager {
 	}
 
 	public static void initialize() {
+		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		loadStaticConfig();
 		loadCropConfigs();
 		MadokuChunkManager.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
@@ -166,7 +166,6 @@ public final class FarmingCropsManager {
 		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
 		farmingProcessSchedulerId = "";
 		farmingProcessTaskScheduled = false;
-		lastAutosaveBucket = Long.MIN_VALUE;
 		resetChunkProcessingCycle();
 		dirty = false;
 		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
@@ -176,6 +175,7 @@ public final class FarmingCropsManager {
 		if (server == null) {
 			return;
 		}
+		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		syncChunkProcessorActivation();
 		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 		applyCropItemMetadata();
@@ -201,10 +201,8 @@ public final class FarmingCropsManager {
 		loadStaticConfig();
 		loadCropConfigs();
 		syncChunkProcessorActivation();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject data = DataWorldManager.getSystemData(DATA_SYSTEM_ID);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
 		dirty = false;
 	}
 
@@ -213,13 +211,6 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, DATA_FOLDER_NAME, DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
-		if (bucket == lastAutosaveBucket) {
-			return;
-		}
-
-		lastAutosaveBucket = bucket;
 		if (dirty) {
 			savePersistedData(server);
 		}
@@ -230,7 +221,7 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		DataWorldManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
 		dirty = false;
 	}
 
@@ -508,6 +499,96 @@ public final class FarmingCropsManager {
 		dirty = true;
 	}
 
+	/**
+	 * Updates a managed crop when Minecraft gives its block a random tick.
+	 * Random ticks are the trigger; the persisted elapsed-time value preserves
+	 * the configured growth duration instead of making growth depend on tick count.
+	 */
+	public static boolean handleCropRandomTick(ServerLevel world, BlockPos cropPos, BlockState cropState, RandomSource random) {
+		if (!settings.enabled || world == null || cropPos == null || cropState == null) {
+			return false;
+		}
+
+		CropRule rule = resolveCropRuleByCropState(cropState);
+		if (rule == null || !isCropBlock(cropState, rule) || !isFarmland(world.getBlockState(cropPos.below()))) {
+			return false;
+		}
+
+		trackCrop(world, cropPos, cropState);
+		CropState crop = findCrop(world, cropPos);
+		if (crop == null) {
+			return false;
+		}
+
+		applyElapsedCropProgress(world, cropPos, cropState, rule, crop, resolveAbsoluteDayTime(world));
+		return true;
+	}
+
+	private static void applyElapsedCropProgress(
+		ServerLevel world,
+		BlockPos cropPos,
+		BlockState state,
+		CropRule rule,
+		CropState crop,
+		long currentAbsoluteDayTime
+	) {
+		if (world == null || cropPos == null || state == null || rule == null || crop == null) {
+			return;
+		}
+
+		double requiredTicks = Math.max(1.0d, crop.requiredGrowthTicks);
+		crop.requiredGrowthTicks = requiredTicks;
+		int ageLimit = Math.max(1, getCropAgeLimit(state));
+		boolean observedMature = isCropMatureBlock(state, rule) || isMaxAge(state);
+		int observedAge = isCropMatureBlock(state, rule) ? ageLimit : getCropAge(state);
+		double observedProgress = progressFromAge(observedAge, ageLimit) * requiredTicks;
+		double cappedTrackedProgress = Math.max(0.0d, Math.min(requiredTicks, crop.progressGrowthTicks));
+		double oneAgeStepTicks = requiredTicks / ageLimit;
+		if (!observedMature && observedProgress + Math.max(1.0d, oneAgeStepTicks) < cappedTrackedProgress) {
+			crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, observedProgress));
+		}
+
+		PlotState plot = findPlot(world, cropPos.below());
+		boolean fertilized = plot != null && plot.fertilized;
+		boolean raining = world.isRainingAt(cropPos);
+		boolean dryFarmland = isDryFarmland(world.getBlockState(cropPos.below()));
+		double speedMultiplier = 1.0d + resolveGrowingConditionsSpeedModifier(rule, world, cropPos);
+		if (speedMultiplier > 0.0d) {
+			if (fertilized) speedMultiplier += settings.fertilizedGrowthBoost;
+			if (raining) speedMultiplier += settings.rainGrowthBoost;
+			if (dryFarmland) speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
+		}
+		speedMultiplier = Math.max(0.0d, speedMultiplier);
+
+		long rawPreviousAbsolute = Math.max(0L, crop.lastProcessedAbsoluteDayTime);
+		long previousAbsolute = normalizePreviousAbsoluteTick(crop.lastProcessedAbsoluteDayTime, currentAbsoluteDayTime);
+		if (previousAbsolute != rawPreviousAbsolute) {
+			crop.lastProcessedAbsoluteDayTime = previousAbsolute;
+			dirty = true;
+		}
+		long safeCurrentAbsolute = Math.max(previousAbsolute, currentAbsoluteDayTime);
+		long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
+		if (elapsedTicks > 0L && speedMultiplier > 0.0d) {
+			double updatedProgress = Math.min(requiredTicks, crop.progressGrowthTicks + elapsedTicks * speedMultiplier);
+			if (updatedProgress > crop.progressGrowthTicks) {
+				crop.progressGrowthTicks = updatedProgress;
+				dirty = true;
+			}
+		}
+		crop.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
+
+		double observedProgressFromState = progressFromAge(
+			isCropMatureBlock(state, rule) ? ageLimit : getCropAge(state),
+			ageLimit
+		) * requiredTicks;
+		if (observedProgressFromState > crop.progressGrowthTicks) {
+			crop.progressGrowthTicks = Math.min(requiredTicks, observedProgressFromState);
+			dirty = true;
+		}
+
+		updateCropBlockAge(world, cropPos, world.getBlockState(cropPos), rule, crop);
+	}
+
 	public static void handleBlockBreak(Level world, BlockPos pos, BlockState state, BlockEntity blockEntity) {
 		if (!settings.enabled || !(world instanceof ServerLevel serverLevel) || pos == null) {
 			return;
@@ -611,7 +692,7 @@ public final class FarmingCropsManager {
 		List<ItemStack> drops = new ArrayList<>();
 		for (int index = 0; index < rule.yields().size(); index++) {
 			YieldRule yield = rule.yields().get(index);
-			int minimum = Math.max(1, yield.minimumAmount());
+			int minimum = Math.max(0, yield.minimumAmount());
 			int maximum = Math.max(minimum, yield.maximumAmount());
 			int count = minimum + safeRandom.nextInt(maximum - minimum + 1);
 			if (index == 0 && isHarvestFertilized(world, cropPos, rule)) {
@@ -747,9 +828,7 @@ public final class FarmingCropsManager {
 		if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ)) {
 			return;
 		}
-		long currentAbsoluteDayTime = resolveAbsoluteDayTime(world);
 		processPlotsInChunk(world, chunkX, chunkZ);
-		processCropsInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 	}
 
 	private static void discoverTrackableBlocksInChunk(
@@ -830,132 +909,6 @@ public final class FarmingCropsManager {
 
 		for (String key : removeKeys) {
 			if (removePlotStateByKey(key) != null) {
-				dirty = true;
-			}
-		}
-	}
-
-	private static void processCropsInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		if (world == null) {
-			return;
-		}
-		String worldLevelId = levelId(world);
-		ChunkRefKey targetChunkKey = new ChunkRefKey(worldLevelId, chunkX, chunkZ);
-		Set<String> chunkCropKeys = new LinkedHashSet<>(cropKeysByChunk.getOrDefault(targetChunkKey, Set.of()));
-		if (chunkCropKeys.isEmpty()) {
-			return;
-		}
-
-		List<String> removeKeys = new ArrayList<>();
-		for (String cropEntryKey : chunkCropKeys) {
-			CropState crop = cropsByKey.get(cropEntryKey);
-			if (crop == null || !crop.levelId.equals(worldLevelId)) {
-				continue;
-			}
-
-			BlockPos cropPos = BlockPos.of(crop.cropPos);
-			if (!targetChunkKey.equals(chunkRefForPos(worldLevelId, crop.cropPos))) {
-				continue;
-			}
-
-			CropRule rule = resolveCropRuleByPlantingItemId(crop.cropId);
-			if (rule == null) {
-				removeKeys.add(cropEntryKey);
-				continue;
-			}
-
-			BlockState state = world.getBlockState(cropPos);
-			if (!isCropBlock(state, rule)) {
-				removeKeys.add(cropEntryKey);
-				PlotState plot = findPlot(world, BlockPos.of(crop.soilPos));
-				if (plot != null && plot.cropPos == crop.cropPos) {
-					plot.clearCrop();
-					if (!plot.fertilized) {
-						removePlotStateByKey(plot.key());
-					}
-				}
-				continue;
-			}
-
-			double requiredTicks = Math.max(1.0d, crop.requiredGrowthTicks);
-			crop.requiredGrowthTicks = requiredTicks;
-			int observedAgeLimit = Math.max(1, getCropAgeLimit(state));
-			boolean observedMature = isCropMatureBlock(state, rule) || isMaxAge(state);
-			int observedAge = isCropMatureBlock(state, rule) ? observedAgeLimit : getCropAge(state);
-			double observedProgress = progressFromAge(observedAge, observedAgeLimit) * requiredTicks;
-			double cappedTrackedProgress = Math.max(0.0d, Math.min(requiredTicks, crop.progressGrowthTicks));
-			double oneAgeStepTicks = requiredTicks / observedAgeLimit;
-			boolean replantedRegression = !observedMature
-				&& observedProgress + Math.max(1.0d, oneAgeStepTicks) < cappedTrackedProgress;
-			if (replantedRegression) {
-				crop.requiredGrowthTicks = Math.max(1.0d, resolveCropRequiredGrowthTicks(rule));
-				requiredTicks = crop.requiredGrowthTicks;
-				crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, observedProgress));
-				crop.lastProcessedAbsoluteDayTime = Math.max(0L, currentAbsoluteDayTime);
-				dirty = true;
-			}
-
-			PlotState plot = findPlot(world, BlockPos.of(crop.soilPos));
-			boolean fertilized = plot != null && plot.fertilized;
-			boolean raining = world.isRainingAt(cropPos);
-			boolean dryFarmland = isDryFarmland(world.getBlockState(BlockPos.of(crop.soilPos)));
-			double speedMultiplier = 1.0d + resolveGrowingConditionsSpeedModifier(rule, world, cropPos);
-			if (speedMultiplier > 0.0d) {
-				if (fertilized) {
-					speedMultiplier += settings.fertilizedGrowthBoost;
-				}
-				if (raining) {
-					speedMultiplier += settings.rainGrowthBoost;
-				}
-				if (dryFarmland) {
-					speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
-				}
-			}
-			speedMultiplier = Math.max(0.0d, speedMultiplier);
-
-			long rawPreviousAbsolute = Math.max(0L, crop.lastProcessedAbsoluteDayTime);
-			long previousAbsolute = normalizePreviousAbsoluteTick(crop.lastProcessedAbsoluteDayTime, currentAbsoluteDayTime);
-			if (previousAbsolute != rawPreviousAbsolute) {
-				crop.lastProcessedAbsoluteDayTime = previousAbsolute;
-				dirty = true;
-			}
-			long safeCurrentAbsolute = Math.max(previousAbsolute, currentAbsoluteDayTime);
-			long elapsedTicks = safeCurrentAbsolute - previousAbsolute;
-			double effectiveTicks = elapsedTicks * speedMultiplier;
-			if (elapsedTicks <= 0L) {
-				// Time mapping can quantize multiple gameplay ticks to the same absolute tick.
-				// Keep crops progressing smoothly instead of stalling until the next absolute tick boundary.
-				elapsedTicks = 1L;
-				effectiveTicks = speedMultiplier;
-			}
-			if (elapsedTicks > 0L && speedMultiplier <= 0.0d) {
-			}
-			if (effectiveTicks > 0.0d) {
-				double before = crop.progressGrowthTicks;
-				double updatedProgress = Math.min(requiredTicks, crop.progressGrowthTicks + effectiveTicks);
-				if (updatedProgress > crop.progressGrowthTicks) {
-					crop.progressGrowthTicks = updatedProgress;
-					dirty = true;
-				}
-				if (updatedProgress <= before + 1e-6d) {
-				}
-			}
-			crop.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
-
-			double observedProgressFromState = progressFromAge(
-				isCropMatureBlock(state, rule) ? getCropAgeLimit(state) : getCropAge(state),
-				getCropAgeLimit(state)
-			) * requiredTicks;
-			if (observedProgressFromState > crop.progressGrowthTicks) {
-				crop.progressGrowthTicks = Math.min(requiredTicks, observedProgressFromState);
-				dirty = true;
-			}
-
-			updateCropBlockAge(world, cropPos, state, rule, crop);
-		}
-
-		for (String key : removeKeys) {
-			if (removeCropStateByKey(key) != null) {
 				dirty = true;
 			}
 		}
@@ -1254,16 +1207,6 @@ public final class FarmingCropsManager {
 		// Dirt ecosystem tracking moved to MadokuEcosystem.
 	}
 
-	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
-			.put(FIELD_CHUNK_CURSOR, 0)
-			.array(FIELD_PLOTS, plots -> {
-			})
-			.array(FIELD_CROPS, crops -> {
-			})
-			.build();
-	}
-
 	private static JsonObject toPersistedData() {
 		JSONFormatManager.ArrayBuilder plots = JSONFormatManager.array();
 		for (PlotState plot : plotsByKey.values()) {
@@ -1502,7 +1445,7 @@ public final class FarmingCropsManager {
 	}
 
 	private static String formatHumidityLoreLine(GrowingConditions conditions) {
-		return LORE_HUMIDITY_PREFIX + " " + formatRange(conditions.minimumHumidity(), conditions.maximumHumidity()) + "%";
+		return LORE_HUMIDITY_PREFIX + " " + formatRange(conditions.minimumHumidity(), conditions.maximumHumidity());
 	}
 
 	private static String formatRange(double minimum, double maximum) {
@@ -2294,7 +2237,7 @@ public final class FarmingCropsManager {
 					Identifier yieldIdentifier = Identifier.tryParse(yieldId);
 					Item item = yieldIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(yieldIdentifier);
 					if (item != null) {
-						yields.add(new YieldRule(yieldId, item, Math.max(1, yield.minimumAmount()), Math.max(Math.max(1, yield.minimumAmount()), yield.maximumAmount())));
+					yields.add(new YieldRule(yieldId, item, Math.max(0, yield.minimumAmount()), Math.max(Math.max(0, yield.minimumAmount()), yield.maximumAmount())));
 					}
 				}
 			}
@@ -2322,7 +2265,7 @@ public final class FarmingCropsManager {
 			for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
 				if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
 				JsonObject values = entry.getValue().getAsJsonObject();
-				int minimum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MINIMUM_AMOUNT, 1), 1, 1, 1024);
+				int minimum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MINIMUM_AMOUNT, 1), 1, 0, 1024);
 				int maximum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MAXIMUM_AMOUNT, minimum), minimum, minimum, 1024);
 				parsed.add(new YieldSpec(entry.getKey(), minimum, maximum));
 			}

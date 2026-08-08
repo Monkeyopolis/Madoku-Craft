@@ -78,6 +78,9 @@ public final class MadokuFarmingManager {
 	public static void trackCrop(ServerLevel world, BlockPos cropPos, BlockState cropState) {
 		FarmingCropsManager.trackCrop(world, cropPos, cropState);
 	}
+	public static boolean handleCropRandomTick(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
+		return FarmingCropsManager.handleCropRandomTick(world, cropPos, state, random);
+	}
 	public static boolean isCropHarvestReady(ServerLevel world, BlockPos cropPos, BlockState state) {
 		return FarmingCropsManager.isCropHarvestReady(world, cropPos, state);
 	}
