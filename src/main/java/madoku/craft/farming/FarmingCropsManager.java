@@ -1,4 +1,4 @@
-package madoku.craft.farming.system;
+package madoku.craft.farming;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -12,6 +12,7 @@ import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonConfigManager;
+import madoku.craft.farming.crops.CropsConfigManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -51,17 +52,14 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-public final class MadokuFarming {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuFarming.class);
+public final class FarmingCropsManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(FarmingCropsManager.class);
 	private static final String LORE_SEASON_PREFIX = "Season:";
 	private static final String LORE_GROWING_TIME_PREFIX = "Growing Time:";
 	private static final String LORE_FERTILIZER_PREFIX = "Farmland fertilizer.";
 	private static final String LORE_FERTILIZER_EFFECT_PREFIX = "Increases crop growth speed and yield.";
 	private static final String[] SEASON_ORDER = {"spring", "summer", "fall", "winter"};
 
-	private static final String FARMING_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-farming";
-	private static final String FARMING_CONFIG_FILE_NAME = "madoku-farming";
-	private static final String CROP_CONFIG_ROOT_FOLDER_NAME = FARMING_CONFIG_ROOT_FOLDER_NAME + "/madoku-crops";
 	private static final String DATA_FOLDER_NAME = "madoku-craft-farming";
 	private static final String DATA_FILE_NAME = "madoku-farming";
 	private static final String FARMING_PROCESS_SCHEDULER_OWNER_ID = "farming_process_gameplay";
@@ -111,12 +109,12 @@ public final class MadokuFarming {
 	private static final MadokuChunkManager.ChunkLifecycleListener FARMING_CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuFarming.onTrackedChunkLoaded(level, chunkX, chunkZ);
+			FarmingCropsManager.onTrackedChunkLoaded(level, chunkX, chunkZ);
 		}
 
 		@Override
 		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuFarming.onTrackedChunkUnloaded(level, chunkX, chunkZ);
+			FarmingCropsManager.onTrackedChunkUnloaded(level, chunkX, chunkZ);
 		}
 	};
 	private static final MadokuChunkManager.ChunkProcessor FARMING_CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
@@ -144,7 +142,7 @@ public final class MadokuFarming {
 		}
 	};
 
-	private MadokuFarming() {
+	private FarmingCropsManager() {
 	}
 
 	public static void initialize() {
@@ -152,7 +150,7 @@ public final class MadokuFarming {
 		loadCropConfigs();
 		MadokuChunkManager.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, MadokuFarming::runFarmingProcessTask);
+		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, FarmingCropsManager::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -1359,19 +1357,15 @@ public final class MadokuFarming {
 	}
 
 	private static void loadStaticConfig() {
-		JsonObject defaults = MadokuFarmingConfig.buildFarmingDefaults();
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(FARMING_CONFIG_ROOT_FOLDER_NAME);
-			Path configFile = resolveJsonFile(directory, FARMING_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = FarmingConfigManager.loadFarmingSettings();
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
-			LOGGER.error("Failed to load MadokuFarming static config; using defaults.", exception);
+			LOGGER.error("Failed to load FarmingCropsManager static config; using defaults.", exception);
 		}
 	}
 
@@ -1379,10 +1373,10 @@ public final class MadokuFarming {
 		Map<String, CropRule> plantingRules = new LinkedHashMap<>();
 		Map<String, CropRule> blockRules = new LinkedHashMap<>();
 		Map<String, CropRule> matureRules = new LinkedHashMap<>();
-		Map<String, JsonObject> defaultFiles = MadokuCropConfig.buildDefaultCropFileDefaults();
+		Map<String, JsonObject> defaultFiles = CropsConfigManager.buildDefaultCropFileDefaults();
 
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CROP_CONFIG_ROOT_FOLDER_NAME);
+			Path directory = FarmingConfigManager.resolveCropsConfigDirectory();
 			for (Map.Entry<String, JsonObject> entry : defaultFiles.entrySet()) {
 				String fileKey = entry.getKey();
 				JsonObject defaults = entry.getValue();
@@ -1403,7 +1397,7 @@ public final class MadokuFarming {
 				}
 			}
 		} catch (IOException | RuntimeException exception) {
-			LOGGER.error("Failed to load MadokuFarming crop configs; using defaults.", exception);
+			LOGGER.error("Failed to load FarmingCropsManager crop configs; using defaults.", exception);
 			for (CropRule rule : CropRule.defaultRules()) {
 				plantingRules.put(rule.plantingItemId(), rule);
 				blockRules.put(rule.cropBlockId(), rule);
@@ -1738,7 +1732,7 @@ public final class MadokuFarming {
 			return;
 		}
 
-		int particleCount = Math.min(settings.particleCount, MadokuFarmingConfig.MAX_PARTICLE_COUNT);
+		int particleCount = Math.min(settings.particleCount, FarmingConfigManager.MAX_PARTICLE_COUNT);
 		if (particleCount <= 0) {
 			return;
 		}
@@ -2183,57 +2177,57 @@ public final class MadokuFarming {
 		private static Settings defaults() {
 			return new Settings(
 				true,
-				MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BOOST,
-				MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BOOST,
-				MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_PENALTY,
-				MadokuFarmingConfig.DEFAULT_DRY_FARMLAND_PENALTY,
-				MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT,
-				MadokuFarmingConfig.DEFAULT_PARTICLE_SPREAD,
-				MadokuFarmingConfig.DEFAULT_PARTICLE_Y_OFFSET
+				FarmingConfigManager.DEFAULT_RAIN_GROWTH_BOOST,
+				FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST,
+				FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY,
+				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY,
+				FarmingConfigManager.DEFAULT_PARTICLE_COUNT,
+				FarmingConfigManager.DEFAULT_PARTICLE_SPREAD,
+				FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET
 			);
 		}
 
 		private static Settings fromJson(JsonObject source) {
-			boolean enabled = getBoolean(source, MadokuFarmingConfig.FIELD_ENABLED, true);
+			boolean enabled = getBoolean(source, FarmingConfigManager.FIELD_ENABLED, true);
 			double rainBoost = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_RAIN_GROWTH_BOOST, MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BOOST),
-				MadokuFarmingConfig.DEFAULT_RAIN_GROWTH_BOOST,
+				getDouble(source, FarmingConfigManager.FIELD_RAIN_GROWTH_BOOST, FarmingConfigManager.DEFAULT_RAIN_GROWTH_BOOST),
+				FarmingConfigManager.DEFAULT_RAIN_GROWTH_BOOST,
 				0.0d,
 				1.0d
 			);
 			double fertilizedBoost = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BOOST, MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BOOST),
-				MadokuFarmingConfig.DEFAULT_FERTILIZED_GROWTH_BOOST,
+				getDouble(source, FarmingConfigManager.FIELD_FERTILIZED_GROWTH_BOOST, FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST),
+				FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST,
 				0.0d,
 				1.0d
 			);
 			double outOfSeasonPenalty = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_OUT_OF_SEASON_PENALTY, MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_PENALTY),
-				MadokuFarmingConfig.DEFAULT_OUT_OF_SEASON_PENALTY,
+				getDouble(source, FarmingConfigManager.FIELD_OUT_OF_SEASON_PENALTY, FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY),
+				FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY,
 				0.0d,
 				1000.0d
 			);
 			double dryFarmlandPenalty = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_DRY_FARMLAND_PENALTY, MadokuFarmingConfig.DEFAULT_DRY_FARMLAND_PENALTY),
-				MadokuFarmingConfig.DEFAULT_DRY_FARMLAND_PENALTY,
+				getDouble(source, FarmingConfigManager.FIELD_DRY_FARMLAND_PENALTY, FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY),
+				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY,
 				0.0d,
 				1.0d
 			);
 			int particleCount = clampInt(
-				getInt(source, MadokuFarmingConfig.FIELD_PARTICLE_COUNT, MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT),
-				MadokuFarmingConfig.DEFAULT_PARTICLE_COUNT,
+				getInt(source, FarmingConfigManager.FIELD_PARTICLE_COUNT, FarmingConfigManager.DEFAULT_PARTICLE_COUNT),
+				FarmingConfigManager.DEFAULT_PARTICLE_COUNT,
 				1,
-				MadokuFarmingConfig.MAX_PARTICLE_COUNT
+				FarmingConfigManager.MAX_PARTICLE_COUNT
 			);
 			double particleSpread = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_PARTICLE_SPREAD, MadokuFarmingConfig.DEFAULT_PARTICLE_SPREAD),
-				MadokuFarmingConfig.DEFAULT_PARTICLE_SPREAD,
+				getDouble(source, FarmingConfigManager.FIELD_PARTICLE_SPREAD, FarmingConfigManager.DEFAULT_PARTICLE_SPREAD),
+				FarmingConfigManager.DEFAULT_PARTICLE_SPREAD,
 				0.0d,
 				3.0d
 			);
 			double particleYOffset = clampDouble(
-				getDouble(source, MadokuFarmingConfig.FIELD_PARTICLE_Y_OFFSET, MadokuFarmingConfig.DEFAULT_PARTICLE_Y_OFFSET),
-				MadokuFarmingConfig.DEFAULT_PARTICLE_Y_OFFSET,
+				getDouble(source, FarmingConfigManager.FIELD_PARTICLE_Y_OFFSET, FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET),
+				FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET,
 				0.0d,
 				3.0d
 			);
@@ -2249,15 +2243,6 @@ public final class MadokuFarming {
 			);
 		}
 
-		private JsonObject toConfigJson() {
-			return madoku.craft.api.json.JSONFormatManager.object()
-				.put(MadokuFarmingConfig.FIELD_ENABLED, enabled)
-				.put(MadokuFarmingConfig.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost)
-				.put(MadokuFarmingConfig.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost)
-				.put(MadokuFarmingConfig.FIELD_OUT_OF_SEASON_PENALTY, outOfSeasonPenalty)
-				.put(MadokuFarmingConfig.FIELD_DRY_FARMLAND_PENALTY, dryFarmlandPenalty)
-				.build();
-		}
 	}
 
 	public static final class CropRule {
@@ -2452,37 +2437,37 @@ public final class MadokuFarming {
 				return null;
 			}
 
-			String cropId = normalizeRegistryId(getString(source, MadokuCropConfig.FIELD_CROP_ID, fallback.cropId));
+			String cropId = normalizeRegistryId(getString(source, CropsConfigManager.FIELD_CROP_ID, fallback.cropId));
 			if (cropId.isEmpty()) {
 				cropId = fallback.cropId;
 			}
 
 			double growthDays = clampDouble(
-				getDouble(source, MadokuCropConfig.FIELD_GROWTH_TIME, fallback.growthMinecraftDays),
+				getDouble(source, CropsConfigManager.FIELD_GROWTH_TIME, fallback.growthMinecraftDays),
 				fallback.growthMinecraftDays,
 				0.25d,
 				365.0d
 			);
 			int minHarvestCount = clampInt(
-				getInt(source, MadokuCropConfig.FIELD_MIN_HARVEST_COUNT, fallback.minHarvestCount),
+				getInt(source, CropsConfigManager.FIELD_MIN_HARVEST_COUNT, fallback.minHarvestCount),
 				fallback.minHarvestCount,
 				1,
 				1024
 			);
 			int maxHarvestCount = clampInt(
-				getInt(source, MadokuCropConfig.FIELD_MAX_HARVEST_COUNT, fallback.maxHarvestCount),
+				getInt(source, CropsConfigManager.FIELD_MAX_HARVEST_COUNT, fallback.maxHarvestCount),
 				fallback.maxHarvestCount,
 				minHarvestCount,
 				1024
 			);
 			int secondaryMinHarvestCount = clampInt(
-				getInt(source, MadokuCropConfig.FIELD_MIN_HARVEST_SEEDS, fallback.secondaryMinHarvestCount),
+				getInt(source, CropsConfigManager.FIELD_MIN_HARVEST_SEEDS, fallback.secondaryMinHarvestCount),
 				fallback.secondaryMinHarvestCount,
 				0,
 				1024
 			);
 			int secondaryMaxHarvestCount = clampInt(
-				getInt(source, MadokuCropConfig.FIELD_MAX_HARVEST_SEEDS, fallback.secondaryMaxHarvestCount),
+				getInt(source, CropsConfigManager.FIELD_MAX_HARVEST_SEEDS, fallback.secondaryMaxHarvestCount),
 				fallback.secondaryMaxHarvestCount,
 				secondaryMinHarvestCount,
 				1024
@@ -2537,7 +2522,7 @@ public final class MadokuFarming {
 			Set<String> normalizedBlockedSeasons = blockedSeasonIds == null || blockedSeasonIds.isEmpty()
 				? Set.of()
 				: blockedSeasonIds.stream()
-					.map(MadokuCropConfig::normalizeSeasonId)
+					.map(CropsConfigManager::normalizeSeasonId)
 					.filter(value -> !value.isBlank())
 					.collect(Collectors.toUnmodifiableSet());
 
@@ -2567,7 +2552,7 @@ public final class MadokuFarming {
 				return fallback == null ? Set.of() : fallback;
 			}
 
-			JsonElement element = source.get(MadokuCropConfig.FIELD_PLANTING_BLOCKED_SEASONS);
+			JsonElement element = source.get(CropsConfigManager.FIELD_PLANTING_BLOCKED_SEASONS);
 			if (element == null || !element.isJsonArray()) {
 				return fallback == null ? Set.of() : fallback;
 			}
@@ -2577,7 +2562,7 @@ public final class MadokuFarming {
 				if (child == null || !child.isJsonPrimitive() || !child.getAsJsonPrimitive().isString()) {
 					continue;
 				}
-				String normalized = MadokuCropConfig.normalizeSeasonId(child.getAsString());
+				String normalized = CropsConfigManager.normalizeSeasonId(child.getAsString());
 				if (!normalized.isBlank()) {
 					seasons.add(normalized);
 				}

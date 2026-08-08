@@ -1,7 +1,7 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -31,38 +31,38 @@ public abstract class LootTableFarmingMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> cir
 	) {
-		if (!MadokuFarming.isEnabled() || lootContext == null) {
+		if (!MadokuFarmingManager.isEnabled() || lootContext == null) {
 			return;
 		}
 
 		ServerLevel level = lootContext.getLevel();
 		BlockState state = resolveBlockStateParameter(lootContext);
 		BlockPos pos = resolveBlockPosParameter(lootContext);
-		if (!MadokuFarming.isManagedCrop(level, pos, state) || !MadokuFarming.isCropHarvestReady(level, pos, state)) {
+		if (!MadokuFarmingManager.isManagedCrop(level, pos, state) || !MadokuFarmingManager.isCropHarvestReady(level, pos, state)) {
 			return;
 		}
 
-		MadokuFarming.prepareCropHarvest(level, pos, state);
+		MadokuFarmingManager.prepareCropHarvest(level, pos, state);
 		RandomSource random = lootContext.getRandom();
-		int count = MadokuFarming.calculateCropHarvestCount(level, pos, state, random);
+		int count = MadokuFarmingManager.calculateCropHarvestCount(level, pos, state, random);
 		if (count <= 0) {
 			return;
 		}
 
-		Item harvestItem = MadokuFarming.getCropHarvestItem(level, pos, state);
+		Item harvestItem = MadokuFarmingManager.getCropHarvestItem(level, pos, state);
 		if (harvestItem == null) {
 			return;
 		}
 
-		Item secondaryHarvestItem = MadokuFarming.getCropSecondaryHarvestItem(level, pos, state);
-		int secondaryCount = MadokuFarming.calculateCropSecondaryHarvestCount(level, pos, state, random);
+		Item secondaryHarvestItem = MadokuFarmingManager.getCropSecondaryHarvestItem(level, pos, state);
+		int secondaryCount = MadokuFarmingManager.calculateCropSecondaryHarvestCount(level, pos, state, random);
 		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(secondaryHarvestItem != null && secondaryCount > 0 ? 2 : 1);
 		drops.add(new ItemStack(harvestItem, count));
 		if (secondaryHarvestItem != null && secondaryCount > 0) {
 			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
 		}
 		MadokuLuckManager.applyManagedCropDrops(lootContext, drops);
-		MadokuFarming.completeCropHarvest(level, pos, state);
+		MadokuFarmingManager.completeCropHarvest(level, pos, state);
 		cir.setReturnValue(drops);
 	}
 

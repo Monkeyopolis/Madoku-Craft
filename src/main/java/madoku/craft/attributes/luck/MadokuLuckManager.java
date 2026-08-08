@@ -4,7 +4,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
@@ -192,8 +192,8 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		boolean managedCrop = MadokuFarming.isManagedCrop(context.level, context.pos, context.state)
-			&& MadokuFarming.isCropHarvestReady(context.level, context.pos, context.state);
+		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level, context.pos, context.state)
+			&& MadokuFarmingManager.isCropHarvestReady(context.level, context.pos, context.state);
 		if (!managedCrop) {
 			return;
 		}
@@ -244,8 +244,8 @@ public final class MadokuLuckManager {
 		}
 		boolean creative = context.player.isCreative();
 		boolean playerPlaced = MadokuChunkDataManager.isPlayerPlacedBlock(context.level, context.pos);
-		boolean managedCrop = MadokuFarming.isManagedCrop(context.level, context.pos, context.state)
-			&& MadokuFarming.isCropHarvestReady(context.level, context.pos, context.state);
+		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level, context.pos, context.state)
+			&& MadokuFarmingManager.isCropHarvestReady(context.level, context.pos, context.state);
 		if (creative || (playerPlaced && !managedCrop)) {
 			return;
 		}

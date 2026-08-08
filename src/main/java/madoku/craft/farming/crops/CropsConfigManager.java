@@ -1,4 +1,4 @@
-package madoku.craft.farming.system;
+package madoku.craft.farming.crops;
 
 import com.google.gson.JsonObject;
 
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class MadokuCropConfig {
+public final class CropsConfigManager {
 	public static final String FIELD_CROP_ID = "cropId";
 	public static final String FIELD_MATURE_BLOCK_ID = "matureBlockId";
 	public static final String FIELD_MIN_HARVEST_SEEDS = "min-harvest-seeds";
@@ -20,7 +20,7 @@ public final class MadokuCropConfig {
 	public static final String FIELD_MAX_HARVEST_COUNT = "maxHarvestCount";
 	public static final String FIELD_PLANTING_BLOCKED_SEASONS = "plantingBlockedSeasons";
 
-	private MadokuCropConfig() {
+	private CropsConfigManager() {
 	}
 
 	public static Map<String, JsonObject> buildDefaultCropFileDefaults() {

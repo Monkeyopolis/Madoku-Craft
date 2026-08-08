@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,25 +27,25 @@ public abstract class ServerPlayerGameModeFarmingMixin {
 		BlockHitResult hitResult,
 		CallbackInfoReturnable<InteractionResult> cir
 	) {
-		if (!MadokuFarming.isEnabled() || player == null || level == null || stack == null || stack.isEmpty()) {
+		if (!MadokuFarmingManager.isEnabled() || player == null || level == null || stack == null || stack.isEmpty()) {
 			return;
 		}
 		if (!(level instanceof ServerLevel serverLevel)) {
 			return;
 		}
-		if (!MadokuFarming.isCropPlantItem(stack) || hitResult == null) {
+		if (!MadokuFarmingManager.isCropPlantItem(stack) || hitResult == null) {
 			return;
 		}
 
 		BlockPos soilPos = hitResult.getBlockPos().relative(hitResult.getDirection()).below();
-		if (!MadokuFarming.isFarmland(level.getBlockState(soilPos))) {
+		if (!MadokuFarmingManager.isFarmland(level.getBlockState(soilPos))) {
 			return;
 		}
-		if (MadokuFarming.canPlantCrop(stack, serverLevel)) {
+		if (MadokuFarmingManager.canPlantCrop(stack, serverLevel)) {
 			return;
 		}
 
-		player.sendOverlayMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, serverLevel)));
+		player.sendOverlayMessage(Component.literal(MadokuFarmingManager.getCropSeasonBlockedMessage(stack, serverLevel)));
 		cir.setReturnValue(InteractionResult.FAIL);
 	}
 }

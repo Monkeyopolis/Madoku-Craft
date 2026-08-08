@@ -1,11 +1,10 @@
-package madoku.craft.composter.system;
+package madoku.craft.farming.composter;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
+import madoku.craft.farming.FarmingConfigManager;
 import madoku.craft.item.system.MadokuItem;
-import madoku.craft.item.system.MadokuItemConfig;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -14,14 +13,13 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public final class MadokuComposter {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuComposter.class);
-	private static final String COMPOSTER_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-composter";
+public final class FarmingComposterManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(FarmingComposterManager.class);
 	private static final String COMPOSTER_CONFIG_SETTINGS_FILE_NAME = "madoku-composter";
 
 	private static volatile boolean enabled = true;
 
-	private MadokuComposter() {
+	private FarmingComposterManager() {
 	}
 
 	public static void initialize() {
@@ -36,7 +34,7 @@ public final class MadokuComposter {
 		if (!isEnabled() || item == null) {
 			return false;
 		}
-		return MadokuItem.hasCategory(item, MadokuItemConfig.CATEGORY_COMPOSTER);
+		return ComposterCropsManager.isComposterItem(item);
 	}
 
 	public static boolean isComposterItem(ItemStack stack) {
@@ -53,7 +51,7 @@ public final class MadokuComposter {
 		if (!isComposterItem(stack)) {
 			return 0;
 		}
-		return MadokuItem.getComposterAdjustment(stack);
+		return ComposterCropsManager.getAdjustment(stack);
 	}
 
 	private static void loadStaticConfig() {
@@ -63,22 +61,22 @@ public final class MadokuComposter {
 				return;
 			}
 
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(COMPOSTER_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = FarmingConfigManager.resolveComposterConfigDirectory();
 			Path settingsFile = resolveJsonFile(rootDirectory, COMPOSTER_CONFIG_SETTINGS_FILE_NAME);
 			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 				settingsFile,
-				MadokuComposterConfig.buildComposterSystemDefaults()
+				ComposterConfigManager.buildComposterSystemDefaults()
 			);
 			boolean composterEnabled = readBoolean(
 				settingsRoot,
-				MadokuComposterConfig.FIELD_COMPOSTER_SYSTEM_ENABLED,
+				ComposterConfigManager.FIELD_COMPOSTER_SYSTEM_ENABLED,
 				true
 			);
 
 			enabled = composterEnabled;
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
-			LOGGER.error("Failed to load MadokuComposter folder config; disabling custom composter rules.", exception);
+			LOGGER.error("Failed to load FarmingComposterManager config; disabling custom composter rules.", exception);
 		}
 	}
 

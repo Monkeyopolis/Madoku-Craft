@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.entity.Entity;
@@ -41,24 +41,24 @@ public abstract class FarmlandBlockFarmingMixin {
 	}
 
 	private static boolean shouldHoldManagedFarmland(BlockGetter level, BlockPos pos) {
-		if (!MadokuFarming.isEnabled() || level == null || pos == null) {
+		if (!MadokuFarmingManager.isEnabled() || level == null || pos == null) {
 			return false;
 		}
 
 		BlockPos abovePos = pos.above();
 		BlockState aboveState = level.getBlockState(abovePos);
-		if (MadokuFarming.isManagedCrop(aboveState)) {
-			if (level instanceof ServerLevel serverLevel && !MadokuFarming.isManagedPlot(serverLevel, pos)) {
-				MadokuFarming.syncPlotFromSoil(serverLevel, pos, MadokuFarming.isFertilized(serverLevel, pos));
+		if (MadokuFarmingManager.isManagedCrop(aboveState)) {
+			if (level instanceof ServerLevel serverLevel && !MadokuFarmingManager.isManagedPlot(serverLevel, pos)) {
+				MadokuFarmingManager.syncPlotFromSoil(serverLevel, pos, MadokuFarmingManager.isFertilized(serverLevel, pos));
 			}
 			return true;
 		}
 
 		if (level instanceof ServerLevel serverLevel) {
-			if (!MadokuFarming.isManagedPlot(serverLevel, pos) && MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState)) {
-				MadokuFarming.syncPlotFromSoil(serverLevel, pos, MadokuFarming.isFertilized(serverLevel, pos));
+			if (!MadokuFarmingManager.isManagedPlot(serverLevel, pos) && MadokuFarmingManager.isManagedCrop(serverLevel, abovePos, aboveState)) {
+				MadokuFarmingManager.syncPlotFromSoil(serverLevel, pos, MadokuFarmingManager.isFertilized(serverLevel, pos));
 			}
-			return MadokuFarming.isManagedPlot(serverLevel, pos) || MadokuFarming.isManagedCrop(serverLevel, abovePos, aboveState);
+			return MadokuFarmingManager.isManagedPlot(serverLevel, pos) || MadokuFarmingManager.isManagedCrop(serverLevel, abovePos, aboveState);
 		}
 
 		return false;

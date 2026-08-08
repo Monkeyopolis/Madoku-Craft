@@ -1,6 +1,6 @@
 package madoku.craft.mixin.client;
 
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.hud.HudPayloadManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -25,7 +25,7 @@ public abstract class MultiPlayerGameModeFarmingMixin {
 		BlockHitResult hitResult,
 		CallbackInfoReturnable<InteractionResult> cir
 	) {
-		if (!MadokuFarming.isEnabled() || player == null || hitResult == null) {
+		if (!MadokuFarmingManager.isEnabled() || player == null || hitResult == null) {
 			return;
 		}
 
@@ -35,12 +35,12 @@ public abstract class MultiPlayerGameModeFarmingMixin {
 		}
 
 		ItemStack stack = player.getItemInHand(hand);
-		if (stack == null || stack.isEmpty() || !MadokuFarming.isCropPlantItem(stack)) {
+		if (stack == null || stack.isEmpty() || !MadokuFarmingManager.isCropPlantItem(stack)) {
 			return;
 		}
 
 		BlockPos soilPos = hitResult.getBlockPos().relative(hitResult.getDirection()).below();
-		if (!MadokuFarming.isFarmland(level.getBlockState(soilPos))) {
+		if (!MadokuFarmingManager.isFarmland(level.getBlockState(soilPos))) {
 			return;
 		}
 
@@ -48,11 +48,11 @@ public abstract class MultiPlayerGameModeFarmingMixin {
 			return;
 		}
 
-		if (MadokuFarming.canPlantCrop(stack, HudPayloadManager.getServerSeason())) {
+		if (MadokuFarmingManager.canPlantCrop(stack, HudPayloadManager.getServerSeason())) {
 			return;
 		}
 
-		player.sendOverlayMessage(Component.literal(MadokuFarming.getCropSeasonBlockedMessage(stack, HudPayloadManager.getServerSeason())));
+		player.sendOverlayMessage(Component.literal(MadokuFarmingManager.getCropSeasonBlockedMessage(stack, HudPayloadManager.getServerSeason())));
 		cir.setReturnValue(InteractionResult.FAIL);
 	}
 }

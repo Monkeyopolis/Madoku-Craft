@@ -7,8 +7,8 @@ import com.google.gson.JsonParser;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.composter.system.MadokuComposterConfig;
-import madoku.craft.farming.system.MadokuFarmingConfig;
+import madoku.craft.farming.composter.ComposterConfigManager;
+import madoku.craft.farming.FarmingConfigManager;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
@@ -73,7 +73,6 @@ public final class MadokuItem {
 	private static final String FUEL_ITEMS_FOLDER_NAME = "fuel-items";
 	private static final String MISC_ITEMS_FOLDER_NAME = "misc-items";
 	private static final String FARMING_ITEMS_FOLDER_NAME = "farming-items";
-	private static final String COMPOSTER_ITEMS_FOLDER_NAME = "composting-items";
 	private static final String TOOL_ITEMS_FOLDER_NAME = "tool-items";
 	private static final String ARMOR_ITEMS_FOLDER_NAME = "armor-items";
 
@@ -442,7 +441,7 @@ public final class MadokuItem {
 			Path fuelDirectory = itemsDirectory.resolve(FUEL_ITEMS_FOLDER_NAME);
 			Path miscDirectory = itemsDirectory.resolve(MISC_ITEMS_FOLDER_NAME);
 			Path farmingDirectory = itemsDirectory.resolve(FARMING_ITEMS_FOLDER_NAME);
-			Path composterDirectory = itemsDirectory.resolve(COMPOSTER_ITEMS_FOLDER_NAME);
+			Path composterDirectory = FarmingConfigManager.resolveComposterConfigDirectory();
 			Path toolDirectory = itemsDirectory.resolve(TOOL_ITEMS_FOLDER_NAME);
 			Path armorDirectory = itemsDirectory.resolve(ARMOR_ITEMS_FOLDER_NAME);
 
@@ -472,8 +471,8 @@ public final class MadokuItem {
 
 				Map<String, JsonObject> normalizedComposter = JSONFormatManager.ensureManagedFolder(
 					composterDirectory,
-					MadokuComposterConfig.buildDefaultComposterFileDefaults(farmingSystemEnabled && farmingCategoryEnabled),
-					MadokuComposterConfig::buildDynamicComposterDefaultsForFile,
+					ComposterConfigManager.buildDefaultComposterFileDefaults(farmingSystemEnabled && farmingCategoryEnabled),
+					ComposterConfigManager::buildDynamicComposterDefaultsForFile,
 					(fileKey, sourceRoot) -> MadokuItem.isSupportedComposterItemFile(fileKey, sourceRoot, farmingSystemEnabled && farmingCategoryEnabled),
 					null
 			);
@@ -809,7 +808,7 @@ public final class MadokuItem {
 	}
 
 	private static String resolveComposterItemId(String fileKey, JsonObject sourceRoot) {
-		String explicit = readString(sourceRoot, MadokuComposterConfig.FIELD_ITEM_ID, "");
+		String explicit = readString(sourceRoot, ComposterConfigManager.FIELD_ITEM_ID, "");
 		String explicitNormalized = normalizeItemId(explicit);
 		if (explicitNormalized != null) {
 			return explicitNormalized;
@@ -869,9 +868,9 @@ public final class MadokuItem {
 		Path settingsFile = resolveJsonFile(rootDirectory, FARMING_CONFIG_SETTINGS_FILE_NAME);
 		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
 			settingsFile,
-			MadokuFarmingConfig.buildFarmingDefaults()
+			FarmingConfigManager.buildFarmingDefaults()
 		);
-		return readBoolean(settingsRoot, MadokuFarmingConfig.FIELD_ENABLED, true);
+		return readBoolean(settingsRoot, FarmingConfigManager.FIELD_ENABLED, true);
 	}
 
 	private static int readInt(JsonObject root, String key, int fallback) {

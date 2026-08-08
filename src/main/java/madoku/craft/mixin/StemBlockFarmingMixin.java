@@ -1,6 +1,6 @@
 package madoku.craft.mixin;
 
-import madoku.craft.farming.system.MadokuFarming;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -21,12 +21,12 @@ public abstract class StemBlockFarmingMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuFarming.isEnabled() || !MadokuFarming.isManagedCrop(state)) {
+		if (!MadokuFarmingManager.isEnabled() || !MadokuFarmingManager.isManagedCrop(state)) {
 			return;
 		}
 
-		MadokuFarming.trackCrop(level, pos, state);
-		if (MadokuFarming.isManagedPlot(level, pos.below())) {
+		MadokuFarmingManager.trackCrop(level, pos, state);
+		if (MadokuFarmingManager.isManagedPlot(level, pos.below())) {
 			ci.cancel();
 		}
 	}

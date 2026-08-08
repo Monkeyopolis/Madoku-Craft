@@ -1,4 +1,4 @@
-package madoku.craft.composter.system;
+package madoku.craft.farming.composter;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public final class MadokuComposterConfig {
+public final class ComposterConfigManager {
 	public static final String FIELD_COMPOSTER_SYSTEM_ENABLED = "composterSystemEnabled";
 	public static final String FIELD_ITEM_ID = "item-id";
 	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
@@ -16,7 +16,7 @@ public final class MadokuComposterConfig {
 	public static final String STACK_SINGLE = "single";
 	public static final String STACK_MULTI = "multi";
 
-	private MadokuComposterConfig() {
+	private ComposterConfigManager() {
 	}
 
 	public static JsonObject buildComposterSystemDefaults() {
