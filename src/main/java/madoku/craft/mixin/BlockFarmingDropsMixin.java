@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
@@ -96,22 +95,9 @@ public abstract class BlockFarmingDropsMixin {
 
 		MadokuFarmingManager.prepareCropHarvest(level, pos, state);
 		RandomSource random = level == null ? RandomSource.create() : level.getRandom();
-		int count = MadokuFarmingManager.calculateCropHarvestCount(level, pos, state, random);
-		if (count <= 0) {
+		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(MadokuFarmingManager.calculateCropHarvestDrops(level, pos, state, random));
+		if (drops.isEmpty()) {
 			return;
-		}
-
-		Item harvestItem = MadokuFarmingManager.getCropHarvestItem(level, pos, state);
-		if (harvestItem == null) {
-			return;
-		}
-
-		Item secondaryHarvestItem = MadokuFarmingManager.getCropSecondaryHarvestItem(level, pos, state);
-		int secondaryCount = MadokuFarmingManager.calculateCropSecondaryHarvestCount(level, pos, state, random);
-		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(secondaryHarvestItem != null && secondaryCount > 0 ? 2 : 1);
-		drops.add(new ItemStack(harvestItem, count));
-		if (secondaryHarvestItem != null && secondaryCount > 0) {
-			drops.add(new ItemStack(secondaryHarvestItem, secondaryCount));
 		}
 		MadokuLuckManager.applyManagedCropDrops(random, drops);
 		for (ItemStack drop : drops) {
@@ -123,4 +109,3 @@ public abstract class BlockFarmingDropsMixin {
 		ci.cancel();
 	}
 }
-

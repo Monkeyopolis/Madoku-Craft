@@ -5,9 +5,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.List;
 
 /** Orchestrates Madoku Farming's configuration and runtime subsystems. */
 public final class MadokuFarmingManager {
@@ -57,15 +58,6 @@ public final class MadokuFarmingManager {
 	}
 
 	public static boolean isCropPlantItem(ItemStack stack) { return FarmingCropsManager.isCropPlantItem(stack); }
-	public static boolean canPlantCrop(ItemStack stack) { return FarmingCropsManager.canPlantCrop(stack); }
-	public static boolean canPlantCrop(ItemStack stack, ServerLevel world) { return FarmingCropsManager.canPlantCrop(stack, world); }
-	public static boolean canPlantCrop(ItemStack stack, String seasonId) { return FarmingCropsManager.canPlantCrop(stack, seasonId); }
-	public static String getCropSeasonBlockedMessage(ItemStack stack, ServerLevel world) {
-		return FarmingCropsManager.getCropSeasonBlockedMessage(stack, world);
-	}
-	public static String getCropSeasonBlockedMessage(ItemStack stack, String seasonId) {
-		return FarmingCropsManager.getCropSeasonBlockedMessage(stack, seasonId);
-	}
 	public static boolean isFarmland(BlockState state) { return FarmingCropsManager.isFarmland(state); }
 	public static boolean isManagedCrop(BlockState state) { return FarmingCropsManager.isManagedCrop(state); }
 	public static boolean isManagedCrop(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -86,12 +78,6 @@ public final class MadokuFarmingManager {
 	public static void trackCrop(ServerLevel world, BlockPos cropPos, BlockState cropState) {
 		FarmingCropsManager.trackCrop(world, cropPos, cropState);
 	}
-	public static Item getCropHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		return FarmingCropsManager.getCropHarvestItem(world, cropPos, state);
-	}
-	public static Item getCropSecondaryHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		return FarmingCropsManager.getCropSecondaryHarvestItem(world, cropPos, state);
-	}
 	public static boolean isCropHarvestReady(ServerLevel world, BlockPos cropPos, BlockState state) {
 		return FarmingCropsManager.isCropHarvestReady(world, cropPos, state);
 	}
@@ -101,11 +87,8 @@ public final class MadokuFarmingManager {
 	public static void prepareCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
 		FarmingCropsManager.prepareCropHarvest(world, cropPos, state);
 	}
-	public static int calculateCropHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
-		return FarmingCropsManager.calculateCropHarvestCount(world, cropPos, state, random);
-	}
-	public static int calculateCropSecondaryHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
-		return FarmingCropsManager.calculateCropSecondaryHarvestCount(world, cropPos, state, random);
+	public static List<ItemStack> calculateCropHarvestDrops(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
+		return FarmingCropsManager.calculateCropHarvestDrops(world, cropPos, state, random);
 	}
 	public static void completeCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
 		FarmingCropsManager.completeCropHarvest(world, cropPos, state);

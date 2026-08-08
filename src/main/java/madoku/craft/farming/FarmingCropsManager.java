@@ -11,7 +11,7 @@ import madoku.craft.mixin.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonConfigManager;
+import madoku.craft.api.season.SeasonBiomeClimateManager;
 import madoku.craft.farming.crops.CropsConfigManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -50,15 +50,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 
 public final class FarmingCropsManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(FarmingCropsManager.class);
-	private static final String LORE_SEASON_PREFIX = "Season:";
 	private static final String LORE_GROWING_TIME_PREFIX = "Growing Time:";
+	private static final String LORE_TEMPERATURE_PREFIX = "Ideal Temperature:";
+	private static final String LORE_HUMIDITY_PREFIX = "Ideal Humidity:";
 	private static final String LORE_FERTILIZER_PREFIX = "Farmland fertilizer.";
 	private static final String LORE_FERTILIZER_EFFECT_PREFIX = "Increases crop growth speed and yield.";
-	private static final String[] SEASON_ORDER = {"spring", "summer", "fall", "winter"};
 
 	private static final String DATA_FOLDER_NAME = "madoku-craft-farming";
 	private static final String DATA_FILE_NAME = "madoku-farming";
@@ -78,7 +77,6 @@ public final class FarmingCropsManager {
 	private static final String FIELD_CROP_ID = "crop-id";
 	private static final String FIELD_FERTILIZED = "fertilized";
 	private static final String FIELD_FERTILIZED_AT_GAMEPLAY_TICK = "fertilized-at-gameplay-tick";
-	private static final String FIELD_DISCOVERED_SEASON_ID = "discovered-season-id";
 	private static final String FIELD_REQUIRED_GROWTH_TICKS = "required-growth-ticks";
 	private static final String FIELD_PROGRESS_GROWTH_TICKS = "progress-growth-ticks";
 	private static final String FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME = "last-processed-absolute-day-time";
@@ -283,36 +281,6 @@ public final class FarmingCropsManager {
 		return resolveCropRuleByPlantingItem(stack) != null;
 	}
 
-	public static boolean canPlantCrop(ItemStack stack) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return rule == null || !settings.enabled || isCropGrowingSeason(rule);
-	}
-
-	public static boolean canPlantCrop(ItemStack stack, ServerLevel world) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return rule == null || !settings.enabled || isCropGrowingSeason(rule, world);
-	}
-
-	public static boolean canPlantCrop(ItemStack stack, String seasonId) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return rule == null || !settings.enabled || isCropGrowingSeason(rule, seasonId);
-	}
-
-	public static String getCropSeasonBlockedMessage(ItemStack stack) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return getCropSeasonBlockedMessage(rule, MadokuSeasonManager.getCurrentSeasonId());
-	}
-
-	public static String getCropSeasonBlockedMessage(ItemStack stack, ServerLevel world) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return getCropSeasonBlockedMessage(rule, world == null ? MadokuSeasonManager.getCurrentSeasonId() : MadokuSeasonManager.getCurrentSeasonId(world));
-	}
-
-	public static String getCropSeasonBlockedMessage(ItemStack stack, String seasonId) {
-		CropRule rule = resolveCropRuleByPlantingItem(stack);
-		return getCropSeasonBlockedMessage(rule, seasonId);
-	}
-
 	public static boolean isFarmland(BlockState state) {
 		return state != null && state.getBlock() == Blocks.FARMLAND;
 	}
@@ -342,26 +310,6 @@ public final class FarmingCropsManager {
 			return true;
 		}
 		return resolveCropRuleByCropState(state) != null;
-	}
-
-	public static Item getCropHarvestItem(BlockState state) {
-		CropRule rule = resolveCropRuleByCropState(state);
-		return rule == null ? null : rule.harvestItem();
-	}
-
-	public static Item getCropHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		CropRule rule = resolveHarvestRule(world, cropPos, state);
-		return rule == null ? null : rule.harvestItem();
-	}
-
-	public static Item getCropSecondaryHarvestItem(BlockState state) {
-		CropRule rule = resolveCropRuleByCropState(state);
-		return rule == null ? null : rule.secondaryHarvestItem();
-	}
-
-	public static Item getCropSecondaryHarvestItem(ServerLevel world, BlockPos cropPos, BlockState state) {
-		CropRule rule = resolveHarvestRule(world, cropPos, state);
-		return rule == null ? null : rule.secondaryHarvestItem();
 	}
 
 	public static boolean isFertilized(ServerLevel world, BlockPos soilPos) {
@@ -502,8 +450,7 @@ public final class FarmingCropsManager {
 
 		String cropKey = cropKey(world, cropPos);
 		long nowAbsoluteDayTime = resolveAbsoluteDayTime(world);
-		String discoveredSeasonId = normalizeSeasonId(MadokuSeasonManager.getCurrentSeasonId(world));
-		double requiredGrowthTicks = resolveCropRequiredGrowthTicks(rule, discoveredSeasonId);
+		double requiredGrowthTicks = resolveCropRequiredGrowthTicks(rule);
 		CropState existing = cropsByKey.get(cropKey);
 		boolean cropTypeChanged = existing != null && !rule.plantingItemId().equals(existing.cropId);
 		double progressBasisTicks = (existing != null && !cropTypeChanged)
@@ -520,7 +467,6 @@ public final class FarmingCropsManager {
 				cropPos.asLong(),
 				soilPos.asLong(),
 				rule.plantingItemId(),
-				discoveredSeasonId,
 				requiredGrowthTicks,
 				Math.max(0.0d, progressFromState),
 				nowAbsoluteDayTime
@@ -529,7 +475,6 @@ public final class FarmingCropsManager {
 			existing.soilPos = soilPos.asLong();
 			if (cropTypeChanged) {
 				existing.cropId = rule.plantingItemId();
-				existing.discoveredSeasonId = discoveredSeasonId;
 				existing.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 				existing.progressGrowthTicks = Math.max(0.0d, progressFromState);
 				existing.lastProcessedAbsoluteDayTime = Math.max(0L, nowAbsoluteDayTime);
@@ -544,7 +489,6 @@ public final class FarmingCropsManager {
 				if (visiblyRegressed) {
 					// Replanting at the same position can reuse the previous crop key.
 					// If the observed age dropped, reset tracked growth to the observed state.
-					existing.discoveredSeasonId = discoveredSeasonId;
 					existing.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 					existing.progressGrowthTicks = Math.max(0.0d, progressFromState);
 					existing.lastProcessedAbsoluteDayTime = Math.max(0L, nowAbsoluteDayTime);
@@ -657,30 +601,27 @@ public final class FarmingCropsManager {
 		return resolvePendingHarvestRule(world, cropPos) != null;
 	}
 
-	public static int calculateCropHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
+	public static List<ItemStack> calculateCropHarvestDrops(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
 		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		if (!settings.enabled || rule == null || !isCropHarvestReady(world, cropPos, state)) {
-			return 0;
+			return List.of();
 		}
 
 		RandomSource safeRandom = random == null ? RandomSource.create() : random;
-		int minCount = Math.max(1, rule.minHarvestCount());
-		int maxCount = Math.max(minCount, rule.maxHarvestCount());
-		int baseCount = minCount + safeRandom.nextInt(maxCount - minCount + 1);
-		double multiplier = isHarvestFertilized(world, cropPos, rule) ? (1.0d + settings.fertilizedGrowthBoost) : 1.0d;
-		return applyScaledItemCount(baseCount, multiplier, safeRandom);
-	}
-
-	public static int calculateCropSecondaryHarvestCount(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
-		CropRule rule = resolveHarvestRule(world, cropPos, state);
-		if (!settings.enabled || rule == null || !isCropHarvestReady(world, cropPos, state) || !rule.hasSecondaryHarvestDrop()) {
-			return 0;
+		List<ItemStack> drops = new ArrayList<>();
+		for (int index = 0; index < rule.yields().size(); index++) {
+			YieldRule yield = rule.yields().get(index);
+			int minimum = Math.max(1, yield.minimumAmount());
+			int maximum = Math.max(minimum, yield.maximumAmount());
+			int count = minimum + safeRandom.nextInt(maximum - minimum + 1);
+			if (index == 0 && isHarvestFertilized(world, cropPos, rule)) {
+				count = applyScaledItemCount(count, 1.0d + settings.fertilizedGrowthBoost, safeRandom);
+			}
+			if (count > 0 && yield.item() != null) {
+				drops.add(new ItemStack(yield.item(), count));
+			}
 		}
-
-		RandomSource safeRandom = random == null ? RandomSource.create() : random;
-		int minCount = Math.max(1, rule.secondaryMinHarvestCount());
-		int maxCount = Math.max(minCount, rule.secondaryMaxHarvestCount());
-		return minCount + safeRandom.nextInt(maxCount - minCount + 1);
+		return drops;
 	}
 
 	public static void prepareCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -936,17 +877,6 @@ public final class FarmingCropsManager {
 				continue;
 			}
 
-			double previousRequiredTicks = Math.max(1.0d, crop.requiredGrowthTicks);
-			double recalculatedRequiredTicks = resolveCropRequiredGrowthTicks(rule, crop.discoveredSeasonId);
-			if (Math.abs(recalculatedRequiredTicks - previousRequiredTicks) > 1e-6d) {
-				crop.progressGrowthTicks = rescaleProgressGrowthTicks(
-					crop.progressGrowthTicks,
-					previousRequiredTicks,
-					recalculatedRequiredTicks
-				);
-				crop.requiredGrowthTicks = recalculatedRequiredTicks;
-				dirty = true;
-			}
 			double requiredTicks = Math.max(1.0d, crop.requiredGrowthTicks);
 			crop.requiredGrowthTicks = requiredTicks;
 			int observedAgeLimit = Math.max(1, getCropAgeLimit(state));
@@ -958,13 +888,9 @@ public final class FarmingCropsManager {
 			boolean replantedRegression = !observedMature
 				&& observedProgress + Math.max(1.0d, oneAgeStepTicks) < cappedTrackedProgress;
 			if (replantedRegression) {
-				String refreshedSeasonId = normalizeSeasonId(MadokuSeasonManager.getCurrentSeasonId(world));
-				double refreshedRequiredTicks = Math.max(1.0d, resolveCropRequiredGrowthTicks(rule, refreshedSeasonId));
-				double refreshedObservedProgress = progressFromAge(observedAge, observedAgeLimit) * refreshedRequiredTicks;
-				crop.discoveredSeasonId = refreshedSeasonId;
-				crop.requiredGrowthTicks = refreshedRequiredTicks;
-				requiredTicks = refreshedRequiredTicks;
-				crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, refreshedObservedProgress));
+				crop.requiredGrowthTicks = Math.max(1.0d, resolveCropRequiredGrowthTicks(rule));
+				requiredTicks = crop.requiredGrowthTicks;
+				crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, observedProgress));
 				crop.lastProcessedAbsoluteDayTime = Math.max(0L, currentAbsoluteDayTime);
 				dirty = true;
 			}
@@ -973,15 +899,17 @@ public final class FarmingCropsManager {
 			boolean fertilized = plot != null && plot.fertilized;
 			boolean raining = world.isRainingAt(cropPos);
 			boolean dryFarmland = isDryFarmland(world.getBlockState(BlockPos.of(crop.soilPos)));
-			double speedMultiplier = 1.0d;
-			if (fertilized) {
-				speedMultiplier += settings.fertilizedGrowthBoost;
-			}
-			if (raining) {
-				speedMultiplier += settings.rainGrowthBoost;
-			}
-			if (dryFarmland) {
-				speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
+			double speedMultiplier = 1.0d + resolveGrowingConditionsSpeedModifier(rule, world, cropPos);
+			if (speedMultiplier > 0.0d) {
+				if (fertilized) {
+					speedMultiplier += settings.fertilizedGrowthBoost;
+				}
+				if (raining) {
+					speedMultiplier += settings.rainGrowthBoost;
+				}
+				if (dryFarmland) {
+					speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
+				}
 			}
 			speedMultiplier = Math.max(0.0d, speedMultiplier);
 
@@ -1504,8 +1432,10 @@ public final class FarmingCropsManager {
 					continue;
 				}
 				String text = line.getString();
-				if (text.startsWith(LORE_SEASON_PREFIX)
+				if (text.startsWith("Season:")
 					|| text.startsWith(LORE_GROWING_TIME_PREFIX)
+					|| text.startsWith(LORE_TEMPERATURE_PREFIX)
+					|| text.startsWith(LORE_HUMIDITY_PREFIX)
 					|| text.equals(LORE_FERTILIZER_PREFIX)
 					|| text.equals(LORE_FERTILIZER_EFFECT_PREFIX)) {
 					continue;
@@ -1514,10 +1444,12 @@ public final class FarmingCropsManager {
 			}
 		}
 
-		if (MadokuSeasonManager.isEnabled()) {
-			updatedLines.add(Component.literal(formatSeasonLoreLine(rule.blockedSeasonIds())).withStyle(ChatFormatting.DARK_GREEN));
-		}
 		updatedLines.add(Component.literal(formatGrowthTimeLoreLine(rule.growthMinecraftDays())).withStyle(ChatFormatting.GOLD));
+		GrowingConditions conditions = rule.growingConditions();
+		if (conditions != null) {
+			updatedLines.add(Component.literal(formatTemperatureLoreLine(conditions)).withStyle(ChatFormatting.DARK_GREEN));
+			updatedLines.add(Component.literal(formatHumidityLoreLine(conditions)).withStyle(ChatFormatting.DARK_GREEN));
+		}
 
 		DataComponentMap.Builder builder = DataComponentMap.builder().addAll(base);
 		builder.set(DataComponents.LORE, new ItemLore(updatedLines));
@@ -1561,78 +1493,26 @@ public final class FarmingCropsManager {
 			.madokuCraft$bindComponents(builder.build());
 	}
 
-	private static String formatSeasonLoreLine(Set<String> blockedSeasonIds) {
-		return LORE_SEASON_PREFIX + " " + formatSeasonSummary(blockedSeasonIds);
-	}
-
 	private static String formatGrowthTimeLoreLine(double growthMinecraftDays) {
 		return LORE_GROWING_TIME_PREFIX + " " + formatGrowthDays(growthMinecraftDays) + " Days";
 	}
 
-	private static String formatSeasonSummary(Set<String> blockedSeasonIds) {
-		boolean[] allowed = new boolean[SEASON_ORDER.length];
-		int allowedCount = 0;
-		Set<String> blocked = blockedSeasonIds == null ? Set.of() : blockedSeasonIds;
+	private static String formatTemperatureLoreLine(GrowingConditions conditions) {
+		return LORE_TEMPERATURE_PREFIX + " " + formatRange(conditions.minimumTemperature(), conditions.maximumTemperature());
+	}
 
-		for (int index = 0; index < SEASON_ORDER.length; index++) {
-			allowed[index] = !blocked.contains(SEASON_ORDER[index]);
-			if (allowed[index]) {
-				allowedCount++;
-			}
-		}
+	private static String formatHumidityLoreLine(GrowingConditions conditions) {
+		return LORE_HUMIDITY_PREFIX + " " + formatRange(conditions.minimumHumidity(), conditions.maximumHumidity()) + "%";
+	}
 
-		if (allowedCount <= 0) {
-			return "None";
-		}
-		if (allowedCount == SEASON_ORDER.length) {
-			return "All Year";
-		}
-
-		for (int start = 0; start < SEASON_ORDER.length; start++) {
-			int previous = (start - 1 + SEASON_ORDER.length) % SEASON_ORDER.length;
-			if (!allowed[start] || allowed[previous]) {
-				continue;
-			}
-
-			int end = start;
-			int visited = 1;
-			while (visited < allowedCount) {
-				int next = (end + 1) % SEASON_ORDER.length;
-				if (!allowed[next]) {
-					break;
-				}
-				end = next;
-				visited++;
-			}
-
-			if (visited == allowedCount) {
-				return start == end
-					? capitalizeSeasonId(SEASON_ORDER[start])
-					: capitalizeSeasonId(SEASON_ORDER[start]) + " - " + capitalizeSeasonId(SEASON_ORDER[end]);
-			}
-		}
-
-		List<String> seasonNames = new ArrayList<>();
-		for (int index = 0; index < SEASON_ORDER.length; index++) {
-			if (allowed[index]) {
-				seasonNames.add(capitalizeSeasonId(SEASON_ORDER[index]));
-			}
-		}
-		return String.join(", ", seasonNames);
+	private static String formatRange(double minimum, double maximum) {
+		return formatGrowthDays(minimum) + " - " + formatGrowthDays(maximum);
 	}
 
 	private static String formatGrowthDays(double growthDays) {
 		BigDecimal value = BigDecimal.valueOf(Math.max(0.0d, growthDays)).stripTrailingZeros();
 		String formatted = value.toPlainString();
 		return formatted.isEmpty() ? "0" : formatted;
-	}
-
-	private static String capitalizeSeasonId(String value) {
-		if (value == null || value.isBlank()) {
-			return "";
-		}
-		String normalized = value.trim().toLowerCase(Locale.ROOT);
-		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
 	private static CropRule resolvePendingHarvestRule(ServerLevel world, BlockPos cropPos) {
@@ -1777,62 +1657,60 @@ public final class FarmingCropsManager {
 		return ThreadLocalRandom.current().nextLong(PARTICLE_COOLDOWN_MIN_TICKS, PARTICLE_COOLDOWN_MAX_TICKS + 1L);
 	}
 
-	private static boolean isCropGrowingSeason(CropRule rule) {
-		if (rule == null) {
-			return true;
-		}
-		return isCropGrowingSeason(rule, MadokuSeasonManager.getCurrentSeasonId());
-	}
-
-	private static boolean isCropGrowingSeason(CropRule rule, ServerLevel world) {
-		if (rule == null) {
-			return true;
-		}
-		String seasonId = world == null ? MadokuSeasonManager.getCurrentSeasonId() : MadokuSeasonManager.getCurrentSeasonId(world);
-		return isCropGrowingSeason(rule, seasonId);
-	}
-
-	private static boolean isCropGrowingSeason(CropRule rule, String seasonId) {
-		if (rule == null) {
-			return true;
-		}
-		String normalized = normalizeSeasonId(seasonId);
-		return !rule.blockedSeasonIds().contains(normalized);
-	}
-
-	private static String getCropSeasonBlockedMessage(CropRule rule, String seasonId) {
-		if (rule == null) {
-			return "Cannot plant this crop right now.";
-		}
-		String season = normalizeSeasonId(seasonId);
-		String displaySeason = season.isBlank() ? "this season" : (Character.toUpperCase(season.charAt(0)) + season.substring(1));
-		return "Cannot plant " + rule.displayName() + " during " + displaySeason + ".";
-	}
-
 	private static String normalizeRegistryId(String value) {
 		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
-	private static String normalizeSeasonId(String value) {
-		return SeasonConfigManager.normalizeKey(value);
+	private static double resolveCropRequiredGrowthTicks(CropRule rule) {
+		return Math.max(1.0d, rule.growthMinecraftDays() * MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE);
 	}
 
-	private static double resolveCropRequiredGrowthTicks(CropRule rule, String discoveredSeasonId) {
-		double baseTicks = Math.max(1.0d, rule.growthMinecraftDays() * MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE);
-		String seasonId = normalizeSeasonId(discoveredSeasonId);
-		if (seasonId.isBlank() || !rule.blockedSeasonIds().contains(seasonId)) {
-			return baseTicks;
+	private static double resolveGrowingConditionsSpeedModifier(CropRule rule, ServerLevel world, BlockPos cropPos) {
+		if (rule == null || world == null || cropPos == null || rule.growingConditions() == null) {
+			return 0.0d;
 		}
 
-		double multiplier = Math.max(0.01d, settings.outOfSeasonPenalty);
-		return baseTicks / multiplier;
+		SeasonBiomeClimateManager.Climate climate = MadokuSeasonManager.resolveBiomeClimate(world, cropPos);
+		GrowingConditions conditions = rule.growingConditions();
+		return resolveConditionSpeedModifier(
+			climate.temperature(),
+			conditions.minimumTemperature(),
+			conditions.maximumTemperature()
+		) + resolveConditionSpeedModifier(
+			climate.humidity(),
+			conditions.minimumHumidity(),
+			conditions.maximumHumidity()
+		);
 	}
 
-	private static double rescaleProgressGrowthTicks(double progressTicks, double previousRequiredTicks, double nextRequiredTicks) {
-		double safePrevious = Math.max(1.0d, previousRequiredTicks);
-		double safeNext = Math.max(1.0d, nextRequiredTicks);
-		double normalizedProgress = Math.max(0.0d, Math.min(1.0d, progressTicks / safePrevious));
-		return Math.max(0.0d, Math.min(safeNext, normalizedProgress * safeNext));
+	/** Returns one condition's speed modifier in the inclusive range [-0.50, 0.50]. */
+	private static double resolveConditionSpeedModifier(double actual, double minimumIdeal, double maximumIdeal) {
+		if (!Double.isFinite(actual) || !Double.isFinite(minimumIdeal) || !Double.isFinite(maximumIdeal)
+			|| maximumIdeal < minimumIdeal) {
+			return 0.0d;
+		}
+		if (actual >= minimumIdeal && actual <= maximumIdeal) {
+			return 0.50d;
+		}
+
+		double ratio;
+		if (actual < minimumIdeal) {
+			ratio = minimumIdeal <= 0.0d ? 0.0d : actual / minimumIdeal;
+		} else {
+			ratio = actual <= 0.0d ? 0.0d : maximumIdeal / actual;
+		}
+		ratio = Math.max(0.0d, Math.min(1.0d, ratio));
+
+		if (ratio <= 0.20d) {
+			return -0.50d;
+		}
+		if (ratio < 0.71d) {
+			return -0.50d + ((ratio - 0.20d) / 0.51d) * 0.50d;
+		}
+		if (ratio <= 0.79d) {
+			return 0.0d;
+		}
+		return Math.min(0.50d, ((ratio - 0.79d) / 0.21d) * 0.50d);
 	}
 
 	private static int applyScaledItemCount(int count, double multiplier, RandomSource random) {
@@ -2087,7 +1965,6 @@ public final class FarmingCropsManager {
 		private final long cropPos;
 		private long soilPos;
 		private String cropId;
-		private String discoveredSeasonId;
 		private double requiredGrowthTicks;
 		private double progressGrowthTicks;
 		private long lastProcessedAbsoluteDayTime;
@@ -2097,7 +1974,6 @@ public final class FarmingCropsManager {
 			long cropPos,
 			long soilPos,
 			String cropId,
-			String discoveredSeasonId,
 			double requiredGrowthTicks,
 			double progressGrowthTicks,
 			long lastProcessedAbsoluteDayTime
@@ -2106,7 +1982,6 @@ public final class FarmingCropsManager {
 			this.cropPos = cropPos;
 			this.soilPos = soilPos;
 			this.cropId = normalizeRegistryId(cropId);
-			this.discoveredSeasonId = normalizeSeasonId(discoveredSeasonId);
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
@@ -2122,7 +1997,6 @@ public final class FarmingCropsManager {
 				.put(FIELD_CROP_POS, cropPos)
 				.put(FIELD_SOIL_POS, soilPos)
 				.put(FIELD_CROP_ID, cropId)
-				.put(FIELD_DISCOVERED_SEASON_ID, discoveredSeasonId)
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
@@ -2147,7 +2021,6 @@ public final class FarmingCropsManager {
 			if (cropId.isBlank()) {
 				return null;
 			}
-			String discoveredSeasonId = normalizeSeasonId(getString(source, FIELD_DISCOVERED_SEASON_ID, ""));
 			double requiredGrowthTicks = getDouble(source, FIELD_REQUIRED_GROWTH_TICKS, 1.0d);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
@@ -2156,7 +2029,6 @@ public final class FarmingCropsManager {
 				cropPos,
 				soilPos,
 				cropId,
-				discoveredSeasonId,
 				requiredGrowthTicks,
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
@@ -2168,7 +2040,6 @@ public final class FarmingCropsManager {
 		boolean enabled,
 		double rainGrowthBoost,
 		double fertilizedGrowthBoost,
-		double outOfSeasonPenalty,
 		double dryFarmlandPenalty,
 		int particleCount,
 		double particleSpread,
@@ -2179,7 +2050,6 @@ public final class FarmingCropsManager {
 				true,
 				FarmingConfigManager.DEFAULT_RAIN_GROWTH_BOOST,
 				FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST,
-				FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY,
 				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY,
 				FarmingConfigManager.DEFAULT_PARTICLE_COUNT,
 				FarmingConfigManager.DEFAULT_PARTICLE_SPREAD,
@@ -2200,12 +2070,6 @@ public final class FarmingCropsManager {
 				FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST,
 				0.0d,
 				1.0d
-			);
-			double outOfSeasonPenalty = clampDouble(
-				getDouble(source, FarmingConfigManager.FIELD_OUT_OF_SEASON_PENALTY, FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY),
-				FarmingConfigManager.DEFAULT_OUT_OF_SEASON_PENALTY,
-				0.0d,
-				1000.0d
 			);
 			double dryFarmlandPenalty = clampDouble(
 				getDouble(source, FarmingConfigManager.FIELD_DRY_FARMLAND_PENALTY, FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY),
@@ -2235,7 +2099,6 @@ public final class FarmingCropsManager {
 				enabled,
 				rainBoost,
 				fertilizedBoost,
-				outOfSeasonPenalty,
 				dryFarmlandPenalty,
 				particleCount,
 				particleSpread,
@@ -2250,53 +2113,32 @@ public final class FarmingCropsManager {
 		private final String cropBlockId;
 		private final String matureBlockId;
 		private final String plantingItemId;
-		private final String harvestItemId;
-		private final String secondaryHarvestItemId;
-		private final int secondaryMinHarvestCount;
-		private final int secondaryMaxHarvestCount;
+		private final List<YieldRule> yields;
 		private final String displayName;
 		private final double growthMinecraftDays;
-		private final int minHarvestCount;
-		private final int maxHarvestCount;
-		private final Set<String> blockedSeasonIds;
+		private final GrowingConditions growingConditions;
 		private final Block matureBlock;
-		private final Item harvestItem;
-		private final Item secondaryHarvestItem;
 
 		private CropRule(
 			String cropId,
 			String cropBlockId,
 			String matureBlockId,
 			String plantingItemId,
-			String harvestItemId,
-			String secondaryHarvestItemId,
-			int secondaryMinHarvestCount,
-			int secondaryMaxHarvestCount,
+			List<YieldRule> yields,
 			String displayName,
 			double growthMinecraftDays,
-			int minHarvestCount,
-			int maxHarvestCount,
-			Set<String> blockedSeasonIds,
-			Block matureBlock,
-			Item harvestItem,
-			Item secondaryHarvestItem
+			GrowingConditions growingConditions,
+			Block matureBlock
 		) {
 			this.cropId = cropId;
 			this.cropBlockId = cropBlockId;
 			this.matureBlockId = matureBlockId;
 			this.plantingItemId = plantingItemId;
-			this.harvestItemId = harvestItemId;
-			this.secondaryHarvestItemId = secondaryHarvestItemId;
-			this.secondaryMinHarvestCount = secondaryMinHarvestCount;
-			this.secondaryMaxHarvestCount = secondaryMaxHarvestCount;
+			this.yields = yields == null ? List.of() : List.copyOf(yields);
 			this.displayName = displayName;
 			this.growthMinecraftDays = growthMinecraftDays;
-			this.minHarvestCount = minHarvestCount;
-			this.maxHarvestCount = maxHarvestCount;
-			this.blockedSeasonIds = blockedSeasonIds;
+			this.growingConditions = growingConditions;
 			this.matureBlock = matureBlock;
-			this.harvestItem = harvestItem;
-			this.secondaryHarvestItem = secondaryHarvestItem;
 		}
 
 		private static List<CropRule> defaultRules() {
@@ -2335,14 +2177,9 @@ public final class FarmingCropsManager {
 				"minecraft:potatoes",
 				"minecraft:potatoes",
 				"minecraft:potato",
-				"minecraft:potato",
-				"",
-				0,
-				0,
 				3.0d,
-				7,
-				9,
-				Set.of("winter")
+				List.of(new YieldSpec("minecraft:potato", 7, 9)),
+				new GrowingConditions(35, 55, 50, 70)
 			);
 		}
 
@@ -2352,14 +2189,9 @@ public final class FarmingCropsManager {
 				"minecraft:carrots",
 				"minecraft:carrots",
 				"minecraft:carrot",
-				"minecraft:carrot",
-				"",
-				0,
-				0,
 				5.0d,
-				5,
-				7,
-				Set.of()
+				List.of(new YieldSpec("minecraft:carrot", 5, 7)),
+				new GrowingConditions(40, 60, 45, 65)
 			);
 		}
 
@@ -2369,14 +2201,9 @@ public final class FarmingCropsManager {
 				"minecraft:beetroots",
 				"minecraft:beetroots",
 				"minecraft:beetroot_seeds",
-				"minecraft:beetroot",
-				"minecraft:beetroot_seeds",
-				1,
-				3,
 				3.0d,
-				7,
-				9,
-				Set.of("spring", "summer")
+				List.of(new YieldSpec("minecraft:beetroot", 7, 9), new YieldSpec("minecraft:beetroot-seeds", 1, 3)),
+				new GrowingConditions(45, 65, 50, 70)
 			);
 		}
 
@@ -2386,14 +2213,9 @@ public final class FarmingCropsManager {
 				"minecraft:melon_stem",
 				"minecraft:melon",
 				"minecraft:melon_seeds",
-				"minecraft:melon_slice",
-				"minecraft:melon_seeds",
-				1,
-				3,
 				11.0d,
-				15,
-				17,
-				Set.of("fall", "winter")
+				List.of(new YieldSpec("minecraft:melon-slice", 15, 17), new YieldSpec("minecraft:melon-seeds", 1, 3)),
+				new GrowingConditions(50, 80, 35, 55)
 			);
 		}
 
@@ -2403,14 +2225,9 @@ public final class FarmingCropsManager {
 				"minecraft:pumpkin_stem",
 				"minecraft:pumpkin",
 				"minecraft:pumpkin_seeds",
-				"minecraft:pumpkin",
-				"minecraft:pumpkin_seeds",
-				1,
-				3,
 				9.0d,
-				3,
-				5,
-				Set.of("spring", "winter")
+				List.of(new YieldSpec("minecraft:pumpkin", 3, 5), new YieldSpec("minecraft:pumpkin-seeds", 1, 3)),
+				new GrowingConditions(45, 70, 40, 60)
 			);
 		}
 
@@ -2420,14 +2237,9 @@ public final class FarmingCropsManager {
 				"minecraft:wheat",
 				"minecraft:wheat",
 				"minecraft:wheat_seeds",
-				"minecraft:wheat",
-				"minecraft:wheat_seeds",
-				1,
-				3,
 				7.0d,
-				11,
-				13,
-				Set.of("summer")
+				List.of(new YieldSpec("minecraft:wheat", 9, 13), new YieldSpec("minecraft:wheat-seeds", 1, 3)),
+				new GrowingConditions(40, 60, 45, 55)
 			);
 		}
 
@@ -2448,45 +2260,14 @@ public final class FarmingCropsManager {
 				0.25d,
 				365.0d
 			);
-			int minHarvestCount = clampInt(
-				getInt(source, CropsConfigManager.FIELD_MIN_HARVEST_COUNT, fallback.minHarvestCount),
-				fallback.minHarvestCount,
-				1,
-				1024
-			);
-			int maxHarvestCount = clampInt(
-				getInt(source, CropsConfigManager.FIELD_MAX_HARVEST_COUNT, fallback.maxHarvestCount),
-				fallback.maxHarvestCount,
-				minHarvestCount,
-				1024
-			);
-			int secondaryMinHarvestCount = clampInt(
-				getInt(source, CropsConfigManager.FIELD_MIN_HARVEST_SEEDS, fallback.secondaryMinHarvestCount),
-				fallback.secondaryMinHarvestCount,
-				0,
-				1024
-			);
-			int secondaryMaxHarvestCount = clampInt(
-				getInt(source, CropsConfigManager.FIELD_MAX_HARVEST_SEEDS, fallback.secondaryMaxHarvestCount),
-				fallback.secondaryMaxHarvestCount,
-				secondaryMinHarvestCount,
-				1024
-			);
-			Set<String> blockedSeasonIds = parseBlockedSeasonIds(source, fallback.blockedSeasonIds);
-
 			return fromValues(
 				cropId,
 				fallback.cropBlockId,
 				fallback.matureBlockId,
 				fallback.plantingItemId,
-				fallback.harvestItemId,
-				fallback.secondaryHarvestItemId,
-				secondaryMinHarvestCount,
-				secondaryMaxHarvestCount,
 				growthDays,
-				minHarvestCount,
-				maxHarvestCount,
-				blockedSeasonIds
+				parseYields(source, fallback.yields),
+				parseGrowingConditions(source, fallback.growingConditions)
 			);
 		}
 
@@ -2495,79 +2276,75 @@ public final class FarmingCropsManager {
 			String cropBlockId,
 			String matureBlockId,
 			String plantingItemId,
-			String harvestItemId,
-			String secondaryHarvestItemId,
-			int secondaryMinHarvestCount,
-			int secondaryMaxHarvestCount,
 			double growthMinecraftDays,
-			int minHarvestCount,
-			int maxHarvestCount,
-			Set<String> blockedSeasonIds
+			List<YieldSpec> yieldSpecs,
+			GrowingConditions growingConditions
 		) {
 			String normalizedCropId = normalizeRegistryId(cropId);
 			String normalizedCropBlockId = normalizeRegistryId(cropBlockId);
 			String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
 			String normalizedPlantingItemId = normalizeRegistryId(plantingItemId);
-			String normalizedHarvestItemId = normalizeRegistryId(harvestItemId);
-			String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
-
 			Identifier matureBlockIdentifier = Identifier.tryParse(normalizedMatureBlockId);
-			Identifier harvestIdentifier = Identifier.tryParse(normalizedHarvestItemId);
-			Identifier secondaryHarvestIdentifier = normalizedSecondaryHarvestItemId.isBlank() ? null : Identifier.tryParse(normalizedSecondaryHarvestItemId);
-
 			Block matureBlock = matureBlockIdentifier == null ? null : BuiltInRegistries.BLOCK.getValue(matureBlockIdentifier);
-			Item harvestItem = harvestIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(harvestIdentifier);
-			Item secondaryHarvestItem = secondaryHarvestIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(secondaryHarvestIdentifier);
-
-			Set<String> normalizedBlockedSeasons = blockedSeasonIds == null || blockedSeasonIds.isEmpty()
-				? Set.of()
-				: blockedSeasonIds.stream()
-					.map(CropsConfigManager::normalizeSeasonId)
-					.filter(value -> !value.isBlank())
-					.collect(Collectors.toUnmodifiableSet());
+			List<YieldRule> yields = new ArrayList<>();
+			if (yieldSpecs != null) {
+				for (YieldSpec yield : yieldSpecs) {
+					if (yield == null) continue;
+					String yieldId = normalizeRegistryId(yield.id());
+					Identifier yieldIdentifier = Identifier.tryParse(yieldId);
+					Item item = yieldIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(yieldIdentifier);
+					if (item != null) {
+						yields.add(new YieldRule(yieldId, item, Math.max(1, yield.minimumAmount()), Math.max(Math.max(1, yield.minimumAmount()), yield.maximumAmount())));
+					}
+				}
+			}
 
 			String displayName = normalizeDisplayName(normalizedCropId);
 			return new CropRule(
-				normalizedCropId,
+					normalizedCropId,
 				normalizedCropBlockId,
 				normalizedMatureBlockId,
 				normalizedPlantingItemId,
-				normalizedHarvestItemId,
-				normalizedSecondaryHarvestItemId,
-				Math.max(0, secondaryMinHarvestCount),
-				Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount),
+				yields,
 				displayName,
 				growthMinecraftDays,
-				Math.max(1, minHarvestCount),
-				Math.max(Math.max(1, minHarvestCount), maxHarvestCount),
-				normalizedBlockedSeasons,
-				matureBlock,
-				harvestItem,
-				secondaryHarvestItem
+				growingConditions,
+				matureBlock
 			);
 		}
 
-		private static Set<String> parseBlockedSeasonIds(JsonObject source, Set<String> fallback) {
-			if (source == null) {
-				return fallback == null ? Set.of() : fallback;
+		private static List<YieldSpec> parseYields(JsonObject source, List<YieldRule> fallback) {
+			JsonElement element = source == null ? null : source.get(CropsConfigManager.FIELD_YIELD_ID);
+			if (element == null || !element.isJsonObject()) {
+				return fallback == null ? List.of() : fallback.stream().map(yield -> new YieldSpec(yield.id(), yield.minimumAmount(), yield.maximumAmount())).toList();
 			}
+			List<YieldSpec> parsed = new ArrayList<>();
+			for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
+				if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
+				JsonObject values = entry.getValue().getAsJsonObject();
+				int minimum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MINIMUM_AMOUNT, 1), 1, 1, 1024);
+				int maximum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MAXIMUM_AMOUNT, minimum), minimum, minimum, 1024);
+				parsed.add(new YieldSpec(entry.getKey(), minimum, maximum));
+			}
+			return parsed.isEmpty() ? List.of() : parsed;
+		}
 
-			JsonElement element = source.get(CropsConfigManager.FIELD_PLANTING_BLOCKED_SEASONS);
-			if (element == null || !element.isJsonArray()) {
-				return fallback == null ? Set.of() : fallback;
-			}
+		private static GrowingConditions parseGrowingConditions(JsonObject source, GrowingConditions fallback) {
+			GrowingConditions safeFallback = fallback == null ? new GrowingConditions(40, 60, 40, 60) : fallback;
+			JsonObject conditions = object(source, CropsConfigManager.FIELD_GROWING_CONDITIONS);
+			JsonObject temperature = object(conditions, CropsConfigManager.FIELD_IDEAL_TEMPERATURE);
+			JsonObject humidity = object(conditions, CropsConfigManager.FIELD_IDEAL_HUMIDITY);
+			double minimumTemperature = clampDouble(getDouble(temperature, CropsConfigManager.FIELD_MINIMUM_TEMPERATURE, safeFallback.minimumTemperature()), safeFallback.minimumTemperature(), -100.0d, 100.0d);
+			double maximumTemperature = clampDouble(getDouble(temperature, CropsConfigManager.FIELD_MAXIMUM_TEMPERATURE, safeFallback.maximumTemperature()), safeFallback.maximumTemperature(), minimumTemperature, 100.0d);
+			double minimumHumidity = clampDouble(getDouble(humidity, CropsConfigManager.FIELD_MINIMUM_HUMIDITY, safeFallback.minimumHumidity()), safeFallback.minimumHumidity(), 0.0d, 100.0d);
+			double maximumHumidity = clampDouble(getDouble(humidity, CropsConfigManager.FIELD_MAXIMUM_HUMIDITY, safeFallback.maximumHumidity()), safeFallback.maximumHumidity(), minimumHumidity, 100.0d);
+			return new GrowingConditions(minimumTemperature, maximumTemperature, minimumHumidity, maximumHumidity);
+		}
 
-			java.util.LinkedHashSet<String> seasons = new java.util.LinkedHashSet<>();
-			for (JsonElement child : element.getAsJsonArray()) {
-				if (child == null || !child.isJsonPrimitive() || !child.getAsJsonPrimitive().isString()) {
-					continue;
-				}
-				String normalized = CropsConfigManager.normalizeSeasonId(child.getAsString());
-				if (!normalized.isBlank()) {
-					seasons.add(normalized);
-				}
-			}
-			return seasons.isEmpty() ? (fallback == null ? Set.of() : fallback) : Set.copyOf(seasons);
+		private static JsonObject object(JsonObject source, String key) {
+			if (source == null) return null;
+			JsonElement element = source.get(key);
+			return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
 		}
 
 		private static String normalizeDisplayName(String value) {
@@ -2602,10 +2379,6 @@ public final class FarmingCropsManager {
 			return matureBlockId != null && !matureBlockId.isBlank() && !matureBlockId.equals(cropBlockId);
 		}
 
-		private boolean hasSecondaryHarvestDrop() {
-			return secondaryHarvestItem != null && secondaryMinHarvestCount > 0 && secondaryMaxHarvestCount >= secondaryMinHarvestCount;
-		}
-
 		public String cropId() {
 			return cropId;
 		}
@@ -2622,36 +2395,16 @@ public final class FarmingCropsManager {
 			return plantingItemId;
 		}
 
-		public Item harvestItem() {
-			return harvestItem;
-		}
-
-		public Item secondaryHarvestItem() {
-			return secondaryHarvestItem;
-		}
-
-		public int secondaryMinHarvestCount() {
-			return secondaryMinHarvestCount;
-		}
-
-		public int secondaryMaxHarvestCount() {
-			return secondaryMaxHarvestCount;
+		public List<YieldRule> yields() {
+			return yields;
 		}
 
 		public double growthMinecraftDays() {
 			return growthMinecraftDays;
 		}
 
-		public int minHarvestCount() {
-			return minHarvestCount;
-		}
-
-		public int maxHarvestCount() {
-			return maxHarvestCount;
-		}
-
-		public Set<String> blockedSeasonIds() {
-			return blockedSeasonIds;
+		public GrowingConditions growingConditions() {
+			return growingConditions;
 		}
 
 		public Block matureBlock() {
@@ -2662,4 +2415,15 @@ public final class FarmingCropsManager {
 			return displayName;
 		}
 	}
+
+	public record YieldRule(String id, Item item, int minimumAmount, int maximumAmount) { }
+
+	public record GrowingConditions(
+		double minimumTemperature,
+		double maximumTemperature,
+		double minimumHumidity,
+		double maximumHumidity
+	) { }
+
+	private record YieldSpec(String id, int minimumAmount, int maximumAmount) { }
 }

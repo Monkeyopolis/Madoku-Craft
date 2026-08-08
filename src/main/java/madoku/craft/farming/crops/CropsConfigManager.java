@@ -1,242 +1,89 @@
 package madoku.craft.farming.crops;
 
 import com.google.gson.JsonObject;
-
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
+/** Static defaults and field names for individual farming crop files. */
 public final class CropsConfigManager {
-	public static final String FIELD_CROP_ID = "cropId";
-	public static final String FIELD_MATURE_BLOCK_ID = "matureBlockId";
-	public static final String FIELD_MIN_HARVEST_SEEDS = "min-harvest-seeds";
-	public static final String FIELD_MAX_HARVEST_SEEDS = "max-harvest-seeds";
+	public static final String FIELD_CROP_ID = "crop-id";
+	public static final String FIELD_YIELD_ID = "yield-id";
+	public static final String FIELD_YIELD_MINIMUM_AMOUNT = "yield-minimum-amount";
+	public static final String FIELD_YIELD_MAXIMUM_AMOUNT = "yield-maximum-amount";
 	public static final String FIELD_GROWTH_TIME = "growth-time";
-	public static final String FIELD_MIN_HARVEST_COUNT = "minHarvestCount";
-	public static final String FIELD_MAX_HARVEST_COUNT = "maxHarvestCount";
-	public static final String FIELD_PLANTING_BLOCKED_SEASONS = "plantingBlockedSeasons";
+	public static final String FIELD_GROWING_CONDITIONS = "growing-conditions";
+	public static final String FIELD_IDEAL_TEMPERATURE = "ideal-temperature";
+	public static final String FIELD_IDEAL_HUMIDITY = "ideal-humidity";
+	public static final String FIELD_MINIMUM_TEMPERATURE = "minimum-temperature";
+	public static final String FIELD_MAXIMUM_TEMPERATURE = "maximum-temperature";
+	public static final String FIELD_MINIMUM_HUMIDITY = "minimum-humidity";
+	public static final String FIELD_MAXIMUM_HUMIDITY = "maximum-humidity";
 
-	private CropsConfigManager() {
-	}
+	private CropsConfigManager() { }
 
 	public static Map<String, JsonObject> buildDefaultCropFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("potato", buildCropDefaults(
-			"potato",
-			"minecraft:potatoes",
-			"minecraft:potato",
-			"minecraft:potato",
-			3.0d,
-			7,
-			9,
-			List.of("winter")
-		));
-		defaults.put("carrot", buildCropDefaults(
-			"carrot",
-			"minecraft:carrots",
-			"minecraft:carrot",
-			"minecraft:carrot",
-			5.0d,
-			5,
-			7,
-			List.of()
-		));
-		defaults.put("beetroot", buildCropDefaults(
-			"beetroot",
-			"minecraft:beetroots",
-			"minecraft:beetroot_seeds",
-			"minecraft:beetroot",
-			"minecraft:beetroot_seeds",
-			1,
-			3,
-			3.0d,
-			7,
-			9,
-			List.of("spring", "summer")
-		));
-		defaults.put("melon", buildCropDefaults(
-			"melon",
-			"minecraft:melon_stem",
-			"minecraft:melon",
-			"minecraft:melon_seeds",
-			"minecraft:melon_slice",
-			"minecraft:melon_seeds",
-			1,
-			3,
-			11.0d,
-			15,
-			17,
-			List.of("fall", "winter")
-		));
-		defaults.put("pumpkin", buildCropDefaults(
-			"pumpkin",
-			"minecraft:pumpkin_stem",
-			"minecraft:pumpkin",
-			"minecraft:pumpkin_seeds",
-			"minecraft:pumpkin",
-			"minecraft:pumpkin_seeds",
-			1,
-			3,
-			9.0d,
-			3,
-			5,
-			List.of("spring", "winter")
-		));
-		defaults.put("wheat", buildCropDefaults(
-			"wheat",
-			"minecraft:wheat",
-			"minecraft:wheat_seeds",
-			"minecraft:wheat",
-			"minecraft:wheat_seeds",
-			1,
-			3,
-			7.0d,
-			11,
-			13,
-			List.of("summer")
-		));
+		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(35, 55, 50, 70),
+			new YieldDefault("minecraft:potato", 7, 9)));
+		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(40, 60, 45, 65),
+			new YieldDefault("minecraft:carrot", 5, 7)));
+		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(45, 65, 50, 70),
+			new YieldDefault("minecraft:beetroot", 7, 9),
+			new YieldDefault("minecraft:beetroot-seeds", 1, 3)));
+		defaults.put("melon", buildCropDefaults("minecraft:melon", 11.0d, new ConditionDefault(50, 80, 35, 55),
+			new YieldDefault("minecraft:melon-slice", 15, 17),
+			new YieldDefault("minecraft:melon-seeds", 1, 3)));
+		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 70, 40, 60),
+			new YieldDefault("minecraft:pumpkin", 3, 5),
+			new YieldDefault("minecraft:pumpkin-seeds", 1, 3)));
+		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(40, 60, 45, 55),
+			new YieldDefault("minecraft:wheat", 9, 13),
+			new YieldDefault("minecraft:wheat-seeds", 1, 3)));
 		return defaults;
 	}
 
-	public static JsonObject buildCropDefaults(
+	private static JsonObject buildCropDefaults(
 		String cropId,
-		String cropBlockId,
-		String plantingItemId,
-		String harvestItemId,
 		double growthMinecraftDays,
-		int minHarvestCount,
-		int maxHarvestCount,
-		List<String> blockedSeasons
-	) {
-		return buildCropDefaults(
-			cropId,
-			cropBlockId,
-			plantingItemId,
-			harvestItemId,
-			"",
-			0,
-			0,
-			growthMinecraftDays,
-			minHarvestCount,
-			maxHarvestCount,
-			blockedSeasons
-		);
-	}
-
-	public static JsonObject buildCropDefaults(
-		String cropId,
-		String cropBlockId,
-		String matureBlockId,
-		String plantingItemId,
-		String harvestItemId,
-		double growthMinecraftDays,
-		int minHarvestCount,
-		int maxHarvestCount,
-		List<String> blockedSeasons
-	) {
-		return buildCropDefaults(
-			cropId,
-			cropBlockId,
-			matureBlockId,
-			plantingItemId,
-			harvestItemId,
-			"",
-			0,
-			0,
-			growthMinecraftDays,
-			minHarvestCount,
-			maxHarvestCount,
-			blockedSeasons
-		);
-	}
-
-	public static JsonObject buildCropDefaults(
-		String cropId,
-		String cropBlockId,
-		String plantingItemId,
-		String harvestItemId,
-		String secondaryHarvestItemId,
-		int secondaryMinHarvestCount,
-		int secondaryMaxHarvestCount,
-		double growthMinecraftDays,
-		int minHarvestCount,
-		int maxHarvestCount,
-		List<String> blockedSeasons
-	) {
-		return buildCropDefaults(
-			cropId,
-			cropBlockId,
-			"",
-			plantingItemId,
-			harvestItemId,
-			secondaryHarvestItemId,
-			secondaryMinHarvestCount,
-			secondaryMaxHarvestCount,
-			growthMinecraftDays,
-			minHarvestCount,
-			maxHarvestCount,
-			blockedSeasons
-		);
-	}
-
-	public static JsonObject buildCropDefaults(
-		String cropId,
-		String cropBlockId,
-		String matureBlockId,
-		String plantingItemId,
-		String harvestItemId,
-		String secondaryHarvestItemId,
-		int secondaryMinHarvestCount,
-		int secondaryMaxHarvestCount,
-		double growthMinecraftDays,
-		int minHarvestCount,
-		int maxHarvestCount,
-		List<String> blockedSeasons
+		ConditionDefault conditions,
+		YieldDefault... yields
 	) {
 		String normalizedCropId = normalizeRegistryId(cropId);
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(FIELD_CROP_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedCropId))
-			.put(FIELD_GROWTH_TIME, growthMinecraftDays)
-			.put(FIELD_MIN_HARVEST_COUNT, Math.max(1, minHarvestCount))
-			.put(FIELD_MAX_HARVEST_COUNT, Math.max(Math.max(1, minHarvestCount), maxHarvestCount));
+			.put(FIELD_GROWTH_TIME, Math.max(0.25d, growthMinecraftDays));
 
-		String normalizedMatureBlockId = normalizeRegistryId(matureBlockId);
-		if (!normalizedMatureBlockId.isEmpty() && !normalizedMatureBlockId.equals(normalizeRegistryId(cropBlockId))) {
-			root.put(FIELD_MATURE_BLOCK_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedMatureBlockId));
-		}
-
-		String normalizedSecondaryHarvestItemId = normalizeRegistryId(secondaryHarvestItemId);
-		if (!normalizedSecondaryHarvestItemId.isEmpty()) {
-			root.put(FIELD_MIN_HARVEST_SEEDS, Math.max(0, secondaryMinHarvestCount));
-			root.put(FIELD_MAX_HARVEST_SEEDS, Math.max(Math.max(0, secondaryMinHarvestCount), secondaryMaxHarvestCount));
-		}
-
-		JSONFormatManager.ArrayBuilder seasons = JSONFormatManager.array();
-		if (blockedSeasons != null) {
-			for (String season : blockedSeasons) {
-				String normalized = normalizeSeasonId(season);
-				if (!normalized.isEmpty()) {
-					seasons.add(normalized);
-				}
+		root.object(FIELD_YIELD_ID, yieldGroup -> {
+			if (yields == null) return;
+			for (YieldDefault yield : yields) {
+				if (yield == null) continue;
+				String yieldId = normalizeRegistryId(yield.id());
+				if (yieldId.isBlank()) continue;
+				yieldGroup.object(yieldId, values -> values
+					.put(FIELD_YIELD_MINIMUM_AMOUNT, Math.max(1, yield.minimumAmount()))
+					.put(FIELD_YIELD_MAXIMUM_AMOUNT, Math.max(Math.max(1, yield.minimumAmount()), yield.maximumAmount())));
 			}
-		}
-		root.put(FIELD_PLANTING_BLOCKED_SEASONS, seasons.build());
+		});
+
+		ConditionDefault safe = conditions == null ? new ConditionDefault(40, 60, 40, 60) : conditions;
+		root.object(FIELD_GROWING_CONDITIONS, growing -> {
+			growing.object(FIELD_IDEAL_TEMPERATURE, temperature -> temperature
+				.put(FIELD_MINIMUM_TEMPERATURE, safe.minimumTemperature())
+				.put(FIELD_MAXIMUM_TEMPERATURE, safe.maximumTemperature()));
+			growing.object(FIELD_IDEAL_HUMIDITY, humidity -> humidity
+				.put(FIELD_MINIMUM_HUMIDITY, safe.minimumHumidity())
+				.put(FIELD_MAXIMUM_HUMIDITY, safe.maximumHumidity()));
+		});
 		return root.build();
 	}
 
-	public static String normalizeRegistryId(String value) {
+	private static String normalizeRegistryId(String value) {
 		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
-	public static String normalizeSeasonId(String value) {
-		if (value == null) {
-			return "";
-		}
-		return value.trim().toLowerCase(Locale.ROOT);
-	}
+	private record YieldDefault(String id, int minimumAmount, int maximumAmount) { }
+	private record ConditionDefault(double minimumTemperature, double maximumTemperature, double minimumHumidity, double maximumHumidity) { }
 }
-

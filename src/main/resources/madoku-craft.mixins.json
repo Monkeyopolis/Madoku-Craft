@@ -92,7 +92,6 @@
     "ServerEntityPetUpdateIntervalMixin",
     "ServerGamePacketListenerCreativePetSlotMixin",
     "ServerPlayerDrowningDamageMixin",
-    "ServerPlayerGameModeFarmingMixin",
     "ServerPlayerSleepTimeMixin",
     "ServerPlayerTeleportPetMixin",
     "ServerPlayerTeleportHungerMixin",
@@ -119,7 +118,6 @@
     "client.LevelSeasonalWeatherClientMixin",
     "client.ItemFoodClientGateMixin",
     "client.MerchantScreenAccessor",
-    "client.MultiPlayerGameModeFarmingMixin",
     "client.PlayerEatClientGateMixin",
     "client.SlotAccessor",
     "client.SpruceBirchLeafTintMixin"

@@ -52,16 +52,7 @@ public abstract class ItemStackFarmingMixin {
 				return;
 			}
 
-			BlockPos cropSoilPos = madokuCraft$getCropPlantingSoilPos(context);
 			ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
-			if (MadokuFarmingManager.isCropPlantItem(stack) && cropSoilPos != null && MadokuFarmingManager.isFarmland(level.getBlockState(cropSoilPos)) && !MadokuFarmingManager.canPlantCrop(stack, serverLevel)) {
-				if (serverLevel != null && context.getPlayer() != null) {
-					context.getPlayer().sendOverlayMessage(Component.literal(MadokuFarmingManager.getCropSeasonBlockedMessage(stack, serverLevel)));
-				}
-				madokuCraft$restoreUseOnCount(stack);
-				cir.setReturnValue(InteractionResult.FAIL);
-				return;
-			}
 
 			if (stack.is(Items.BONE_MEAL) && MadokuFarmingManager.isFarmland(state)) {
 				if (serverLevel != null && MadokuFarmingManager.isFertilized(serverLevel, pos)) {
