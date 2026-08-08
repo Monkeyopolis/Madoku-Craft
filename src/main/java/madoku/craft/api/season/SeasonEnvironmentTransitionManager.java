@@ -2,6 +2,7 @@ package madoku.craft.api.season;
 
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
@@ -13,6 +14,20 @@ public final class SeasonEnvironmentTransitionManager {
 	private static final int HOT_TEMPERATURE_MIN = 70;
 	private static final int PRECIPITATION_HUMIDITY_MIN = 31;
 	private static final int HOT_BIOME_HUMIDITY_MIN = 70;
+	private static final double SHELTER_NEUTRAL_TEMPERATURE = 50.0D;
+	private static final double SHELTER_PER_BLOCK_EFFECT = 0.10D;
+	private static final double SHELTER_HUMIDITY_PER_BLOCK_REDUCTION = 0.05D;
+	private static final int SHELTER_VERTICAL_SCAN_DEPTH = 16;
+	private static final int SHELTER_HORIZONTAL_SCAN_DEPTH = 5;
+	private static final int SHELTER_MAX_VERTICAL_BLOCKS = 5;
+	private static final int SHELTER_MAX_HORIZONTAL_BLOCKS = 5;
+	private static final Direction[] SHELTER_VERTICAL_DIRECTIONS = {Direction.UP};
+	private static final Direction[] SHELTER_HORIZONTAL_DIRECTIONS = {
+		Direction.NORTH,
+		Direction.SOUTH,
+		Direction.EAST,
+		Direction.WEST
+	};
 	private static final int MINUTES_PER_DAY = 24 * 60;
 	private static final int[] DAILY_TEMPERATURE_MINUTES = {
 		0, 1 * 60, 5 * 60, 7 * 60, 11 * 60, 13 * 60, 17 * 60, 19 * 60, 23 * 60
@@ -82,6 +97,81 @@ public final class SeasonEnvironmentTransitionManager {
 	public static double adjustHumidity(double base, String season) {
 		if (!isHumidityTransitionEnabled()) return base;
 		return base + humidityOffset;
+	}
+
+	/** Applies local shelter effects after biome, season, and time climate adjustments. */
+	public static SeasonBiomeClimateManager.Climate adjustForShelter(
+		LevelReader level,
+		BlockPos pos,
+		SeasonBiomeClimateManager.Climate climate
+	) {
+		if (climate == null) {
+			return climate;
+		}
+		if (level == null || pos == null || level.getFluidState(pos).is(FluidTags.WATER)) {
+			return climate;
+		}
+		boolean roofed = !level.canSeeSky(pos);
+		int verticalBlocks = roofed
+			? resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS)
+			: 0;
+		int horizontalBlocks = roofed
+			? resolveShelterBlockCount(
+				level,
+				pos.above(),
+				SHELTER_HORIZONTAL_DIRECTIONS,
+				SHELTER_HORIZONTAL_SCAN_DEPTH,
+				SHELTER_MAX_HORIZONTAL_BLOCKS)
+			: 0;
+		double shelterEffect = Math.min(1.0D,
+			((verticalBlocks + horizontalBlocks) * SHELTER_PER_BLOCK_EFFECT));
+		if (shelterEffect <= 0.0D) return climate;
+
+		double temperature = climate.temperature()
+			+ ((SHELTER_NEUTRAL_TEMPERATURE - climate.temperature()) * shelterEffect);
+		double humidityReduction = Math.min(0.50D,
+			((verticalBlocks + horizontalBlocks) * SHELTER_HUMIDITY_PER_BLOCK_REDUCTION));
+		double humidity = climate.humidity() <= 0.0D
+			? climate.humidity()
+			: climate.humidity() * (1.0D - humidityReduction);
+		return new SeasonBiomeClimateManager.Climate(temperature, humidity);
+	}
+
+	/** Returns whether the position receives any local shelter adjustment. */
+	public static boolean isSheltered(LevelReader level, BlockPos pos) {
+		if (level == null || pos == null || level.getFluidState(pos).is(FluidTags.WATER)) return false;
+		if (level.canSeeSky(pos)) return false;
+		return resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS) > 0
+			|| resolveShelterBlockCount(level, pos.above(), SHELTER_HORIZONTAL_DIRECTIONS, SHELTER_HORIZONTAL_SCAN_DEPTH, SHELTER_MAX_HORIZONTAL_BLOCKS) > 0;
+	}
+
+	/**
+	 * Resolves shelter from bounded rays in the requested directions. The caller
+	 * supplies separate limits so roof and side cover each contribute at most 50%.
+	 */
+	private static int resolveShelterBlockCount(
+		LevelReader level,
+		BlockPos pos,
+		Direction[] directions,
+		int scanDepth,
+		int maximumBlocks
+	) {
+		if (level == null || pos == null || directions == null || scanDepth <= 0 || maximumBlocks <= 0
+		) {
+			return 0;
+		}
+
+		int coveredBlocks = 0;
+		for (Direction direction : directions) {
+			for (int offset = 1; offset <= scanDepth; offset++) {
+				if (!level.getBlockState(pos.relative(direction, offset)).isAir()) {
+					coveredBlocks++;
+					if (coveredBlocks >= maximumBlocks) return maximumBlocks;
+				}
+			}
+		}
+
+		return coveredBlocks;
 	}
 
 	public static double getTemperatureOffset() {

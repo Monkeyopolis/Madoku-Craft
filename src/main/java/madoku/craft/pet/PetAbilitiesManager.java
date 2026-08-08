@@ -1504,21 +1504,15 @@ public final class PetAbilitiesManager {
 				? List.of(new ReadyReactiveAttack(-1, rule, ability))
 				: webAttacks;
 			ReadyReactiveAttack strongestAttack = attacks.get(0);
-			int strongestLevel = strongestAttack.slot() < 0 || inventory == null || strongestAttack.slot() >= inventory.getContainerSize()
-				? 1
-				: PetEntitiesManager.petLevel(inventory.getItem(strongestAttack.slot()));
 			for (ReadyReactiveAttack candidate : attacks) {
-				int candidateLevel = candidate.slot() < 0 || inventory == null || candidate.slot() >= inventory.getContainerSize()
-					? 1
-					: PetEntitiesManager.petLevel(inventory.getItem(candidate.slot()));
 				if (candidate.ability().attackDamage > strongestAttack.ability().attackDamage) {
 					strongestAttack = candidate;
 				}
-				if (candidateLevel > strongestLevel) {
-					strongestLevel = candidateLevel;
-				}
 			}
 			ability = strongestAttack.ability();
+			int strongestLevel = strongestAttack.slot() < 0 || inventory == null || strongestAttack.slot() >= inventory.getContainerSize()
+				? 1
+				: PetEntitiesManager.petLevel(inventory.getItem(strongestAttack.slot()));
 			int duplicateCount = Math.max(0, attacks.size() - 1);
 			float damage = Math.max(0.0F, ability.attackDamage + (duplicateCount * WEB_PROJECTILE_DUPLICATE_DAMAGE));
 			int stunDurationTicks = (int) Math.max(0L, ability.stunDurationTicks + (duplicateCount * WEB_PROJECTILE_DUPLICATE_STUN_TICKS));

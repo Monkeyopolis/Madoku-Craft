@@ -9,6 +9,7 @@ import madoku.craft.hud.HudAttributesManager;
 import madoku.craft.hud.HudPayloadManager;
 import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.api.season.SeasonPayloadManager;
+import madoku.craft.api.season.PlayerClimatePayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
 import madoku.craft.mob.MobPayloadManager;
@@ -60,6 +61,9 @@ public class MadokuCraftClient implements ClientModInitializer {
 				HudPayloadManager.setServerSeason(payload.season());
 				HudPayloadManager.setServerSeasonProgress(payload.seasonDay(), payload.seasonLengthDays());
 			})
+		);
+		ClientPlayNetworking.registerGlobalReceiver(PlayerClimatePayloadManager.TYPE, (payload, context) ->
+			context.client().execute(() -> HudPayloadManager.setServerClimate(payload.temperature(), payload.humidity()))
 		);
 		ClientPlayNetworking.registerGlobalReceiver(ItemProfilePayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))

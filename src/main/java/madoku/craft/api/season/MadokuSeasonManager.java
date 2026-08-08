@@ -6,7 +6,12 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.biome.Biome;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 
 /** Orchestrator and public entry point for the Madoku Season subsystem. */
@@ -17,6 +22,7 @@ public final class MadokuSeasonManager {
 	private static String lastBroadcastWeatherCondition = "";
 	private static int lastBroadcastSeasonDay = -1;
 	private static int lastBroadcastSeasonLengthDays = -1;
+	private static final Map<UUID, ClimateHudState> lastPlayerClimateStates = new HashMap<>();
 
 	private MadokuSeasonManager() { }
 
@@ -30,6 +36,7 @@ public final class MadokuSeasonManager {
 			if (payload != null) {
 				SyncWorldManager.send(handler.player, payload);
 			}
+			syncPlayerClimate(handler.player, true);
 		});
 	}
 
@@ -43,6 +50,7 @@ public final class MadokuSeasonManager {
 		lastBroadcastWeatherCondition = "";
 		lastBroadcastSeasonDay = -1;
 		lastBroadcastSeasonLengthDays = -1;
+		lastPlayerClimateStates.clear();
 	}
 
 	public static boolean isEnabled() { return SeasonConfigManager.getSettings().enabled(); }
@@ -57,12 +65,13 @@ public final class MadokuSeasonManager {
 	public static SeasonBiomeClimateManager.Climate resolveBiomeClimate(ServerLevel level, BlockPos pos) {
 		SeasonBiomeClimateManager.Climate climate = SeasonBiomeClimateManager.resolve(level, pos);
 		String season = getCurrentSeasonId(level);
-		return new SeasonBiomeClimateManager.Climate(
+		SeasonBiomeClimateManager.Climate adjustedClimate = new SeasonBiomeClimateManager.Climate(
 			SeasonEnvironmentTransitionManager.adjustTemperature(
 				climate.temperature(),
 				season,
 				MadokuTimeManager.getCurrentAbsoluteDayTime(level)),
 			SeasonEnvironmentTransitionManager.adjustHumidity(climate.humidity(), season));
+		return SeasonEnvironmentTransitionManager.adjustForShelter(level, pos, adjustedClimate);
 	}
 
 	public static Biome.Precipitation resolveSeasonalPrecipitation(Biome biome) {
@@ -100,6 +109,15 @@ public final class MadokuSeasonManager {
 	public static void onServerTick(MinecraftServer server) {
 		if (server != null) {
 			currentState(server.overworld());
+		}
+	}
+
+	/** Sends each player's resolved local climate when its HUD-visible value changes. */
+	public static void syncPlayerClimateIfChanged(MinecraftServer server) {
+		if (server == null) return;
+		lastPlayerClimateStates.keySet().removeIf(playerId -> server.getPlayerList().getPlayer(playerId) == null);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			syncPlayerClimate(player, false);
 		}
 	}
 
@@ -181,6 +199,24 @@ public final class MadokuSeasonManager {
 			SeasonConfigManager.getSettings().seasonLengthDays());
 	}
 
+	private static void syncPlayerClimate(ServerPlayer player, boolean force) {
+		if (player == null) return;
+		if (!(player.level() instanceof ServerLevel level)) return;
+		SeasonBiomeClimateManager.Climate climate = resolveBiomeClimate(level, player.blockPosition());
+		if (climate == null || !Double.isFinite(climate.temperature()) || !Double.isFinite(climate.humidity())) {
+			climate = new SeasonBiomeClimateManager.Climate(50.0D, 50.0D);
+		}
+
+		ClimateHudState state = new ClimateHudState(
+			Math.round(climate.temperature()),
+			Math.round(climate.humidity()));
+		if (!force && state.equals(lastPlayerClimateStates.get(player.getUUID()))) return;
+
+		if (SyncWorldManager.send(player, new PlayerClimatePayloadManager(climate.temperature(), climate.humidity()))) {
+			lastPlayerClimateStates.put(player.getUUID(), state);
+		}
+	}
+
 
 
 
@@ -202,4 +238,5 @@ public final class MadokuSeasonManager {
 
 	public enum Season { SPRING("spring"), SUMMER("summer"), FALL("fall"), WINTER("winter"); private final String id; Season(String id) { this.id = id; } public String id() { return id; } }
 	public record SeasonState(long absoluteDay, long cycleDay, Season season, int seasonDay, int week, int dayInWeek) { }
+	private record ClimateHudState(long temperature, long humidity) { }
 }

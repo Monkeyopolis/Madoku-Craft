@@ -134,6 +134,7 @@ public class MadokuCraft implements ModInitializer {
 				MadokuTimeManager.broadcastWorldTimeIfChanged(server);
 				MadokuMobManager.broadcastDifficultyIfChanged(server);
 				MadokuSeasonManager.broadcastWorldSeasonIfChanged(server);
+				MadokuSeasonManager.syncPlayerClimateIfChanged(server);
 			}
 		});
 	}

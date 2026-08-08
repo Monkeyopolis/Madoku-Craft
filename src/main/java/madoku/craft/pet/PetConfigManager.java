@@ -533,6 +533,9 @@ public final class PetConfigManager {
 			} else if ("minecraft:skeleton".equals(normalizedPetId)
 				&& MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW.equals(abilityType)) {
 				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.75D);
+			} else if ("minecraft:bee".equals(normalizedPetId)
+				&& MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(abilityType)) {
+				resolvedAttackDamage = attackDamage + ((Math.max(1, level) - 1) * 0.2D);
 			}
 			return new PetAbilityRule(
 				abilityType,
@@ -1220,6 +1223,8 @@ public final class PetConfigManager {
 					resolvedArmorBonus = armorBonusAmount + ((safeLevel - 1) * 0.25D);
 				} else if ("minecraft:skeleton".equals(petId)) {
 					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.75D);
+				} else if ("minecraft:bee".equals(petId)) {
+					resolvedAttackDamage = attackDamage + ((safeLevel - 1) * 0.2D);
 				}
 				List<PetAbilityRule> resolvedAbilities = new ArrayList<>();
 				for (PetAbilityRule ability : abilities) {
