@@ -186,6 +186,7 @@ public final class MadokuPetManager {
 
 		PetAbilitiesManager.tickWebControls(server);
 		PetAbilitiesManager.tickHealthRegeneration(server);
+		PetAbilitiesManager.tickManagedProjectileVolleys(server);
 		PetAbilitiesManager.tickManagedWebProjectiles(server);
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
 		PetAbilitiesManager.tickManagedChickenEggProjectiles(server);

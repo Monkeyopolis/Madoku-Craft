@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.mob.MobEntityManager;
+import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -25,16 +26,19 @@ public abstract class AbstractArrowDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedArrowDamage(Entity entity, DamageSource source, float originalDamage) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
-		if (MobEntityManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
+		if (HelperProjectileManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
 			livingEntity.invulnerableTime = 0;
 			livingEntity.hurtTime = 0;
 		}
-		float resolvedDamage = MobEntityManager.resolveProjectileDamageOverride(arrow, originalDamage);
-		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
-		if (hit && MobEntityManager.isManagedHomingArrow(arrow)) {
-			MobEntityManager.clearProjectileHoming(arrow);
+		float resolvedDamage = HelperProjectileManager.resolveProjectileDamageOverride(arrow, originalDamage);
+		if (!HelperProjectileManager.hasProjectileDamageOverride(arrow)) {
+			resolvedDamage = MobEntityManager.resolveMobProjectileDamageOverride(arrow, resolvedDamage);
 		}
-		MobEntityManager.clearInvulnerabilityBypass(arrow);
+		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
+		if (hit && HelperProjectileManager.isManagedHomingProjectile(arrow)) {
+			HelperProjectileManager.clearProjectileHoming(arrow);
+		}
+		HelperProjectileManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
 			MobEntityManager.applySkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}
@@ -49,7 +53,7 @@ public abstract class AbstractArrowDamageMixin {
 		)
 	)
 	private void madokuCraft$skipHomingArrowKnockback(AbstractArrow arrow, LivingEntity target, DamageSource source) {
-		if (!MobEntityManager.isManagedHomingArrow(arrow)) {
+		if (!HelperProjectileManager.isManagedHomingProjectile(arrow)) {
 			this.doKnockback(target, source);
 		}
 	}

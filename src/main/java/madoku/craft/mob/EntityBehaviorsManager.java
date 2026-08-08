@@ -11,6 +11,7 @@ import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.farming.system.MadokuFarming;
 import madoku.craft.mixin.AbstractSkeletonArrowInvoker;
+import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -1081,10 +1082,10 @@ public final class EntityBehaviorsManager {
 			ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
 			arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
 			arrow.setCritArrow(false);
-			MobEntityManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
-			MobEntityManager.trackManagedMobArrowForRuntime(arrow, level.getServer());
+			HelperProjectileManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
+			HelperProjectileManager.trackManagedProjectile(arrow);
 			if (shot.guaranteedHit) {
-				MobEntityManager.startProjectileHoming(arrow, target, level.getServer());
+				HelperProjectileManager.startProjectileHoming(arrow, target);
 			}
 			skeleton.playSound(net.minecraft.sounds.SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (skeleton.getRandom().nextFloat() * 0.4F + 0.8F));
 			level.addFreshEntity(arrow);
@@ -1984,7 +1985,7 @@ public final class EntityBehaviorsManager {
 			net.minecraft.world.entity.projectile.arrow.ThrownTrident trident = new net.minecraft.world.entity.projectile.arrow.ThrownTrident(level, drowned, tridentStack.copy());
 			invokeTridentMethod(trident, "setOwner", new Class<?>[] { Entity.class }, drowned);
 			trident.setBaseDamage(Math.max(0.0D, rangedDamage));
-			MobEntityManager.setProjectileDamageOverride(trident, (float) rangedDamage);
+			HelperProjectileManager.setProjectileDamageOverride(trident, (float) rangedDamage);
 			trident.addTag(RANGED_TRIDENT_TAG);
 
 			double dx = target.getX() - drowned.getX();
@@ -2008,7 +2009,7 @@ public final class EntityBehaviorsManager {
 			trident.setNoPhysics(false);
 			drowned.playSound(SoundEvents.TRIDENT_THROW.value(), 1.0F, 1.0F / (drowned.getRandom().nextFloat() * 0.4F + 0.8F));
 			if (homing) {
-				MobEntityManager.startProjectileHoming(trident, target, level.getServer());
+				HelperProjectileManager.startProjectileHoming(trident, target);
 			}
 			level.addFreshEntity(trident);
 			return true;
@@ -2808,10 +2809,10 @@ public final class EntityBehaviorsManager {
 			ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
 			arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
 			arrow.setCritArrow(false);
-			MobEntityManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
-			MobEntityManager.trackManagedMobArrowForRuntime(arrow, level.getServer());
+			HelperProjectileManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
+			HelperProjectileManager.trackManagedProjectile(arrow);
 			if (shot.guaranteedHit) {
-				MobEntityManager.startProjectileHoming(arrow, target, level.getServer());
+				HelperProjectileManager.startProjectileHoming(arrow, target);
 			}
 			skeleton.playSound(net.minecraft.sounds.SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (skeleton.getRandom().nextFloat() * 0.4F + 0.8F));
 			level.addFreshEntity(arrow);
@@ -3308,10 +3309,10 @@ public final class EntityBehaviorsManager {
 			if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.WITHER_SKELETON) {
 				arrow.setRemainingFireTicks(0);
 			}
-			MobEntityManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
-			MobEntityManager.trackManagedMobArrowForRuntime(arrow, level.getServer());
+			HelperProjectileManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
+			HelperProjectileManager.trackManagedProjectile(arrow);
 			if (shot.guaranteedHit) {
-				MobEntityManager.startProjectileHoming(arrow, target, level.getServer());
+				HelperProjectileManager.startProjectileHoming(arrow, target);
 			}
 			skeleton.playSound(SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (skeleton.getRandom().nextFloat() * 0.4F + 0.8F));
 			level.addFreshEntity(arrow);
@@ -4217,10 +4218,10 @@ public final class EntityBehaviorsManager {
 			ShotVector shot = resolveShotVector(skeleton, arrow, target, accuracy);
 			arrow.shoot(shot.vector.x, shot.vector.y, shot.vector.z, 1.6F, 0.0F);
 			arrow.setCritArrow(false);
-			MobEntityManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
-			MobEntityManager.trackManagedMobArrowForRuntime(arrow, level.getServer());
+			HelperProjectileManager.setProjectileDamageOverride(arrow, (float) Math.max(0.0D, rangedDamage));
+			HelperProjectileManager.trackManagedProjectile(arrow);
 			if (shot.guaranteedHit) {
-				MobEntityManager.startProjectileHoming(arrow, target, level.getServer());
+				HelperProjectileManager.startProjectileHoming(arrow, target);
 			}
 			skeleton.playSound(net.minecraft.sounds.SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (skeleton.getRandom().nextFloat() * 0.4F + 0.8F));
 			level.addFreshEntity(arrow);

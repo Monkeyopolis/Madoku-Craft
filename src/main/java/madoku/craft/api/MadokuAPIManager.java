@@ -9,6 +9,7 @@ import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.api.recipes.MadokuRecipesManager;
 import madoku.craft.api.loot.MadokuLootTableManager;
+import madoku.craft.api.helper.MadokuHelperManager;
 
 import java.nio.file.Path;
 
@@ -19,6 +20,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void initialize() {
+		MadokuHelperManager.initialize();
 		MadokuJSONManager.initialize();
 		getApiRootDirectory();
 		MadokuDataManager.initialize();
@@ -36,6 +38,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void reset() {
+		MadokuHelperManager.reset();
 		MadokuDataManager.reset();
 		MadokuJSONManager.reset();
 		MadokuTimeManager.reset();
@@ -54,6 +57,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void onServerStarted(net.minecraft.server.MinecraftServer server) {
+		MadokuHelperManager.onServerStarted(server);
 		MadokuDataManager.onServerStarted(server);
 		MadokuTimeManager.onServerStarted(server);
 		MadokuChunkManager.onServerStarted(server);
@@ -63,6 +67,7 @@ public final class MadokuAPIManager {
 	}
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
+		MadokuHelperManager.onServerTick(server);
 		if (MadokuTimeManager.isEnabled()) {
 			MadokuSchedulerManager.onClockTick(server);
 		} else {
