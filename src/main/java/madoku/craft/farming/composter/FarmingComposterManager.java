@@ -27,8 +27,10 @@ public final class FarmingComposterManager {
 	}
 
 	public static void reset() {
-		enabled = true;
-		ComposterCropsManager.reset();
+		// The farming manager is reset when a server starts and stops. Reload the
+		// static composter rules here so the server-start reset does not erase the
+		// rules loaded during mod initialization.
+		initialize();
 	}
 
 	public static boolean isEnabled() {

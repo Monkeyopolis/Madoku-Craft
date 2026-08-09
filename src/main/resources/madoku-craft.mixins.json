@@ -89,6 +89,7 @@
     "ServerExplosionBlockRadiusMixin",
     "ServerExplosionPlayerDamageMixin",
     "ServerClockManagerMixin",
+    "ServerLevelRandomPositionTickMixin",
     "ServerEntityPetUpdateIntervalMixin",
     "ServerGamePacketListenerCreativePetSlotMixin",
     "ServerPlayerDrowningDamageMixin",

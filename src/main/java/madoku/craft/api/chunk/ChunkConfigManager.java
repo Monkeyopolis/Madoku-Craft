@@ -26,18 +26,8 @@ public final class ChunkConfigManager {
 		loadConfig();
 	}
 
-	public static boolean isChunkDiscoveryEnabled() {
+	public static boolean isChunkSystemEnabled() {
 		return settings.enabled;
-	}
-
-	public static boolean isChunkProcessorEnabled() {
-		return settings.enabled;
-	}
-
-	static int resolveAdaptiveChunkWorkUnits(long intervalTicks) {
-		long clampedInterval = Math.max(1L, Math.min(20L, intervalTicks));
-		int workUnits = (int) (11L - ((clampedInterval + 1L) / 2L));
-		return Math.max(1, Math.min(10, workUnits));
 	}
 
 	private static void loadConfig() {

@@ -513,15 +513,15 @@ public final class NaturalGrowthConfigManager {
 				return false;
 			}
 			return switch (EcosystemConfigManager.normalize(treeType)) {
-				case FIELD_OAK_TREE -> oakTree != null && oakTree.isEnabled();
-				case FIELD_BIRCH_TREE -> birchTree != null && birchTree.isEnabled();
-				case FIELD_SPRUCE_TREE -> spruceTree != null && spruceTree.isEnabled();
-				case FIELD_JUNGLE_TREE -> jungleTree != null && jungleTree.isEnabled();
-				case FIELD_ACACIA_TREE -> acaciaTree != null && acaciaTree.isEnabled();
-				case FIELD_DARK_OAK_TREE -> darkOakTree != null && darkOakTree.isEnabled();
-				case FIELD_PALE_OAK_TREE -> paleOakTree != null && paleOakTree.isEnabled();
-				case FIELD_MANGROVE_TREE -> mangroveTree != null && mangroveTree.isEnabled();
-				case FIELD_CHERRY_TREE -> cherryTree != null && cherryTree.isEnabled();
+				case FIELD_OAK_TREE, "oak" -> oakTree != null && oakTree.isEnabled();
+				case FIELD_BIRCH_TREE, "birch" -> birchTree != null && birchTree.isEnabled();
+				case FIELD_SPRUCE_TREE, "spruce" -> spruceTree != null && spruceTree.isEnabled();
+				case FIELD_JUNGLE_TREE, "jungle" -> jungleTree != null && jungleTree.isEnabled();
+				case FIELD_ACACIA_TREE, "acacia" -> acaciaTree != null && acaciaTree.isEnabled();
+				case FIELD_DARK_OAK_TREE, "dark_oak" -> darkOakTree != null && darkOakTree.isEnabled();
+				case FIELD_PALE_OAK_TREE, "pale_oak" -> paleOakTree != null && paleOakTree.isEnabled();
+				case FIELD_MANGROVE_TREE, "mangrove" -> mangroveTree != null && mangroveTree.isEnabled();
+				case FIELD_CHERRY_TREE, "cherry" -> cherryTree != null && cherryTree.isEnabled();
 				default -> false;
 			};
 		}
@@ -531,15 +531,15 @@ public final class NaturalGrowthConfigManager {
 				return null;
 			}
 			return switch (EcosystemConfigManager.normalize(treeType)) {
-				case FIELD_OAK_TREE -> oakTree == null ? null : oakTree.growthForSeason(seasonId);
-				case FIELD_BIRCH_TREE -> birchTree == null ? null : birchTree.growthForSeason(seasonId);
-				case FIELD_SPRUCE_TREE -> spruceTree == null ? null : spruceTree.growthForSeason(seasonId);
-				case FIELD_JUNGLE_TREE -> jungleTree == null ? null : jungleTree.growthForSeason(seasonId);
-				case FIELD_ACACIA_TREE -> acaciaTree == null ? null : acaciaTree.growthForSeason(seasonId);
-				case FIELD_DARK_OAK_TREE -> darkOakTree == null ? null : darkOakTree.growthForSeason(seasonId);
-				case FIELD_PALE_OAK_TREE -> paleOakTree == null ? null : paleOakTree.growthForSeason(seasonId);
-				case FIELD_MANGROVE_TREE -> mangroveTree == null ? null : mangroveTree.growthForSeason(seasonId);
-				case FIELD_CHERRY_TREE -> cherryTree == null ? null : cherryTree.growthForSeason(seasonId);
+				case FIELD_OAK_TREE, "oak" -> oakTree == null ? null : oakTree.growthForSeason(seasonId);
+				case FIELD_BIRCH_TREE, "birch" -> birchTree == null ? null : birchTree.growthForSeason(seasonId);
+				case FIELD_SPRUCE_TREE, "spruce" -> spruceTree == null ? null : spruceTree.growthForSeason(seasonId);
+				case FIELD_JUNGLE_TREE, "jungle" -> jungleTree == null ? null : jungleTree.growthForSeason(seasonId);
+				case FIELD_ACACIA_TREE, "acacia" -> acaciaTree == null ? null : acaciaTree.growthForSeason(seasonId);
+				case FIELD_DARK_OAK_TREE, "dark_oak" -> darkOakTree == null ? null : darkOakTree.growthForSeason(seasonId);
+				case FIELD_PALE_OAK_TREE, "pale_oak" -> paleOakTree == null ? null : paleOakTree.growthForSeason(seasonId);
+				case FIELD_MANGROVE_TREE, "mangrove" -> mangroveTree == null ? null : mangroveTree.growthForSeason(seasonId);
+				case FIELD_CHERRY_TREE, "cherry" -> cherryTree == null ? null : cherryTree.growthForSeason(seasonId);
 				default -> null;
 			};
 		}

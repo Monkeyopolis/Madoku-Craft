@@ -5,12 +5,11 @@ import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
@@ -29,53 +28,19 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class EcosystemNaturalDecayManager {
-	public static final String SCHEDULER_OWNER_ID = "ecosystem_decay_process_gameplay";
-	public static final String TASK_TYPE = "ecosystem_decay_process_gameplay_tick";
 	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_decay";
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalDecayManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String CONFIG_FILE_NAME = "natural-decay";
-	private static final long MIN_INTERVAL_TICKS = 1L;
-	private static final long MAX_INTERVAL_TICKS = 20L;
 
 	private static volatile NaturalDecayConfigManager.Settings settings = NaturalDecayConfigManager.defaults();
-	private static volatile String schedulerId = "";
-	private static volatile boolean taskScheduled = false;
 	static final Map<MadokuEcosystemManager.ChunkRefKey, List<MadokuEcosystemManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
 
 	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
-		public boolean requiresMotionColumns() {
-			return false;
-		}
-
-		@Override
-		public boolean requiresSurfaceColumns() {
-			return true;
-		}
-
-		@Override
-		public void beginLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuEcosystemManager.beginUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
-			MadokuEcosystemManager.runUnifiedDiscoveryForChunk(level, chunkX, chunkZ, snapshot);
-		}
-
-		@Override
-		public void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuEcosystemManager.finishUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
-				return;
-			}
-			processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
+		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
+			EcosystemNaturalDecayManager.handleRandomPosition(level, position);
 		}
 	};
 
@@ -85,14 +50,10 @@ public final class EcosystemNaturalDecayManager {
 	public static void initialize() {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE, EcosystemNaturalDecayManager::runTask);
 	}
 
 	public static void reset() {
-		schedulerId = "";
-		taskScheduled = false;
 		clearTrackedCandidateState();
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
 	}
 
 	static void clearTrackedCandidateState() {
@@ -122,16 +83,7 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
-		if (chunkKey == null) {
-			return;
-		}
-		boolean tracked = isEnabled() && !treeDecayCandidatesByChunk.getOrDefault(chunkKey, List.of()).isEmpty();
-		if (tracked) {
-			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
-		} else {
-			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
-		}
-		MadokuEcosystemManager.markChunkDirty(chunkKey);
+		// Candidate maps are queried directly by random-position dispatch.
 	}
 
 	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunkKey) {
@@ -296,79 +248,39 @@ public final class EcosystemNaturalDecayManager {
 		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
-	public static void onServerStarted(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
-		if (!isEnabled()) {
-			clearSchedulerState();
-			return;
-		}
-		clearSchedulerState();
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
-		);
-		MadokuSchedulerManager.clearQueuedRequests(schedulerId);
-		requestProcessing(server, 1L);
-	}
-
-	public static void onServerStopping(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
-		clearSchedulerState();
-	}
-
-	public static MadokuChunkManager.ChunkProcessor getChunkProcessor() {
-		return CHUNK_PROCESSOR;
-	}
-
-	public static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processTreeDecayCandidateInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime);
-	}
-
-	static void discoverTrackablesInChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
-		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || snapshot == null || accumulator == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+	static void handleRandomPosition(ServerLevel world, BlockPos position) {
+		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
 
-		for (MadokuChunkManager.ColumnSample column : snapshot.surfaceColumns()) {
-			if (column == null) {
-				continue;
-			}
-			for (int depth = 0; depth <= 2; depth++) {
-				if (!column.hasDepth(depth)) {
-					continue;
-				}
-				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
-				BlockState state = column.stateAtDepth(depth);
-				BlockPos targetPos = resolveTreeDecayTargetPos(world, pos, state);
-				if (targetPos != null) {
-					accumulator.treeDecayLeafCandidates.add(targetPos.asLong());
-				}
-			}
-		}
-	}
+		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, world.getBlockState(position));
 
-	static void finalizeTrackablesInChunkDiscovery(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || accumulator == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
-			return;
+		if (targetPos != null) {
+			processTreeDecayCandidateInChunk(
+				world,
+				targetPos.getX() >> 4,
+				targetPos.getZ() >> 4,
+				currentAbsoluteDayTime,
+				targetPos.asLong()
+			);
+
+			pickTreeDecayCandidateForChunk(
+				world,
+				targetPos.getX() >> 4,
+				targetPos.getZ() >> 4,
+				Set.of(targetPos.asLong())
+			);
+		} else {
+			// Selecting a persisted target also validates and advances it when its source leaf is gone.
+			processTreeDecayCandidateInChunk(
+				world,
+				position.getX() >> 4,
+				position.getZ() >> 4,
+				currentAbsoluteDayTime,
+				position.asLong()
+			);
 		}
-		pickTreeDecayCandidateForChunk(world, chunkX, chunkZ, accumulator.treeDecayLeafCandidates);
 	}
 
 	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {
@@ -535,6 +447,10 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	static void processTreeDecayCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
+		processTreeDecayCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
+	}
+
+	static void processTreeDecayCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedTargetPosition) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -562,6 +478,9 @@ public final class EcosystemNaturalDecayManager {
 			}
 
 			BlockPos targetPos = BlockPos.of(candidate.leafPos);
+			if (selectedTargetPosition != Long.MIN_VALUE && candidate.leafPos != selectedTargetPosition) {
+				continue;
+			}
 			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
 				candidates.remove(index);
 				removedAny = true;
@@ -599,83 +518,6 @@ public final class EcosystemNaturalDecayManager {
 		if (removedAny) {
 			syncChunkProcessorTracking(chunkKey);
 		}
-	}
-
-	public static void runTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			schedulerId = context.getSchedulerId();
-		}
-		taskScheduled = false;
-		if (server == null || !isEnabled()) {
-			return;
-		}
-		requestProcessing(server, resolveSchedulerInterval(server));
-		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_ID);
-	}
-
-	public static void requestProcessing(MinecraftServer server, long delayTicks) {
-		if (server == null || !isEnabled()) {
-			return;
-		}
-		String currentSchedulerId = ensureSchedulerExists();
-		boolean queuedBefore = isTaskQueued(currentSchedulerId);
-		if (taskScheduled && queuedBefore) {
-			return;
-		}
-		taskScheduled = false;
-		MadokuSchedulerManager.EnqueueStatus firstStatus = MadokuSchedulerManager.enqueue(
-			currentSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE,
-			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
-		);
-		if (isAccepted(firstStatus)) {
-			taskScheduled = true;
-			return;
-		}
-		String refreshedSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
-		);
-		schedulerId = refreshedSchedulerId;
-		MadokuSchedulerManager.EnqueueStatus secondStatus = MadokuSchedulerManager.enqueue(
-			refreshedSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE,
-			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
-		);
-		if (isAccepted(secondStatus)) {
-			taskScheduled = true;
-		}
-	}
-
-	private static long resolveSchedulerInterval(MinecraftServer server) {
-		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(server, SCHEDULER_OWNER_ID, MIN_INTERVAL_TICKS, MAX_INTERVAL_TICKS);
-	}
-
-	private static String ensureSchedulerExists() {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-				MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
-			);
-		}
-		return schedulerId;
-	}
-
-	private static boolean isTaskQueued(String schedulerIdInput) {
-		String current = schedulerIdInput == null ? "" : schedulerIdInput.trim();
-		return !current.isEmpty() && MadokuSchedulerManager.hasQueuedTask(current, TASK_TYPE);
-	}
-
-	private static boolean isAccepted(MadokuSchedulerManager.EnqueueStatus status) {
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
-	}
-
-	private static void clearSchedulerState() {
-		schedulerId = "";
-		taskScheduled = false;
 	}
 
 	private static void loadConfig() {

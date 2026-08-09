@@ -66,7 +66,6 @@ public final class MadokuEcosystemManager {
 
 	private static final String MODE_WET = "wet";
 	private static final String MODE_SURFACE_DIRT = "surface_dirt";
-	private static final long ABSOLUTE_TIME_ROLLBACK_RESET_TICKS = 20L;
 	static final Set<Block> TRACKABLE_WET_GROUND_BLOCKS = Set.of(
 		Blocks.GRASS_BLOCK,
 		Blocks.DIRT,
@@ -107,23 +106,12 @@ public final class MadokuEcosystemManager {
 	static volatile NaturalErosionConfigManager.Settings naturalErosionSettings = NaturalErosionConfigManager.defaults();
 	static volatile NaturalDecayConfigManager.Settings naturalDecaySettings = NaturalDecayConfigManager.defaults();
 	static volatile List<NaturalErosionConfigManager.NamedErosionRule> cachedErosionRules = List.of();
-	private static volatile long lastUnifiedDiscoveryTick = Long.MIN_VALUE;
-	private static volatile String lastUnifiedDiscoveryLevelId = "";
-	private static volatile int lastUnifiedDiscoveryChunkX = Integer.MIN_VALUE;
-	private static volatile int lastUnifiedDiscoveryChunkZ = Integer.MIN_VALUE;
-	private static volatile long lastUnifiedDiscoveryCompletionTick = Long.MIN_VALUE;
-	private static volatile String lastUnifiedDiscoveryCompletionLevelId = "";
-	private static volatile int lastUnifiedDiscoveryCompletionChunkX = Integer.MIN_VALUE;
-	private static volatile int lastUnifiedDiscoveryCompletionChunkZ = Integer.MIN_VALUE;
-	private static final ThreadLocal<Integer> CHUNK_TRACKING_SYNC_BATCH_DEPTH = ThreadLocal.withInitial(() -> 0);
-	private static final ThreadLocal<Set<ChunkRefKey>> CHUNK_TRACKING_SYNC_BATCH_KEYS = ThreadLocal.withInitial(LinkedHashSet::new);
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
 
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
-	private static final Map<ChunkRefKey, ChunkDiscoveryAccumulator> discoveryAccumulatorsByChunk = new LinkedHashMap<>();
 
 	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
@@ -133,7 +121,6 @@ public final class MadokuEcosystemManager {
 
 		@Override
 		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-			discoveryAccumulatorsByChunk.remove(new ChunkRefKey(levelId(level), chunkX, chunkZ));
 		}
 	};
 
@@ -158,14 +145,12 @@ public final class MadokuEcosystemManager {
 		dirtKeysByChunk.clear();
 		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
-		discoveryAccumulatorsByChunk.clear();
 		PERSISTED_CHUNK_KEYS.clear();
 		LOADED_PERSISTED_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
-		resetUnifiedDiscoveryState();
 	}
 
 	public static boolean isEnabled() {
@@ -276,9 +261,6 @@ public final class MadokuEcosystemManager {
 				if (chunk != null) loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
 			});
 		}
-		EcosystemNaturalGrowthManager.onServerStarted(server);
-		EcosystemNaturalErosionManager.onServerStarted(server);
-		EcosystemNaturalDecayManager.onServerStarted(server);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -295,12 +277,10 @@ public final class MadokuEcosystemManager {
 				dirtKeysByChunk.clear();
 				EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 				EcosystemNaturalDecayManager.clearTrackedCandidateState();
-				discoveryAccumulatorsByChunk.clear();
 				EcosystemNaturalGrowthManager.reset();
 				EcosystemNaturalErosionManager.reset();
 				EcosystemNaturalDecayManager.reset();
 				dirty = false;
-				resetUnifiedDiscoveryState();
 				return;
 			}
 
@@ -308,8 +288,6 @@ public final class MadokuEcosystemManager {
 			dirtKeysByChunk.clear();
 			EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 			EcosystemNaturalDecayManager.clearTrackedCandidateState();
-			discoveryAccumulatorsByChunk.clear();
-			resetUnifiedDiscoveryState();
 			EcosystemNaturalGrowthManager.reset();
 			EcosystemNaturalErosionManager.reset();
 			EcosystemNaturalDecayManager.reset();
@@ -373,116 +351,6 @@ public final class MadokuEcosystemManager {
 		PERSISTED_CHUNK_KEYS.addAll(currentChunkKeys);
 		DIRTY_CHUNK_KEYS.clear();
 		dirty = false;
-	}
-
-	static void beginUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
-			return;
-		}
-		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
-		discoveryAccumulatorsByChunk.put(chunkKey, new ChunkDiscoveryAccumulator());
-	}
-
-	static void runUnifiedDiscoveryForChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
-	) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
-			return;
-		}
-		long gameplayTick = MadokuTimeManager.getGameplayTicks();
-		String worldLevelId = levelId(world);
-		if (lastUnifiedDiscoveryTick == gameplayTick
-			&& chunkX == lastUnifiedDiscoveryChunkX
-			&& chunkZ == lastUnifiedDiscoveryChunkZ
-			&& worldLevelId.equals(lastUnifiedDiscoveryLevelId)) {
-			return;
-		}
-		lastUnifiedDiscoveryTick = gameplayTick;
-		lastUnifiedDiscoveryLevelId = worldLevelId;
-		lastUnifiedDiscoveryChunkX = chunkX;
-		lastUnifiedDiscoveryChunkZ = chunkZ;
-		ChunkDiscoveryAccumulator accumulator = getOrCreateDiscoveryAccumulator(world, chunkX, chunkZ);
-		if (accumulator == null || snapshot == null || (snapshot.motionColumns().isEmpty() && snapshot.surfaceColumns().isEmpty())) {
-			return;
-		}
-
-		accumulateTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
-	}
-
-	static void finishUnifiedDiscoveryForChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
-			return;
-		}
-		long gameplayTick = MadokuTimeManager.getGameplayTicks();
-		String worldLevelId = levelId(world);
-		if (lastUnifiedDiscoveryCompletionTick == gameplayTick
-			&& chunkX == lastUnifiedDiscoveryCompletionChunkX
-			&& chunkZ == lastUnifiedDiscoveryCompletionChunkZ
-			&& worldLevelId.equals(lastUnifiedDiscoveryCompletionLevelId)) {
-			return;
-		}
-		lastUnifiedDiscoveryCompletionTick = gameplayTick;
-		lastUnifiedDiscoveryCompletionLevelId = worldLevelId;
-		lastUnifiedDiscoveryCompletionChunkX = chunkX;
-		lastUnifiedDiscoveryCompletionChunkZ = chunkZ;
-
-		ChunkDiscoveryAccumulator accumulator = removeDiscoveryAccumulator(world, chunkX, chunkZ);
-		if (accumulator == null) {
-			return;
-		}
-
-		beginChunkTrackingSyncBatch();
-		try {
-			finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
-		} finally {
-			endChunkTrackingSyncBatch();
-		}
-	}
-
-	private static void accumulateTrackablesInChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
-		ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || snapshot == null || accumulator == null) {
-			return;
-		}
-		if (snapshot.motionColumns().isEmpty() && snapshot.surfaceColumns().isEmpty()) {
-			return;
-		}
-		EcosystemNaturalGrowthManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
-		EcosystemNaturalErosionManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
-		EcosystemNaturalDecayManager.discoverTrackablesInChunk(world, chunkX, chunkZ, snapshot, accumulator);
-	}
-
-	private static void finalizeTrackablesInChunkDiscovery(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || accumulator == null) {
-			return;
-		}
-		EcosystemNaturalGrowthManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
-		EcosystemNaturalErosionManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
-		EcosystemNaturalDecayManager.finalizeTrackablesInChunkDiscovery(world, chunkX, chunkZ, accumulator);
-	}
-
-	static final class ChunkDiscoveryAccumulator {
-		final Set<Long> treeGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> cactusGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> grassGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> desertFoliageGrowthGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> wildflowerGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> pinkPetalGroundCandidates = new LinkedHashSet<>();
-		final Set<Long> wetSeedPositions = new LinkedHashSet<>();
-		final Set<Long> treeDecayLeafCandidates = new LinkedHashSet<>();
 	}
 
 	private static void loadPersistedChunkData(ServerLevel level, int chunkX, int chunkZ) {
@@ -589,44 +457,6 @@ public final class MadokuEcosystemManager {
 		return EcosystemNaturalErosionManager.isLavaMagmaSourceBlockId(blockId);
 	}
 
-	static void requestEcosystemProcessing(MinecraftServer server, long delayTicks) {
-		if (!isEnabled()) {
-			return;
-		}
-		EcosystemNaturalGrowthManager.requestProcessing(server, delayTicks);
-		EcosystemNaturalErosionManager.requestProcessing(server, delayTicks);
-		EcosystemNaturalDecayManager.requestProcessing(server, delayTicks);
-	}
-
-	private static void resetUnifiedDiscoveryState() {
-		lastUnifiedDiscoveryTick = Long.MIN_VALUE;
-		lastUnifiedDiscoveryLevelId = "";
-		lastUnifiedDiscoveryChunkX = Integer.MIN_VALUE;
-		lastUnifiedDiscoveryChunkZ = Integer.MIN_VALUE;
-		lastUnifiedDiscoveryCompletionTick = Long.MIN_VALUE;
-		lastUnifiedDiscoveryCompletionLevelId = "";
-		lastUnifiedDiscoveryCompletionChunkX = Integer.MIN_VALUE;
-		lastUnifiedDiscoveryCompletionChunkZ = Integer.MIN_VALUE;
-		discoveryAccumulatorsByChunk.clear();
-	}
-
-
-	private static ChunkDiscoveryAccumulator getOrCreateDiscoveryAccumulator(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
-			return null;
-		}
-		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
-		return discoveryAccumulatorsByChunk.computeIfAbsent(chunkKey, ignored -> new ChunkDiscoveryAccumulator());
-	}
-
-	private static ChunkDiscoveryAccumulator removeDiscoveryAccumulator(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
-			return null;
-		}
-		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunkX, chunkZ);
-		return discoveryAccumulatorsByChunk.remove(chunkKey);
-	}
-
 	private static DirtState putDirtState(String key, DirtState value) {
 		DirtState previous = dirtBlocksByKey.put(key, value);
 		ChunkRefKey previousChunkKey = null;
@@ -684,16 +514,7 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void syncChunkProcessorTracking(ChunkRefKey chunkKey) {
-		if (chunkKey == null) {
-			return;
-		}
-		if (isChunkTrackingSyncBatchActive()) {
-			CHUNK_TRACKING_SYNC_BATCH_KEYS.get().add(chunkKey);
-			return;
-		}
-		EcosystemNaturalGrowthManager.syncChunkProcessorTracking(chunkKey);
-		EcosystemNaturalErosionManager.syncChunkProcessorTracking(chunkKey);
-		EcosystemNaturalDecayManager.syncChunkProcessorTracking(chunkKey);
+		// Candidate maps are queried directly by random-position dispatch.
 	}
 
 	static void markChunkDirty(ChunkRefKey chunkKey) {
@@ -710,31 +531,6 @@ public final class MadokuEcosystemManager {
 
 	private static Set<ChunkRefKey> collectDirtyChunkKeys() {
 		return new LinkedHashSet<>(DIRTY_CHUNK_KEYS);
-	}
-
-	private static void beginChunkTrackingSyncBatch() {
-		CHUNK_TRACKING_SYNC_BATCH_DEPTH.set(CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() + 1);
-	}
-
-	private static void endChunkTrackingSyncBatch() {
-		int depth = CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() - 1;
-		if (depth > 0) {
-			CHUNK_TRACKING_SYNC_BATCH_DEPTH.set(depth);
-			return;
-		}
-
-		CHUNK_TRACKING_SYNC_BATCH_DEPTH.remove();
-		Set<ChunkRefKey> pendingKeys = CHUNK_TRACKING_SYNC_BATCH_KEYS.get();
-		List<ChunkRefKey> keysToSync = new ArrayList<>(pendingKeys);
-		pendingKeys.clear();
-		CHUNK_TRACKING_SYNC_BATCH_KEYS.remove();
-		for (ChunkRefKey pendingKey : keysToSync) {
-			syncChunkProcessorTracking(pendingKey);
-		}
-	}
-
-	private static boolean isChunkTrackingSyncBatchActive() {
-		return CHUNK_TRACKING_SYNC_BATCH_DEPTH.get() > 0;
 	}
 
 	static boolean chunkHasDirtMode(ChunkRefKey chunkKey, String mode) {
@@ -777,7 +573,7 @@ public final class MadokuEcosystemManager {
 	static long normalizePreviousAbsoluteTick(long previousAbsoluteTick, long currentAbsoluteTick) {
 		long safePrevious = Math.max(0L, previousAbsoluteTick);
 		long safeCurrent = Math.max(0L, currentAbsoluteTick);
-		if (safePrevious > safeCurrent + ABSOLUTE_TIME_ROLLBACK_RESET_TICKS) {
+		if (safePrevious > safeCurrent) {
 			return safeCurrent;
 		}
 		return safePrevious;
@@ -995,9 +791,6 @@ public final class MadokuEcosystemManager {
 	}
 
 	record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
-	}
-
-	record SpreadNode(BlockPos pos, int depth) {
 	}
 
 	record TreeCandidateOption(long groundPos, String treeType, double requiredGrowthTicks) {

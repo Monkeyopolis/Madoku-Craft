@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -12,8 +11,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.Direction;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -24,59 +23,21 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 public final class EcosystemNaturalErosionManager {
-	public static final String SCHEDULER_OWNER_ID = "ecosystem_erosion_process_gameplay";
-	public static final String TASK_TYPE = "ecosystem_erosion_process_gameplay_tick";
 	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_erosion";
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalErosionManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
 	private static final String CONFIG_FILE_NAME = "natural-erosion";
-	private static final long MIN_INTERVAL_TICKS = 1L;
-	private static final long MAX_INTERVAL_TICKS = 20L;
-	private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
-		Direction.NORTH,
-		Direction.SOUTH,
-		Direction.EAST,
-		Direction.WEST
-	};
 
 	private static volatile NaturalErosionConfigManager.Settings settings = NaturalErosionConfigManager.defaults();
-	private static volatile String schedulerId = "";
-	private static volatile boolean taskScheduled = false;
 
 	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
-		public boolean requiresSurfaceColumns() {
-			return true;
-		}
-
-		@Override
-		public void beginLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuEcosystemManager.beginUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
-			MadokuEcosystemManager.runUnifiedDiscoveryForChunk(level, chunkX, chunkZ, snapshot);
-		}
-
-		@Override
-		public void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-			MadokuEcosystemManager.finishUnifiedDiscoveryForChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
-				return;
-			}
-			processChunk(level, chunkX, chunkZ, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
+		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
+			EcosystemNaturalErosionManager.handleRandomPosition(level, position);
 		}
 	};
 
@@ -86,13 +47,9 @@ public final class EcosystemNaturalErosionManager {
 	public static void initialize() {
 		loadConfig();
 		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE, EcosystemNaturalErosionManager::runTask);
 	}
 
 	public static void reset() {
-		schedulerId = "";
-		taskScheduled = false;
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
 	}
 
 	public static NaturalErosionConfigManager.Settings getSettings() {
@@ -111,82 +68,78 @@ public final class EcosystemNaturalErosionManager {
 		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
-	public static void onServerStarted(MinecraftServer server) {
-		if (server == null) {
+	static void handleRandomPosition(ServerLevel world, BlockPos position) {
+		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
-		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_ID);
-		if (!isEnabled()) {
-			clearSchedulerState();
-			return;
-		}
-		clearSchedulerState();
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
+
+		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		int chunkX = position.getX() >> 4;
+		int chunkZ = position.getZ() >> 4;
+		EcosystemNaturalGrowthManager.processDirtInColumn(
+			world,
+			chunkX,
+			chunkZ,
+			currentAbsoluteDayTime,
+			"wet",
+			position.getX(),
+			position.getZ()
 		);
-		MadokuSchedulerManager.clearQueuedRequests(schedulerId);
-		requestProcessing(server, 1L);
-	}
 
-	public static void onServerStopping(MinecraftServer server) {
-		if (server == null) {
-			return;
-		}
-		MadokuSchedulerManager.clearAdaptiveDelayState(SCHEDULER_OWNER_ID);
-		clearSchedulerState();
-	}
-
-	public static MadokuChunkManager.ChunkProcessor getChunkProcessor() {
-		return CHUNK_PROCESSOR;
-	}
-
-	public static void processChunk(ServerLevel level, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		EcosystemNaturalGrowthManager.processDirtInChunk(level, chunkX, chunkZ, currentAbsoluteDayTime, "wet");
-	}
-
-	static void discoverTrackablesInChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuChunkManager.ChunkDiscoverySnapshot snapshot,
-		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || snapshot == null || accumulator == null || !MadokuEcosystemManager.isNaturalErosionEnabled()) {
-			return;
-		}
-
-		for (MadokuChunkManager.ColumnSample column : snapshot.motionColumns()) {
-			if (column == null) {
-				continue;
+		BlockPos groundPosition = resolveRandomColumnGroundPosition(world, position);
+		if (groundPosition != null) {
+			BlockState groundState = world.getBlockState(groundPosition);
+			if (isWetSeedCandidate(world, groundPosition, groundState)) {
+				spreadWetTrackingFromSeed(world, groundPosition);
 			}
-			for (int depth = 0; depth <= 2; depth++) {
-				if (!column.hasDepth(depth)) {
+		}
+
+		BlockState state = world.getBlockState(position);
+		if (isLavaMagmaSeedCandidate(world, position, state)) {
+			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
+		}
+	}
+
+	private static BlockPos resolveRandomColumnGroundPosition(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
+			return null;
+		}
+		int topY = Math.min(
+			world.getMaxY() - 1,
+			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, position.getX(), position.getZ()) - 1
+		);
+		if (topY < world.getMinY()) {
+			return null;
+		}
+		return new BlockPos(position.getX(), topY, position.getZ());
+	}
+
+	static void spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPosition) {
+		if (world == null || seedPosition == null || !isWaterErosionEnabled()) {
+			return;
+		}
+
+		int radius = currentSettings().waterErosionRadius();
+		for (int offsetX = -radius; offsetX <= radius; offsetX++) {
+			for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
+				if (Math.abs(offsetX) + Math.abs(offsetZ) > radius) {
 					continue;
 				}
-				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
-				BlockState state = column.stateAtDepth(depth);
-				if (isWetSeedCandidate(world, pos, state)) {
-					accumulator.wetSeedPositions.add(pos.asLong());
-				}
-				if (isLavaMagmaSeedCandidate(world, pos, state)) {
-					MadokuEcosystemManager.trackDirtCandidateForMode(world, pos, state, "wet");
-				}
+
+				BlockPos groundPosition = seedPosition.offset(offsetX, 0, offsetZ);
+				trackWetCandidate(world, groundPosition);
+				trackWetCandidate(world, groundPosition.above());
 			}
 		}
 	}
 
-	static void finalizeTrackablesInChunkDiscovery(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuEcosystemManager.ChunkDiscoveryAccumulator accumulator
-	) {
-		if (world == null || accumulator == null || !MadokuEcosystemManager.isNaturalErosionEnabled()) {
+	private static void trackWetCandidate(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
 			return;
 		}
-		if (!accumulator.wetSeedPositions.isEmpty()) {
-			spreadWetTrackingFromSeeds(world, accumulator.wetSeedPositions);
+		BlockState state = world.getBlockState(position);
+		if (isWetTrackedCandidate(world, position, state)) {
+			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
 		}
 	}
 
@@ -222,15 +175,7 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
-		if (chunkKey == null) {
-			return;
-		}
-		boolean tracked = MadokuEcosystemManager.chunkHasDirtMode(chunkKey, "wet");
-		if (tracked) {
-			MadokuChunkManager.trackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
-		} else {
-			MadokuChunkManager.untrackChunkForProcessor(CHUNK_PROCESSOR_ID, chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
-		}
+		// Candidate maps are queried directly by random-position dispatch.
 	}
 
 	static boolean isLavaMagmaSourceBlockId(String blockId) {
@@ -469,118 +414,16 @@ public final class EcosystemNaturalErosionManager {
 		if (world == null || waterPos == null) {
 			return false;
 		}
-		if (!world.getFluidState(waterPos).is(net.minecraft.tags.FluidTags.WATER)) {
+		var fluidState = world.getFluidState(waterPos);
+		if (!fluidState.is(net.minecraft.tags.FluidTags.WATER) || !fluidState.isSource()) {
 			return false;
 		}
-		if (world.getFluidState(waterPos.above()).is(net.minecraft.tags.FluidTags.WATER)) {
+		var aboveFluidState = world.getFluidState(waterPos.above());
+		if (aboveFluidState.is(net.minecraft.tags.FluidTags.WATER)) {
 			return false;
 		}
 		int topY = world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, waterPos.getX(), waterPos.getZ()) - 1;
 		return waterPos.getY() >= topY;
-	}
-
-	public static void runTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			schedulerId = context.getSchedulerId();
-		}
-		taskScheduled = false;
-		if (server == null || !isEnabled()) {
-			return;
-		}
-		requestProcessing(server, resolveSchedulerInterval(server));
-		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_ID);
-	}
-
-	public static void requestProcessing(MinecraftServer server, long delayTicks) {
-		if (server == null || !isEnabled()) {
-			return;
-		}
-		String currentSchedulerId = ensureSchedulerExists();
-		boolean queuedBefore = isTaskQueued(currentSchedulerId);
-		if (taskScheduled && queuedBefore) {
-			return;
-		}
-		taskScheduled = false;
-		MadokuSchedulerManager.EnqueueStatus firstStatus = MadokuSchedulerManager.enqueue(
-			currentSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE,
-			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
-		);
-		if (isAccepted(firstStatus)) {
-			taskScheduled = true;
-			return;
-		}
-		String refreshedSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
-		);
-		schedulerId = refreshedSchedulerId;
-		MadokuSchedulerManager.EnqueueStatus secondStatus = MadokuSchedulerManager.enqueue(
-			refreshedSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE,
-			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
-		);
-		if (isAccepted(secondStatus)) {
-			taskScheduled = true;
-		}
-	}
-
-	static boolean spreadWetTrackingFromSeeds(ServerLevel world, Set<Long> seedPositions) {
-		if (world == null || seedPositions == null || seedPositions.isEmpty()) {
-			return false;
-		}
-
-		boolean changed = false;
-		Set<Long> visited = new LinkedHashSet<>();
-		ArrayDeque<MadokuEcosystemManager.SpreadNode> queue = new ArrayDeque<>();
-		for (Long packedPos : seedPositions) {
-			if (packedPos == null) {
-				continue;
-			}
-			if (!visited.add(packedPos)) {
-				continue;
-			}
-			queue.addLast(new MadokuEcosystemManager.SpreadNode(BlockPos.of(packedPos), 0));
-		}
-
-		while (!queue.isEmpty()) {
-			MadokuEcosystemManager.SpreadNode current = queue.removeFirst();
-			BlockPos currentPos = current.pos();
-			if (currentPos == null) {
-				continue;
-			}
-
-			BlockState currentState = world.getBlockState(currentPos);
-			if (isWetTrackedCandidate(world, currentPos, currentState)) {
-				changed |= MadokuEcosystemManager.trackDirtCandidateForMode(world, currentPos, currentState, "wet");
-			}
-			BlockPos abovePos = currentPos.above();
-			BlockState aboveState = world.getBlockState(abovePos);
-			if (isWetTrackedCandidate(world, abovePos, aboveState)) {
-				changed |= MadokuEcosystemManager.trackDirtCandidateForMode(world, abovePos, aboveState, "wet");
-			}
-
-			if (current.depth() >= currentSettings().waterErosionRadius()) {
-				continue;
-			}
-
-			for (Direction direction : HORIZONTAL_DIRECTIONS) {
-				BlockPos nextPos = currentPos.relative(direction);
-				long nextPackedPos = nextPos.asLong();
-				if (visited.add(nextPackedPos)) {
-					queue.addLast(new MadokuEcosystemManager.SpreadNode(nextPos, current.depth() + 1));
-				}
-			}
-		}
-
-		return changed;
-	}
-
-	private static long resolveSchedulerInterval(MinecraftServer server) {
-		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(server, SCHEDULER_OWNER_ID, MIN_INTERVAL_TICKS, MAX_INTERVAL_TICKS);
 	}
 
 	private static NaturalErosionConfigManager.Settings currentSettings() {
@@ -602,30 +445,6 @@ public final class EcosystemNaturalErosionManager {
 			return isLavaErosionEnabled();
 		}
 		return isWaterErosionEnabled();
-	}
-
-	private static String ensureSchedulerExists() {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-				MadokuSchedulerManager.SchedulerBinding.global(SCHEDULER_OWNER_ID)
-			);
-		}
-		return schedulerId;
-	}
-
-	private static boolean isTaskQueued(String schedulerIdInput) {
-		String current = schedulerIdInput == null ? "" : schedulerIdInput.trim();
-		return !current.isEmpty() && MadokuSchedulerManager.hasQueuedTask(current, TASK_TYPE);
-	}
-
-	private static boolean isAccepted(MadokuSchedulerManager.EnqueueStatus status) {
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
-	}
-
-	private static void clearSchedulerState() {
-		schedulerId = "";
-		taskScheduled = false;
 	}
 
 	private static void loadConfig() {

@@ -1,20 +1,17 @@
 package madoku.craft.api.chunk;
 
+import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.state.BlockState;
 
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
-
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.LinkedHashMap;
 
 public final class MadokuChunkManager {
 	private static final Map<String, Map<Long, FullChunkStatus>> CHUNK_STATUSES_BY_LEVEL = new LinkedHashMap<>();
@@ -34,189 +31,17 @@ public final class MadokuChunkManager {
 			return true;
 		}
 
-		default boolean requiresMotionColumns() {
-			return true;
-		}
-
-		default boolean requiresSurfaceColumns() {
-			return false;
-		}
-
-		default void beginLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-		}
-
-		default void finishLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-		}
-
-		void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, ChunkDiscoverySnapshot snapshot);
-
-		void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ);
-	}
-
-	public static final class ChunkDiscoverySnapshot {
-		private String levelId;
-		private int chunkX;
-		private int chunkZ;
-		private final List<ColumnSample> motionColumns;
-		private final List<ColumnSample> surfaceColumns;
-		private boolean hasMotionColumns;
-		private boolean hasSurfaceColumns;
-		private int activeColumnIndex;
-
-		private ChunkDiscoverySnapshot(int capacity) {
-			int safeCapacity = Math.max(1, capacity);
-			List<ColumnSample> motion = new ArrayList<>(safeCapacity);
-			List<ColumnSample> surface = new ArrayList<>(safeCapacity);
-			for (int i = 0; i < safeCapacity; i++) {
-				motion.add(new ColumnSample());
-				surface.add(new ColumnSample());
-			}
-			this.motionColumns = motion;
-			this.surfaceColumns = surface;
-			this.levelId = "";
-			this.activeColumnIndex = -1;
-		}
-
-		static ChunkDiscoverySnapshot reusable(int capacity) {
-			return new ChunkDiscoverySnapshot(capacity);
-		}
-
-		private void begin(String levelId, int chunkX, int chunkZ, boolean needsMotionColumns, boolean needsSurfaceColumns) {
-			this.levelId = levelId == null ? "" : levelId;
-			this.chunkX = chunkX;
-			this.chunkZ = chunkZ;
-			this.hasMotionColumns = needsMotionColumns;
-			this.hasSurfaceColumns = needsSurfaceColumns;
-			this.activeColumnIndex = -1;
-		}
-
-		void beginColumn(String levelId, int chunkX, int chunkZ, int columnIndex, boolean needsMotionColumns, boolean needsSurfaceColumns) {
-			begin(levelId, chunkX, chunkZ, needsMotionColumns, needsSurfaceColumns);
-			this.activeColumnIndex = columnIndex;
-		}
-
-		public String levelId() {
-			return levelId;
-		}
-
-		public int chunkX() {
-			return chunkX;
-		}
-
-		public int chunkZ() {
-			return chunkZ;
-		}
-
-		public List<ColumnSample> motionColumns() {
-			if (!hasMotionColumns) {
-				return List.of();
-			}
-			if (activeColumnIndex >= 0) {
-				return List.of(motionColumnAt(activeColumnIndex));
-			}
-			return motionColumns;
-		}
-
-		public boolean hasMotionColumns() {
-			return hasMotionColumns;
-		}
-
-		public boolean hasSurfaceColumns() {
-			return hasSurfaceColumns;
-		}
-
-		public List<ColumnSample> surfaceColumns() {
-			if (!hasSurfaceColumns) {
-				return List.of();
-			}
-			if (activeColumnIndex >= 0) {
-				return List.of(surfaceColumnAt(activeColumnIndex));
-			}
-			return surfaceColumns;
-		}
-
-		public int activeColumnIndex() {
-			return activeColumnIndex;
-		}
-
-		ColumnSample motionColumnAt(int index) {
-			return motionColumns.get(index);
-		}
-
-		ColumnSample surfaceColumnAt(int index) {
-			return surfaceColumns.get(index);
-		}
-	}
-
-	public static final class ColumnSample {
-		private int worldX;
-		private int worldZ;
-		private final int[] yByDepth = new int[] {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-		private final long[] posByDepth = new long[3];
-		private final BlockState[] stateByDepth = new BlockState[3];
-
-		void reset(int worldX, int worldZ) {
-			this.worldX = worldX;
-			this.worldZ = worldZ;
-			Arrays.fill(yByDepth, Integer.MIN_VALUE);
-			Arrays.fill(posByDepth, 0L);
-			Arrays.fill(stateByDepth, null);
-		}
-
-		void setDepth(int depth, int y, long packedPos, BlockState state) {
-			if (depth < 0 || depth >= yByDepth.length) {
-				return;
-			}
-			yByDepth[depth] = y;
-			posByDepth[depth] = packedPos;
-			stateByDepth[depth] = state;
-		}
-
-		void copyFrom(ColumnSample source) {
-			if (source == null) {
-				reset(0, 0);
-				return;
-			}
-			this.worldX = source.worldX;
-			this.worldZ = source.worldZ;
-			System.arraycopy(source.yByDepth, 0, this.yByDepth, 0, this.yByDepth.length);
-			System.arraycopy(source.posByDepth, 0, this.posByDepth, 0, this.posByDepth.length);
-			System.arraycopy(source.stateByDepth, 0, this.stateByDepth, 0, this.stateByDepth.length);
-		}
-
-		public int worldX() {
-			return worldX;
-		}
-
-		public int worldZ() {
-			return worldZ;
-		}
-
-		public boolean hasDepth(int depth) {
-			return depth >= 0 && depth < yByDepth.length && yByDepth[depth] != Integer.MIN_VALUE;
-		}
-
-		public int yAtDepth(int depth) {
-			return hasDepth(depth) ? yByDepth[depth] : Integer.MIN_VALUE;
-		}
-
-		public long posAtDepth(int depth) {
-			return hasDepth(depth) ? posByDepth[depth] : 0L;
-		}
-
-		public BlockState stateAtDepth(int depth) {
-			return hasDepth(depth) ? stateByDepth[depth] : null;
-		}
+		void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random);
 	}
 
 	public static void initialize() {
 		ChunkConfigManager.initialize();
-		ChunkDiscoveryManager.initialize();
+		ChunkLifecycleManager.initialize();
 	}
 
 	public static void reset() {
 		CHUNK_STATUSES_BY_LEVEL.clear();
-		ChunkDiscoveryManager.reset();
+		ChunkLifecycleManager.reset();
 		ChunkProcessorManager.reset();
 	}
 
@@ -235,32 +60,8 @@ public final class MadokuChunkManager {
 		ChunkProcessorManager.setChunkProcessorActive(processorId, active);
 	}
 
-	public static void resetChunkProcessor(String processorId) {
-		ChunkProcessorManager.resetChunkProcessor(processorId);
-	}
-
-	public static void runChunkProcessorProcessingStep(MinecraftServer server, String processorId) {
-		ChunkProcessorManager.runChunkProcessorProcessingStep(server, processorId);
-	}
-
-	public static void trackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
-		ChunkProcessorManager.trackChunkForProcessor(processorId, level, chunkX, chunkZ);
-	}
-
-	public static void trackChunkForProcessor(String processorId, String levelId, int chunkX, int chunkZ) {
-		ChunkProcessorManager.trackChunkForProcessor(processorId, levelId, chunkX, chunkZ);
-	}
-
-	public static void untrackChunkForProcessor(String processorId, ServerLevel level, int chunkX, int chunkZ) {
-		ChunkProcessorManager.untrackChunkForProcessor(processorId, level, chunkX, chunkZ);
-	}
-
-	public static void untrackChunkForProcessor(String processorId, String levelId, int chunkX, int chunkZ) {
-		ChunkProcessorManager.untrackChunkForProcessor(processorId, levelId, chunkX, chunkZ);
-	}
-
-	public static String normalizeLevelId(ServerLevel level) {
-		return levelId(level);
+	public static void dispatchRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
+		ChunkProcessorManager.dispatchRandomPosition(level, position, random);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -268,25 +69,23 @@ public final class MadokuChunkManager {
 			return;
 		}
 		CHUNK_STATUSES_BY_LEVEL.clear();
-		ChunkDiscoveryManager.loadPersistedData(server);
-		AtomicInteger loadedLevels = new AtomicInteger();
-		server.getAllLevels().forEach(level -> loadedLevels.incrementAndGet());
+		ChunkLifecycleManager.loadPersistedData(server);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ChunkDiscoveryManager.onServerStarted(server);
+		ChunkLifecycleManager.onServerStarted(server);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		ChunkDiscoveryManager.autosavePersistedData(server);
+		ChunkLifecycleManager.autosavePersistedData(server);
 	}
 
 	public static void onServerStopping(MinecraftServer server) {
-		ChunkDiscoveryManager.onServerStopping(server);
+		ChunkLifecycleManager.onServerStopping(server);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		ChunkDiscoveryManager.savePersistedData(server);
+		ChunkLifecycleManager.savePersistedData(server);
 	}
 
 	public static boolean isChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
@@ -298,11 +97,9 @@ public final class MadokuChunkManager {
 		if (status != null) {
 			return status.isOrAfter(FullChunkStatus.FULL);
 		}
-
 		if (level == null) {
 			return false;
 		}
-
 		boolean liveLoaded = level.getChunkSource().hasChunk(chunkX, chunkZ);
 		if (liveLoaded) {
 			putChunkStatus(levelId(level), packChunk(chunkX, chunkZ), FullChunkStatus.FULL);
@@ -315,11 +112,9 @@ public final class MadokuChunkManager {
 		if (status != null && status.isOrAfter(FullChunkStatus.BLOCK_TICKING)) {
 			return true;
 		}
-
 		if (level == null || !isChunkAccessible(level, chunkX, chunkZ)) {
 			return false;
 		}
-
 		boolean ticking = level.getChunkSource().isPositionTicking(packChunk(chunkX, chunkZ));
 		if (ticking) {
 			putChunkStatus(levelId(level), packChunk(chunkX, chunkZ), FullChunkStatus.BLOCK_TICKING);
@@ -329,16 +124,12 @@ public final class MadokuChunkManager {
 
 	public static boolean isChunkEntityTicking(ServerLevel level, int chunkX, int chunkZ) {
 		FullChunkStatus status = getStoredChunkStatus(level, chunkX, chunkZ);
-		if (status != null) {
-			if (status.isOrAfter(FullChunkStatus.ENTITY_TICKING)) {
-				return true;
-			}
+		if (status != null && status.isOrAfter(FullChunkStatus.ENTITY_TICKING)) {
+			return true;
 		}
-
 		if (level == null || !isChunkAccessible(level, chunkX, chunkZ)) {
 			return false;
 		}
-
 		boolean ticking = level.areEntitiesActuallyLoadedAndTicking(ChunkPos.unpack(packChunk(chunkX, chunkZ)));
 		if (ticking) {
 			putChunkStatus(levelId(level), packChunk(chunkX, chunkZ), FullChunkStatus.ENTITY_TICKING);
@@ -346,40 +137,21 @@ public final class MadokuChunkManager {
 		return ticking;
 	}
 
-	public static FullChunkStatus getChunkStatus(ServerLevel level, int chunkX, int chunkZ) {
-		return getStoredChunkStatus(level, chunkX, chunkZ);
-	}
-
-	static List<Long> getLoadedChunkPositions(ServerLevel level) {
-		if (level == null) {
-			return List.of();
-		}
-
-		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId(level));
-		if (chunks == null || chunks.isEmpty()) {
-			return List.of();
-		}
-
-		return new ArrayList<>(chunks.keySet());
+	public static String normalizeLevelId(ServerLevel level) {
+		return levelId(level);
 	}
 
 	static void putChunkStatus(String levelId, long packedChunk, FullChunkStatus status) {
 		if (levelId == null || levelId.isBlank() || status == null) {
 			return;
 		}
-		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.computeIfAbsent(levelId, ignored -> new LinkedHashMap<>());
-		FullChunkStatus existing = chunks.get(packedChunk);
-		if (existing == status) {
-			return;
-		}
-		chunks.put(packedChunk, status);
+		CHUNK_STATUSES_BY_LEVEL.computeIfAbsent(levelId, ignored -> new LinkedHashMap<>()).put(packedChunk, status);
 	}
 
 	static void removeChunk(String levelId, long packedChunk) {
 		if (levelId == null || levelId.isBlank()) {
 			return;
 		}
-
 		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId);
 		if (chunks == null || chunks.remove(packedChunk) == null) {
 			return;
@@ -401,66 +173,12 @@ public final class MadokuChunkManager {
 		}
 	}
 
-	static FullChunkStatus resolveChunkStatus(ServerLevel level, long packedChunk) {
-		if (level == null) {
-			return null;
-		}
-
-		int chunkX = unpackChunkX(packedChunk);
-		int chunkZ = unpackChunkZ(packedChunk);
-		if (!level.getChunkSource().hasChunk(chunkX, chunkZ)) {
-			return null;
-		}
-		if (level.areEntitiesActuallyLoadedAndTicking(ChunkPos.unpack(packedChunk))) {
-			return FullChunkStatus.ENTITY_TICKING;
-		}
-		if (level.getChunkSource().isPositionTicking(packedChunk)) {
-			return FullChunkStatus.BLOCK_TICKING;
-		}
-		return FullChunkStatus.FULL;
-	}
-
 	static String levelId(ServerLevel level) {
-		if (level == null) {
-			return "";
-		}
-		return MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
-	}
-
-	static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
-		if (server == null || levelId == null || levelId.isBlank()) {
-			return null;
-		}
-		for (ServerLevel level : server.getAllLevels()) {
-			if (level != null && levelId.equals(levelId(level))) {
-				return level;
-			}
-		}
-		return null;
+		return level == null ? "" : MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
 	}
 
 	static long packChunk(int chunkX, int chunkZ) {
 		return (chunkX & 0xFFFFFFFFL) | ((long) chunkZ << 32);
-	}
-
-	static int unpackChunkX(long packedChunk) {
-		return (int) packedChunk;
-	}
-
-	static int unpackChunkZ(long packedChunk) {
-		return (int) (packedChunk >> 32);
-	}
-
-	static boolean isKnownLoadedChunk(String levelId, int chunkX, int chunkZ) {
-		if (levelId == null || levelId.isBlank()) {
-			return false;
-		}
-		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId);
-		if (chunks == null || chunks.isEmpty()) {
-			return false;
-		}
-		FullChunkStatus status = chunks.get(packChunk(chunkX, chunkZ));
-		return status != null && status.isOrAfter(FullChunkStatus.FULL);
 	}
 
 	private static FullChunkStatus getStoredChunkStatus(ServerLevel level, int chunkX, int chunkZ) {
@@ -468,13 +186,6 @@ public final class MadokuChunkManager {
 			return null;
 		}
 		Map<Long, FullChunkStatus> chunks = CHUNK_STATUSES_BY_LEVEL.get(levelId(level));
-		if (chunks == null) {
-			return null;
-		}
-		return chunks.get(packChunk(chunkX, chunkZ));
-	}
-
-
-	static record ProcessorChunkKey(String levelId, int chunkX, int chunkZ) {
+		return chunks == null ? null : chunks.get(packChunk(chunkX, chunkZ));
 	}
 }
