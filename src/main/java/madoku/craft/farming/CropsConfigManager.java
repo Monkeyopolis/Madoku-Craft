@@ -11,8 +11,6 @@ import java.util.Map;
 public final class CropsConfigManager {
 	public static final String FIELD_CROP_ID = "crop-id";
 	public static final String FIELD_YIELD_ID = "yield-id";
-	public static final String FIELD_YIELD_MINIMUM_AMOUNT = "yield-minimum-amount";
-	public static final String FIELD_YIELD_MAXIMUM_AMOUNT = "yield-maximum-amount";
 	public static final String FIELD_GROWTH_TIME = "growth-time";
 	public static final String FIELD_GROWING_CONDITIONS = "growing-conditions";
 	public static final String FIELD_IDEAL_TEMPERATURE = "ideal-temperature";
@@ -26,22 +24,12 @@ public final class CropsConfigManager {
 
 	public static Map<String, JsonObject> buildDefaultCropFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(60, 80, 10, 30),
-			new YieldDefault("minecraft:potato", 4, 8)));
-		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(20, 40, 70, 90),
-			new YieldDefault("minecraft:carrot", 2, 6)));
-		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(55, 65, 35, 45),
-			new YieldDefault("minecraft:beetroot", 2, 6),
-			new YieldDefault("minecraft:beetroot-seeds", 1, 3)));
-		defaults.put("melon", buildCropDefaults("minecraft:melon", 11.0d, new ConditionDefault(45, 55, 60, 80),
-			new YieldDefault("minecraft:melon-slice", 10, 14),
-			new YieldDefault("minecraft:melon-seeds", 1, 3)));
-		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 55, 20, 40),
-			new YieldDefault("minecraft:pumpkin", 1, 3),
-			new YieldDefault("minecraft:pumpkin-seeds", 1, 3)));
-		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(30, 50, 50, 70),
-			new YieldDefault("minecraft:wheat", 6, 10),
-			new YieldDefault("minecraft:wheat-seeds", 1, 3)));
+		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(60, 80, 10, 30), "minecraft:blocks/potatoes"));
+		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(20, 40, 70, 90), "minecraft:blocks/carrots"));
+		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(55, 65, 35, 45), "minecraft:blocks/beetroots"));
+		defaults.put("melon", buildCropDefaults("minecraft:melon", 11.0d, new ConditionDefault(45, 55, 60, 80), "minecraft:blocks/melon"));
+		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 55, 20, 40), "minecraft:blocks/pumpkin"));
+		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(30, 50, 50, 70), "minecraft:blocks/wheat"));
 		return defaults;
 	}
 
@@ -49,24 +37,14 @@ public final class CropsConfigManager {
 		String cropId,
 		double growthMinecraftDays,
 		ConditionDefault conditions,
-		YieldDefault... yields
+		String yieldTableId
 	) {
 		String normalizedCropId = normalizeRegistryId(cropId);
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
 			.put(FIELD_CROP_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedCropId))
 			.put(FIELD_GROWTH_TIME, Math.max(0.25d, growthMinecraftDays));
 
-		root.object(FIELD_YIELD_ID, yieldGroup -> {
-			if (yields == null) return;
-			for (YieldDefault yield : yields) {
-				if (yield == null) continue;
-				String yieldId = normalizeRegistryId(yield.id());
-				if (yieldId.isBlank()) continue;
-				yieldGroup.object(yieldId, values -> values
-					.put(FIELD_YIELD_MINIMUM_AMOUNT, Math.max(0, yield.minimumAmount()))
-					.put(FIELD_YIELD_MAXIMUM_AMOUNT, Math.max(Math.max(0, yield.minimumAmount()), yield.maximumAmount())));
-			}
-		});
+		root.put(FIELD_YIELD_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizeRegistryId(yieldTableId)));
 
 		ConditionDefault safe = conditions == null ? new ConditionDefault(40, 60, 40, 60) : conditions;
 		root.object(FIELD_GROWING_CONDITIONS, growing -> {
@@ -84,6 +62,5 @@ public final class CropsConfigManager {
 		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
-	private record YieldDefault(String id, int minimumAmount, int maximumAmount) { }
 	private record ConditionDefault(double minimumTemperature, double maximumTemperature, double minimumHumidity, double maximumHumidity) { }
 }

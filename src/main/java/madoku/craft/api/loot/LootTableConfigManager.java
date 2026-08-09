@@ -12,6 +12,8 @@ public final class LootTableConfigManager {
 	public static final String FIELD_MIN = "min";
 	public static final String FIELD_MAX = "max";
 	public static final String FIELD_GROUPS = "groups";
+	public static final String FIELD_TABLE_ENTRIES = "table-entries";
+	public static final String FIELD_ENTRY = "entry";
 	public static final String FIELD_TAGS = "tags";
 	public static final String FIELD_RARITY = "rarity";
 	public static final String FIELD_WEIGHT = "weight";
@@ -24,6 +26,7 @@ public final class LootTableConfigManager {
 	public static final String FIELD_USE_MADOKU_LUCK = "use-madoku-luck";
 	public static final String FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES = "override-structure-loot-tables";
 	public static final String FIELD_OVERRIDE_ENTITY_LOOT_TABLES = "override-entity-loot-tables";
+	public static final String FIELD_OVERRIDE_CROP_LOOT_TABLES = "override-crop-loot-tables";
 	public static final String FIELD_OVERRIDE_ENTITY_EQUIPMENT = "override-entity-equipment";
 
 	private LootTableConfigManager() {
@@ -47,6 +50,7 @@ public final class LootTableConfigManager {
 			.put(FIELD_USE_MADOKU_LUCK, true)
 			.put(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true)
 			.put(FIELD_OVERRIDE_ENTITY_LOOT_TABLES, true)
+			.put(FIELD_OVERRIDE_CROP_LOOT_TABLES, true)
 			.put(FIELD_OVERRIDE_ENTITY_EQUIPMENT, true)
 			.build();
 	}

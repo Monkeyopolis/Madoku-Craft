@@ -13,6 +13,7 @@ import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
+import madoku.craft.api.loot.LootTableCropsManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -615,20 +616,19 @@ public final class FarmingCropsManager {
 		}
 
 		RandomSource safeRandom = random == null ? RandomSource.create() : random;
-		List<ItemStack> drops = new ArrayList<>();
-		for (int index = 0; index < rule.yields().size(); index++) {
-			YieldRule yield = rule.yields().get(index);
-			int minimum = Math.max(0, yield.minimumAmount());
-			int maximum = Math.max(minimum, yield.maximumAmount());
-			int count = minimum + safeRandom.nextInt(maximum - minimum + 1);
-			if (index == 0 && isHarvestFertilized(world, cropPos, rule)) {
-				count = applyScaledItemCount(count, 1.0d + settings.fertilizedYieldBoost, safeRandom);
-			}
-			if (count > 0 && yield.item() != null) {
-				drops.add(new ItemStack(yield.item(), count));
+		List<ItemStack> drops = LootTableCropsManager.generateManagedLootForTable(rule.yieldTableId(), safeRandom);
+		if (isHarvestFertilized(world, cropPos, rule) && !drops.isEmpty()) {
+			ItemStack first = drops.getFirst();
+			if (first != null && !first.isEmpty()) {
+				first.setCount(applyScaledItemCount(first.getCount(), 1.0d + settings.fertilizedYieldBoost, safeRandom));
 			}
 		}
 		return drops;
+	}
+
+	public static boolean hasCropHarvestLootTable(ServerLevel world, BlockPos cropPos, BlockState state) {
+		CropRule rule = resolveHarvestRule(world, cropPos, state);
+		return rule != null && LootTableCropsManager.hasManagedLootTable(rule.yieldTableId());
 	}
 
 	public static void prepareCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -924,6 +924,13 @@ public final class FarmingCropsManager {
 		cropRulesByPlantingItemId = Map.copyOf(plantingRules);
 		cropRulesByCropBlockId = Map.copyOf(blockRules);
 		cropRulesByMatureBlockId = Map.copyOf(matureRules);
+		Set<String> referencedYieldTables = new LinkedHashSet<>();
+		for (CropRule rule : plantingRules.values()) {
+			if (rule != null && rule.yieldTableId() != null && !rule.yieldTableId().isBlank()) {
+				referencedYieldTables.add(rule.yieldTableId());
+			}
+		}
+		LootTableCropsManager.setReferencedTableIds(referencedYieldTables);
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -1360,21 +1367,6 @@ public final class FarmingCropsManager {
 		return element.getAsBoolean();
 	}
 
-	private static int getInt(JsonObject object, String key, int fallback) {
-		if (object == null) {
-			return fallback;
-		}
-		JsonElement element = object.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-			return fallback;
-		}
-		try {
-			return element.getAsInt();
-		} catch (RuntimeException exception) {
-			return fallback;
-		}
-	}
-
 	private static long getLong(JsonObject object, String key, long fallback) {
 		if (object == null) {
 			return fallback;
@@ -1415,13 +1407,6 @@ public final class FarmingCropsManager {
 		}
 		String value = element.getAsString();
 		return value == null ? fallback : value;
-	}
-
-	private static int clampInt(int value, int fallback, int min, int max) {
-		if (value < min || value > max) {
-			return fallback;
-		}
-		return value;
 	}
 
 	private static double clampDouble(double value, double fallback, double min, double max) {
@@ -1643,7 +1628,7 @@ public final class FarmingCropsManager {
 		private final String cropBlockId;
 		private final String matureBlockId;
 		private final String plantingItemId;
-		private final List<YieldRule> yields;
+		private final String yieldTableId;
 		private final String displayName;
 		private final double growthMinecraftDays;
 		private final GrowingConditions growingConditions;
@@ -1654,7 +1639,7 @@ public final class FarmingCropsManager {
 			String cropBlockId,
 			String matureBlockId,
 			String plantingItemId,
-			List<YieldRule> yields,
+			String yieldTableId,
 			String displayName,
 			double growthMinecraftDays,
 			GrowingConditions growingConditions,
@@ -1664,7 +1649,7 @@ public final class FarmingCropsManager {
 			this.cropBlockId = cropBlockId;
 			this.matureBlockId = matureBlockId;
 			this.plantingItemId = plantingItemId;
-			this.yields = yields == null ? List.of() : List.copyOf(yields);
+			this.yieldTableId = yieldTableId == null ? "" : yieldTableId;
 			this.displayName = displayName;
 			this.growthMinecraftDays = growthMinecraftDays;
 			this.growingConditions = growingConditions;
@@ -1708,7 +1693,7 @@ public final class FarmingCropsManager {
 				"minecraft:potatoes",
 				"minecraft:potato",
 				3.0d,
-				List.of(new YieldSpec("minecraft:potato", 7, 9)),
+				"minecraft:blocks/potatoes",
 				new GrowingConditions(35, 55, 50, 70)
 			);
 		}
@@ -1720,7 +1705,7 @@ public final class FarmingCropsManager {
 				"minecraft:carrots",
 				"minecraft:carrot",
 				5.0d,
-				List.of(new YieldSpec("minecraft:carrot", 5, 7)),
+				"minecraft:blocks/carrots",
 				new GrowingConditions(40, 60, 45, 65)
 			);
 		}
@@ -1732,7 +1717,7 @@ public final class FarmingCropsManager {
 				"minecraft:beetroots",
 				"minecraft:beetroot_seeds",
 				3.0d,
-				List.of(new YieldSpec("minecraft:beetroot", 7, 9), new YieldSpec("minecraft:beetroot-seeds", 1, 3)),
+				"minecraft:blocks/beetroots",
 				new GrowingConditions(45, 65, 50, 70)
 			);
 		}
@@ -1744,7 +1729,7 @@ public final class FarmingCropsManager {
 				"minecraft:melon",
 				"minecraft:melon_seeds",
 				11.0d,
-				List.of(new YieldSpec("minecraft:melon-slice", 15, 17), new YieldSpec("minecraft:melon-seeds", 1, 3)),
+				"minecraft:blocks/melon",
 				new GrowingConditions(50, 80, 35, 55)
 			);
 		}
@@ -1756,7 +1741,7 @@ public final class FarmingCropsManager {
 				"minecraft:pumpkin",
 				"minecraft:pumpkin_seeds",
 				9.0d,
-				List.of(new YieldSpec("minecraft:pumpkin", 3, 5), new YieldSpec("minecraft:pumpkin-seeds", 1, 3)),
+				"minecraft:blocks/pumpkin",
 				new GrowingConditions(45, 70, 40, 60)
 			);
 		}
@@ -1768,7 +1753,7 @@ public final class FarmingCropsManager {
 				"minecraft:wheat",
 				"minecraft:wheat_seeds",
 				7.0d,
-				List.of(new YieldSpec("minecraft:wheat", 9, 13), new YieldSpec("minecraft:wheat-seeds", 1, 3)),
+				"minecraft:blocks/wheat",
 				new GrowingConditions(40, 60, 45, 55)
 			);
 		}
@@ -1796,7 +1781,7 @@ public final class FarmingCropsManager {
 				fallback.matureBlockId,
 				fallback.plantingItemId,
 				growthDays,
-				parseYields(source, fallback.yields),
+				parseYieldTableId(source, fallback.yieldTableId),
 				parseGrowingConditions(source, fallback.growingConditions)
 			);
 		}
@@ -1807,7 +1792,7 @@ public final class FarmingCropsManager {
 			String matureBlockId,
 			String plantingItemId,
 			double growthMinecraftDays,
-			List<YieldSpec> yieldSpecs,
+			String yieldTableId,
 			GrowingConditions growingConditions
 		) {
 			String normalizedCropId = normalizeRegistryId(cropId);
@@ -1816,26 +1801,13 @@ public final class FarmingCropsManager {
 			String normalizedPlantingItemId = normalizeRegistryId(plantingItemId);
 			Identifier matureBlockIdentifier = Identifier.tryParse(normalizedMatureBlockId);
 			Block matureBlock = matureBlockIdentifier == null ? null : BuiltInRegistries.BLOCK.getValue(matureBlockIdentifier);
-			List<YieldRule> yields = new ArrayList<>();
-			if (yieldSpecs != null) {
-				for (YieldSpec yield : yieldSpecs) {
-					if (yield == null) continue;
-					String yieldId = normalizeRegistryId(yield.id());
-					Identifier yieldIdentifier = Identifier.tryParse(yieldId);
-					Item item = yieldIdentifier == null ? null : BuiltInRegistries.ITEM.getValue(yieldIdentifier);
-					if (item != null) {
-					yields.add(new YieldRule(yieldId, item, Math.max(0, yield.minimumAmount()), Math.max(Math.max(0, yield.minimumAmount()), yield.maximumAmount())));
-					}
-				}
-			}
-
 			String displayName = normalizeDisplayName(normalizedCropId);
 			return new CropRule(
 					normalizedCropId,
 				normalizedCropBlockId,
 				normalizedMatureBlockId,
 				normalizedPlantingItemId,
-				yields,
+				normalizeRegistryId(yieldTableId),
 				displayName,
 				growthMinecraftDays,
 				growingConditions,
@@ -1843,20 +1815,10 @@ public final class FarmingCropsManager {
 			);
 		}
 
-		private static List<YieldSpec> parseYields(JsonObject source, List<YieldRule> fallback) {
-			JsonElement element = source == null ? null : source.get(CropsConfigManager.FIELD_YIELD_ID);
-			if (element == null || !element.isJsonObject()) {
-				return fallback == null ? List.of() : fallback.stream().map(yield -> new YieldSpec(yield.id(), yield.minimumAmount(), yield.maximumAmount())).toList();
-			}
-			List<YieldSpec> parsed = new ArrayList<>();
-			for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
-				if (entry.getValue() == null || !entry.getValue().isJsonObject()) continue;
-				JsonObject values = entry.getValue().getAsJsonObject();
-				int minimum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MINIMUM_AMOUNT, 1), 1, 0, 1024);
-				int maximum = clampInt(getInt(values, CropsConfigManager.FIELD_YIELD_MAXIMUM_AMOUNT, minimum), minimum, minimum, 1024);
-				parsed.add(new YieldSpec(entry.getKey(), minimum, maximum));
-			}
-			return parsed.isEmpty() ? List.of() : parsed;
+		private static String parseYieldTableId(JsonObject source, String fallback) {
+			String value = getString(source, CropsConfigManager.FIELD_YIELD_ID, fallback);
+			String normalized = normalizeRegistryId(value);
+			return normalized.isBlank() ? fallback : normalized;
 		}
 
 		private static GrowingConditions parseGrowingConditions(JsonObject source, GrowingConditions fallback) {
@@ -1925,8 +1887,8 @@ public final class FarmingCropsManager {
 			return plantingItemId;
 		}
 
-		public List<YieldRule> yields() {
-			return yields;
+		public String yieldTableId() {
+			return yieldTableId;
 		}
 
 		public double growthMinecraftDays() {
@@ -1946,8 +1908,6 @@ public final class FarmingCropsManager {
 		}
 	}
 
-	public record YieldRule(String id, Item item, int minimumAmount, int maximumAmount) { }
-
 	public record GrowingConditions(
 		double minimumTemperature,
 		double maximumTemperature,
@@ -1955,5 +1915,4 @@ public final class FarmingCropsManager {
 		double maximumHumidity
 	) { }
 
-	private record YieldSpec(String id, int minimumAmount, int maximumAmount) { }
 }

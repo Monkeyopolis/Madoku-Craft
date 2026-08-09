@@ -45,6 +45,10 @@ public abstract class LootTableFarmingMixin {
 		RandomSource random = lootContext.getRandom();
 		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(MadokuFarmingManager.calculateCropHarvestDrops(level, pos, state, random));
 		if (drops.isEmpty()) {
+			if (MadokuFarmingManager.hasCropHarvestLootTable(level, pos, state)) {
+				MadokuFarmingManager.completeCropHarvest(level, pos, state);
+				cir.setReturnValue(drops);
+			}
 			return;
 		}
 		MadokuLuckManager.applyManagedCropDrops(lootContext, drops);

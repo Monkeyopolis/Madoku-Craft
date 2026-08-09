@@ -22,6 +22,7 @@ public final class MadokuLootTableManager {
 		LootTableStructuresManager.initialize();
 		LootTableEntitiesManager.initialize();
 		LootTableEquipmentsManager.initialize();
+		LootTableCropsManager.initialize();
 	}
 
 	public static boolean applyManagedLootTable(
@@ -39,7 +40,11 @@ public final class MadokuLootTableManager {
 		if (generated != null) {
 			return generated;
 		}
-		return LootTableEntitiesManager.generateManagedLootForContext(lootContext);
+		generated = LootTableEntitiesManager.generateManagedLootForContext(lootContext);
+		if (generated != null) {
+			return generated;
+		}
+		return LootTableCropsManager.generateManagedLootForContext(lootContext);
 	}
 
 	public static void reset() {
@@ -47,6 +52,7 @@ public final class MadokuLootTableManager {
 		LootTableStructuresManager.reset();
 		LootTableEntitiesManager.reset();
 		LootTableConfigManager.reset();
+		LootTableCropsManager.reset();
 	}
 
 	static long resolveReloadIntervalMillis(net.minecraft.server.MinecraftServer server) {

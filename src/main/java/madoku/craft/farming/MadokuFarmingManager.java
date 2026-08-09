@@ -98,6 +98,9 @@ public final class MadokuFarmingManager {
 	public static List<ItemStack> calculateCropHarvestDrops(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
 		return FarmingCropsManager.calculateCropHarvestDrops(world, cropPos, state, random);
 	}
+	public static boolean hasCropHarvestLootTable(ServerLevel world, BlockPos cropPos, BlockState state) {
+		return FarmingCropsManager.hasCropHarvestLootTable(world, cropPos, state);
+	}
 	public static void completeCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
 		FarmingCropsManager.completeCropHarvest(world, cropPos, state);
 	}
