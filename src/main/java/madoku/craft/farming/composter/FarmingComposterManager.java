@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.farming.FarmingConfigManager;
-import madoku.craft.item.system.MadokuItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -24,10 +23,16 @@ public final class FarmingComposterManager {
 
 	public static void initialize() {
 		loadStaticConfig();
+		ComposterCropsManager.initialize();
+	}
+
+	public static void reset() {
+		enabled = true;
+		ComposterCropsManager.reset();
 	}
 
 	public static boolean isEnabled() {
-		return enabled && MadokuItem.isEnabled();
+		return enabled;
 	}
 
 	public static boolean isComposterItem(Item item) {
@@ -56,11 +61,6 @@ public final class FarmingComposterManager {
 
 	private static void loadStaticConfig() {
 		try {
-			if (!MadokuItem.isEnabled()) {
-				enabled = false;
-				return;
-			}
-
 			Path rootDirectory = FarmingConfigManager.resolveComposterConfigDirectory();
 			Path settingsFile = resolveJsonFile(rootDirectory, COMPOSTER_CONFIG_SETTINGS_FILE_NAME);
 			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(

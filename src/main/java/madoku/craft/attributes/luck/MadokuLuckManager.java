@@ -183,7 +183,7 @@ public final class MadokuLuckManager {
 	}
 
 	public static void applyManagedCropDrops(RandomSource random, ObjectArrayList<ItemStack> stacks) {
-		if (!settings.enabled || !settings.blockDrops.enabled || stacks == null || stacks.isEmpty()) {
+		if (!settings.enabled || !settings.cropDrops.enabled || stacks == null || stacks.isEmpty()) {
 			return;
 		}
 
@@ -194,10 +194,7 @@ public final class MadokuLuckManager {
 
 		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level, context.pos, context.state)
 			&& MadokuFarmingManager.isCropHarvestReady(context.level, context.pos, context.state);
-		if (!managedCrop) {
-			return;
-		}
-		if (context.player.isCreative()) {
+		if (!managedCrop || context.player.isCreative()) {
 			return;
 		}
 
@@ -207,10 +204,9 @@ public final class MadokuLuckManager {
 		}
 
 		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
-		if (stepCount <= 0) {
-			return;
+		if (stepCount > 0) {
+			scaleStacks(stacks, settings.cropDrops.dropAdjustment, stepCount);
 		}
-		scaleStacks(stacks, settings.blockDrops.dropAdjustment, stepCount);
 	}
 
 	public static void applyManagedCropDrops(LootContext lootContext, ObjectArrayList<ItemStack> stacks) {

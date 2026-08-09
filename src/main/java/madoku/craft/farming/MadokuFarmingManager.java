@@ -23,6 +23,7 @@ public final class MadokuFarmingManager {
 
 	public static void reset() {
 		FarmingCropsManager.reset();
+		FarmingComposterManager.reset();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {

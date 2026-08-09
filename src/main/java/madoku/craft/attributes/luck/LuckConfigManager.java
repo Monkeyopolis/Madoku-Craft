@@ -23,6 +23,7 @@ public final class LuckConfigManager {
 
 	private static final ValueType DEFAULT_DROP_ADJUSTMENT_TYPE = ValueType.MULTIPLIER;
 	private static final double DEFAULT_BLOCK_DROP_ADJUSTMENT_VALUE = 2.0d;
+	private static final double DEFAULT_CROP_DROP_ADJUSTMENT_VALUE = 1.5d;
 	private static final double DEFAULT_MOB_DROP_ADJUSTMENT_VALUE = 1.5d;
 	private static final double DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER = 0.5d;
 	private static final double DEFAULT_SKELETON_ACCURACY_REDUCTION_MULTIPLIER = 0.5d;
@@ -52,6 +53,7 @@ public final class LuckConfigManager {
 		final LuckSettings luck;
 		final LuckEffectSettings luckEffect;
 		final DropGroupSettings blockDrops;
+		final DropGroupSettings cropDrops;
 		final DropGroupSettings mobDrops;
 		final ReductionGroupSettings creeperGriefReduction;
 		final ReductionGroupSettings skeletonAccuracyReduction;
@@ -62,6 +64,7 @@ public final class LuckConfigManager {
 			LuckSettings luck,
 			LuckEffectSettings luckEffect,
 			DropGroupSettings blockDrops,
+			DropGroupSettings cropDrops,
 			DropGroupSettings mobDrops,
 			ReductionGroupSettings creeperGriefReduction,
 			ReductionGroupSettings skeletonAccuracyReduction,
@@ -71,6 +74,7 @@ public final class LuckConfigManager {
 			this.luck = luck;
 			this.luckEffect = luckEffect;
 			this.blockDrops = blockDrops;
+			this.cropDrops = cropDrops;
 			this.mobDrops = mobDrops;
 			this.creeperGriefReduction = creeperGriefReduction;
 			this.skeletonAccuracyReduction = skeletonAccuracyReduction;
@@ -83,6 +87,7 @@ public final class LuckConfigManager {
 				LuckSettings.defaults(),
 				LuckEffectSettings.defaults(),
 				DropGroupSettings.defaults(DEFAULT_BLOCK_DROP_ADJUSTMENT_VALUE),
+				DropGroupSettings.defaults(DEFAULT_CROP_DROP_ADJUSTMENT_VALUE),
 				DropGroupSettings.defaults(DEFAULT_MOB_DROP_ADJUSTMENT_VALUE),
 				ReductionGroupSettings.defaults(DEFAULT_CREEPER_GRIEF_REDUCTION_MULTIPLIER),
 				ReductionGroupSettings.defaults(DEFAULT_SKELETON_ACCURACY_REDUCTION_MULTIPLIER),
@@ -97,6 +102,7 @@ public final class LuckConfigManager {
 				LuckSettings.fromJson(readObject(source, "luck"), defaults.luck),
 				LuckEffectSettings.fromJson(readObject(source, "luck-effect"), defaults.luckEffect),
 				DropGroupSettings.fromJson(readObject(source, "block-drops"), defaults.blockDrops),
+				DropGroupSettings.fromJson(readObject(source, "crop-drops"), defaults.cropDrops),
 				DropGroupSettings.fromJson(readObject(source, "mob-drops"), defaults.mobDrops),
 				ReductionGroupSettings.fromJson(
 					readObject(source, "creeper-grief-reduction"),
@@ -119,6 +125,7 @@ public final class LuckConfigManager {
 				.object("luck", luck -> this.luck.toConfigJson(luck))
 				.object("luck-effect", luckEffect -> this.luckEffect.toConfigJson(luckEffect))
 				.object("block-drops", blockDrops -> this.blockDrops.toConfigJson(blockDrops))
+				.object("crop-drops", cropDrops -> this.cropDrops.toConfigJson(cropDrops))
 				.object("mob-drops", mobDrops -> this.mobDrops.toConfigJson(mobDrops))
 				.object("creeper-grief-reduction", creeper -> this.creeperGriefReduction.toConfigJson(creeper))
 				.object("skeleton-accuracy-reduction", skeleton -> this.skeletonAccuracyReduction.toConfigJson(skeleton))
@@ -132,6 +139,7 @@ public final class LuckConfigManager {
 				luck,
 				luckEffect,
 				blockDrops,
+				cropDrops,
 				mobDrops,
 				creeperGriefReduction,
 				skeletonAccuracyReduction,

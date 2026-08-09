@@ -1,6 +1,5 @@
 package madoku.craft.mixin;
 
-import madoku.craft.item.system.MadokuItem;
 import madoku.craft.farming.composter.FarmingComposterManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -43,7 +42,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 		if (!(state.getBlock() instanceof ComposterBlock)) {
 			return;
 		}
-		if (!MadokuItem.isEnabled() || !FarmingComposterManager.isEnabled()) {
+		if (!FarmingComposterManager.isEnabled()) {
 			return;
 		}
 		if (stack == null || stack.isEmpty()) {

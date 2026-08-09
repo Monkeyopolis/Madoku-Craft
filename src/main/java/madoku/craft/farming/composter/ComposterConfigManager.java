@@ -2,7 +2,7 @@ package madoku.craft.farming.composter;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.item.system.MadokuItemConfig;
+import madoku.craft.api.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -12,9 +12,6 @@ public final class ComposterConfigManager {
 	public static final String FIELD_COMPOSTER_SYSTEM_ENABLED = "composterSystemEnabled";
 	public static final String FIELD_ITEM_ID = "item-id";
 	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
-	public static final String FIELD_STACK = "stack";
-	public static final String STACK_SINGLE = "single";
-	public static final String STACK_MULTI = "multi";
 
 	private ComposterConfigManager() {
 	}
@@ -25,40 +22,32 @@ public final class ComposterConfigManager {
 			.build();
 	}
 
-	public static Map<String, JsonObject> buildDefaultComposterFileDefaults(boolean farmingSystemEnabled) {
+	public static Map<String, JsonObject> buildDefaultComposterFileDefaults() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		for (Map.Entry<String, Integer> entry : buildDefaultComposterItems().entrySet()) {
 			String itemId = entry.getKey();
-			if (farmingSystemEnabled && MadokuItemConfig.buildDefaultFarmingItems().containsKey(itemId)) {
-				continue;
-			}
 			String fileKey = fileKeyFromItemId(itemId);
 			if (fileKey.isBlank()) {
 				continue;
 			}
-			defaults.put(fileKey, buildComposterItemDefaults(itemId, entry.getValue(), STACK_MULTI));
+			defaults.put(fileKey, buildComposterItemDefaults(itemId, entry.getValue()));
 		}
 		return defaults;
 	}
 
-	public static JsonObject buildComposterItemDefaults(String itemId, int adjustment, String stackValue) {
-		JsonObject defaults = MadokuItemConfig.buildBaseDefaults(
-			itemId,
-			stackValue,
-			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_COMPOSTER, 100),
-			MadokuItemConfig.category(MadokuItemConfig.CATEGORY_MISC, 90)
-		);
-		defaults.addProperty(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment));
-		return defaults;
+	public static JsonObject buildComposterItemDefaults(String itemId, int adjustment) {
+		return JSONFormatManager.object()
+			.put(FIELD_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
+			.put(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment))
+			.build();
 	}
 
 	public static JsonObject buildDynamicComposterDefaultsForFile(String fileKey) {
-		String itemId = fileKeyFromItemId(fileKey);
-		if (itemId.isBlank()) {
-			itemId = "minecraft:" + normalizeFileKey(fileKey);
-		}
-		int adjustment = buildDefaultComposterItems().getOrDefault(itemId, 1);
-		return buildComposterItemDefaults(itemId, adjustment, STACK_MULTI);
+		String normalizedFileKey = normalizeFileKey(fileKey);
+		String itemId = normalizedFileKey.contains(":") ? normalizedFileKey : "minecraft:" + normalizedFileKey;
+		String lookupId = MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId);
+		int adjustment = buildDefaultComposterItems().getOrDefault(lookupId, 1);
+		return buildComposterItemDefaults(itemId, adjustment);
 	}
 
 	public static Map<String, Integer> buildDefaultComposterItems() {
@@ -181,9 +170,9 @@ public final class ComposterConfigManager {
 		}
 		int separator = normalized.indexOf(':');
 		if (separator < 0 || separator >= normalized.length() - 1) {
-			return normalized.toLowerCase(Locale.ROOT);
+			return normalized.toLowerCase(Locale.ROOT).replace('_', '-');
 		}
-		return normalized.substring(separator + 1).toLowerCase(Locale.ROOT);
+		return normalized.substring(separator + 1).toLowerCase(Locale.ROOT).replace('_', '-');
 	}
 
 	private static String normalizeFileKey(String fileKey) {

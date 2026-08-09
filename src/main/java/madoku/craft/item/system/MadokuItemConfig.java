@@ -13,8 +13,6 @@ public final class MadokuItemConfig {
 	public static final String FIELD_ITEM_ID = "item-id";
 	public static final String FIELD_FUEL_ENABLED = "fuel-enabled";
 	public static final String FIELD_MISC_ENABLED = "misc-enabled";
-	public static final String FIELD_FARMING_ENABLED = "farming-enabled";
-	public static final String FIELD_COMPOSTER_ENABLED = "composter-enabled";
 	public static final String FIELD_TOOL_ENABLED = "tool-enabled";
 	public static final String FIELD_ARMOR_ENABLED = "armor-enabled";
 	public static final String FIELD_CATEGORY = "categories";
@@ -28,9 +26,6 @@ public final class MadokuItemConfig {
 	public static final String CATEGORY_MISC = "misc";
 	public static final String CATEGORY_TOOL = "tool";
 	public static final String CATEGORY_ARMOR = "armor";
-	public static final String CATEGORY_COMPOSTER = "composter";
-	public static final String CATEGORY_FARMING = "farming";
-	public static final String FIELD_COMPOSTER_ADJUSTMENT = "composter-adjustment";
 
 	public static final String FIELD_FUEL_TICKS = "fuel-ticks";
 	public static final String FIELD_DURABILITY = "durability";
@@ -53,8 +48,6 @@ public final class MadokuItemConfig {
 		return JSONFormatManager.object()
 			.put(FIELD_FUEL_ENABLED, true)
 			.put(FIELD_MISC_ENABLED, true)
-			.put(FIELD_FARMING_ENABLED, true)
-			.put(FIELD_COMPOSTER_ENABLED, true)
 			.put(FIELD_TOOL_ENABLED, true)
 			.put(FIELD_ARMOR_ENABLED, true)
 			.build();
@@ -81,18 +74,6 @@ public final class MadokuItemConfig {
 				continue;
 			}
 			defaults.put(fileKey, buildMiscItemDefaults(itemId, defaultStackForItem(itemId)));
-		}
-		return defaults;
-	}
-
-	public static Map<String, JsonObject> buildDefaultFarmingFileDefaults() {
-		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		for (String itemId : buildDefaultFarmingItems().keySet()) {
-			String fileKey = fileKeyFromItemId(itemId);
-			if (fileKey.isBlank()) {
-				continue;
-			}
-			defaults.put(fileKey, buildFarmingItemDefaults(itemId, defaultStackForItem(itemId)));
 		}
 		return defaults;
 	}
@@ -151,24 +132,7 @@ public final class MadokuItemConfig {
 	}
 
 	public static JsonObject buildMiscItemDefaults(String itemId, String stackValue) {
-		String normalizedItemId = MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId);
-		if ("minecraft:bone_meal".equals(normalizedItemId)) {
-			return buildBaseDefaults(itemId, stackValue, category(CATEGORY_MISC, 100), category(CATEGORY_FARMING, 75));
-		}
 		return buildBaseDefaults(itemId, stackValue, category(CATEGORY_MISC, 100));
-	}
-
-	public static JsonObject buildFarmingItemDefaults(String itemId, String stackValue) {
-		return JSONFormatManager.object()
-			.putAll(buildBaseDefaults(
-				itemId,
-				stackValue,
-				category(CATEGORY_FARMING, 100),
-				category(CATEGORY_COMPOSTER, 90),
-				category(CATEGORY_MISC, 80)
-			))
-			.put(FIELD_COMPOSTER_ADJUSTMENT, defaultComposterAdjustmentForFarmingItem(itemId))
-			.build();
 	}
 
 	public static JsonObject buildToolItemDefaults(String itemId) {
@@ -566,29 +530,6 @@ public final class MadokuItemConfig {
 		defaults.put("minecraft:milk_bucket", true);
 		defaults.put("minecraft:powder_snow_bucket", true);
 		return defaults;
-	}
-
-	public static Map<String, Boolean> buildDefaultFarmingItems() {
-		Map<String, Boolean> defaults = new LinkedHashMap<>();
-		defaults.put("minecraft:carrot", true);
-		defaults.put("minecraft:potato", true);
-		defaults.put("minecraft:beetroot_seeds", true);
-		defaults.put("minecraft:wheat_seeds", true);
-		defaults.put("minecraft:melon_seeds", true);
-		defaults.put("minecraft:pumpkin_seeds", true);
-		return defaults;
-	}
-
-	private static int defaultComposterAdjustmentForFarmingItem(String itemId) {
-		String normalizedItemId = itemId == null ? "" : itemId.trim().toLowerCase(Locale.ROOT);
-		return switch (normalizedItemId) {
-			case "minecraft:carrot", "minecraft:potato" -> 2;
-			case "minecraft:beetroot_seeds",
-				"minecraft:wheat_seeds",
-				"minecraft:melon_seeds",
-				"minecraft:pumpkin_seeds" -> 1;
-			default -> 1;
-		};
 	}
 
 }
