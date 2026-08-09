@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import madoku.craft.api.season.MadokuSeasonManager;
+import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -30,15 +31,19 @@ public abstract class IceBlockSeasonalMeltMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuSeasonManager.isEnabled() || level == null || pos == null) {
+		if (!MadokuSeasonManager.isEnabled()
+			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
+			|| level == null
+			|| pos == null) {
 			return;
 		}
 
-		if (!MadokuSeasonManager.shouldSeasonMeltAt(level, pos)) {
-			return;
+		if (MadokuSeasonManager.shouldSeasonMeltAt(level, pos)) {
+			melt(state, level, pos);
 		}
 
-		melt(state, level, pos);
+		// Seasonal water rules own the ice state. Cancel vanilla's light-based
+		// melting while the block remains inside the freezing threshold.
 		ci.cancel();
 	}
 }

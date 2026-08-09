@@ -2,7 +2,6 @@ package madoku.craft.farming;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.data.DataSystemsManager;
 import madoku.craft.api.data.DataWorldManager;
 import madoku.craft.api.time.MadokuTimeManager;
@@ -61,15 +60,9 @@ public final class FarmingCropsManager {
 	private static final String LORE_FERTILIZER_EFFECT_PREFIX = "Increases crop growth speed and yield.";
 
 	private static final String DATA_SYSTEM_ID = "farming";
-	private static final String FARMING_PROCESS_SCHEDULER_OWNER_ID = "farming_process_gameplay";
-	private static final String TASK_TYPE_FARMING_PROCESS_TICK = "farming_process_gameplay_tick";
-	private static final long FARMING_SCHEDULER_MIN_INTERVAL_TICKS = 1L;
-	private static final long FARMING_SCHEDULER_MAX_INTERVAL_TICKS = 20L;
-	private static final String CHUNK_PROCESSOR_FARMING_DISCOVERY_ID = "farming_discovery";
 
 	private static final String FIELD_PLOTS = "plots";
 	private static final String FIELD_CROPS = "crops";
-	private static final String FIELD_CHUNK_CURSOR = "chunk-cursor";
 
 	private static final String FIELD_LEVEL_ID = "level-id";
 	private static final String FIELD_SOIL_POS = "soil-pos";
@@ -84,13 +77,12 @@ public final class FarmingCropsManager {
 	private static final int CROP_MAX_AGE = 7;
 	private static final long PENDING_HARVEST_TTL_TICKS = 2L;
 	private static final long ABSOLUTE_TIME_ROLLBACK_RESET_TICKS = 20L;
-	private static final long PARTICLE_COOLDOWN_MIN_TICKS = 100L;
-	private static final long PARTICLE_COOLDOWN_MAX_TICKS = 180L;
+	private static final int FERTILIZER_PARTICLE_MIN_COUNT = 4;
+	private static final int FERTILIZER_PARTICLE_MAX_COUNT = 8;
+	private static final double FERTILIZER_PARTICLE_SPREAD = 0.12d;
+	private static final double FERTILIZER_PARTICLE_Y_OFFSET = 0.1d;
 
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile String farmingProcessSchedulerId = "";
-	private static volatile boolean farmingProcessTaskScheduled = false;
-	private static volatile int chunkScanCursor = 0;
 	private static volatile boolean dirty = false;
 
 	private static volatile Map<String, CropRule> cropRulesByPlantingItemId = new LinkedHashMap<>();
@@ -99,45 +91,7 @@ public final class FarmingCropsManager {
 
 	private static final Map<String, PlotState> plotsByKey = new LinkedHashMap<>();
 	private static final Map<String, CropState> cropsByKey = new LinkedHashMap<>();
-	private static final Map<ChunkRefKey, Set<String>> plotKeysByChunk = new LinkedHashMap<>();
-	private static final Map<ChunkRefKey, Set<String>> cropKeysByChunk = new LinkedHashMap<>();
 	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new LinkedHashMap<>();
-
-	private static final MadokuChunkManager.ChunkLifecycleListener FARMING_CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
-		@Override
-		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			FarmingCropsManager.onTrackedChunkLoaded(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-			FarmingCropsManager.onTrackedChunkUnloaded(level, chunkX, chunkZ);
-		}
-	};
-	private static final MadokuChunkManager.ChunkProcessor FARMING_CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
-		@Override
-		public boolean acceptsWorld(ServerLevel level) {
-			return settings.enabled && level != null;
-		}
-
-		@Override
-		public boolean requiresSurfaceColumns() {
-			return false;
-		}
-
-		@Override
-		public void discoverLoadedChunk(ServerLevel level, int chunkX, int chunkZ, MadokuChunkManager.ChunkDiscoverySnapshot snapshot) {
-			discoverTrackableBlocksInChunk(level, chunkX, chunkZ, snapshot);
-		}
-
-		@Override
-		public void processTrackedChunk(ServerLevel level, int chunkX, int chunkZ) {
-			if (level == null || !MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
-				return;
-			}
-			processTrackedBlocksInChunk(level, chunkX, chunkZ);
-		}
-	};
 
 	private FarmingCropsManager() {
 	}
@@ -146,9 +100,6 @@ public final class FarmingCropsManager {
 		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		loadStaticConfig();
 		loadCropConfigs();
-		MadokuChunkManager.registerChunkLifecycleListener(FARMING_CHUNK_LISTENER);
-		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, FARMING_CHUNK_PROCESSOR);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_FARMING_PROCESS_TICK, FarmingCropsManager::runFarmingProcessTask);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -160,15 +111,8 @@ public final class FarmingCropsManager {
 	public static void reset() {
 		plotsByKey.clear();
 		cropsByKey.clear();
-		plotKeysByChunk.clear();
-		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
-		farmingProcessSchedulerId = "";
-		farmingProcessTaskScheduled = false;
-		resetChunkProcessingCycle();
 		dirty = false;
-		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -176,21 +120,7 @@ public final class FarmingCropsManager {
 			return;
 		}
 		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
-		syncChunkProcessorActivation();
-		MadokuSchedulerManager.clearAdaptiveDelayState(FARMING_PROCESS_SCHEDULER_OWNER_ID);
 		applyCropItemMetadata();
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
-		resetChunkProcessingCycle();
-		rebuildTrackedChunkStateFromIndexes();
-		farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
-		);
-		MadokuSchedulerManager.clearQueuedRequests(farmingProcessSchedulerId);
-		requestFarmingProcessing(server, 1L);
-	}
-
-	public static void onServerTickIncrement(MinecraftServer server, long tickIncrement) {
-		// Farming progression is scheduled in gameplay tick-domain.
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -200,7 +130,6 @@ public final class FarmingCropsManager {
 
 		loadStaticConfig();
 		loadCropConfigs();
-		syncChunkProcessorActivation();
 		JsonObject data = DataWorldManager.getSystemData(DATA_SYSTEM_ID);
 		applyPersistedData(data);
 		dirty = false;
@@ -264,10 +193,6 @@ public final class FarmingCropsManager {
 		return true;
 	}
 
-	private static void syncChunkProcessorActivation() {
-		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID, settings.enabled);
-	}
-
 	public static boolean isCropPlantItem(ItemStack stack) {
 		return resolveCropRuleByPlantingItem(stack) != null;
 	}
@@ -328,18 +253,23 @@ public final class FarmingCropsManager {
 		}
 
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
-		if (plot.fertilized && plot.lastParticleEmissionTimeTicks == gameplayTick) {
-			return;
-		}
-
 		if (!plot.fertilized) {
 			plot.fertilized = true;
 			plot.fertilizedAtGameplayTick = gameplayTick;
-			plot.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
 			dirty = true;
 		}
-		requestFarmingProcessing(world.getServer(), resolveFarmingSchedulerInterval(world.getServer()));
-		emitFertilizedParticles(world, soilPos, plot);
+		emitFertilizedParticles(world, soilPos);
+	}
+
+	public static void handleFarmlandRandomTick(ServerLevel world, BlockPos soilPos) {
+		if (!settings.enabled || world == null || soilPos == null || !isFarmland(world.getBlockState(soilPos))) {
+			return;
+		}
+
+		PlotState plot = findPlot(world, soilPos);
+		if (plot != null && plot.fertilized) {
+			emitFertilizedParticles(world, soilPos);
+		}
 	}
 
 	public static void syncPlotFromSoil(ServerLevel world, BlockPos soilPos, boolean fertilized) {
@@ -369,7 +299,6 @@ public final class FarmingCropsManager {
 		if (fertilized && !plot.fertilized) {
 			plot.fertilized = true;
 			plot.fertilizedAtGameplayTick = MadokuTimeManager.getGameplayTicks();
-			plot.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
 			changed = true;
 		}
 
@@ -385,10 +314,9 @@ public final class FarmingCropsManager {
 
 		if (changed) {
 			dirty = true;
-			requestFarmingProcessing(world.getServer(), resolveFarmingSchedulerInterval(world.getServer()));
 		}
 		if (fertilized && changed) {
-			emitFertilizedParticles(world, soilPos, plot);
+			emitFertilizedParticles(world, soilPos);
 		}
 	}
 
@@ -416,7 +344,6 @@ public final class FarmingCropsManager {
 		}
 
 		trackCrop(world, cropPos, cropState);
-		requestFarmingProcessing(world.getServer(), resolveFarmingSchedulerInterval(world.getServer()));
 	}
 
 	public static void trackCrop(ServerLevel world, BlockPos cropPos, BlockState cropState) {
@@ -553,11 +480,9 @@ public final class FarmingCropsManager {
 		boolean raining = world.isRainingAt(cropPos);
 		boolean dryFarmland = isDryFarmland(world.getBlockState(cropPos.below()));
 		double speedMultiplier = 1.0d + resolveGrowingConditionsSpeedModifier(rule, world, cropPos);
-		if (speedMultiplier > 0.0d) {
-			if (fertilized) speedMultiplier += settings.fertilizedGrowthBoost;
-			if (raining) speedMultiplier += settings.rainGrowthBoost;
-			if (dryFarmland) speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
-		}
+		if (fertilized) speedMultiplier += settings.fertilizedGrowthBoost;
+		if (raining) speedMultiplier += settings.rainGrowthBoost;
+		if (dryFarmland) speedMultiplier *= Math.max(0.0d, 1.0d - settings.dryFarmlandPenalty);
 		speedMultiplier = Math.max(0.0d, speedMultiplier);
 
 		long rawPreviousAbsolute = Math.max(0L, crop.lastProcessedAbsoluteDayTime);
@@ -683,6 +608,7 @@ public final class FarmingCropsManager {
 	}
 
 	public static List<ItemStack> calculateCropHarvestDrops(ServerLevel world, BlockPos cropPos, BlockState state, RandomSource random) {
+		purgeExpiredPendingHarvestRules();
 		CropRule rule = resolveHarvestRule(world, cropPos, state);
 		if (!settings.enabled || rule == null || !isCropHarvestReady(world, cropPos, state)) {
 			return List.of();
@@ -696,7 +622,7 @@ public final class FarmingCropsManager {
 			int maximum = Math.max(minimum, yield.maximumAmount());
 			int count = minimum + safeRandom.nextInt(maximum - minimum + 1);
 			if (index == 0 && isHarvestFertilized(world, cropPos, rule)) {
-				count = applyScaledItemCount(count, 1.0d + settings.fertilizedGrowthBoost, safeRandom);
+				count = applyScaledItemCount(count, 1.0d + settings.fertilizedYieldBoost, safeRandom);
 			}
 			if (count > 0 && yield.item() != null) {
 				drops.add(new ItemStack(yield.item(), count));
@@ -758,162 +684,6 @@ public final class FarmingCropsManager {
 		return true;
 	}
 
-	private static void runFarmingProcessTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			farmingProcessSchedulerId = context.getSchedulerId();
-		}
-		farmingProcessTaskScheduled = false;
-		if (server == null || !settings.enabled) {
-			return;
-		}
-		purgeExpiredPendingHarvestRules();
-		MadokuChunkManager.runChunkProcessorProcessingStep(server, CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
-		requestFarmingProcessTask(server, resolveFarmingSchedulerInterval(server));
-	}
-
-	private static void resetChunkProcessingCycle() {
-		chunkScanCursor = 0;
-	}
-
-	private static void trackChunkWithState(ChunkRefKey chunkKey) {
-		if (chunkKey == null || chunkKey.levelId().isBlank()) {
-			return;
-		}
-		MadokuChunkManager.trackChunkForProcessor(
-			CHUNK_PROCESSOR_FARMING_DISCOVERY_ID,
-			chunkKey.levelId(),
-			chunkKey.chunkX(),
-			chunkKey.chunkZ()
-		);
-	}
-
-	private static void untrackChunkIfEmpty(ChunkRefKey chunkKey) {
-		if (chunkKey == null || hasTrackedEntries(chunkKey)) {
-			return;
-		}
-		MadokuChunkManager.untrackChunkForProcessor(
-			CHUNK_PROCESSOR_FARMING_DISCOVERY_ID,
-			chunkKey.levelId(),
-			chunkKey.chunkX(),
-			chunkKey.chunkZ()
-		);
-	}
-
-	private static boolean hasTrackedEntries(ChunkRefKey chunkKey) {
-		if (chunkKey == null) {
-			return false;
-		}
-		return hasTrackedEntries(plotKeysByChunk, chunkKey)
-			|| hasTrackedEntries(cropKeysByChunk, chunkKey);
-	}
-
-	private static boolean hasTrackedEntries(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey) {
-		if (indexMap == null || chunkKey == null) {
-			return false;
-		}
-		Set<String> entries = indexMap.get(chunkKey);
-		return entries != null && !entries.isEmpty();
-	}
-
-	private static void rebuildTrackedChunkStateFromIndexes() {
-		for (ChunkRefKey chunkKey : plotKeysByChunk.keySet()) {
-			trackChunkWithState(chunkKey);
-		}
-		for (ChunkRefKey chunkKey : cropKeysByChunk.keySet()) {
-			trackChunkWithState(chunkKey);
-		}
-	}
-
-	private static void processTrackedBlocksInChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ)) {
-			return;
-		}
-		processPlotsInChunk(world, chunkX, chunkZ);
-	}
-
-	private static void discoverTrackableBlocksInChunk(
-		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		MadokuChunkManager.ChunkDiscoverySnapshot snapshot
-	) {
-		if (world == null) {
-			return;
-		}
-
-		if (snapshot == null || snapshot.motionColumns().isEmpty()) {
-			return;
-		}
-		for (MadokuChunkManager.ColumnSample column : snapshot.motionColumns()) {
-			if (column == null) {
-				continue;
-			}
-			for (int depth = 0; depth <= 2; depth++) {
-				if (!column.hasDepth(depth)) {
-					continue;
-				}
-
-				BlockPos pos = BlockPos.of(column.posAtDepth(depth));
-				BlockState state = column.stateAtDepth(depth);
-				if (isFarmland(state)) {
-					getOrCreatePlot(world, pos);
-				}
-				if (isManagedCrop(state)) {
-					trackCrop(world, pos, state);
-				}
-			}
-		}
-	}
-
-	private static void processPlotsInChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null) {
-			return;
-		}
-		String worldLevelId = levelId(world);
-		ChunkRefKey targetChunkKey = new ChunkRefKey(worldLevelId, chunkX, chunkZ);
-		Set<String> chunkPlotKeys = new LinkedHashSet<>(plotKeysByChunk.getOrDefault(targetChunkKey, Set.of()));
-		if (chunkPlotKeys.isEmpty()) {
-			return;
-		}
-
-		List<String> removeKeys = new ArrayList<>();
-		for (String plotEntryKey : chunkPlotKeys) {
-			PlotState plot = plotsByKey.get(plotEntryKey);
-			if (plot == null || !plot.levelId.equals(worldLevelId)) {
-				continue;
-			}
-
-			BlockPos soilPos = BlockPos.of(plot.soilPos);
-			if (!targetChunkKey.equals(chunkRefForPos(worldLevelId, plot.soilPos))) {
-				continue;
-			}
-
-			BlockState soilState = world.getBlockState(soilPos);
-			if (!isFarmland(soilState)) {
-				removeKeys.add(plotEntryKey);
-				if (plot.hasCrop()) {
-					removeCropStateByKey(cropKey(world, BlockPos.of(plot.cropPos)));
-				}
-				continue;
-			}
-
-			if (plot.fertilized) {
-				emitFertilizedParticles(world, soilPos, plot);
-			}
-
-			if (plot.hasCrop() && !cropsByKey.containsKey(cropKey(world, BlockPos.of(plot.cropPos)))) {
-				plot.clearCrop();
-				dirty = true;
-			}
-		}
-
-		for (String key : removeKeys) {
-			if (removePlotStateByKey(key) != null) {
-				dirty = true;
-			}
-		}
-	}
-
 	private static void updateCropBlockAge(ServerLevel world, BlockPos cropPos, BlockState state, CropRule rule, CropState crop) {
 		if (world == null || cropPos == null || state == null || rule == null || crop == null) {
 			return;
@@ -953,74 +723,6 @@ public final class FarmingCropsManager {
 		if (targetAge >= ageLimit) {
 			crop.progressGrowthTicks = required;
 		}
-	}
-
-	private static void requestFarmingProcessing(MinecraftServer server, long delayTicks) {
-		requestFarmingProcessTask(server, delayTicks);
-	}
-
-	private static long resolveFarmingSchedulerInterval(MinecraftServer server) {
-		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
-			server,
-			FARMING_PROCESS_SCHEDULER_OWNER_ID,
-			FARMING_SCHEDULER_MIN_INTERVAL_TICKS,
-			FARMING_SCHEDULER_MAX_INTERVAL_TICKS
-		);
-	}
-
-	private static void requestFarmingProcessTask(MinecraftServer server, long delayTicks) {
-		if (server == null || !settings.enabled || farmingProcessTaskScheduled) {
-			return;
-		}
-
-		String schedulerId = ensureFarmingProcessSchedulerExists();
-		if (enqueueFarmingTask(schedulerId, delayTicks, TASK_TYPE_FARMING_PROCESS_TICK)) {
-			farmingProcessTaskScheduled = true;
-			return;
-		}
-
-		farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
-		);
-		if (enqueueFarmingTask(farmingProcessSchedulerId, delayTicks, TASK_TYPE_FARMING_PROCESS_TICK)) {
-			farmingProcessTaskScheduled = true;
-		}
-	}
-
-	private static String ensureFarmingProcessSchedulerExists() {
-		if (farmingProcessSchedulerId == null || farmingProcessSchedulerId.isBlank()) {
-			farmingProcessSchedulerId = MadokuSchedulerManager.createOrGetScheduler(
-				MadokuSchedulerManager.SchedulerBinding.global(FARMING_PROCESS_SCHEDULER_OWNER_ID)
-			);
-		}
-		return farmingProcessSchedulerId;
-	}
-
-	private static boolean enqueueFarmingTask(String schedulerId, long delayTicks, String taskType) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
-			schedulerId,
-			Math.max(0L, delayTicks),
-			taskType,
-			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
-		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
-	}
-
-	private static void onTrackedChunkLoaded(ServerLevel world, int chunkX, int chunkZ) {
-		if (!settings.enabled || world == null) {
-			return;
-		}
-		requestFarmingProcessing(world.getServer(), 1L);
-	}
-
-	private static void onTrackedChunkUnloaded(ServerLevel world, int chunkX, int chunkZ) {
-		// No local loaded-chunk mirrors; MadokuChunkManager owns tracked loaded state.
 	}
 
 	private static String levelId(ServerLevel world) {
@@ -1076,64 +778,19 @@ public final class FarmingCropsManager {
 	}
 
 	private static PlotState putPlotState(String key, PlotState value) {
-		PlotState previous = plotsByKey.put(key, value);
-		if (previous != null) {
-			removeChunkIndex(plotKeysByChunk, chunkRefForPos(previous.levelId, previous.soilPos), key);
-		}
-		if (value != null) {
-			addChunkIndex(plotKeysByChunk, chunkRefForPos(value.levelId, value.soilPos), key);
-		}
-		return previous;
+		return plotsByKey.put(key, value);
 	}
 
 	private static PlotState removePlotStateByKey(String key) {
-		PlotState removed = plotsByKey.remove(key);
-		if (removed != null) {
-			removeChunkIndex(plotKeysByChunk, chunkRefForPos(removed.levelId, removed.soilPos), key);
-		}
-		return removed;
+		return plotsByKey.remove(key);
 	}
 
 	private static CropState putCropState(String key, CropState value) {
-		CropState previous = cropsByKey.put(key, value);
-		if (previous != null) {
-			removeChunkIndex(cropKeysByChunk, chunkRefForPos(previous.levelId, previous.cropPos), key);
-		}
-		if (value != null) {
-			addChunkIndex(cropKeysByChunk, chunkRefForPos(value.levelId, value.cropPos), key);
-		}
-		return previous;
+		return cropsByKey.put(key, value);
 	}
 
 	private static CropState removeCropStateByKey(String key) {
-		CropState removed = cropsByKey.remove(key);
-		if (removed != null) {
-			removeChunkIndex(cropKeysByChunk, chunkRefForPos(removed.levelId, removed.cropPos), key);
-		}
-		return removed;
-	}
-
-	private static void addChunkIndex(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey, String entryKey) {
-		if (indexMap == null || chunkKey == null || entryKey == null || entryKey.isBlank()) {
-			return;
-		}
-		indexMap.computeIfAbsent(chunkKey, ignored -> new LinkedHashSet<>()).add(entryKey);
-		trackChunkWithState(chunkKey);
-	}
-
-	private static void removeChunkIndex(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey, String entryKey) {
-		if (indexMap == null || chunkKey == null || entryKey == null || entryKey.isBlank()) {
-			return;
-		}
-		Set<String> keys = indexMap.get(chunkKey);
-		if (keys == null) {
-			return;
-		}
-		keys.remove(entryKey);
-		if (keys.isEmpty()) {
-			indexMap.remove(chunkKey);
-		}
-		untrackChunkIfEmpty(chunkKey);
+		return cropsByKey.remove(key);
 	}
 
 	private static String plotKey(ServerLevel world, BlockPos soilPos) {
@@ -1143,13 +800,6 @@ public final class FarmingCropsManager {
 	private static String cropKey(ServerLevel world, BlockPos cropPos) {
 		return levelId(world) + "|" + (cropPos == null ? -1L : cropPos.asLong());
 	}
-
-	private static ChunkRefKey chunkRefForPos(String levelId, long packedBlockPos) {
-		return new ChunkRefKey(levelId, BlockPos.getX(packedBlockPos) >> 4, BlockPos.getZ(packedBlockPos) >> 4);
-	}
-
-
-
 
 	private static long resolveAbsoluteDayTime(ServerLevel world) {
 		if (world == null) {
@@ -1170,17 +820,11 @@ public final class FarmingCropsManager {
 	private static void applyPersistedData(JsonObject source) {
 		plotsByKey.clear();
 		cropsByKey.clear();
-		plotKeysByChunk.clear();
-		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		MadokuChunkManager.resetChunkProcessor(CHUNK_PROCESSOR_FARMING_DISCOVERY_ID);
-		resetChunkProcessingCycle();
 
 		if (source == null) {
 			return;
 		}
-
-		resetChunkProcessingCycle();
 
 		JsonElement plotsElement = source.get(FIELD_PLOTS);
 		if (plotsElement != null && plotsElement.isJsonArray()) {
@@ -1221,7 +865,6 @@ public final class FarmingCropsManager {
 			}
 		}
 		return JSONFormatManager.object()
-			.put(FIELD_CHUNK_CURSOR, Math.max(0, chunkScanCursor))
 			.put(FIELD_PLOTS, plots.build())
 			.put(FIELD_CROPS, crops.build())
 			.build();
@@ -1546,58 +1189,29 @@ public final class FarmingCropsManager {
 		return plot != null && plot.fertilized;
 	}
 
-	private static void emitFertilizedParticles(ServerLevel world, BlockPos soilPos, PlotState plot) {
-		if (world == null || soilPos == null || plot == null || settings.particleCount <= 0) {
-			return;
-		}
-
-		if (!canEmitFertilizedParticles(plot)) {
-			return;
-		}
-
-		int particleCount = Math.min(settings.particleCount, FarmingConfigManager.MAX_PARTICLE_COUNT);
-		if (particleCount <= 0) {
+	private static void emitFertilizedParticles(ServerLevel world, BlockPos soilPos) {
+		if (world == null || soilPos == null) {
 			return;
 		}
 
 		double centerX = soilPos.getX() + 0.5d;
-		double centerY = soilPos.getY() + 1.0d + settings.particleYOffset;
+		double centerY = soilPos.getY() + 1.0d + FERTILIZER_PARTICLE_Y_OFFSET;
 		double centerZ = soilPos.getZ() + 0.5d;
+		int particleCount = ThreadLocalRandom.current().nextInt(
+			FERTILIZER_PARTICLE_MIN_COUNT,
+			FERTILIZER_PARTICLE_MAX_COUNT + 1
+		);
 		world.sendParticles(
 			ParticleTypes.HAPPY_VILLAGER,
 			centerX,
 			centerY,
 			centerZ,
 			particleCount,
-			settings.particleSpread,
-			settings.particleSpread * 0.35d,
-			settings.particleSpread,
+			FERTILIZER_PARTICLE_SPREAD,
+			FERTILIZER_PARTICLE_SPREAD * 0.35d,
+			FERTILIZER_PARTICLE_SPREAD,
 			0.0d
 		);
-		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
-		plot.lastParticleEmissionTimeTicks = gameplayTicks;
-		plot.nextParticleEmissionTimeTicks = gameplayTicks + getRandomParticleCooldownTicks();
-	}
-
-	private static boolean canEmitFertilizedParticles(PlotState plot) {
-		if (plot == null) {
-			return false;
-		}
-
-		long gameplayTicks = MadokuTimeManager.getGameplayTicks();
-		if (plot.nextParticleEmissionTimeTicks == Long.MIN_VALUE) {
-			long lastEmission = plot.lastParticleEmissionTimeTicks;
-			if (lastEmission == Long.MIN_VALUE) {
-				return true;
-			}
-			plot.nextParticleEmissionTimeTicks = lastEmission + getRandomParticleCooldownTicks();
-		}
-
-		return gameplayTicks >= plot.nextParticleEmissionTimeTicks;
-	}
-
-	private static long getRandomParticleCooldownTicks() {
-		return ThreadLocalRandom.current().nextLong(PARTICLE_COOLDOWN_MIN_TICKS, PARTICLE_COOLDOWN_MAX_TICKS + 1L);
 	}
 
 	private static String normalizeRegistryId(String value) {
@@ -1626,14 +1240,14 @@ public final class FarmingCropsManager {
 		);
 	}
 
-	/** Returns one condition's speed modifier in the inclusive range [-0.50, 0.50]. */
+	/** Returns one condition's speed modifier in the inclusive range [-0.25, 0.25]. */
 	private static double resolveConditionSpeedModifier(double actual, double minimumIdeal, double maximumIdeal) {
 		if (!Double.isFinite(actual) || !Double.isFinite(minimumIdeal) || !Double.isFinite(maximumIdeal)
 			|| maximumIdeal < minimumIdeal) {
 			return 0.0d;
 		}
 		if (actual >= minimumIdeal && actual <= maximumIdeal) {
-			return 0.50d;
+			return 0.25d;
 		}
 
 		double ratio;
@@ -1645,15 +1259,15 @@ public final class FarmingCropsManager {
 		ratio = Math.max(0.0d, Math.min(1.0d, ratio));
 
 		if (ratio <= 0.20d) {
-			return -0.50d;
+			return -0.25d;
 		}
 		if (ratio < 0.71d) {
-			return -0.50d + ((ratio - 0.20d) / 0.51d) * 0.50d;
+			return -0.25d + ((ratio - 0.20d) / 0.51d) * 0.25d;
 		}
 		if (ratio <= 0.79d) {
 			return 0.0d;
 		}
-		return Math.min(0.50d, ((ratio - 0.79d) / 0.21d) * 0.50d);
+		return Math.min(0.25d, ((ratio - 0.79d) / 0.21d) * 0.25d);
 	}
 
 	private static int applyScaledItemCount(int count, double multiplier, RandomSource random) {
@@ -1818,9 +1432,6 @@ public final class FarmingCropsManager {
 	}
 
 
-	private record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
-	}
-
 	private record PendingHarvestRule(CropRule rule, long expiresAtGameplayTick, boolean fertilized) {
 		private boolean matches(CropRule other) {
 			return rule != null && other != null && rule.cropId().equals(other.cropId());
@@ -1834,8 +1445,6 @@ public final class FarmingCropsManager {
 		private String cropId;
 		private boolean fertilized;
 		private long fertilizedAtGameplayTick;
-		private transient long lastParticleEmissionTimeTicks;
-		private transient long nextParticleEmissionTimeTicks;
 
 		private PlotState(String levelId, long soilPos) {
 			this.levelId = levelId == null ? "" : levelId;
@@ -1844,8 +1453,6 @@ public final class FarmingCropsManager {
 			this.cropId = "";
 			this.fertilized = false;
 			this.fertilizedAtGameplayTick = Long.MIN_VALUE;
-			this.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
-			this.nextParticleEmissionTimeTicks = Long.MIN_VALUE;
 		}
 
 		private String key() {
@@ -1894,8 +1501,6 @@ public final class FarmingCropsManager {
 			if (plot.fertilizedAtGameplayTick < 0L) {
 				plot.fertilizedAtGameplayTick = Long.MIN_VALUE;
 			}
-			plot.lastParticleEmissionTimeTicks = Long.MIN_VALUE;
-			plot.nextParticleEmissionTimeTicks = Long.MIN_VALUE;
 			if (!plot.hasCrop()) {
 				plot.clearCrop();
 			}
@@ -1983,20 +1588,16 @@ public final class FarmingCropsManager {
 		boolean enabled,
 		double rainGrowthBoost,
 		double fertilizedGrowthBoost,
-		double dryFarmlandPenalty,
-		int particleCount,
-		double particleSpread,
-		double particleYOffset
+		double fertilizedYieldBoost,
+		double dryFarmlandPenalty
 	) {
 		private static Settings defaults() {
 			return new Settings(
 				true,
 				FarmingConfigManager.DEFAULT_RAIN_GROWTH_BOOST,
 				FarmingConfigManager.DEFAULT_FERTILIZED_GROWTH_BOOST,
-				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY,
-				FarmingConfigManager.DEFAULT_PARTICLE_COUNT,
-				FarmingConfigManager.DEFAULT_PARTICLE_SPREAD,
-				FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET
+				FarmingConfigManager.DEFAULT_FERTILIZED_YIELD_BOOST,
+				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY
 			);
 		}
 
@@ -2014,38 +1615,24 @@ public final class FarmingCropsManager {
 				0.0d,
 				1.0d
 			);
+			double fertilizedYieldBoost = clampDouble(
+				getDouble(source, FarmingConfigManager.FIELD_FERTILIZED_YIELD_BOOST, FarmingConfigManager.DEFAULT_FERTILIZED_YIELD_BOOST),
+				FarmingConfigManager.DEFAULT_FERTILIZED_YIELD_BOOST,
+				0.0d,
+				1.0d
+			);
 			double dryFarmlandPenalty = clampDouble(
 				getDouble(source, FarmingConfigManager.FIELD_DRY_FARMLAND_PENALTY, FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY),
 				FarmingConfigManager.DEFAULT_DRY_FARMLAND_PENALTY,
 				0.0d,
 				1.0d
 			);
-			int particleCount = clampInt(
-				getInt(source, FarmingConfigManager.FIELD_PARTICLE_COUNT, FarmingConfigManager.DEFAULT_PARTICLE_COUNT),
-				FarmingConfigManager.DEFAULT_PARTICLE_COUNT,
-				1,
-				FarmingConfigManager.MAX_PARTICLE_COUNT
-			);
-			double particleSpread = clampDouble(
-				getDouble(source, FarmingConfigManager.FIELD_PARTICLE_SPREAD, FarmingConfigManager.DEFAULT_PARTICLE_SPREAD),
-				FarmingConfigManager.DEFAULT_PARTICLE_SPREAD,
-				0.0d,
-				3.0d
-			);
-			double particleYOffset = clampDouble(
-				getDouble(source, FarmingConfigManager.FIELD_PARTICLE_Y_OFFSET, FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET),
-				FarmingConfigManager.DEFAULT_PARTICLE_Y_OFFSET,
-				0.0d,
-				3.0d
-			);
 			return new Settings(
 				enabled,
 				rainBoost,
 				fertilizedBoost,
-				dryFarmlandPenalty,
-				particleCount,
-				particleSpread,
-				particleYOffset
+				fertilizedYieldBoost,
+				dryFarmlandPenalty
 			);
 		}
 

@@ -29,7 +29,7 @@ public final class CropsConfigManager {
 		defaults.put("potato", buildCropDefaults("minecraft:potato", 3.0d, new ConditionDefault(60, 80, 10, 30),
 			new YieldDefault("minecraft:potato", 4, 8)));
 		defaults.put("carrot", buildCropDefaults("minecraft:carrot", 5.0d, new ConditionDefault(20, 40, 70, 90),
-			new YieldDefault("minecraft:carrot", 4, 8)));
+			new YieldDefault("minecraft:carrot", 2, 6)));
 		defaults.put("beetroot", buildCropDefaults("minecraft:beetroot", 3.0d, new ConditionDefault(55, 65, 35, 45),
 			new YieldDefault("minecraft:beetroot", 2, 6),
 			new YieldDefault("minecraft:beetroot-seeds", 1, 3)));
@@ -37,7 +37,7 @@ public final class CropsConfigManager {
 			new YieldDefault("minecraft:melon-slice", 10, 14),
 			new YieldDefault("minecraft:melon-seeds", 1, 3)));
 		defaults.put("pumpkin", buildCropDefaults("minecraft:pumpkin", 9.0d, new ConditionDefault(45, 55, 20, 40),
-			new YieldDefault("minecraft:pumpkin", 2, 6),
+			new YieldDefault("minecraft:pumpkin", 1, 3),
 			new YieldDefault("minecraft:pumpkin-seeds", 1, 3)));
 		defaults.put("wheat", buildCropDefaults("minecraft:wheat", 7.0d, new ConditionDefault(30, 50, 50, 70),
 			new YieldDefault("minecraft:wheat", 6, 10),

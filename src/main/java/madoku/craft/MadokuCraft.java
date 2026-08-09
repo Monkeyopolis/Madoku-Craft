@@ -123,7 +123,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuTimeManager.advance(server, tickIncrement);
 			MadokuTimeManager.update(server);
 			MadokuAPIManager.onServerTick(server);
-			MadokuFarmingManager.onServerTickIncrement(server, tickIncrement);
 			MadokuAPIManager.autosavePersistedData(server);
 			MadokuSeasonManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);

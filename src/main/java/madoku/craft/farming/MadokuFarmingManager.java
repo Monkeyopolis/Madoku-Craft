@@ -29,10 +29,6 @@ public final class MadokuFarmingManager {
 		FarmingCropsManager.onServerStarted(server);
 	}
 
-	public static void onServerTickIncrement(MinecraftServer server, long tickIncrement) {
-		FarmingCropsManager.onServerTickIncrement(server, tickIncrement);
-	}
-
 	public static void loadPersistedData(MinecraftServer server) {
 		FarmingCropsManager.loadPersistedData(server);
 	}
@@ -74,6 +70,15 @@ public final class MadokuFarmingManager {
 	}
 	public static void syncPlotFromSoil(ServerLevel world, BlockPos soilPos, boolean fertilized) {
 		FarmingPlotsManager.syncPlotFromSoil(world, soilPos, fertilized);
+	}
+	public static void handleFarmlandRandomTick(ServerLevel world, BlockPos soilPos) {
+		FarmingPlotsManager.handleFarmlandRandomTick(world, soilPos);
+	}
+	public static boolean shouldMaintainSeasonalMoisture(ServerLevel world, BlockPos soilPos) {
+		return FarmingPlotsManager.shouldMaintainSeasonalMoisture(world, soilPos);
+	}
+	public static boolean applySeasonalMoisture(ServerLevel world, BlockPos soilPos, BlockState soilState) {
+		return FarmingPlotsManager.applySeasonalMoisture(world, soilPos, soilState);
 	}
 	public static void trackCrop(ServerLevel world, BlockPos cropPos, BlockState cropState) {
 		FarmingCropsManager.trackCrop(world, cropPos, cropState);

@@ -27,17 +27,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuSeasonManager.isEnabled()
-			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
-			&& levelReader instanceof ServerLevel serverLevel
-			&& pos != null
-			&& MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) == Biome.Precipitation.RAIN) {
-			cir.setReturnValue(false);
-			return;
-		}
-
-		if (cir.getReturnValue()
-			|| !MadokuSeasonManager.isEnabled()
+		if (!MadokuSeasonManager.isEnabled()
 			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
 			|| pos == null
@@ -45,10 +35,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 			return;
 		}
 
-		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
-		if (seasonalFreeze) {
-			cir.setReturnValue(true);
-		}
+		cir.setReturnValue(MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos));
 	}
 
 	@Inject(
@@ -62,17 +49,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 		boolean mustBeAtEdge,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuSeasonManager.isEnabled()
-			&& SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()
-			&& levelReader instanceof ServerLevel serverLevel
-			&& pos != null
-			&& MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) == Biome.Precipitation.RAIN) {
-			cir.setReturnValue(false);
-			return;
-		}
-
-		if (cir.getReturnValue()
-			|| !MadokuSeasonManager.isEnabled()
+		if (!MadokuSeasonManager.isEnabled()
 			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
 			|| pos == null
@@ -82,9 +59,10 @@ public abstract class BiomeSeasonalFreezeMixin {
 		}
 
 		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
-		if (seasonalFreeze) {
-			cir.setReturnValue(true);
+		if (mustBeAtEdge && madoku$isSurroundedByWater(levelReader, pos)) {
+			seasonalFreeze = false;
 		}
+		cir.setReturnValue(seasonalFreeze);
 	}
 
 	@Inject(
