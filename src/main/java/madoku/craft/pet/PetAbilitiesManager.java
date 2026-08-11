@@ -2,6 +2,7 @@ package madoku.craft.pet;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.entity.Hag;
@@ -39,7 +40,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg;
-import net.minecraft.world.level.ClipContext;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -311,6 +311,12 @@ public final class PetAbilitiesManager {
 	}
 
 	public static void initialize() {
+		ServerPlayNetworking.registerGlobalReceiver(PetPayloadManager.LeftClickAirPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			if (!isWebStunned(player)) {
+				handlePlayerLeftClick(player);
+			}
+		});
 	}
 
 	/** Owns the dynamic ability JSON definitions under madoku-abilities. */
@@ -424,9 +430,6 @@ public final class PetAbilitiesManager {
 			return;
 		}
 		LivingEntity target = hasReadyTargetedPet ? resolveLeftClickTarget(player) : null;
-		if (target == null && isLeftClickTargetingBlock(player)) {
-			return;
-		}
 		if (eggAbilityCount <= 0 || ACTIVE_CHICKEN_EGG_VOLLEYS.containsKey(player.getUUID())) {
 		} else {
 			Vec3 targetPosition = player.getEyePosition().add(player.getLookAngle().scale(32.0D));
@@ -1049,20 +1052,6 @@ public final class PetAbilitiesManager {
 		return closest;
 	}
 
-	private static boolean isLeftClickTargetingBlock(ServerPlayer player) {
-		if (player == null) {
-			return false;
-		}
-		Vec3 start = player.getEyePosition();
-		Vec3 end = start.add(player.getLookAngle().normalize().scale(player.blockInteractionRange()));
-		return player.level().clip(new ClipContext(
-			start,
-			end,
-			ClipContext.Block.OUTLINE,
-			ClipContext.Fluid.NONE,
-			player
-		)).getType() == HitResult.Type.BLOCK;
-	}
 	static void triggerReactivePetAttacks(ServerPlayer player, LivingEntity target) {
 		if (!canReactiveAttackTarget(player, target)) {
 			return;

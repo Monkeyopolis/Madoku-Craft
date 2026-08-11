@@ -87,6 +87,7 @@ public final class SyncGlobalManager {
 		registerClientbound(PlayerClimatePayloadManager.TYPE, PlayerClimatePayloadManager.CODEC);
 		registerClientbound(TimePayloadManager.TYPE, TimePayloadManager.CODEC);
 		registerServerbound(LevelsPayloadManager.LevelUpPayload.TYPE, LevelsPayloadManager.LevelUpPayload.CODEC);
+		registerServerbound(PetPayloadManager.LeftClickAirPayload.TYPE, PetPayloadManager.LeftClickAirPayload.CODEC);
 	}
 
 	private static <T extends CustomPacketPayload> void registerClientbound(

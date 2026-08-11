@@ -13,6 +13,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.LootContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +24,9 @@ import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /** Loads and rolls the crop loot-table group used by farming and vanilla crop drops. */
 public final class LootTableCropsManager {
@@ -35,7 +35,6 @@ public final class LootTableCropsManager {
 
 	private static volatile Settings settings = Settings.defaults();
 	private static volatile Map<String, ManagedLootTable> tablesById = Map.of();
-	private static volatile Set<String> referencedTableIds = Set.of();
 	private static volatile long nextReloadAtMillis;
 
 	private LootTableCropsManager() {
@@ -48,7 +47,6 @@ public final class LootTableCropsManager {
 	public static void reset() {
 		settings = Settings.defaults();
 		tablesById = Map.of();
-		referencedTableIds = Set.of();
 		nextReloadAtMillis = 0L;
 	}
 
@@ -57,15 +55,22 @@ public final class LootTableCropsManager {
 		if (lootContext == null) {
 			return null;
 		}
+		// Farming owns crop harvesting while enabled, including its tracked crop
+		// state and fertilized-yield adjustments. The loot API still handles the
+		// vanilla crop tables when Farming is disabled.
+		if (madoku.craft.farming.MadokuFarmingManager.isEnabled()) {
+			return null;
+		}
 		ServerLevel level = lootContext.getLevel();
 		reloadIfNeeded(level == null ? null : level.getServer());
 		if (!settings.enabled || !settings.overrideCropLootTables) {
 			return null;
 		}
-		ManagedLootTable table = tablesById.get(resolveTableId(resolveQueriedLootTableId(lootContext)));
-		if (table != null && !referencedTableIds.contains(table.tableId())) {
-			table = null;
+		String tableId = resolveQueriedLootTableId(lootContext);
+		if (tableId.isBlank()) {
+			tableId = resolveBlockLootTableId(lootContext);
 		}
+		ManagedLootTable table = tablesById.get(resolveTableId(tableId));
 		if (table == null) {
 			return null;
 		}
@@ -86,17 +91,6 @@ public final class LootTableCropsManager {
 	public static boolean hasManagedLootTable(String tableId) {
 		reloadIfNeeded(null);
 		return settings.enabled && settings.overrideCropLootTables && tablesById.containsKey(resolveTableId(tableId));
-	}
-
-	public static void setReferencedTableIds(Iterable<String> tableIds) {
-		Set<String> normalized = new LinkedHashSet<>();
-		if (tableIds != null) {
-			for (String tableId : tableIds) {
-				String resolved = resolveTableId(tableId);
-				if (!resolved.isBlank()) normalized.add(resolved);
-			}
-		}
-		referencedTableIds = Set.copyOf(normalized);
 	}
 
 	private static List<ItemStack> rollTable(ManagedLootTable table, RandomSource random) {
@@ -270,6 +264,36 @@ public final class LootTableCropsManager {
 			}
 		}
 		return "";
+	}
+
+	private static String resolveBlockLootTableId(LootContext context) {
+		if (context == null) {
+			return "";
+		}
+
+		try {
+			BlockState state = context.getOptionalParameter(LootContextParams.BLOCK_STATE);
+			if (state == null) {
+				return "";
+			}
+
+			Identifier blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+			if (blockId == null) {
+				return "";
+			}
+
+			return switch (blockId.toString()) {
+				case "minecraft:potatoes" -> "minecraft:blocks/potatoes";
+				case "minecraft:carrots" -> "minecraft:blocks/carrots";
+				case "minecraft:beetroots" -> "minecraft:blocks/beetroots";
+				case "minecraft:melon" -> "minecraft:blocks/melon";
+				case "minecraft:pumpkin" -> "minecraft:blocks/pumpkin";
+				case "minecraft:wheat" -> "minecraft:blocks/wheat";
+				default -> "";
+			};
+		} catch (RuntimeException ignored) {
+			return "";
+		}
 	}
 
 	private static String normalizeIdentifierObject(Object value) {

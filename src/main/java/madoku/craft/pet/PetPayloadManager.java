@@ -10,6 +10,13 @@ import net.minecraft.resources.Identifier;
 
 /** Groups the payload types and client-side transient state used by Madoku Pets. */
 public final class PetPayloadManager {
+	public record LeftClickAirPayload() implements CustomPacketPayload {
+		public static final Type<LeftClickAirPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "pet_left_click_air"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, LeftClickAirPayload> CODEC = StreamCodec.unit(new LeftClickAirPayload());
+
+		@Override public Type<LeftClickAirPayload> type() { return TYPE; }
+	}
+
 	public record PetAbilityHudPayload(
 		int slot0Cooldown0,
 		int slot0Cooldown1,

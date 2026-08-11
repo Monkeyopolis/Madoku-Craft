@@ -924,13 +924,6 @@ public final class FarmingCropsManager {
 		cropRulesByPlantingItemId = Map.copyOf(plantingRules);
 		cropRulesByCropBlockId = Map.copyOf(blockRules);
 		cropRulesByMatureBlockId = Map.copyOf(matureRules);
-		Set<String> referencedYieldTables = new LinkedHashSet<>();
-		for (CropRule rule : plantingRules.values()) {
-			if (rule != null && rule.yieldTableId() != null && !rule.yieldTableId().isBlank()) {
-				referencedYieldTables.add(rule.yieldTableId());
-			}
-		}
-		LootTableCropsManager.setReferencedTableIds(referencedYieldTables);
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
