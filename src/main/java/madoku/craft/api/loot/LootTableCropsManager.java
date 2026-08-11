@@ -1,6 +1,5 @@
 package madoku.craft.api.loot;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
@@ -11,7 +10,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
@@ -22,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +31,7 @@ public final class LootTableCropsManager {
 	private static final String TABLES_FOLDER = "madoku-crops";
 
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile Map<String, ManagedLootTable> tablesById = Map.of();
+	private static volatile Map<String, MadokuLootTableManager.SharedLootTable> tablesById = Map.of();
 	private static volatile long nextReloadAtMillis;
 
 	private LootTableCropsManager() {
@@ -70,12 +67,12 @@ public final class LootTableCropsManager {
 		if (tableId.isBlank()) {
 			tableId = resolveBlockLootTableId(lootContext);
 		}
-		ManagedLootTable table = tablesById.get(resolveTableId(tableId));
+		MadokuLootTableManager.SharedLootTable table = tablesById.get(resolveTableId(tableId));
 		if (table == null) {
 			return null;
 		}
 		RandomSource random = lootContext.getRandom();
-		return rollTable(table, random == null ? RandomSource.create() : random);
+		return MadokuLootTableManager.rollSharedTable(table, random == null ? RandomSource.create() : random);
 	}
 
 	/** Rolls a crop table referenced by a crop file's yield-id field. */
@@ -84,71 +81,15 @@ public final class LootTableCropsManager {
 		if (!settings.enabled || !settings.overrideCropLootTables) {
 			return List.of();
 		}
-		ManagedLootTable table = tablesById.get(resolveTableId(tableId));
-		return table == null ? List.of() : rollTable(table, random == null ? RandomSource.create() : random);
+		MadokuLootTableManager.SharedLootTable table = tablesById.get(resolveTableId(tableId));
+		return table == null
+			? List.of()
+			: MadokuLootTableManager.rollSharedTable(table, random == null ? RandomSource.create() : random);
 	}
 
 	public static boolean hasManagedLootTable(String tableId) {
 		reloadIfNeeded(null);
 		return settings.enabled && settings.overrideCropLootTables && tablesById.containsKey(resolveTableId(tableId));
-	}
-
-	private static List<ItemStack> rollTable(ManagedLootTable table, RandomSource random) {
-		if (table == null || table.tableEntries().isEmpty() || random == null) {
-			return List.of();
-		}
-		List<ItemStack> generated = new ArrayList<>();
-		for (ManagedTableEntry tableEntry : table.tableEntries()) {
-			int minRolls = Math.max(0, tableEntry.minRolls());
-			int maxRolls = Math.max(minRolls, tableEntry.maxRolls());
-			int rolls = minRolls == maxRolls ? minRolls : minRolls + random.nextInt(maxRolls - minRolls + 1);
-			for (int roll = 0; roll < rolls; roll++) {
-				ManagedLootEntry entry = pickEntry(tableEntry.entries(), random);
-				if (entry == null) continue;
-				int min = Math.max(0, entry.minCount());
-				int max = Math.max(min, entry.maxCount());
-				int count = min == max ? min : min + random.nextInt(max - min + 1);
-				appendStack(generated, entry.item(), count);
-			}
-		}
-		return List.copyOf(generated);
-	}
-
-	private static ManagedLootEntry pickEntry(List<ManagedLootEntry> entries, RandomSource random) {
-		int totalWeight = 0;
-		for (ManagedLootEntry entry : entries) {
-			if (entry != null && entry.weight() > 0) {
-				totalWeight += entry.weight();
-			}
-		}
-		if (totalWeight <= 0) {
-			return null;
-		}
-		int pick = random.nextInt(totalWeight);
-		int cursor = 0;
-		for (ManagedLootEntry entry : entries) {
-			if (entry == null || entry.weight() <= 0) {
-				continue;
-			}
-			cursor += entry.weight();
-			if (pick < cursor) {
-				return entry;
-			}
-		}
-		return entries.getLast();
-	}
-
-	private static void appendStack(List<ItemStack> generated, Item item, int count) {
-		if (generated == null || item == null || count <= 0) {
-			return;
-		}
-		int maxStackSize = Math.max(1, new ItemStack(item, 1).getMaxStackSize());
-		int remaining = count;
-		while (remaining > 0) {
-			int stackCount = Math.min(maxStackSize, remaining);
-			generated.add(new ItemStack(item, stackCount));
-			remaining -= stackCount;
-		}
 	}
 
 	private static void reloadIfNeeded(net.minecraft.server.MinecraftServer server) {
@@ -173,9 +114,9 @@ public final class LootTableCropsManager {
 				LootTableCropsManager::isSupportedTable,
 				(key, value) -> value == null || value.isJsonNull() ? null : value.deepCopy()
 			);
-			Map<String, ManagedLootTable> resolved = new HashMap<>();
+			Map<String, MadokuLootTableManager.SharedLootTable> resolved = new HashMap<>();
 			for (JsonObject file : files.values()) {
-				ManagedLootTable table = parseTable(file);
+				MadokuLootTableManager.SharedLootTable table = MadokuLootTableManager.parseSharedTable(file);
 				if (table != null) {
 					resolved.put(table.tableId(), table);
 				}
@@ -194,63 +135,8 @@ public final class LootTableCropsManager {
 			|| !resolveTableId(readString(source, LootTableConfigManager.FIELD_TABLE_ID, "")).isBlank());
 	}
 
-	private static ManagedLootTable parseTable(JsonObject root) {
-		if (root == null || !readBoolean(root, LootTableConfigManager.FIELD_ENABLED, true)) {
-			return null;
-		}
-		String tableId = resolveTableId(readString(root, LootTableConfigManager.FIELD_TABLE_ID, ""));
-		if (tableId.isBlank()) {
-			return null;
-		}
-		List<ManagedTableEntry> tableEntries = parseTableEntries(root.get(LootTableConfigManager.FIELD_TABLE_ENTRIES));
-		return tableEntries.isEmpty() ? null : new ManagedLootTable(tableId, List.copyOf(tableEntries));
-	}
-
-	private static List<ManagedTableEntry> parseTableEntries(JsonElement element) {
-		if (!(element instanceof JsonArray array) || array.isEmpty()) {
-			return List.of();
-		}
-		List<ManagedTableEntry> tableEntries = new ArrayList<>();
-		for (JsonElement value : array) {
-			if (!(value instanceof JsonObject tableEntry)) {
-				continue;
-			}
-			JsonObject rolls = object(tableEntry, LootTableConfigManager.FIELD_ROLLS);
-			int minRolls = Math.max(0, readInt(rolls, LootTableConfigManager.FIELD_MIN, 1));
-			int maxRolls = Math.max(minRolls, readInt(rolls, LootTableConfigManager.FIELD_MAX, minRolls));
-			List<ManagedLootEntry> entries = parseEntries(tableEntry.get(LootTableConfigManager.FIELD_ENTRY));
-			if (!entries.isEmpty()) {
-				tableEntries.add(new ManagedTableEntry(minRolls, maxRolls, List.copyOf(entries)));
-			}
-		}
-		return tableEntries;
-	}
-
-	private static List<ManagedLootEntry> parseEntries(JsonElement element) {
-		if (!(element instanceof JsonArray array) || array.isEmpty()) {
-			return List.of();
-		}
-		List<ManagedLootEntry> entries = new ArrayList<>();
-		for (JsonElement value : array) {
-			if (!(value instanceof JsonObject entry)) {
-				continue;
-			}
-			String itemId = readString(entry, LootTableConfigManager.FIELD_ITEM, readString(entry, LootTableConfigManager.FIELD_BLOCK, ""));
-			Identifier identifier = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId));
-			Item item = identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier) ? null : BuiltInRegistries.ITEM.getValue(identifier);
-			if (item == null) {
-				continue;
-			}
-			int weight = Math.max(1, readInt(entry, LootTableConfigManager.FIELD_WEIGHT, 1));
-			int minCount = Math.max(0, readInt(entry, LootTableConfigManager.FIELD_MIN_COUNT, 1));
-			int maxCount = Math.max(minCount, readInt(entry, LootTableConfigManager.FIELD_MAX_COUNT, minCount));
-			entries.add(new ManagedLootEntry(item, weight, minCount, maxCount));
-		}
-		return entries;
-	}
-
 	private static String resolveTableId(String value) {
-		return value == null || value.isBlank() ? "" : MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
+		return MadokuLootTableManager.normalizeSharedTableId(value);
 	}
 
 	private static String resolveQueriedLootTableId(LootContext context) {
@@ -312,29 +198,15 @@ public final class LootTableCropsManager {
 		return identifier == null ? "" : resolveTableId(identifier.toString());
 	}
 
-	private static JsonObject object(JsonObject root, String key) {
-		JsonElement value = root == null ? null : root.get(key);
-		return value instanceof JsonObject object ? object : new JsonObject();
-	}
-
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
 		JsonElement value = root == null ? null : root.get(key);
 		return value instanceof JsonPrimitive primitive && primitive.isBoolean() ? primitive.getAsBoolean() : fallback;
-	}
-
-	private static int readInt(JsonObject root, String key, int fallback) {
-		JsonElement value = root == null ? null : root.get(key);
-		return value instanceof JsonPrimitive primitive && primitive.isNumber() ? primitive.getAsInt() : fallback;
 	}
 
 	private static String readString(JsonObject root, String key, String fallback) {
 		JsonElement value = root == null ? null : root.get(key);
 		return value instanceof JsonPrimitive primitive && primitive.isString() ? primitive.getAsString() : fallback;
 	}
-
-	private record ManagedLootTable(String tableId, List<ManagedTableEntry> tableEntries) { }
-	private record ManagedTableEntry(int minRolls, int maxRolls, List<ManagedLootEntry> entries) { }
-	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount) { }
 
 	private static final class Settings {
 		private final boolean enabled;

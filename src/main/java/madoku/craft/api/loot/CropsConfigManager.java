@@ -1,8 +1,6 @@
 package madoku.craft.api.loot;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,30 +32,15 @@ public final class CropsConfigManager {
 	}
 
 	private static JsonObject table(String tableId, JsonObject... tableEntries) {
-		return JSONFormatManager.object()
-			.put(LootTableConfigManager.FIELD_ENABLED, true)
-			.put(LootTableConfigManager.FIELD_TABLE_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(tableId))
-			.array(LootTableConfigManager.FIELD_TABLE_ENTRIES, entries -> {
-				if (tableEntries != null) {
-					for (JsonObject tableEntry : tableEntries) {
-						if (tableEntry != null && !tableEntry.isEmpty()) entries.add(tableEntry);
-					}
-				}
-			})
-			.build();
+		return MadokuLootTableManager.buildSharedTable(tableId, tableEntries);
 	}
 
 	private static JsonObject entryTable(JsonObject... entries) {
-		return JSONFormatManager.object()
-			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
-				.put(LootTableConfigManager.FIELD_MIN, 1)
-				.put(LootTableConfigManager.FIELD_MAX, 1))
-			.put(LootTableConfigManager.FIELD_ENTRY, StructuresConfigManager.entries(entries))
-			.build();
+		return MadokuLootTableManager.buildSharedTableEntry(1, 1, entries);
 	}
 
 	private static JsonObject entry(String itemId, int minCount, int maxCount) {
-		return StructuresConfigManager.item(itemId, 1, minCount, maxCount);
+		return MadokuLootTableManager.buildSharedEntry(itemId, minCount, maxCount);
 	}
 
 	private static void put(Map<String, JsonObject> defaults, String tableId, JsonObject table) {

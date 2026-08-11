@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public final class MadokuChunkManager {
 	private static final Map<String, Map<Long, ChunkStatusEntry>> CHUNK_STATUSES_BY_LEVEL = new HashMap<>();
+	private static final Map<String, Map<Long, Long>> CHUNK_LIFECYCLE_GENERATIONS_BY_LEVEL = new HashMap<>();
 	private static final List<ChunkLifecycleListener> CHUNK_LIFECYCLE_LISTENERS = new CopyOnWriteArrayList<>();
 	private static final Queue<PendingChunkEvent> PENDING_CHUNK_EVENTS = new ConcurrentLinkedQueue<>();
 	private static final int MAX_PENDING_CHUNK_EVENTS_PER_TICK = 256;
@@ -50,6 +51,7 @@ public final class MadokuChunkManager {
 
 	public static void reset() {
 		CHUNK_STATUSES_BY_LEVEL.clear();
+		CHUNK_LIFECYCLE_GENERATIONS_BY_LEVEL.clear();
 		PENDING_CHUNK_EVENTS.clear();
 		ChunkLifecycleManager.reset();
 		ChunkProcessorManager.reset();
@@ -79,6 +81,7 @@ public final class MadokuChunkManager {
 			return;
 		}
 		CHUNK_STATUSES_BY_LEVEL.clear();
+		CHUNK_LIFECYCLE_GENERATIONS_BY_LEVEL.clear();
 		ChunkLifecycleManager.loadPersistedData(server);
 	}
 
@@ -96,7 +99,13 @@ public final class MadokuChunkManager {
 			if (event == null) {
 				return;
 			}
+			if (!isCurrentLifecycleEvent(event)) {
+				continue;
+			}
 			if (event.loaded()) {
+				if (!isChunkAccessible(event.level(), event.chunkX(), event.chunkZ())) {
+					continue;
+				}
 				notifyChunkLoaded(event.level(), event.chunkX(), event.chunkZ());
 			} else {
 				notifyChunkUnloaded(event.level(), event.chunkX(), event.chunkZ());
@@ -208,7 +217,13 @@ public final class MadokuChunkManager {
 
 	static void enqueueChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
 		if (level != null) {
-			PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(level, chunkX, chunkZ, true));
+			PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(
+				level,
+				chunkX,
+				chunkZ,
+				true,
+				nextLifecycleGeneration(level, chunkX, chunkZ)
+			));
 		}
 	}
 
@@ -220,8 +235,35 @@ public final class MadokuChunkManager {
 
 	static void enqueueChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
 		if (level != null) {
-			PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(level, chunkX, chunkZ, false));
+			PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(
+				level,
+				chunkX,
+				chunkZ,
+				false,
+				nextLifecycleGeneration(level, chunkX, chunkZ)
+			));
 		}
+	}
+
+	private static long nextLifecycleGeneration(ServerLevel level, int chunkX, int chunkZ) {
+		String levelId = levelId(level);
+		long packedChunk = packChunk(chunkX, chunkZ);
+		Map<Long, Long> generations = CHUNK_LIFECYCLE_GENERATIONS_BY_LEVEL.computeIfAbsent(
+			levelId,
+			ignored -> new HashMap<>()
+		);
+		long next = generations.getOrDefault(packedChunk, 0L) + 1L;
+		generations.put(packedChunk, next);
+		return next;
+	}
+
+	private static boolean isCurrentLifecycleEvent(PendingChunkEvent event) {
+		if (event == null || event.level() == null) {
+			return false;
+		}
+		Map<Long, Long> generations = CHUNK_LIFECYCLE_GENERATIONS_BY_LEVEL.get(levelId(event.level()));
+		return generations != null
+			&& Long.valueOf(event.generation()).equals(generations.get(packChunk(event.chunkX(), event.chunkZ())));
 	}
 
 	static String levelId(ServerLevel level) {
@@ -266,5 +308,5 @@ public final class MadokuChunkManager {
 		}
 	}
 
-	private record PendingChunkEvent(ServerLevel level, int chunkX, int chunkZ, boolean loaded) { }
+	private record PendingChunkEvent(ServerLevel level, int chunkX, int chunkZ, boolean loaded, long generation) { }
 }

@@ -217,6 +217,28 @@ public final class MadokuLuckManager {
 		applyManagedCropDrops(lootContext.getRandom(), stacks);
 	}
 
+	/** Applies Madoku Luck to managed mob-drop quantities generated outside LootTable#getRandomItems. */
+	public static void applyManagedMobDrops(
+		ServerPlayer player,
+		RandomSource random,
+		ObjectArrayList<ItemStack> stacks
+	) {
+		if (!settings.enabled || !settings.mobDrops.enabled || player == null || player.isCreative()
+			|| stacks == null || stacks.isEmpty()) {
+			return;
+		}
+
+		double luckValue = resolveLuckValue(player);
+		if (luckValue <= 0.0d) {
+			return;
+		}
+
+		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
+		if (stepCount > 0) {
+			scaleStacks(stacks, settings.mobDrops.dropAdjustment, stepCount);
+		}
+	}
+
 	public static Consumer<ItemStack> wrapMobDeathLootConsumer(
 		ServerLevel level,
 		LivingEntity target,
@@ -274,25 +296,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		ServerPlayer player = resolveMobLootPlayer(lootContext);
-		if (player == null) {
-			return;
-		}
-		if (player.isCreative()) {
-			return;
-		}
-
-		double luckValue = resolveLuckValue(player);
-		if (luckValue <= 0.0d) {
-			return;
-		}
-
-		RandomSource random = lootContext.getRandom();
-		int stepCount = calculateLuckAdjustmentSteps(luckValue, random);
-		if (stepCount <= 0) {
-			return;
-		}
-		scaleStacks(stacks, settings.mobDrops.dropAdjustment, stepCount);
+		applyManagedMobDrops(resolveMobLootPlayer(lootContext), lootContext.getRandom(), stacks);
 	}
 
 	private static double reduceChanceByTargetLuck(

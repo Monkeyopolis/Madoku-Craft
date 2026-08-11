@@ -498,9 +498,11 @@ public final class FarmingCropsManager {
 		}
 
 		long currentAbsoluteDayTime = resolveAbsoluteDayTime(world);
+		List<String> staleKeys = new ArrayList<>();
 		for (String key : keys) {
 			CropState crop = cropsByKey.get(key);
 			if (crop == null) {
+				staleKeys.add(key);
 				continue;
 			}
 
@@ -509,10 +511,20 @@ public final class FarmingCropsManager {
 			BlockState soilState = world.getBlockState(cropPos.below());
 			CropRule rule = resolveCropRuleByCropState(cropState);
 			if (rule == null || !isCropBlock(cropState, rule) || !isFarmland(soilState)) {
+				staleKeys.add(key);
 				continue;
 			}
 
 			applyElapsedCropProgress(world, cropPos, cropState, rule, crop, currentAbsoluteDayTime);
+		}
+
+		for (String staleKey : staleKeys) {
+			if (removeCropStateByKey(staleKey) != null) {
+				dirty = true;
+			} else {
+				// Repair an orphaned secondary-index entry left by an older state or migration.
+				keys.remove(staleKey);
+			}
 		}
 	}
 

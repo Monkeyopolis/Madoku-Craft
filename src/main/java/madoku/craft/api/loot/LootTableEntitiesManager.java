@@ -1,27 +1,19 @@
 package madoku.craft.api.loot;
 
-import com.google.gson.JsonArray;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.mob.MobEntityManager;
-import madoku.craft.pet.PetHagManager;
-import madoku.craft.pet.PetConfigManager;
-import madoku.craft.rarity.MadokuRarity;
-import madoku.craft.rarity.MadokuRarityTier;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
@@ -36,12 +28,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 public final class LootTableEntitiesManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LootTableEntitiesManager.class);
@@ -51,13 +41,9 @@ public final class LootTableEntitiesManager {
 	private static final String LOOT_CONFIG_TABLES_FOLDER_NAME = "madoku-entities";
 	private static final String ENTITY_LOOT_NAMESPACE = "minecraft";
 	private static final String ENTITY_LOOT_PREFIX = "minecraft:entities/";
-	private static final String GROUP_TAG_MADOKU_PETS = "madoku-pets";
-	private static final String GROUP_TAG_MADOKU_LUCK = "madoku-luck";
-	private static final String GROUP_TAG_MADOKU_RARITY = "madoku-rarity";
-
 	private static volatile Settings settings = Settings.defaults();
-	private static volatile Map<String, ManagedLootTable> tablesById = Map.of();
-	private static volatile Map<String, ManagedLootTable> tablesByFileKey = Map.of();
+	private static volatile Map<String, MadokuLootTableManager.SharedLootTable> tablesById = Map.of();
+	private static volatile Map<String, MadokuLootTableManager.SharedLootTable> tablesByFileKey = Map.of();
 	private static volatile long nextReloadAtMillis;
 
 	private LootTableEntitiesManager() {
@@ -92,13 +78,13 @@ public final class LootTableEntitiesManager {
 		}
 
 		String tableId = normalizeTableId(lootTableKey.identifier().toString());
-		ManagedLootTable managed = resolveManagedTableByLootId(tableId);
+		MadokuLootTableManager.SharedLootTable managed = resolveManagedTableByLootId(tableId);
 		if (managed == null) {
 			return false;
 		}
 
 		RandomSource random = createRandom(level, lootTableSeed);
-		List<ItemStack> generated = rollManagedLootTable(managed, random, player, activeSettings);
+		List<ItemStack> generated = MadokuLootTableManager.rollSharedTable(managed, random);
 		fillContainer(container, generated, random);
 		return true;
 	}
@@ -120,7 +106,7 @@ public final class LootTableEntitiesManager {
 			return null;
 		}
 
-		ManagedLootTable managed = null;
+		MadokuLootTableManager.SharedLootTable managed = null;
 		LivingEntity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", LivingEntity.class);
 		boolean zombieEntity = thisEntity != null && isZombieMobType(thisEntity.getType());
 		String zombieConfiguredReference = "";
@@ -151,8 +137,7 @@ public final class LootTableEntitiesManager {
 			ServerLevel level = lootContext.getLevel();
 			random = level == null ? RandomSource.create() : level.getRandom();
 		}
-		ServerPlayer player = resolveLootContextPlayer(lootContext);
-		return rollManagedLootTable(managed, random, player, activeSettings);
+		return MadokuLootTableManager.rollSharedTable(managed, random);
 	}
 
 	public static List<ItemStack> generateManagedLootForReference(String configuredReference, ServerPlayer player, RandomSource random) {
@@ -161,12 +146,16 @@ public final class LootTableEntitiesManager {
 		if (!activeSettings.enabled || !activeSettings.overrideEntityLootTables) {
 			return null;
 		}
-		ManagedLootTable managed = resolveManagedTableByConfigReference(configuredReference);
+		MadokuLootTableManager.SharedLootTable managed = resolveManagedTableByConfigReference(configuredReference);
 		if (managed == null) {
 			return null;
 		}
 		RandomSource resolvedRandom = random == null ? RandomSource.create() : random;
-		return rollManagedLootTable(managed, resolvedRandom, player, activeSettings);
+		ObjectArrayList<ItemStack> generated = new ObjectArrayList<>(
+			MadokuLootTableManager.rollSharedTable(managed, resolvedRandom)
+		);
+		madoku.craft.attributes.luck.MadokuLuckManager.applyManagedMobDrops(player, resolvedRandom, generated);
+		return List.copyOf(generated);
 	}
 
 
@@ -220,208 +209,6 @@ public final class LootTableEntitiesManager {
 			return RandomSource.create(lootTableSeed);
 		}
 		return level == null ? RandomSource.create() : level.getRandom();
-	}
-
-	private static List<ItemStack> rollManagedLootTable(
-		ManagedLootTable managed,
-		RandomSource random,
-		ServerPlayer player,
-		Settings activeSettings
-	) {
-		boolean luckActive = isLuckActiveForLoot(player, activeSettings);
-		double luckStat = resolveLuckStat(player, activeSettings);
-		return rollTable(managed, random, luckStat, luckActive);
-	}
-
-	private static List<ItemStack> rollTable(
-		ManagedLootTable table,
-		RandomSource random,
-		double luckStat,
-		boolean luckActive
-	) {
-		if (table == null || random == null || table.groups().isEmpty()) {
-			return List.of();
-		}
-
-		int minRolls = Math.max(0, table.minRolls());
-		int maxRolls = Math.max(minRolls, table.maxRolls());
-		int rolls = minRolls;
-		if (maxRolls > minRolls) {
-			rolls = minRolls + random.nextInt((maxRolls - minRolls) + 1);
-		}
-		rolls = applyRollLuckMultiplier(rolls, luckStat, luckActive, random);
-
-		List<ItemStack> generated = new ArrayList<>(rolls);
-		for (int roll = 0; roll < rolls; roll++) {
-			ManagedLootGroup group = pickGroup(table.groups(), random, luckStat, luckActive);
-			if (group == null) {
-				continue;
-			}
-
-			ManagedLootEntry entry = pickEntry(group.entries(), random);
-			if (entry == null || entry.item() == null) {
-				continue;
-			}
-
-			int count = randomCount(entry.minCount(), entry.maxCount(), random);
-			appendSingleStackForRoll(generated, entry.item(), count, entry.itemRarity());
-		}
-		return List.copyOf(generated);
-	}
-
-	private static ManagedLootGroup pickGroup(
-		List<ManagedLootGroup> groups,
-		RandomSource random,
-		double luckStat,
-		boolean luckActive
-	) {
-		if (groups == null || groups.isEmpty()) {
-			return null;
-		}
-
-		double totalWeight = 0.0d;
-		List<Double> effectiveWeights = new ArrayList<>(groups.size());
-		for (ManagedLootGroup group : groups) {
-			if (group == null
-				|| group.weight() <= 0
-				|| group.entries().isEmpty()
-				|| !isGroupEnabledByTags(group.tags())) {
-				effectiveWeights.add(0.0d);
-				continue;
-			}
-			double rarityMultiplier = resolveGroupWeightMultiplier(group.rarity(), luckStat, luckActive);
-			double weight = Math.max(0.0d, group.weight() * rarityMultiplier);
-			effectiveWeights.add(weight);
-			totalWeight += weight;
-		}
-		if (totalWeight <= 0.0d) {
-			return null;
-		}
-
-		double pick = random.nextDouble() * totalWeight;
-		double cursor = 0.0d;
-		for (int index = 0; index < groups.size(); index++) {
-			double weight = effectiveWeights.get(index);
-			if (weight <= 0.0d) {
-				continue;
-			}
-			cursor += weight;
-			if (pick <= cursor) {
-				return groups.get(index);
-			}
-		}
-		return groups.getLast();
-	}
-
-	private static ManagedLootEntry pickEntry(List<ManagedLootEntry> entries, RandomSource random) {
-		if (entries == null || entries.isEmpty()) {
-			return null;
-		}
-
-		int totalWeight = 0;
-		for (ManagedLootEntry entry : entries) {
-			if (entry != null && entry.weight() > 0) {
-				totalWeight += entry.weight();
-			}
-		}
-		if (totalWeight <= 0) {
-			return null;
-		}
-
-		int pick = random.nextInt(totalWeight);
-		int cursor = 0;
-		for (ManagedLootEntry entry : entries) {
-			if (entry == null || entry.weight() <= 0) {
-				continue;
-			}
-			cursor += entry.weight();
-			if (pick < cursor) {
-				return entry;
-			}
-		}
-		return entries.getLast();
-	}
-
-	private static int randomCount(int minCount, int maxCount, RandomSource random) {
-		int min = Math.max(1, minCount);
-		int max = Math.max(min, maxCount);
-		if (max == min) {
-			return min;
-		}
-		return min + random.nextInt((max - min) + 1);
-	}
-
-	private static void appendSingleStackForRoll(List<ItemStack> into, Item item, int count, MadokuRarityTier itemRarity) {
-		if (into == null || item == null || count <= 0) {
-			return;
-		}
-
-		ItemStack probe = new ItemStack(item, 1);
-		int maxStackSize = Math.max(1, probe.getMaxStackSize());
-		int stackCount = Math.min(maxStackSize, count);
-		ItemStack stack = new ItemStack(item, stackCount);
-		if (itemRarity != null) {
-			MadokuRarity.applyConfiguredRarity(stack, itemRarity);
-		}
-		PetHagManager.applyLore(stack);
-		into.add(stack);
-	}
-
-	private static int applyRollLuckMultiplier(
-		int baseRolls,
-		double luckStat,
-		boolean luckActive,
-		RandomSource random
-	) {
-		if (baseRolls <= 0) {
-			return 0;
-		}
-		double multiplier = resolveRollLuckMultiplier(luckStat, luckActive);
-		if (!Double.isFinite(multiplier)) {
-			return baseRolls;
-		}
-		double rawRolls = Math.max(0.0d, baseRolls * multiplier);
-		int whole = (int) Math.floor(rawRolls);
-		double fractional = rawRolls - whole;
-		if (fractional > 0.0d && random != null && random.nextDouble() < fractional) {
-			whole++;
-		}
-		return Math.max(0, whole);
-	}
-
-	private static double resolveRollLuckMultiplier(double luckStat, boolean luckActive) {
-		if (!luckActive || !Double.isFinite(luckStat)) {
-			return 1.0d;
-		}
-		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d));
-	}
-
-	private static double resolveGroupWeightMultiplier(LootTableRarity rarity, double luckStat, boolean luckActive) {
-		if (!luckActive || rarity == null || !Double.isFinite(luckStat)) {
-			return 1.0d;
-		}
-		double rarityModifier = switch (rarity) {
-			case COMMON -> 0.5d;
-			case RARE -> 0.75d;
-			case EPIC -> 1.25d;
-			case LEGENDARY -> 2.0d;
-			case MYTHIC -> 3.0d;
-		};
-		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d * rarityModifier));
-	}
-
-	private static boolean isLuckActiveForLoot(ServerPlayer player, Settings activeSettings) {
-		return player != null
-			&& activeSettings != null
-			&& activeSettings.useMadokuLuck
-			&& MadokuLuckManager.isEnabled();
-	}
-
-	private static double resolveLuckStat(ServerPlayer player, Settings activeSettings) {
-		if (!isLuckActiveForLoot(player, activeSettings)) {
-			return 0.0d;
-		}
-		return MadokuLuckManager.resolveLootLuckStat(player);
 	}
 
 	private static String resolveQueriedLootTableId(LootContext lootContext) {
@@ -491,35 +278,6 @@ public final class LootTableEntitiesManager {
 		} catch (ReflectiveOperationException | RuntimeException ignored) {
 			return null;
 		}
-	}
-
-	private static ServerPlayer resolveLootContextPlayer(LootContext lootContext) {
-		ServerPlayer player = resolveLootContextParameter(lootContext, "LAST_DAMAGE_PLAYER", ServerPlayer.class);
-		if (player != null) {
-			return player;
-		}
-
-		Entity attacker = resolveLootContextParameter(lootContext, "ATTACKING_ENTITY", Entity.class);
-		if (attacker instanceof ServerPlayer serverPlayer) {
-			return serverPlayer;
-		}
-
-		Entity directAttacker = resolveLootContextParameter(lootContext, "DIRECT_ATTACKING_ENTITY", Entity.class);
-		if (directAttacker instanceof ServerPlayer serverPlayer) {
-			return serverPlayer;
-		}
-
-		Entity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", Entity.class);
-		if (thisEntity instanceof ServerPlayer serverPlayer) {
-			return serverPlayer;
-		}
-
-		Entity interactingEntity = resolveLootContextParameter(lootContext, "INTERACTING_ENTITY", Entity.class);
-		if (interactingEntity instanceof ServerPlayer serverPlayer) {
-			return serverPlayer;
-		}
-
-		return null;
 	}
 
 	private static <T> T resolveLootContextParameter(LootContext lootContext, String fieldName, Class<T> targetType) {
@@ -614,12 +372,12 @@ public final class LootTableEntitiesManager {
 				LootTableEntitiesManager::copyDynamicEntry
 			);
 
-			Map<String, ManagedLootTable> resolvedTables = new HashMap<>();
-			Map<String, ManagedLootTable> resolvedFileTables = new HashMap<>();
+			Map<String, MadokuLootTableManager.SharedLootTable> resolvedTables = new HashMap<>();
+			Map<String, MadokuLootTableManager.SharedLootTable> resolvedFileTables = new HashMap<>();
 			for (Map.Entry<String, JsonObject> entry : normalizedFiles.entrySet()) {
 				String fileKey = normalizeFileKey(entry.getKey());
 				JsonObject tableRoot = entry.getValue();
-				ManagedLootTable table = parseTable(tableRoot);
+				MadokuLootTableManager.SharedLootTable table = MadokuLootTableManager.parseSharedTable(tableRoot);
 				if (table == null) {
 					continue;
 				}
@@ -657,154 +415,8 @@ public final class LootTableEntitiesManager {
 		return sourceValue.deepCopy();
 	}
 
-	private static ManagedLootTable parseTable(JsonObject root) {
-		if (root == null || !readBoolean(root, LootTableConfigManager.FIELD_ENABLED, true)) {
-			return null;
-		}
-
-		String tableId = normalizeTableId(readString(root, LootTableConfigManager.FIELD_TABLE_ID, ""));
-		if (tableId.isBlank()) {
-			return null;
-		}
-
-		JsonObject rolls = readJsonObject(root, LootTableConfigManager.FIELD_ROLLS);
-		int minRolls = Math.max(0, readInt(rolls, LootTableConfigManager.FIELD_MIN, 1));
-		int maxRolls = Math.max(minRolls, readInt(rolls, LootTableConfigManager.FIELD_MAX, minRolls));
-
-		List<ManagedLootGroup> groups = parseGroups(root.get(LootTableConfigManager.FIELD_GROUPS));
-		if (groups.isEmpty()) {
-			return null;
-		}
-
-		return new ManagedLootTable(tableId, minRolls, maxRolls, List.copyOf(groups));
-	}
-
 	private static Map<String, JsonObject> buildEntityStaticDefaults() {
 		return EntitiesConfigManager.buildDefaultEntityTableFiles();
-	}
-
-	private static List<ManagedLootGroup> parseGroups(JsonElement element) {
-		if (!(element instanceof JsonArray groupsArray) || groupsArray.isEmpty()) {
-			return List.of();
-		}
-
-		List<ManagedLootGroup> groups = new ArrayList<>();
-		for (JsonElement entry : groupsArray) {
-			if (!(entry instanceof JsonObject groupRoot)) {
-				continue;
-			}
-
-		LootTableRarity rarity = LootTableRarity.fromString(
-				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, LootTableRarity.COMMON.id())
-			);
-			double weight = Math.max(0.0d, readDouble(groupRoot, LootTableConfigManager.FIELD_WEIGHT, 0.0d));
-			if (weight <= 0.0d) {
-				continue;
-			}
-
-			List<ManagedLootEntry> entries = parseEntries(groupRoot.get(LootTableConfigManager.FIELD_ENTRIES));
-			if (entries.isEmpty()) {
-				continue;
-			}
-			List<String> tags = parseGroupTags(groupRoot.get(LootTableConfigManager.FIELD_TAGS));
-			groups.add(new ManagedLootGroup(rarity, weight, List.copyOf(entries), tags));
-		}
-		return groups;
-	}
-
-	private static List<String> parseGroupTags(JsonElement element) {
-		if (!(element instanceof JsonArray tagsArray) || tagsArray.isEmpty()) {
-			return List.of();
-		}
-
-		Set<String> tags = new LinkedHashSet<>();
-		for (JsonElement tagElement : tagsArray) {
-			if (!(tagElement instanceof JsonPrimitive primitive) || !primitive.isString()) {
-				continue;
-			}
-			String normalizedTag = normalizeGroupTag(primitive.getAsString());
-			if (!normalizedTag.isBlank()) {
-				tags.add(normalizedTag);
-			}
-		}
-		return tags.isEmpty() ? List.of() : List.copyOf(tags);
-	}
-
-	private static boolean isGroupEnabledByTags(List<String> tags) {
-		if (tags == null || tags.isEmpty()) {
-			return true;
-		}
-		for (String tag : tags) {
-			if (!isGroupTagEnabled(tag)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private static boolean isGroupTagEnabled(String rawTag) {
-		String tag = normalizeGroupTag(rawTag);
-		if (tag.isBlank()) {
-			return true;
-		}
-		return switch (tag) {
-			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
-			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
-			case GROUP_TAG_MADOKU_RARITY -> MadokuRarity.isEnabled();
-			default -> true;
-		};
-	}
-
-	private static String normalizeGroupTag(String value) {
-		if (value == null || value.isBlank()) {
-			return "";
-		}
-		return value.trim().toLowerCase(Locale.ROOT);
-	}
-
-	private static List<ManagedLootEntry> parseEntries(JsonElement element) {
-		if (!(element instanceof JsonArray entriesArray) || entriesArray.isEmpty()) {
-			return List.of();
-		}
-
-		List<ManagedLootEntry> entries = new ArrayList<>();
-		for (JsonElement rawEntry : entriesArray) {
-			if (!(rawEntry instanceof JsonObject entryRoot)) {
-				continue;
-			}
-
-			String itemId = readString(entryRoot, LootTableConfigManager.FIELD_ITEM, "");
-			if (itemId.isBlank()) {
-				itemId = readString(entryRoot, LootTableConfigManager.FIELD_BLOCK, "");
-			}
-			Item item = resolveItem(itemId);
-			if (item == null) {
-				continue;
-			}
-
-			int weight = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_WEIGHT, 1));
-			int minCount = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_MIN_COUNT, 1));
-			int maxCount = Math.max(minCount, readInt(entryRoot, LootTableConfigManager.FIELD_MAX_COUNT, minCount));
-			MadokuRarityTier itemRarity = MadokuRarityTier.fromString(
-				readString(entryRoot, LootTableConfigManager.FIELD_ITEM_RARITY, "")
-			);
-			entries.add(new ManagedLootEntry(item, weight, minCount, maxCount, itemRarity));
-		}
-		return entries;
-	}
-
-	private static Item resolveItem(String itemId) {
-		if (itemId == null || itemId.isBlank()) {
-			return null;
-		}
-		var identifier = net.minecraft.resources.Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
-		);
-		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
-			return null;
-		}
-		Item item = BuiltInRegistries.ITEM.getValue(identifier);
-		return item == null ? null : item;
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -840,7 +452,7 @@ public final class LootTableEntitiesManager {
 		return normalized;
 	}
 
-	private static ManagedLootTable resolveManagedTableByLootId(String rawLootTableId) {
+	private static MadokuLootTableManager.SharedLootTable resolveManagedTableByLootId(String rawLootTableId) {
 		String normalized = normalizeTableId(rawLootTableId);
 		if (normalized.isBlank()) {
 			return null;
@@ -852,13 +464,13 @@ public final class LootTableEntitiesManager {
 		return tablesById.get(normalized);
 	}
 
-	private static ManagedLootTable resolveManagedTableByConfigReference(String rawReference) {
+	private static MadokuLootTableManager.SharedLootTable resolveManagedTableByConfigReference(String rawReference) {
 		if (rawReference == null || rawReference.isBlank()) {
 			return null;
 		}
 		String fileKey = normalizeFileKey(rawReference);
 		if (!fileKey.isBlank()) {
-			ManagedLootTable fromFileKey = tablesByFileKey.get(fileKey);
+			MadokuLootTableManager.SharedLootTable fromFileKey = tablesByFileKey.get(fileKey);
 			if (fromFileKey != null) {
 				return fromFileKey;
 			}
@@ -884,17 +496,6 @@ public final class LootTableEntitiesManager {
 		return "";
 	}
 
-	private static JsonObject readJsonObject(JsonObject root, String key) {
-		if (root == null || key == null) {
-			return new JsonObject();
-		}
-		JsonElement element = root.get(key);
-		if (element instanceof JsonObject object) {
-			return object;
-		}
-		return new JsonObject();
-	}
-
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
 		if (root == null || key == null) {
 			return fallback;
@@ -906,28 +507,6 @@ public final class LootTableEntitiesManager {
 		return primitive.getAsBoolean();
 	}
 
-	private static int readInt(JsonObject root, String key, int fallback) {
-		if (root == null || key == null) {
-			return fallback;
-		}
-		JsonElement element = root.get(key);
-		if (!(element instanceof JsonPrimitive primitive) || !primitive.isNumber()) {
-			return fallback;
-		}
-		return primitive.getAsInt();
-	}
-
-	private static double readDouble(JsonObject root, String key, double fallback) {
-		if (root == null || key == null) {
-			return fallback;
-		}
-		JsonElement element = root.get(key);
-		if (!(element instanceof JsonPrimitive primitive) || !primitive.isNumber()) {
-			return fallback;
-		}
-		return primitive.getAsDouble();
-	}
-
 	private static String readString(JsonObject root, String key, String fallback) {
 		if (root == null || key == null) {
 			return fallback;
@@ -937,20 +516,6 @@ public final class LootTableEntitiesManager {
 			return fallback;
 		}
 		return primitive.getAsString();
-	}
-
-	private record ManagedLootTable(String tableId, int minRolls, int maxRolls, List<ManagedLootGroup> groups) {
-	}
-
-	private record ManagedLootGroup(
-		LootTableRarity rarity,
-		double weight,
-		List<ManagedLootEntry> entries,
-		List<String> tags
-	) {
-	}
-
-	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount, MadokuRarityTier itemRarity) {
 	}
 
 	private static final class Settings {
