@@ -56,10 +56,12 @@ public final class MadokuPetManager {
 	static final String PET_RARITY_MYTHIC = "mythic";
 
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
+	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String runtimeSchedulerId = "";
 	private static volatile boolean runtimeTickQueued;
+	private static boolean runtimeTickExecuting;
 
 	private MadokuPetManager() {
 	}
@@ -80,6 +82,7 @@ public final class MadokuPetManager {
 
 			PetComponentsManager.clearPendingRespawnPetInventory(player.getUUID());
 			PetEntitiesManager.removeAllPets(player.level().getServer(), player.getUUID());
+			LAST_TELEPORT_STAMPS_BY_PLAYER.remove(player.getUUID());
 			if (player.level().getGameRules().get(GameRules.KEEP_INVENTORY) || player.isSpectator()) {
 				return;
 			}
@@ -91,6 +94,7 @@ public final class MadokuPetManager {
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(PetAbilitiesManager::handleAfterDamage);
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
 			PetEntitiesManager.removeAllPets(newPlayer.level().getServer(), oldPlayer.getUUID());
+			LAST_TELEPORT_STAMPS_BY_PLAYER.remove(oldPlayer.getUUID());
 			if (alive) {
 				PetComponentsManager.copyToNewPlayer(oldPlayer, newPlayer);
 			} else if (!PetComponentsManager.applyPendingRespawnPetInventory(newPlayer, oldPlayer.getUUID())) {
@@ -111,16 +115,20 @@ public final class MadokuPetManager {
 		PetEntitiesManager.reset();
 		PetComponentsManager.reset();
 		NEXT_PROCESS_TICKS_BY_PLAYER.clear();
+		LAST_TELEPORT_STAMPS_BY_PLAYER.clear();
 		PetHudManager.clear();
 		PetAbilitiesManager.reset();
 		MadokuSchedulerManager.clearAdaptiveDelayState(PET_RUNTIME_SCHEDULER_OWNER_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
 		runtimeSchedulerId = "";
 		runtimeTickQueued = false;
+		runtimeTickExecuting = false;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
+		if (hasRuntimeWork()) {
+			ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
+		}
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -201,9 +209,22 @@ public final class MadokuPetManager {
 		}
 
 		runtimeSchedulerId = context.getSchedulerId();
-		onPlayerTickPhase(server);
-		onServerTick(server);
-		ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
+		runtimeTickExecuting = true;
+		try {
+			onPlayerTickPhase(server);
+			onServerTick(server);
+		} finally {
+			runtimeTickExecuting = false;
+			if (hasRuntimeWork()) {
+				ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
+			}
+		}
+	}
+
+	private static boolean hasRuntimeWork() {
+		return !NEXT_PROCESS_TICKS_BY_PLAYER.isEmpty()
+			|| PetEntitiesManager.hasRuntimeWork()
+			|| PetAbilitiesManager.hasRuntimeWork();
 	}
 
 	static long adaptiveSchedulerInterval(MinecraftServer server) {
@@ -313,9 +334,7 @@ public final class MadokuPetManager {
 
 		handlePlayerLeave(server, player.getUUID());
 		PetHudManager.markAbilityHudDirty(player.getUUID());
-		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
-		PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
-		PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
+		PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
 		if (PetConfigManager.settings().enabled) {
 			requestPetProcessing(server, player.getUUID(), 0L);
 		}
@@ -329,6 +348,7 @@ public final class MadokuPetManager {
 		PetEntitiesManager.removeAllPets(server, playerId);
 		PetAbilitiesManager.stopBeeSwarmsForOwner(playerId);
 		NEXT_PROCESS_TICKS_BY_PLAYER.remove(playerId);
+		LAST_TELEPORT_STAMPS_BY_PLAYER.remove(playerId);
 		PetHudManager.clearPlayer(playerId);
 		PetComponentsManager.clearPendingRespawnPetInventory(playerId);
 	}
@@ -385,8 +405,29 @@ public final class MadokuPetManager {
 		}
 		MinecraftServer server = player.level().getServer();
 		if (server != null) {
+			long gameplayTick = MadokuTimeManager.getGameplayTicks();
+			TeleportStamp stamp = new TeleportStamp(
+				gameplayTick,
+				MadokuSchedulerManager.normalizeLevelIdentifier(player.level().dimension().toString()),
+				player.getX(),
+				player.getY(),
+				player.getZ(),
+				player.getYRot()
+			);
+			if (stamp.equals(LAST_TELEPORT_STAMPS_BY_PLAYER.get(player.getUUID()))) {
+				return;
+			}
+			LAST_TELEPORT_STAMPS_BY_PLAYER.put(player.getUUID(), stamp);
 			requestPetProcessing(server, player.getUUID(), 0L);
+			// Reconcile only the entity state here. Ability execution remains on the normal
+			// scheduled path, avoiding a full ability scan for every teleport hook.
+			if (PetConfigManager.settings().enabled && player.isAlive() && !player.isDeadOrDying() && !player.isSpectator()) {
+				PetEntitiesManager.syncPlayerPets(player);
+			}
 		}
+	}
+
+	private record TeleportStamp(long gameplayTick, String levelId, double x, double y, double z, float yRot) {
 	}
 
 	static void requestPetProcessing(MinecraftServer server, UUID playerId, long delayTicks) {
@@ -398,6 +439,9 @@ public final class MadokuPetManager {
 		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
 		if (existingTick == null || targetTick < existingTick) {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
+		}
+		if (!runtimeTickExecuting) {
+			ensureRuntimeQueued(server, 0L);
 		}
 	}
 

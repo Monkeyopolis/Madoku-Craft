@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.tags.TagKey;
@@ -63,6 +64,14 @@ public final class EcosystemNaturalGrowthManager {
 	private static final String BLOCK_ID_DEAD_BUSH = "minecraft:dead_bush";
 	private static final String BLOCK_ID_SHORT_DRY_GRASS = "minecraft:short_dry_grass";
 	private static final String BLOCK_ID_TALL_DRY_GRASS = "minecraft:tall_dry_grass";
+	private static final TagKey<Biome> BADLANDS_BIOME_TAG = TagKey.create(
+		Registries.BIOME,
+		Identifier.fromNamespaceAndPath("minecraft", "is_badlands")
+	);
+	private static final TagKey<Biome> DESERT_BIOME_TAG = TagKey.create(
+		Registries.BIOME,
+		Identifier.fromNamespaceAndPath("minecraft", "is_desert")
+	);
 
 	private static volatile NaturalGrowthConfigManager.Settings settings = NaturalGrowthConfigManager.defaults();
 	static final Map<MadokuEcosystemManager.ChunkRefKey, MadokuEcosystemManager.TreeCandidateState> treeCandidatesByChunk = new LinkedHashMap<>();
@@ -381,13 +390,13 @@ public final class EcosystemNaturalGrowthManager {
 
 		BlockState replacedState = aboveState;
 		if (aboveState.is(Blocks.SNOW)) {
-			world.setBlockAndUpdate(treePos, Blocks.AIR.defaultBlockState());
+			setBlockAndUpdate(world, treePos, Blocks.AIR.defaultBlockState());
 		}
 
 		ResourceKey<ConfiguredFeature<?, ?>> featureKey = treeFeatureKeyForType(treeType);
 		if (featureKey == null) {
 			if (replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
-				world.setBlockAndUpdate(treePos, replacedState);
+				setBlockAndUpdate(world, treePos, replacedState);
 			}
 			return false;
 		}
@@ -396,14 +405,15 @@ public final class EcosystemNaturalGrowthManager {
 		java.util.Optional<Holder.Reference<ConfiguredFeature<?, ?>>> featureHolder = configuredFeatures.get(featureKey);
 		if (featureHolder.isEmpty()) {
 			if (replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
-				world.setBlockAndUpdate(treePos, replacedState);
+				setBlockAndUpdate(world, treePos, replacedState);
 			}
 			return false;
 		}
 
 		boolean placed = featureHolder.get().value().place(world, world.getChunkSource().getGenerator(), world.getRandom(), treePos);
+		MadokuEcosystemManager.invalidateCachedGroundPosition();
 		if (!placed && replacedState.is(Blocks.SNOW) && world.getBlockState(treePos).isAir()) {
-			world.setBlockAndUpdate(treePos, replacedState);
+			setBlockAndUpdate(world, treePos, replacedState);
 		}
 		return placed;
 	}
@@ -438,7 +448,7 @@ public final class EcosystemNaturalGrowthManager {
 		}
 		if (current.isAir()) {
 			BlockState placed = setFoliageAmount(foliageBlock.defaultBlockState(), 1);
-			world.setBlockAndUpdate(foliagePos, placed);
+			setBlockAndUpdate(world, foliagePos, placed);
 			return true;
 		}
 		if (current.getBlock() != foliageBlock) {
@@ -454,7 +464,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (updated == current) {
 			return false;
 		}
-		world.setBlockAndUpdate(foliagePos, updated);
+		setBlockAndUpdate(world, foliagePos, updated);
 		return true;
 	}
 
@@ -482,7 +492,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!next.canSurvive(world, growPos)) {
 			return false;
 		}
-		world.setBlockAndUpdate(growPos, next);
+		setBlockAndUpdate(world, growPos, next);
 		return true;
 	}
 
@@ -591,7 +601,7 @@ public final class EcosystemNaturalGrowthManager {
 			if (!lower.canSurvive(world, lowerPos)) {
 				return false;
 			}
-			world.setBlockAndUpdate(lowerPos, lower);
+			setBlockAndUpdate(world, lowerPos, lower);
 			return true;
 		}
 
@@ -607,9 +617,14 @@ public final class EcosystemNaturalGrowthManager {
 			upper = upper.setValue(DoublePlantBlock.HALF, DoubleBlockHalf.UPPER);
 		}
 
-		world.setBlockAndUpdate(lowerPos, lower);
-		world.setBlockAndUpdate(upperPos, upper);
+		setBlockAndUpdate(world, lowerPos, lower);
+		setBlockAndUpdate(world, upperPos, upper);
 		return true;
+	}
+
+	private static void setBlockAndUpdate(ServerLevel world, BlockPos position, BlockState state) {
+		world.setBlockAndUpdate(position, state);
+		MadokuEcosystemManager.invalidateCachedGroundPosition();
 	}
 
 	private static boolean tryPlaceWeightedFoliageTarget(ServerLevel world, BlockPos growPos, List<WeightedFoliagePlacement> placements) {
@@ -652,7 +667,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (!next.canSurvive(world, pos)) {
 			return false;
 		}
-		world.setBlockAndUpdate(pos, next);
+		setBlockAndUpdate(world, pos, next);
 		return true;
 	}
 
@@ -770,14 +785,14 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = position.getX() >> 4;
 		int chunkZ = position.getZ() >> 4;
 		processDirtInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, "surface_dirt", position.asLong());
 		processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 		processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 
-		BlockPos groundPos = resolveRandomColumnGroundPosition(world, position);
+		BlockPos groundPos = MadokuEcosystemManager.resolveCachedGroundPosition(world, position);
 		if (groundPos == null) {
 			return;
 		}
@@ -792,40 +807,46 @@ public final class EcosystemNaturalGrowthManager {
 		}
 		MadokuEcosystemManager.trackDirtCandidateForMode(world, position, selectedState, "surface_dirt");
 
-		Set<Long> candidate = new LinkedHashSet<>();
-		candidate.add(groundPacked);
-		if (isTrackableTreeGroundBlock(world.getBlockState(groundPos))) {
+		Set<Long> candidate = Set.of(groundPacked);
+		BlockState groundState = world.getBlockState(groundPos);
+		if (isTrackableTreeGroundBlock(groundState)) {
 			pickTreeCandidateForChunk(world, chunkX, chunkZ, candidate);
 		}
-		if (isValidCactusGroundCandidate(world, groundPos, world.getBlockState(groundPos))) {
+		if (isValidCactusGroundCandidate(world, groundPos, groundState)) {
 			pickCactusCandidateForChunk(world, chunkX, chunkZ, candidate);
 		}
-		if (isValidGrassGroundCandidate(world, groundPos, world.getBlockState(groundPos))) {
+		if (isValidGrassGroundCandidate(world, groundPos, groundState)) {
 			pickGrassCandidateForChunk(world, chunkX, chunkZ, candidate);
 		}
-		if (isValidDesertFoliageGrowthGroundCandidate(world, groundPos, world.getBlockState(groundPos))) {
+		if (isValidDesertFoliageGrowthGroundCandidate(world, groundPos, groundState)) {
 			pickDesertFoliageGrowthCandidateForChunk(world, chunkX, chunkZ, candidate);
 		}
-		if (isValidFoliageGroundCandidate(world, groundPos, world.getBlockState(groundPos), NaturalGrowthConfigManager.FIELD_WILDFLOWERS)) {
+		if (isValidFoliageGroundCandidate(world, groundPos, groundState, NaturalGrowthConfigManager.FIELD_WILDFLOWERS)) {
 			pickFoliageCandidateForChunk(world, chunkX, chunkZ, NaturalGrowthConfigManager.FIELD_WILDFLOWERS, candidate);
 		}
-		if (isValidFoliageGroundCandidate(world, groundPos, world.getBlockState(groundPos), NaturalGrowthConfigManager.FIELD_PINK_PETALS)) {
+		if (isValidFoliageGroundCandidate(world, groundPos, groundState, NaturalGrowthConfigManager.FIELD_PINK_PETALS)) {
 			pickFoliageCandidateForChunk(world, chunkX, chunkZ, NaturalGrowthConfigManager.FIELD_PINK_PETALS, candidate);
 		}
 	}
 
-	private static BlockPos resolveRandomColumnGroundPosition(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
-			return null;
+	/**
+	 * Applies elapsed progress to every persisted natural-growth candidate in a loaded chunk.
+	 * This is deliberately separate from random-position processing so unloaded chunks do not
+	 * need to remain loaded just to advance tracked growth.
+	 */
+	static void processChunkOnLoad(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null || !isEnabled()) {
+			return;
 		}
-		int topY = Math.min(
-			world.getMaxY() - 1,
-			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, position.getX(), position.getZ()) - 1
-		);
-		if (topY < world.getMinY()) {
-			return null;
-		}
-		return new BlockPos(position.getX(), topY, position.getZ());
+
+		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		processDirtInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, "surface_dirt");
+		processDirtInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, "wet");
+		processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		processGrassCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		processDesertFoliageGrowthCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		processFoliageCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 	}
 
 	static boolean isTrackableTreeGroundBlock(BlockState state) {
@@ -965,12 +986,10 @@ public final class EcosystemNaturalGrowthManager {
 			|| biomeHolder.is(Biomes.WOODED_BADLANDS)) {
 			return true;
 		}
-		Identifier badlandsTagId = Identifier.tryParse("minecraft:is_badlands");
-		if (badlandsTagId != null && biomeHolder.is(TagKey.create(Registries.BIOME, badlandsTagId))) {
+		if (biomeHolder.is(BADLANDS_BIOME_TAG)) {
 			return true;
 		}
-		Identifier desertTagId = Identifier.tryParse("minecraft:is_desert");
-		if (desertTagId != null && biomeHolder.is(TagKey.create(Registries.BIOME, desertTagId))) {
+		if (biomeHolder.is(DESERT_BIOME_TAG)) {
 			return true;
 		}
 		return biomeHolder.is(Biomes.DESERT);
@@ -1584,12 +1603,12 @@ public final class EcosystemNaturalGrowthManager {
 		}
 		String worldLevelId = MadokuEcosystemManager.levelId(world);
 		MadokuEcosystemManager.ChunkRefKey targetChunkKey = new MadokuEcosystemManager.ChunkRefKey(worldLevelId, chunkX, chunkZ);
-		Set<String> chunkDirtKeys = new LinkedHashSet<>(MadokuEcosystemManager.dirtKeysByChunk.getOrDefault(targetChunkKey, Set.of()));
-		if (chunkDirtKeys.isEmpty()) {
+		Set<String> chunkDirtKeys = MadokuEcosystemManager.dirtKeysByChunk.get(targetChunkKey);
+		if (chunkDirtKeys == null || chunkDirtKeys.isEmpty()) {
 			return;
 		}
 
-		List<String> removeKeys = new ArrayList<>();
+		List<String> removeKeys = null;
 		for (String dirtEntryKey : chunkDirtKeys) {
 			MadokuEcosystemManager.DirtState dirt = MadokuEcosystemManager.dirtBlocksByKey.get(dirtEntryKey);
 			if (dirt == null || !dirt.levelId.equals(worldLevelId)) {
@@ -1609,6 +1628,7 @@ public final class EcosystemNaturalGrowthManager {
 
 			BlockState state = world.getBlockState(dirtPos);
 			if (!EcosystemNaturalErosionManager.isTrackableGroundBlock(state)) {
+				if (removeKeys == null) removeKeys = new ArrayList<>();
 				removeKeys.add(dirtEntryKey);
 				continue;
 			}
@@ -1617,6 +1637,7 @@ public final class EcosystemNaturalGrowthManager {
 				continue;
 			}
 			if (!MadokuEcosystemManager.isCandidateForMode(world, dirtPos, state, dirt.mode)) {
+				if (removeKeys == null) removeKeys = new ArrayList<>();
 				removeKeys.add(dirtEntryKey);
 				continue;
 			}
@@ -1639,12 +1660,16 @@ public final class EcosystemNaturalGrowthManager {
 					? resolveSurfaceDirtGrowthBlock(world, dirtPos)
 					: EcosystemNaturalErosionManager.resolveWetGroundReplacementBlock(world, dirtPos, state, dirt.erosionRuleId);
 				if (replacement != null && replacement != state.getBlock()) {
-					world.setBlockAndUpdate(dirtPos, replacement.defaultBlockState());
+					setBlockAndUpdate(world, dirtPos, replacement.defaultBlockState());
 				}
+				if (removeKeys == null) removeKeys = new ArrayList<>();
 				removeKeys.add(dirtEntryKey);
 			}
 		}
 
+		if (removeKeys == null) {
+			return;
+		}
 		for (String key : removeKeys) {
 			if (MadokuEcosystemManager.removeDirtStateByKey(key) != null) {
 				MadokuEcosystemManager.markChunkDirty(targetChunkKey);

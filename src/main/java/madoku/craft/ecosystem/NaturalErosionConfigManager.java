@@ -55,6 +55,9 @@ public final class NaturalErosionConfigManager {
 	private NaturalErosionConfigManager() {
 	}
 
+	private static volatile Settings cachedRulesSettings;
+	private static volatile List<NamedErosionRule> cachedPriorityRules = List.of();
+
 	public static Settings defaults() {
 		return new Settings(
 			new WaterErosionSettings(
@@ -78,12 +81,19 @@ public final class NaturalErosionConfigManager {
 
 	public static List<NamedErosionRule> erosionRulesInPriority(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return List.of(
+		List<NamedErosionRule> cached = cachedPriorityRules;
+		if (value == cachedRulesSettings) {
+			return cached;
+		}
+		List<NamedErosionRule> resolved = List.of(
 			new NamedErosionRule(FIELD_MUD, value.waterErosion.blockErosion.mud()),
 			new NamedErosionRule(FIELD_RED_SAND, value.waterErosion.blockErosion.redSand()),
 			new NamedErosionRule(FIELD_SAND, value.waterErosion.blockErosion.sand()),
 			new NamedErosionRule(FIELD_MAGMA_BLOCK, value.lavaErosion.blockErosion.magmaBlock())
 		);
+		cachedRulesSettings = value;
+		cachedPriorityRules = resolved;
+		return resolved;
 	}
 
 	public static JsonObject buildDefaultsJson() {

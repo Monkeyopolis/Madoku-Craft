@@ -150,6 +150,17 @@ public final class PetAbilitiesManager {
 		EXPLOSIVE_VULNERABILITY_BY_ENTITY.clear();
 	}
 
+	static boolean hasRuntimeWork() {
+		return !ACTIVE_WEB_PROJECTILES.isEmpty()
+			|| !ACTIVE_PROJECTILE_VOLLEYS.isEmpty()
+			|| !ACTIVE_WEB_CONTROLS.isEmpty()
+			|| !ACTIVE_HEALTH_REGENERATIONS.isEmpty()
+			|| !ACTIVE_EXPLOSIVE_PROJECTILES.isEmpty()
+			|| !ACTIVE_CHICKEN_EGG_PROJECTILES.isEmpty()
+			|| !ACTIVE_CHICKEN_EGG_VOLLEYS.isEmpty()
+			|| !ACTIVE_BEE_SWARMS.isEmpty();
+	}
+
 	static void tickWebControls(MinecraftServer server) {
 		if (server == null || ACTIVE_WEB_CONTROLS.isEmpty()) {
 			return;
@@ -642,6 +653,78 @@ public final class PetAbilitiesManager {
 
 	public static double armorBonus(ServerPlayer player) {
 		return Math.max(0.0D, sumAbility(player, PET_ABILITY_ARMOR_BONUS));
+	}
+
+	/**
+	 * Rebuilds all passive player modifiers from one inventory traversal. Passive
+	 * modifiers are refreshed together, so armor and armor toughness do not scan
+	 * the same pet slots independently.
+	 */
+	public static void applyPlayerPassiveAbilityBonuses(ServerPlayer player) {
+		if (player == null) return;
+		PassiveBonuses bonuses = resolvePassiveBonuses(player);
+
+		AttributeInstance maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
+		if (maxHealth != null) {
+			maxHealth.removeModifier(PLAYER_HEALTH_MODIFIER);
+			if (bonuses.maxHealth() > 0.0D) {
+				maxHealth.addOrUpdateTransientModifier(new AttributeModifier(
+					PLAYER_HEALTH_MODIFIER, bonuses.maxHealth(), AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL
+				));
+			}
+			if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
+		}
+
+		AttributeInstance armor = player.getAttribute(Attributes.ARMOR);
+		if (armor != null) {
+			armor.removeModifier(PLAYER_ARMOR_MODIFIER);
+			if (bonuses.armor() > 0.0D) {
+				armor.addOrUpdateTransientModifier(new AttributeModifier(
+					PLAYER_ARMOR_MODIFIER, bonuses.armor(), AttributeModifier.Operation.ADD_VALUE
+				));
+			}
+		}
+
+		AttributeInstance armorToughness = player.getAttribute(Attributes.ARMOR_TOUGHNESS);
+		if (armorToughness != null) {
+			armorToughness.removeModifier(PLAYER_ARMOR_TOUGHNESS_MODIFIER);
+			if (bonuses.armor() > 0.0D) {
+				armorToughness.addOrUpdateTransientModifier(new AttributeModifier(
+					PLAYER_ARMOR_TOUGHNESS_MODIFIER, bonuses.armor(), AttributeModifier.Operation.ADD_VALUE
+				));
+			}
+		}
+
+		AttributeInstance damage = player.getAttribute(Attributes.ATTACK_DAMAGE);
+		if (damage != null) {
+			damage.removeModifier(PLAYER_DAMAGE_MODIFIER);
+			if (bonuses.damage() > 0.0D) {
+				damage.addOrUpdateTransientModifier(new AttributeModifier(
+					PLAYER_DAMAGE_MODIFIER, bonuses.damage(), AttributeModifier.Operation.ADD_VALUE
+				));
+			}
+		}
+	}
+
+	private static PassiveBonuses resolvePassiveBonuses(ServerPlayer player) {
+		if (player == null || !PetConfigManager.isEnabled()) return PassiveBonuses.EMPTY;
+		PetInventory inventory = petInventory(player);
+		if (inventory == null) return PassiveBonuses.EMPTY;
+		double damage = 0.0D;
+		double maxHealth = 0.0D;
+		double armor = 0.0D;
+		for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+			PetRule rule = PetConfigManager.resolvePetRule(inventory.getItem(slot));
+			if (rule == null) continue;
+			if (rule.hasAbility(PET_ABILITY_PLAYER_DAMAGE_BONUS)) damage += rule.playerDamageBonus();
+			if (rule.hasAbility(PET_ABILITY_MAX_HEALTH_BONUS)) maxHealth += rule.maxHealthBonus();
+			if (rule.hasAbility(PET_ABILITY_ARMOR_BONUS)) armor += rule.armorBonus();
+		}
+		return new PassiveBonuses(Math.max(0.0D, damage), Math.max(0.0D, maxHealth), Math.max(0.0D, armor));
+	}
+
+	private record PassiveBonuses(double damage, double maxHealth, double armor) {
+		private static final PassiveBonuses EMPTY = new PassiveBonuses(0.0D, 0.0D, 0.0D);
 	}
 
 	private static double sumAbility(ServerPlayer player, String abilityType) {
@@ -2752,16 +2835,13 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			static void refreshPlayerPassiveAbilityBonuses(MinecraftServer server) {
+		static void refreshPlayerPassiveAbilityBonuses(MinecraftServer server) {
 			if (server == null) {
 				return;
 			}
 
 			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
-				PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
-				PetAbilitiesManager.applyPlayerArmorToughnessAbilityBonus(player);
-				PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
+				PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
 			}
 		}
 

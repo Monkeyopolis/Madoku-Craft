@@ -144,6 +144,7 @@ public final class EcosystemNaturalDecayManager {
 				return false;
 			}
 			world.setBlockAndUpdate(targetPos, placed);
+			MadokuEcosystemManager.invalidateCachedGroundPosition();
 			return true;
 		}
 		if (current.getBlock() != leafLitter) {
@@ -160,6 +161,7 @@ public final class EcosystemNaturalDecayManager {
 			return false;
 		}
 		world.setBlockAndUpdate(targetPos, updated);
+		MadokuEcosystemManager.invalidateCachedGroundPosition();
 		return true;
 	}
 
@@ -253,7 +255,7 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 
-		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, world.getBlockState(position));
 
 		if (targetPos != null) {
@@ -281,6 +283,19 @@ public final class EcosystemNaturalDecayManager {
 				position.asLong()
 			);
 		}
+	}
+
+	/** Applies elapsed progress to every persisted decay candidate in a loaded chunk. */
+	static void processChunkOnLoad(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null || !isEnabled()) {
+			return;
+		}
+		processTreeDecayCandidateInChunk(
+			world,
+			chunkX,
+			chunkZ,
+			MadokuTimeManager.getCurrentAbsoluteDayTime(world)
+		);
 	}
 
 	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {

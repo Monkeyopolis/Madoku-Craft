@@ -59,9 +59,6 @@ public abstract class BiomeSeasonalFreezeMixin {
 		}
 
 		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
-		if (mustBeAtEdge && madoku$isSurroundedByWater(levelReader, pos)) {
-			seasonalFreeze = false;
-		}
 		cir.setReturnValue(seasonalFreeze);
 	}
 
@@ -79,7 +76,8 @@ public abstract class BiomeSeasonalFreezeMixin {
 			|| !(levelReader instanceof ServerLevel serverLevel) || pos == null) {
 			return;
 		}
-		if (MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos) != Biome.Precipitation.SNOW) {
+		Biome biome = (Biome) (Object) this;
+		if (MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos, biome) != Biome.Precipitation.SNOW) {
 			cir.setReturnValue(false);
 			return;
 		}
@@ -87,7 +85,7 @@ public abstract class BiomeSeasonalFreezeMixin {
 			return;
 		}
 
-		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
+		boolean seasonalFreeze = MadokuSeasonManager.shouldSeasonFreezeAt(serverLevel, biome, pos);
 		if (!seasonalFreeze || !madoku$canPlaceSeasonalSnow(levelReader, pos)) {
 			cir.setReturnValue(false);
 			return;

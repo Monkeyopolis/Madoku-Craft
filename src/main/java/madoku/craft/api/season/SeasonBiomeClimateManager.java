@@ -17,6 +17,7 @@ import java.util.Map;
 public final class SeasonBiomeClimateManager {
 	public record Climate(double temperature, double humidity) { }
 	private static volatile Map<Biome, BiomeClimateConfigManager.Climate> runtimeConfiguredClimates = Map.of();
+	private static volatile Map<Biome, Climate> runtimeNativeClimates = Map.of();
 	private static volatile MinecraftServer currentServer;
 
 	private SeasonBiomeClimateManager() { }
@@ -28,6 +29,7 @@ public final class SeasonBiomeClimateManager {
 	public static void reset() {
 		currentServer = null;
 		runtimeConfiguredClimates = Map.of();
+		runtimeNativeClimates = Map.of();
 	}
 
 	static void onServerStarted(MinecraftServer server) {
@@ -51,14 +53,18 @@ public final class SeasonBiomeClimateManager {
 		}
 		Registry<Biome> registry = server.overworld().registryAccess().lookupOrThrow(Registries.BIOME);
 		IdentityHashMap<Biome, BiomeClimateConfigManager.Climate> configured = new IdentityHashMap<>();
+		IdentityHashMap<Biome, Climate> nativeClimates = new IdentityHashMap<>();
 		for (Map.Entry<ResourceKey<Biome>, Biome> entry : registry.entrySet()) {
 			Identifier biomeId = entry.getKey().identifier();
+			Biome biome = entry.getValue();
+			nativeClimates.put(biome, resolveNativeClimate(biome));
 			BiomeClimateConfigManager.Climate climate = BiomeClimateConfigManager.getBiomeClimate(biomeId.toString());
 			if (climate != null) {
-				configured.put(entry.getValue(), climate);
+				configured.put(biome, climate);
 			}
 		}
 		runtimeConfiguredClimates = Collections.unmodifiableMap(configured);
+		runtimeNativeClimates = Collections.unmodifiableMap(nativeClimates);
 	}
 
 	public static boolean isTemperatureEnabled() {
@@ -73,14 +79,7 @@ public final class SeasonBiomeClimateManager {
 		if (level == null || pos == null) return new Climate(50, 50);
 		Biome biome = level.getBiome(pos).value();
 		if (!MadokuSeasonManager.isEnabled()) return nativeClimate(biome);
-		String id = resolveBiomeId(level, pos);
-		BiomeClimateConfigManager.Climate configured = BiomeClimateConfigManager.getBiomeClimate(id);
-		if (configured != null) {
-			double temperature = isTemperatureEnabled() ? configured.temperature() : nativeClimate(biome).temperature();
-			double humidity = isHumidityEnabled() ? configured.humidity() : nativeClimate(biome).humidity();
-			return new Climate(temperature, humidity);
-		}
-		return nativeClimate(biome);
+		return resolve(biome);
 	}
 
 	public static Climate resolve(Biome biome) {
@@ -95,6 +94,12 @@ public final class SeasonBiomeClimateManager {
 	}
 
 	public static Climate nativeClimate(Biome biome) {
+		if (biome == null) return new Climate(50, 50);
+		Climate cached = runtimeNativeClimates.get(biome);
+		return cached == null ? resolveNativeClimate(biome) : cached;
+	}
+
+	private static Climate resolveNativeClimate(Biome biome) {
 		if (biome == null) return new Climate(50, 50);
 		int temperature = Math.round((biome.getBaseTemperature() + 0.5f) * 40.0f);
 		int humidity = biome.hasPrecipitation() ? 70 : 0;

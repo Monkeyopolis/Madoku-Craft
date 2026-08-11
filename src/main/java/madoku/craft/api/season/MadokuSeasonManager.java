@@ -16,6 +16,10 @@ import java.util.UUID;
 
 /** Orchestrator and public entry point for the Madoku Season subsystem. */
 public final class MadokuSeasonManager {
+	private static final long CLIMATE_CACHE_TTL_TICKS = 5L;
+	private static final Season[] SEASONS = Season.values();
+	private static boolean initialized;
+	private static MinecraftServer currentServer;
 	private static String lastBroadcastSeason = "";
 	private static double lastBroadcastTemperatureOffset;
 	private static double lastBroadcastHumidityOffset;
@@ -23,10 +27,16 @@ public final class MadokuSeasonManager {
 	private static int lastBroadcastSeasonDay = -1;
 	private static int lastBroadcastSeasonLengthDays = -1;
 	private static final Map<UUID, ClimateHudState> lastPlayerClimateStates = new HashMap<>();
+	private static final Map<UUID, ClimateEvaluation> climateEvaluations = new HashMap<>();
+	private static long cachedAbsoluteDay = Long.MIN_VALUE;
+	private static int cachedSeasonLengthDays = -1;
+	private static SeasonState cachedState;
 
 	private MadokuSeasonManager() { }
 
 	public static void initialize() {
+		if (initialized) return;
+		initialized = true;
 		SeasonConfigManager.initialize();
 		SeasonBiomeClimateManager.initialize();
 		SeasonEnvironmentTransitionManager.initialize();
@@ -41,6 +51,7 @@ public final class MadokuSeasonManager {
 	}
 
 	public static void reset() {
+		currentServer = null;
 		SeasonEnvironmentTransitionManager.reset();
 		SeasonWeatherManager.reset();
 		SeasonBiomeClimateManager.reset();
@@ -51,6 +62,10 @@ public final class MadokuSeasonManager {
 		lastBroadcastSeasonDay = -1;
 		lastBroadcastSeasonLengthDays = -1;
 		lastPlayerClimateStates.clear();
+		climateEvaluations.clear();
+		cachedAbsoluteDay = Long.MIN_VALUE;
+		cachedSeasonLengthDays = -1;
+		cachedState = null;
 	}
 
 	public static boolean isEnabled() { return SeasonConfigManager.getSettings().enabled(); }
@@ -63,7 +78,17 @@ public final class MadokuSeasonManager {
 	public static int getCurrentSeasonWeek() { return getCurrentState().week(); }
 
 	public static SeasonBiomeClimateManager.Climate resolveBiomeClimate(ServerLevel level, BlockPos pos) {
-		SeasonBiomeClimateManager.Climate climate = SeasonBiomeClimateManager.resolve(level, pos);
+		return resolveBiomeClimate(level, pos, null);
+	}
+
+	public static SeasonBiomeClimateManager.Climate resolveBiomeClimate(
+		ServerLevel level,
+		BlockPos pos,
+		Biome biome
+	) {
+		SeasonBiomeClimateManager.Climate climate = biome == null
+			? SeasonBiomeClimateManager.resolve(level, pos)
+			: SeasonBiomeClimateManager.resolve(biome);
 		String season = getCurrentSeasonId(level);
 		SeasonBiomeClimateManager.Climate adjustedClimate = new SeasonBiomeClimateManager.Climate(
 			SeasonEnvironmentTransitionManager.adjustTemperature(
@@ -79,13 +104,17 @@ public final class MadokuSeasonManager {
 	}
 
 	public static Biome.Precipitation resolveSeasonalPrecipitation(ServerLevel level, BlockPos pos) {
+		return resolveSeasonalPrecipitation(level, pos, null);
+	}
+
+	public static Biome.Precipitation resolveSeasonalPrecipitation(ServerLevel level, BlockPos pos, Biome biome) {
 		if (level == null || pos == null) return Biome.Precipitation.NONE;
 		if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
-			Biome biome = level.getBiome(pos).value();
-			return SeasonEnvironmentTransitionManager.resolvePrecipitation(biome, getCurrentSeasonId(level));
+			Biome resolvedBiome = biome == null ? level.getBiome(pos).value() : biome;
+			return SeasonEnvironmentTransitionManager.resolvePrecipitation(resolvedBiome, getCurrentSeasonId(level));
 		}
 		return SeasonEnvironmentTransitionManager.resolvePrecipitation(
-			SeasonBiomeClimateManager.resolve(level, pos),
+			biome == null ? SeasonBiomeClimateManager.resolve(level, pos) : SeasonBiomeClimateManager.resolve(biome),
 			getCurrentSeasonId(level),
 			SeasonEnvironmentTransitionManager.getTemperatureOffset(),
 			SeasonEnvironmentTransitionManager.getHumidityOffset(),
@@ -93,7 +122,7 @@ public final class MadokuSeasonManager {
 	}
 
 	public static boolean shouldSeasonFreezeAt(ServerLevel level, Biome biome, BlockPos pos) {
-		return SeasonEnvironmentTransitionManager.shouldFreezeAt(level, pos, resolveBiomeClimate(level, pos));
+		return SeasonEnvironmentTransitionManager.shouldFreezeAt(level, pos, resolveBiomeClimate(level, pos, biome));
 	}
 
 	public static boolean shouldSeasonMeltAt(ServerLevel level, BlockPos pos) {
@@ -101,10 +130,10 @@ public final class MadokuSeasonManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		if (server != null) {
-			SeasonBiomeClimateManager.onServerStarted(server);
-			SeasonWeatherManager.onServerStarted(server);
-		}
+		if (server == null || currentServer == server) return;
+		currentServer = server;
+		SeasonBiomeClimateManager.onServerStarted(server);
+		SeasonWeatherManager.onServerStarted(server);
 	}
 	public static void onServerTick(MinecraftServer server) {
 		if (server != null) {
@@ -115,7 +144,12 @@ public final class MadokuSeasonManager {
 	/** Sends each player's resolved local climate when its HUD-visible value changes. */
 	public static void syncPlayerClimateIfChanged(MinecraftServer server) {
 		if (server == null) return;
-		lastPlayerClimateStates.keySet().removeIf(playerId -> server.getPlayerList().getPlayer(playerId) == null);
+		lastPlayerClimateStates.keySet().removeIf(playerId -> {
+			boolean disconnected = server.getPlayerList().getPlayer(playerId) == null;
+			if (disconnected) climateEvaluations.remove(playerId);
+			return disconnected;
+		});
+		climateEvaluations.keySet().removeIf(playerId -> server.getPlayerList().getPlayer(playerId) == null);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			syncPlayerClimate(player, false);
 		}
@@ -127,12 +161,11 @@ public final class MadokuSeasonManager {
 	}
 
 	public static void broadcastWorldSeasonNow(MinecraftServer server) {
+		broadcastWorldSeason(server, true);
 	}
 
 	public static void broadcastWorldSeasonIfChanged(MinecraftServer server) {
-		int sent = broadcastWorldSeason(server, false);
-		if (sent > 0) {
-		}
+		broadcastWorldSeason(server, false);
 	}
 
 	private static int broadcastWorldSeason(MinecraftServer server, boolean force) {
@@ -202,17 +235,33 @@ public final class MadokuSeasonManager {
 	private static void syncPlayerClimate(ServerPlayer player, boolean force) {
 		if (player == null) return;
 		if (!(player.level() instanceof ServerLevel level)) return;
-		SeasonBiomeClimateManager.Climate climate = resolveBiomeClimate(level, player.blockPosition());
-		if (climate == null || !Double.isFinite(climate.temperature()) || !Double.isFinite(climate.humidity())) {
-			climate = new SeasonBiomeClimateManager.Climate(50.0D, 50.0D);
+		BlockPos position = player.blockPosition();
+		long gameTime = level.getGameTime();
+		ClimateEvaluation evaluation = climateEvaluations.get(player.getUUID());
+		boolean cacheValid = !force && evaluation != null
+			&& evaluation.level() == level
+			&& evaluation.position() == position.asLong()
+			&& gameTime >= evaluation.gameTime()
+			&& gameTime - evaluation.gameTime() < CLIMATE_CACHE_TTL_TICKS;
+		if (!cacheValid) {
+			SeasonBiomeClimateManager.Climate climate = resolveBiomeClimate(level, position);
+			if (climate == null || !Double.isFinite(climate.temperature()) || !Double.isFinite(climate.humidity())) {
+				climate = new SeasonBiomeClimateManager.Climate(50.0D, 50.0D);
+			}
+			evaluation = new ClimateEvaluation(
+				level,
+				position.asLong(),
+				gameTime,
+				climate.temperature(),
+				climate.humidity(),
+				new ClimateHudState(Math.round(climate.temperature()), Math.round(climate.humidity())));
+			climateEvaluations.put(player.getUUID(), evaluation);
 		}
 
-		ClimateHudState state = new ClimateHudState(
-			Math.round(climate.temperature()),
-			Math.round(climate.humidity()));
+		ClimateHudState state = evaluation.state();
 		if (!force && state.equals(lastPlayerClimateStates.get(player.getUUID()))) return;
 
-		if (SyncWorldManager.send(player, new PlayerClimatePayloadManager(climate.temperature(), climate.humidity()))) {
+		if (SyncWorldManager.send(player, new PlayerClimatePayloadManager(evaluation.temperature(), evaluation.humidity()))) {
 			lastPlayerClimateStates.put(player.getUUID(), state);
 		}
 	}
@@ -221,12 +270,17 @@ public final class MadokuSeasonManager {
 
 
 	private static SeasonState resolveState(ServerLevel level) {
-		long absoluteDay = Math.max(0L, MadokuTimeManager.getDay(MadokuTimeManager.getCurrentAbsoluteDayTime(level)));
 		int seasonLength = SeasonConfigManager.getSettings().seasonLengthDays();
+		long absoluteDay = Math.max(0L, MadokuTimeManager.getDay(MadokuTimeManager.getCurrentAbsoluteDayTime(level)));
+		if (cachedState != null && cachedAbsoluteDay == absoluteDay && cachedSeasonLengthDays == seasonLength) {
+			return cachedState;
+		}
 		long cycleDay = Math.floorMod(absoluteDay, seasonLength * 4L);
-		Season season = Season.values()[(int) (cycleDay / seasonLength)];
+		Season season = SEASONS[(int) (cycleDay / seasonLength)];
 		int day = (int) (cycleDay % seasonLength);
-		return new SeasonState(absoluteDay, cycleDay, season, day, day / SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1, day % SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1);
+		cachedAbsoluteDay = absoluteDay;
+		cachedSeasonLengthDays = seasonLength;
+		return cachedState = new SeasonState(absoluteDay, cycleDay, season, day, day / SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1, day % SeasonConfigManager.DEFAULT_DAYS_PER_WEEK + 1);
 	}
 
 	private static SeasonState currentState(ServerLevel level) {
@@ -239,4 +293,12 @@ public final class MadokuSeasonManager {
 	public enum Season { SPRING("spring"), SUMMER("summer"), FALL("fall"), WINTER("winter"); private final String id; Season(String id) { this.id = id; } public String id() { return id; } }
 	public record SeasonState(long absoluteDay, long cycleDay, Season season, int seasonDay, int week, int dayInWeek) { }
 	private record ClimateHudState(long temperature, long humidity) { }
+	private record ClimateEvaluation(
+		ServerLevel level,
+		long position,
+		long gameTime,
+		double temperature,
+		double humidity,
+		ClimateHudState state
+	) { }
 }

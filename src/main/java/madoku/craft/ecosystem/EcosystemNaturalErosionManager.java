@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
@@ -23,7 +22,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class EcosystemNaturalErosionManager {
 	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_erosion";
@@ -33,6 +34,9 @@ public final class EcosystemNaturalErosionManager {
 	private static final String CONFIG_FILE_NAME = "natural-erosion";
 
 	private static volatile NaturalErosionConfigManager.Settings settings = NaturalErosionConfigManager.defaults();
+	private static final Map<String, Identifier> BIOME_IDENTIFIERS = new ConcurrentHashMap<>();
+	private static final Map<String, ResourceKey<Biome>> BIOME_KEYS = new ConcurrentHashMap<>();
+	private static final Map<String, TagKey<Biome>> BIOME_TAG_KEYS = new ConcurrentHashMap<>();
 
 	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
 		@Override
@@ -50,6 +54,9 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	public static void reset() {
+		BIOME_IDENTIFIERS.clear();
+		BIOME_KEYS.clear();
+		BIOME_TAG_KEYS.clear();
 	}
 
 	public static NaturalErosionConfigManager.Settings getSettings() {
@@ -73,7 +80,7 @@ public final class EcosystemNaturalErosionManager {
 			return;
 		}
 
-		long currentAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = position.getX() >> 4;
 		int chunkZ = position.getZ() >> 4;
 		EcosystemNaturalGrowthManager.processDirtInColumn(
@@ -86,10 +93,13 @@ public final class EcosystemNaturalErosionManager {
 			position.getZ()
 		);
 
-		BlockPos groundPosition = resolveRandomColumnGroundPosition(world, position);
+		BlockPos groundPosition = MadokuEcosystemManager.resolveCachedGroundPosition(world, position);
 		if (groundPosition != null) {
 			BlockState groundState = world.getBlockState(groundPosition);
-			if (isWetSeedCandidate(world, groundPosition, groundState)) {
+			String seedKey = MadokuEcosystemManager.levelId(world) + "|" + groundPosition.asLong();
+			MadokuEcosystemManager.DirtState trackedSeed = MadokuEcosystemManager.dirtBlocksByKey.get(seedKey);
+			if (isWetSeedCandidate(world, groundPosition, groundState)
+				&& (trackedSeed == null || !"wet".equals(trackedSeed.mode))) {
 				spreadWetTrackingFromSeed(world, groundPosition);
 			}
 		}
@@ -98,20 +108,6 @@ public final class EcosystemNaturalErosionManager {
 		if (isLavaMagmaSeedCandidate(world, position, state)) {
 			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
 		}
-	}
-
-	private static BlockPos resolveRandomColumnGroundPosition(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
-			return null;
-		}
-		int topY = Math.min(
-			world.getMaxY() - 1,
-			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, position.getX(), position.getZ()) - 1
-		);
-		if (topY < world.getMinY()) {
-			return null;
-		}
-		return new BlockPos(position.getX(), topY, position.getZ());
 	}
 
 	static void spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPosition) {
@@ -287,14 +283,23 @@ public final class EcosystemNaturalErosionManager {
 			if (normalized.startsWith("#")) {
 				normalized = normalized.substring(1);
 			}
-			Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(normalized));
+			String normalizedBiomeId = MadokuJSONManager.normalizeRegistryIdentifierForLookup(normalized);
+			Identifier id = BIOME_IDENTIFIERS.computeIfAbsent(normalizedBiomeId, Identifier::tryParse);
 			if (id == null) {
 				continue;
 			}
-			if (biomeHolder.is(ResourceKey.create(Registries.BIOME, id))) {
+			ResourceKey<Biome> biomeKey = BIOME_KEYS.computeIfAbsent(
+				normalizedBiomeId,
+				key -> ResourceKey.create(Registries.BIOME, id)
+			);
+			TagKey<Biome> biomeTagKey = BIOME_TAG_KEYS.computeIfAbsent(
+				normalizedBiomeId,
+				key -> TagKey.create(Registries.BIOME, id)
+			);
+			if (biomeHolder.is(biomeKey)) {
 				return true;
 			}
-			if (biomeHolder.is(TagKey.create(Registries.BIOME, id))) {
+			if (biomeHolder.is(biomeTagKey)) {
 				return true;
 			}
 		}
@@ -343,7 +348,7 @@ public final class EcosystemNaturalErosionManager {
 		if (!isWaterErosionEnabled()) {
 			return false;
 		}
-		for (NaturalErosionConfigManager.NamedErosionRule rule : NaturalErosionConfigManager.erosionRulesInPriority(settings)) {
+		for (NaturalErosionConfigManager.NamedErosionRule rule : MadokuEcosystemManager.cachedErosionRules) {
 			if (rule == null || rule.rule() == null || !rule.rule().enabled()) {
 				continue;
 			}

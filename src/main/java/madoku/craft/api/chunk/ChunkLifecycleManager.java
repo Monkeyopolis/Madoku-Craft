@@ -50,7 +50,7 @@ final class ChunkLifecycleManager {
 			chunk.getPos().pack(),
 			FullChunkStatus.FULL
 		);
-		MadokuChunkManager.notifyChunkLoaded(level, chunk.getPos().x(), chunk.getPos().z());
+		MadokuChunkManager.enqueueChunkLoaded(level, chunk.getPos().x(), chunk.getPos().z());
 	}
 
 	private static void onChunkUnload(ServerLevel level, LevelChunk chunk) {
@@ -58,6 +58,6 @@ final class ChunkLifecycleManager {
 			return;
 		}
 		MadokuChunkManager.removeChunk(MadokuChunkManager.levelId(level), chunk.getPos().pack());
-		MadokuChunkManager.notifyChunkUnloaded(level, chunk.getPos().x(), chunk.getPos().z());
+		MadokuChunkManager.enqueueChunkUnloaded(level, chunk.getPos().x(), chunk.getPos().z());
 	}
 }

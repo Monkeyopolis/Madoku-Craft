@@ -13,6 +13,7 @@ import madoku.craft.mixin.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
+import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.loot.LootTableCropsManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -26,6 +27,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemLore;
@@ -43,6 +45,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -87,12 +91,31 @@ public final class FarmingCropsManager {
 	private static volatile boolean dirty = false;
 
 	private static volatile Map<String, CropRule> cropRulesByPlantingItemId = new LinkedHashMap<>();
-	private static volatile Map<String, CropRule> cropRulesByCropBlockId = new LinkedHashMap<>();
-	private static volatile Map<String, CropRule> cropRulesByMatureBlockId = new LinkedHashMap<>();
+	private static volatile Map<Item, CropRule> cropRulesByPlantingItem = Map.of();
+	private static volatile Map<Block, CropRule> cropRulesByBlock = Map.of();
+	private static volatile Map<Block, CropRule> cropRulesByGrowthBlock = Map.of();
+	private static volatile Map<Block, CropRule> cropRulesByMatureBlock = Map.of();
+	private static final Map<Block, AgeMetadata> AGE_METADATA_BY_BLOCK = new HashMap<>();
 
-	private static final Map<String, PlotState> plotsByKey = new LinkedHashMap<>();
-	private static final Map<String, CropState> cropsByKey = new LinkedHashMap<>();
-	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new LinkedHashMap<>();
+	private static final Map<String, PlotState> plotsByKey = new HashMap<>();
+	private static final Map<String, CropState> cropsByKey = new HashMap<>();
+	private static final Map<String, Set<String>> cropKeysByChunk = new HashMap<>();
+	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new HashMap<>();
+	private static final Map<String, JsonObject> serializedPlotsByKey = new HashMap<>();
+	private static final Map<String, Long> serializedPlotFingerprintsByKey = new HashMap<>();
+	private static final Map<String, JsonObject> serializedCropsByKey = new HashMap<>();
+	private static final Map<String, Long> serializedCropFingerprintsByKey = new HashMap<>();
+
+	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
+		@Override
+		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+			processCropsInChunk(level, chunkX, chunkZ);
+		}
+
+		@Override
+		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+		}
+	};
 
 	private FarmingCropsManager() {
 	}
@@ -107,12 +130,18 @@ public final class FarmingCropsManager {
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreak(world, pos, state, blockEntity)
 		);
+		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 	}
 
 	public static void reset() {
 		plotsByKey.clear();
 		cropsByKey.clear();
+		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
+		serializedPlotsByKey.clear();
+		serializedPlotFingerprintsByKey.clear();
+		serializedCropsByKey.clear();
+		serializedCropFingerprintsByKey.clear();
 		dirty = false;
 	}
 
@@ -122,6 +151,11 @@ public final class FarmingCropsManager {
 		}
 		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		applyCropItemMetadata();
+		for (ServerLevel level : server.getAllLevels()) {
+			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
+				if (chunk != null) processCropsInChunk(level, chunk.getPos().x(), chunk.getPos().z());
+			});
+		}
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -438,7 +472,8 @@ public final class FarmingCropsManager {
 		}
 
 		CropRule rule = resolveCropRuleByCropState(cropState);
-		if (rule == null || !isCropBlock(cropState, rule) || !isFarmland(world.getBlockState(cropPos.below()))) {
+		BlockState soilState = world.getBlockState(cropPos.below());
+		if (rule == null || !isCropBlock(cropState, rule) || !isFarmland(soilState)) {
 			return false;
 		}
 
@@ -450,6 +485,35 @@ public final class FarmingCropsManager {
 
 		applyElapsedCropProgress(world, cropPos, cropState, rule, crop, resolveAbsoluteDayTime(world));
 		return true;
+	}
+
+	private static void processCropsInChunk(ServerLevel world, int chunkX, int chunkZ) {
+		if (!settings.enabled || world == null) {
+			return;
+		}
+
+		Set<String> keys = cropKeysByChunk.get(cropChunkKey(world, chunkX, chunkZ));
+		if (keys == null || keys.isEmpty()) {
+			return;
+		}
+
+		long currentAbsoluteDayTime = resolveAbsoluteDayTime(world);
+		for (String key : keys) {
+			CropState crop = cropsByKey.get(key);
+			if (crop == null) {
+				continue;
+			}
+
+			BlockPos cropPos = BlockPos.of(crop.cropPos);
+			BlockState cropState = world.getBlockState(cropPos);
+			BlockState soilState = world.getBlockState(cropPos.below());
+			CropRule rule = resolveCropRuleByCropState(cropState);
+			if (rule == null || !isCropBlock(cropState, rule) || !isFarmland(soilState)) {
+				continue;
+			}
+
+			applyElapsedCropProgress(world, cropPos, cropState, rule, crop, currentAbsoluteDayTime);
+		}
 	}
 
 	private static void applyElapsedCropProgress(
@@ -476,10 +540,12 @@ public final class FarmingCropsManager {
 			crop.progressGrowthTicks = Math.max(0.0d, Math.min(requiredTicks, observedProgress));
 		}
 
-		PlotState plot = findPlot(world, cropPos.below());
+		BlockPos soilPos = cropPos.below();
+		BlockState soilState = world.getBlockState(soilPos);
+		PlotState plot = findPlot(world, soilPos);
 		boolean fertilized = plot != null && plot.fertilized;
 		boolean raining = world.isRainingAt(cropPos);
-		boolean dryFarmland = isDryFarmland(world.getBlockState(cropPos.below()));
+		boolean dryFarmland = isDryFarmland(soilState);
 		double speedMultiplier = 1.0d + resolveGrowingConditionsSpeedModifier(rule, world, cropPos);
 		if (fertilized) speedMultiplier += settings.fertilizedGrowthBoost;
 		if (raining) speedMultiplier += settings.rainGrowthBoost;
@@ -512,7 +578,7 @@ public final class FarmingCropsManager {
 			dirty = true;
 		}
 
-		updateCropBlockAge(world, cropPos, world.getBlockState(cropPos), rule, crop);
+		updateCropBlockAge(world, cropPos, state, rule, crop);
 	}
 
 	public static void handleBlockBreak(Level world, BlockPos pos, BlockState state, BlockEntity blockEntity) {
@@ -786,11 +852,50 @@ public final class FarmingCropsManager {
 	}
 
 	private static CropState putCropState(String key, CropState value) {
-		return cropsByKey.put(key, value);
+		CropState previous = cropsByKey.put(key, value);
+		if (previous != null && (value == null || !cropChunkKey(previous).equals(cropChunkKey(value)))) {
+			removeCropKeyFromChunk(previous);
+		}
+		if (value != null) {
+			cropKeysByChunk.computeIfAbsent(cropChunkKey(value), ignored -> new HashSet<>()).add(key);
+		}
+		return previous;
 	}
 
 	private static CropState removeCropStateByKey(String key) {
-		return cropsByKey.remove(key);
+		CropState removed = cropsByKey.remove(key);
+		serializedCropsByKey.remove(key);
+		serializedCropFingerprintsByKey.remove(key);
+		if (removed != null) {
+			removeCropKeyFromChunk(removed);
+		}
+		return removed;
+	}
+
+	private static void removeCropKeyFromChunk(CropState crop) {
+		if (crop == null) {
+			return;
+		}
+		String chunkKey = cropChunkKey(crop);
+		Set<String> keys = cropKeysByChunk.get(chunkKey);
+		if (keys == null || !keys.remove(crop.key())) {
+			return;
+		}
+		if (keys.isEmpty()) {
+			cropKeysByChunk.remove(chunkKey);
+		}
+	}
+
+	private static String cropChunkKey(CropState crop) {
+		return crop == null ? "" : cropChunkKey(crop.levelId, BlockPos.getX(crop.cropPos) >> 4, BlockPos.getZ(crop.cropPos) >> 4);
+	}
+
+	private static String cropChunkKey(ServerLevel world, int chunkX, int chunkZ) {
+		return cropChunkKey(levelId(world), chunkX, chunkZ);
+	}
+
+	private static String cropChunkKey(String levelId, int chunkX, int chunkZ) {
+		return (levelId == null ? "" : levelId) + "|" + chunkX + "|" + chunkZ;
 	}
 
 	private static String plotKey(ServerLevel world, BlockPos soilPos) {
@@ -820,7 +925,12 @@ public final class FarmingCropsManager {
 	private static void applyPersistedData(JsonObject source) {
 		plotsByKey.clear();
 		cropsByKey.clear();
+		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
+		serializedPlotsByKey.clear();
+		serializedPlotFingerprintsByKey.clear();
+		serializedCropsByKey.clear();
+		serializedCropFingerprintsByKey.clear();
 
 		if (source == null) {
 			return;
@@ -855,15 +965,35 @@ public final class FarmingCropsManager {
 		JSONFormatManager.ArrayBuilder plots = JSONFormatManager.array();
 		for (PlotState plot : plotsByKey.values()) {
 			if (plot != null) {
-				plots.add(plot.toJson());
+				String key = plot.key();
+				long fingerprint = plot.persistenceFingerprint();
+				JsonObject serialized = serializedPlotsByKey.get(key);
+				if (serialized == null || !Long.valueOf(fingerprint).equals(serializedPlotFingerprintsByKey.get(key))) {
+					serialized = plot.toJson();
+					serializedPlotsByKey.put(key, serialized);
+					serializedPlotFingerprintsByKey.put(key, fingerprint);
+				}
+				plots.add(serialized);
 			}
 		}
+		serializedPlotsByKey.keySet().retainAll(plotsByKey.keySet());
+		serializedPlotFingerprintsByKey.keySet().retainAll(plotsByKey.keySet());
 		JSONFormatManager.ArrayBuilder crops = JSONFormatManager.array();
 		for (CropState crop : cropsByKey.values()) {
 			if (crop != null) {
-				crops.add(crop.toJson());
+				String key = crop.key();
+				long fingerprint = crop.persistenceFingerprint();
+				JsonObject serialized = serializedCropsByKey.get(key);
+				if (serialized == null || !Long.valueOf(fingerprint).equals(serializedCropFingerprintsByKey.get(key))) {
+					serialized = crop.toJson();
+					serializedCropsByKey.put(key, serialized);
+					serializedCropFingerprintsByKey.put(key, fingerprint);
+				}
+				crops.add(serialized);
 			}
 		}
+		serializedCropsByKey.keySet().retainAll(cropsByKey.keySet());
+		serializedCropFingerprintsByKey.keySet().retainAll(cropsByKey.keySet());
 		return JSONFormatManager.object()
 			.put(FIELD_PLOTS, plots.build())
 			.put(FIELD_CROPS, crops.build())
@@ -885,8 +1015,6 @@ public final class FarmingCropsManager {
 
 	private static void loadCropConfigs() {
 		Map<String, CropRule> plantingRules = new LinkedHashMap<>();
-		Map<String, CropRule> blockRules = new LinkedHashMap<>();
-		Map<String, CropRule> matureRules = new LinkedHashMap<>();
 		Map<String, JsonObject> defaultFiles = CropsConfigManager.buildDefaultCropFileDefaults();
 
 		try {
@@ -905,25 +1033,42 @@ public final class FarmingCropsManager {
 				}
 
 				plantingRules.put(rule.plantingItemId(), rule);
-				blockRules.put(rule.cropBlockId(), rule);
-				if (rule.usesDistinctMatureBlock()) {
-					matureRules.put(rule.matureBlockId(), rule);
-				}
 			}
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load FarmingCropsManager crop configs; using defaults.", exception);
 			for (CropRule rule : CropRule.defaultRules()) {
 				plantingRules.put(rule.plantingItemId(), rule);
-				blockRules.put(rule.cropBlockId(), rule);
-				if (rule.usesDistinctMatureBlock()) {
-					matureRules.put(rule.matureBlockId(), rule);
+			}
+		}
+
+		Map<Item, CropRule> plantingItems = new HashMap<>();
+		Map<Block, CropRule> blocks = new HashMap<>();
+		Map<Block, CropRule> growthBlocks = new HashMap<>();
+		Map<Block, CropRule> matureBlocks = new HashMap<>();
+		for (CropRule rule : plantingRules.values()) {
+			Item item = resolveItemByRegistryId(rule.plantingItemId());
+			if (item != null) {
+				plantingItems.put(item, rule);
+			}
+			Block cropBlock = resolveBlockByRegistryId(rule.cropBlockId());
+			if (cropBlock != null) {
+				blocks.put(cropBlock, rule);
+				growthBlocks.put(cropBlock, rule);
+			}
+			if (rule.usesDistinctMatureBlock()) {
+				Block matureBlock = resolveBlockByRegistryId(rule.matureBlockId());
+				if (matureBlock != null) {
+					blocks.put(matureBlock, rule);
+					matureBlocks.put(matureBlock, rule);
 				}
 			}
 		}
 
 		cropRulesByPlantingItemId = Map.copyOf(plantingRules);
-		cropRulesByCropBlockId = Map.copyOf(blockRules);
-		cropRulesByMatureBlockId = Map.copyOf(matureRules);
+		cropRulesByPlantingItem = Map.copyOf(plantingItems);
+		cropRulesByBlock = Map.copyOf(blocks);
+		cropRulesByGrowthBlock = Map.copyOf(growthBlocks);
+		cropRulesByMatureBlock = Map.copyOf(matureBlocks);
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -948,8 +1093,7 @@ public final class FarmingCropsManager {
 		if (item == null) {
 			return null;
 		}
-		Identifier id = BuiltInRegistries.ITEM.getKey(item);
-		return id == null ? null : resolveCropRuleByPlantingItemId(id.toString());
+		return cropRulesByPlantingItem.get(item);
 	}
 
 	private static CropRule resolveCropRuleByPlantingItemId(String plantingItemId) {
@@ -964,16 +1108,7 @@ public final class FarmingCropsManager {
 		if (state == null) {
 			return null;
 		}
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-		if (id == null) {
-			return null;
-		}
-		String normalized = normalizeRegistryId(id.toString());
-		CropRule rule = cropRulesByCropBlockId.get(normalized);
-		if (rule != null) {
-			return rule;
-		}
-		return cropRulesByMatureBlockId.get(normalized);
+		return cropRulesByBlock.get(state.getBlock());
 	}
 
 	private static CropRule resolveManagedCropRule(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -1118,37 +1253,16 @@ public final class FarmingCropsManager {
 	}
 
 	private static boolean isCropBlock(BlockState state, CropRule rule) {
-		if (state == null || rule == null) {
-			return false;
-		}
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-		if (id == null) {
-			return false;
-		}
-		String normalized = normalizeRegistryId(id.toString());
-		return normalized.equals(rule.cropBlockId()) || normalized.equals(rule.matureBlockId());
+		return state != null && rule != null && cropRulesByBlock.get(state.getBlock()) == rule;
 	}
 
 	private static boolean isCropGrowthBlock(BlockState state, CropRule rule) {
-		if (state == null || rule == null) {
-			return false;
-		}
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-		if (id == null) {
-			return false;
-		}
-		return normalizeRegistryId(id.toString()).equals(rule.cropBlockId());
+		return state != null && rule != null && cropRulesByGrowthBlock.get(state.getBlock()) == rule;
 	}
 
 	private static boolean isCropMatureBlock(BlockState state, CropRule rule) {
-		if (state == null || rule == null || !rule.usesDistinctMatureBlock()) {
-			return false;
-		}
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-		if (id == null) {
-			return false;
-		}
-		return normalizeRegistryId(id.toString()).equals(rule.matureBlockId());
+		return state != null && rule != null && rule.usesDistinctMatureBlock()
+			&& cropRulesByMatureBlock.get(state.getBlock()) == rule;
 	}
 
 	private static void markPendingHarvest(ServerLevel world, BlockPos cropPos, CropRule rule, boolean fertilized) {
@@ -1294,33 +1408,18 @@ public final class FarmingCropsManager {
 	}
 
 	private static int getCropAgeLimit(BlockState state) {
-		IntegerProperty ageProperty = findAgeProperty(state);
-		if (ageProperty == null) {
-			return CROP_MAX_AGE;
-		}
+		return ageMetadata(state).ageLimit();
+	}
 
-		int maxAge = 0;
-		for (Integer value : ageProperty.getPossibleValues()) {
-			if (value != null && value > maxAge) {
-				maxAge = value;
-			}
-		}
-		return Math.max(1, maxAge);
+	private static Block resolveBlockByRegistryId(String blockId) {
+		Identifier identifier = Identifier.tryParse(normalizeRegistryId(blockId));
+		return identifier == null || !BuiltInRegistries.BLOCK.containsKey(identifier)
+			? null
+			: BuiltInRegistries.BLOCK.getValue(identifier);
 	}
 
 	private static IntegerProperty findAgeProperty(BlockState state) {
-		if (state == null) {
-			return null;
-		}
-		for (Property<?> property : state.getProperties()) {
-			if (!(property instanceof IntegerProperty integerProperty)) {
-				continue;
-			}
-			if ("age".equals(integerProperty.getName())) {
-				return integerProperty;
-			}
-		}
-		return null;
+		return ageMetadata(state).property();
 	}
 
 	private static BlockState setCropAge(BlockState state, int age) {
@@ -1335,6 +1434,25 @@ public final class FarmingCropsManager {
 
 		int targetAge = Math.max(0, Math.min(getCropAgeLimit(state), age));
 		return state.setValue(ageProperty, targetAge);
+	}
+
+	private static AgeMetadata ageMetadata(BlockState state) {
+		if (state == null) {
+			return AgeMetadata.NONE;
+		}
+		return AGE_METADATA_BY_BLOCK.computeIfAbsent(state.getBlock(), block -> {
+			for (Property<?> property : block.defaultBlockState().getProperties()) {
+				if (property instanceof IntegerProperty integerProperty && "age".equals(property.getName())) {
+					int maxAge = integerProperty.getPossibleValues().stream().mapToInt(Integer::intValue).max().orElse(CROP_MAX_AGE);
+					return new AgeMetadata(integerProperty, Math.max(1, maxAge));
+				}
+			}
+			return AgeMetadata.NONE;
+		});
+	}
+
+	private record AgeMetadata(IntegerProperty property, int ageLimit) {
+		private static final AgeMetadata NONE = new AgeMetadata(null, CROP_MAX_AGE);
 	}
 
 	private static double progressFromAge(int age, int ageLimit) {
@@ -1458,6 +1576,16 @@ public final class FarmingCropsManager {
 				.build();
 		}
 
+		private long persistenceFingerprint() {
+			long result = 17L;
+			result = 31L * result + levelId.hashCode();
+			result = 31L * result + soilPos;
+			result = 31L * result + cropPos;
+			result = 31L * result + (cropId == null ? 0 : cropId.hashCode());
+			result = 31L * result + (fertilized ? 1L : 0L);
+			return 31L * result + fertilizedAtGameplayTick;
+		}
+
 		private static PlotState fromJson(JsonElement element) {
 			if (element == null || !element.isJsonObject()) {
 				return null;
@@ -1527,6 +1655,17 @@ public final class FarmingCropsManager {
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
 				.build();
+		}
+
+		private long persistenceFingerprint() {
+			long result = 17L;
+			result = 31L * result + levelId.hashCode();
+			result = 31L * result + cropPos;
+			result = 31L * result + soilPos;
+			result = 31L * result + (cropId == null ? 0 : cropId.hashCode());
+			result = 31L * result + Double.doubleToLongBits(requiredGrowthTicks);
+			result = 31L * result + Double.doubleToLongBits(progressGrowthTicks);
+			return 31L * result + lastProcessedAbsoluteDayTime;
 		}
 
 		private static CropState fromJson(JsonElement element) {

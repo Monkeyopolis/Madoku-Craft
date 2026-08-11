@@ -68,6 +68,7 @@ public final class MadokuAPIManager {
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
 		MadokuHelperManager.onServerTick(server);
+		MadokuChunkManager.onServerTick(server);
 		if (MadokuTimeManager.isEnabled()) {
 			MadokuSchedulerManager.onClockTick(server);
 		} else {

@@ -34,10 +34,10 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.AgeableMob;
+import net.minecraft.world.entity.animal.bee.Bee;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.skeleton.AbstractSkeleton;
@@ -56,6 +56,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -84,7 +85,8 @@ public final class MobEntityManager {
 
 	private static final Map<UUID, EntitySpawnReason> PENDING_CAVE_SPIDER_REPLACEMENTS = new ConcurrentHashMap<>();
 	private static final Map<UUID, PendingZombieReplacement> PENDING_ZOMBIE_REPLACEMENTS = new ConcurrentHashMap<>();
-	private static final Map<UUID, Entity> TRACKED_ENTITIES = new ConcurrentHashMap<>();
+	private static final Map<UUID, Entity> TRACKED_BEES = new HashMap<>();
+	private static final Map<UUID, Entity> TRACKED_AGEABLE_MOBS = new HashMap<>();
 	private static final Map<UUID, Boolean> CONFIGURED_MOB_BABY_STATES = new ConcurrentHashMap<>();
 	private static final java.util.Set<UUID> APPLIED_SPAWN_OVERRIDES = ConcurrentHashMap.newKeySet();
 
@@ -97,7 +99,12 @@ public final class MobEntityManager {
 	public static void initialize() {
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-			TRACKED_ENTITIES.put(entity.getUUID(), entity);
+			if (entity instanceof Bee) {
+				TRACKED_BEES.put(entity.getUUID(), entity);
+			}
+			if (entity instanceof AgeableMob) {
+				TRACKED_AGEABLE_MOBS.put(entity.getUUID(), entity);
+			}
 			if (entity instanceof LivingEntity livingEntity && !PetComponentsManager.isManaged(livingEntity)) {
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
 				EntityComponentsManager.applyMobBabyComponent(livingEntity);
@@ -110,7 +117,8 @@ public final class MobEntityManager {
 			}
 		});
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-			TRACKED_ENTITIES.remove(entity.getUUID());
+			TRACKED_BEES.remove(entity.getUUID());
+			TRACKED_AGEABLE_MOBS.remove(entity.getUUID());
 			CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 			APPLIED_SPAWN_OVERRIDES.remove(entity.getUUID());
 			cleanupEntityState(entity);
@@ -123,7 +131,8 @@ public final class MobEntityManager {
 		runtimeTaskScheduled = false;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
-		TRACKED_ENTITIES.clear();
+		TRACKED_BEES.clear();
+		TRACKED_AGEABLE_MOBS.clear();
 		CONFIGURED_MOB_BABY_STATES.clear();
 		APPLIED_SPAWN_OVERRIDES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();
@@ -147,7 +156,8 @@ public final class MobEntityManager {
 		runtimeTaskScheduled = false;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
-		TRACKED_ENTITIES.clear();
+		TRACKED_BEES.clear();
+		TRACKED_AGEABLE_MOBS.clear();
 		CONFIGURED_MOB_BABY_STATES.clear();
 		APPLIED_SPAWN_OVERRIDES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();
@@ -163,10 +173,12 @@ public final class MobEntityManager {
 	}
 
 	static boolean isDifficultyScalingEligible(LivingEntity entity) {
-		if (!(entity instanceof Mob mob)) {
+		if (!(entity instanceof Mob) || PetComponentsManager.isManaged(entity)) {
 			return false;
 		}
-		return mob instanceof Enemy || !resolveRegionalDifficultyMobFileKey(mob).isBlank();
+		// The regional snapshot supplies a global fallback profile. Per-mob files override
+		// that profile; they must not determine whether an otherwise ordinary mob is scaled.
+		return true;
 	}
 	public static void applyMobSpawnOverridesAfterVanilla(
 		Mob mob,
@@ -1414,7 +1426,7 @@ public final class MobEntityManager {
 		runtimeTaskScheduled = false;
 		boolean beeRuntimeActive = EntityBehaviorsManager.BeeBehavior.tickRuntime(
 			server,
-			TRACKED_ENTITIES.values(),
+			TRACKED_BEES.values(),
 			MobConfigManager.isEnabled(),
 			isMobFileEnabled(MobConfigManager.FILE_BEE)
 		);
@@ -1427,7 +1439,7 @@ public final class MobEntityManager {
 
 	private static boolean tickConfiguredMobBabyStates() {
 		boolean active = false;
-		for (Entity entity : TRACKED_ENTITIES.values()) {
+		for (Entity entity : TRACKED_AGEABLE_MOBS.values()) {
 			if (!(entity instanceof AgeableMob ageableMob)
 				|| !(entity instanceof LivingEntity livingEntity)
 				|| !entity.isAlive()

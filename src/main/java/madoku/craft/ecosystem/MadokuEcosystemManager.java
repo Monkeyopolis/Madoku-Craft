@@ -112,11 +112,20 @@ public final class MadokuEcosystemManager {
 
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
+	private static String cachedProbeLevelId = "";
+	private static long cachedProbeGameTime = Long.MIN_VALUE;
+	private static int cachedProbeX;
+	private static int cachedProbeZ;
+	private static BlockPos cachedGroundPosition;
+	private static String cachedAbsoluteTimeLevelId = "";
+	private static long cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
+	private static long cachedAbsoluteDayTime = Long.MIN_VALUE;
 
 	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
 			loadPersistedChunkData(level, chunkX, chunkZ);
+			processLoadedChunk(level, chunkX, chunkZ);
 		}
 
 		@Override
@@ -151,6 +160,12 @@ public final class MadokuEcosystemManager {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
+		cachedGroundPosition = null;
+		cachedProbeLevelId = "";
+		cachedProbeGameTime = Long.MIN_VALUE;
+		cachedAbsoluteTimeLevelId = "";
+		cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
+		cachedAbsoluteDayTime = Long.MIN_VALUE;
 	}
 
 	public static boolean isEnabled() {
@@ -258,7 +273,10 @@ public final class MadokuEcosystemManager {
 		syncChunkProcessorActivation();
 		for (ServerLevel level : server.getAllLevels()) {
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
-				if (chunk != null) loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
+				if (chunk != null) {
+					loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
+					processLoadedChunk(level, chunk.getPos().x(), chunk.getPos().z());
+				}
 			});
 		}
 	}
@@ -358,11 +376,20 @@ public final class MadokuEcosystemManager {
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
 		if (chunkKey.levelId().isBlank() || !LOADED_PERSISTED_CHUNK_KEYS.add(chunkKey)) return;
 		JsonObject source = DataWorldChunkManager.getChunkSystemData(level, chunkX, chunkZ, DATA_SYSTEM_ID);
-		if (source == null || source.isEmpty()) return;
-		source.addProperty(FIELD_LEVEL_ID, chunkKey.levelId());
-		source.addProperty(FIELD_CHUNK_X, chunkX);
-		source.addProperty(FIELD_CHUNK_Z, chunkZ);
-		applyPersistedData(source);
+		if (source != null && !source.isEmpty()) {
+			source.addProperty(FIELD_LEVEL_ID, chunkKey.levelId());
+			source.addProperty(FIELD_CHUNK_X, chunkX);
+			source.addProperty(FIELD_CHUNK_Z, chunkZ);
+			applyPersistedData(source);
+		}
+	}
+
+	private static void processLoadedChunk(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null || !isEnabled()) {
+			return;
+		}
+		EcosystemNaturalGrowthManager.processChunkOnLoad(level, chunkX, chunkZ);
+		EcosystemNaturalDecayManager.processChunkOnLoad(level, chunkX, chunkZ);
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
@@ -568,6 +595,53 @@ public final class MadokuEcosystemManager {
 			return MadokuTimeManager.getCurrentAbsoluteDayTime();
 		}
 		return MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+	}
+
+	static long resolveCachedAbsoluteDayTime(ServerLevel world) {
+		if (world == null) {
+			return MadokuTimeManager.getCurrentAbsoluteDayTime();
+		}
+		String currentLevelId = levelId(world);
+		long currentGameTime = world.getGameTime();
+		if (currentGameTime == cachedAbsoluteTimeGameTime && currentLevelId.equals(cachedAbsoluteTimeLevelId)) {
+			return cachedAbsoluteDayTime;
+		}
+		cachedAbsoluteTimeLevelId = currentLevelId;
+		cachedAbsoluteTimeGameTime = currentGameTime;
+		cachedAbsoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		return cachedAbsoluteDayTime;
+	}
+
+	static BlockPos resolveCachedGroundPosition(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
+			return null;
+		}
+		String currentLevelId = levelId(world);
+		long currentGameTime = world.getGameTime();
+		int currentX = position.getX();
+		int currentZ = position.getZ();
+		if (cachedGroundPosition != null
+			&& currentGameTime == cachedProbeGameTime
+			&& currentX == cachedProbeX
+			&& currentZ == cachedProbeZ
+			&& currentLevelId.equals(cachedProbeLevelId)) {
+			return cachedGroundPosition;
+		}
+		int topY = Math.min(
+			world.getMaxY() - 1,
+			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, currentX, currentZ) - 1
+		);
+		BlockPos groundPosition = topY < world.getMinY() ? null : new BlockPos(currentX, topY, currentZ);
+		cachedProbeLevelId = currentLevelId;
+		cachedProbeGameTime = currentGameTime;
+		cachedProbeX = currentX;
+		cachedProbeZ = currentZ;
+		cachedGroundPosition = groundPosition;
+		return groundPosition;
+	}
+
+	static void invalidateCachedGroundPosition() {
+		cachedGroundPosition = null;
 	}
 
 	static long normalizePreviousAbsoluteTick(long previousAbsoluteTick, long currentAbsoluteTick) {

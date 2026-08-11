@@ -35,7 +35,6 @@ public class MadokuCraft implements ModInitializer {
 		MadokuAPIManager.initialize();
 		MadokuSmeltingManager.initialize();
 		MadokuMobManager.initialize();
-		MadokuSeasonManager.initialize();
 		MadokuWorldgen.initialize();
 		MadokuEntities.initialize();
 		MadokuBlocks.initialize();
@@ -70,7 +69,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuEcosystemManager.loadPersistedData(server);
 			MadokuChunkDataManager.loadPersistedData(server);
 			MadokuAPIManager.onServerStarted(server);
-			MadokuSeasonManager.onServerStarted(server);
 			MadokuFarmingManager.onServerStarted(server);
 			MadokuEcosystemManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();

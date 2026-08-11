@@ -22,6 +22,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -488,7 +489,8 @@ public final class MobRegionalDifficultyManager {
 			biomeRuntime,
 			structureRuntime,
 			timeRuntime,
-			Map.copyOf(mobScalingIncrements)
+			Map.copyOf(mobScalingIncrements),
+			new HashMap<>()
 		);
 	}
 
@@ -845,18 +847,20 @@ public final class MobRegionalDifficultyManager {
 		}
 		StatIncrements increments = resolvedIncrements.increments();
 		StatModes modes = resolvedIncrements.modes();
-		double armorBaseBefore = readAttributeBaseValue(mob, Attributes.ARMOR);
-		double healthAddition = resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
-		double movementSpeedAddition = resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment);
-		double flyingSpeedAddition = mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE
+		double armorBaseBefore = increments.armor() == 0.0D ? 0.0D : readAttributeBaseValue(mob, Attributes.ARMOR);
+		double healthAddition = increments.health() == 0.0D ? 0.0D : resolveHealthScalingAmount(mob, increments, modes, totalAdjustment);
+		double movementSpeedAddition = increments.movementSpeed() == 0.0D ? 0.0D : resolveMovementSpeedScalingAmount(mob, increments, modes, totalAdjustment);
+		double flyingSpeedAddition = increments.flyingSpeed() != 0.0D && mob.getType() == madoku.craft.entity.MadokuEntityTypes.BEE
 			? resolveFlyingSpeedScalingAmount(mob, increments, modes, totalAdjustment)
 			: 0.0D;
-		double scaleAddition = resolveScaleScalingAmount(mob, increments, modes, totalAdjustment);
-		double armorAddition = resolveArmorScalingAmount(mob, increments, modes, totalAdjustment);
-		double damageAddition = resolveDamageScalingAmount(mob, increments, modes, totalAdjustment);
-		double knockbackResistanceAddition = resolveKnockbackResistanceScalingAmount(mob, increments, modes, totalAdjustment);
+		double scaleAddition = increments.scale() == 0.0D ? 0.0D : resolveScaleScalingAmount(mob, increments, modes, totalAdjustment);
+		double armorAddition = increments.armor() == 0.0D ? 0.0D : resolveArmorScalingAmount(mob, increments, modes, totalAdjustment);
+		double damageAddition = increments.damage() == 0.0D ? 0.0D : resolveDamageScalingAmount(mob, increments, modes, totalAdjustment);
+		double knockbackResistanceAddition = increments.knockbackResistance() == 0.0D ? 0.0D : resolveKnockbackResistanceScalingAmount(mob, increments, modes, totalAdjustment);
 		int experienceBaseBefore = resolveMobExperienceDrop(mob);
-		int experienceDropAddition = resolveExperienceDropScalingAmount(experienceBaseBefore, increments, modes, totalAdjustment);
+		int experienceDropAddition = increments.experienceDrop() == 0.0D
+			? 0
+			: resolveExperienceDropScalingAmount(experienceBaseBefore, increments, modes, totalAdjustment);
 
 		boolean healthChanged = addAttribute(mob, Attributes.MAX_HEALTH, healthAddition);
 		addAttribute(mob, Attributes.MOVEMENT_SPEED, movementSpeedAddition);
@@ -868,7 +872,7 @@ public final class MobRegionalDifficultyManager {
 		addAttribute(mob, Attributes.ATTACK_DAMAGE, damageAddition);
 		addAttribute(mob, Attributes.KNOCKBACK_RESISTANCE, knockbackResistanceAddition);
 		int experienceBaseAfter = applyExperienceDropScaling(mob, experienceBaseBefore, experienceDropAddition);
-		double armorBaseAfter = readAttributeBaseValue(mob, Attributes.ARMOR);
+		double armorBaseAfter = increments.armor() == 0.0D ? armorBaseBefore : readAttributeBaseValue(mob, Attributes.ARMOR);
 
 		if (healthChanged) {
 			AttributeInstance maxHealthInstance = mob.getAttribute(Attributes.MAX_HEALTH);
@@ -1221,31 +1225,42 @@ public final class MobRegionalDifficultyManager {
 		BiomeState biomeRuntime,
 		StructureState structureRuntime,
 		TimeState timeRuntime,
-		Map<String, ScalingProfile> mobScalingIncrements
+		Map<String, ScalingProfile> mobScalingIncrements,
+		Map<String, ResolvedIncrements> resolvedIncrementsCache
 	) {
-			private static Snapshot disabled() {
-					return new Snapshot(
-						false,
-						new StatIncrements(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D),
-						StatModes.defaults(),
-						new BiomeState(false, 0, Map.of()),
-						new StructureState(false, 0, Map.of()),
-						TimeState.defaults(false),
-				Map.of()
+		private static Snapshot disabled() {
+			return new Snapshot(
+				false,
+				new StatIncrements(0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D),
+				StatModes.defaults(),
+				new BiomeState(false, 0, Map.of()),
+				new StructureState(false, 0, Map.of()),
+				TimeState.defaults(false),
+				Map.of(),
+				new HashMap<>()
 			);
 		}
 
-			private ResolvedIncrements resolveIncrements(Mob mob) {
-				if (mob == null || mobScalingIncrements.isEmpty()) {
-					return new ResolvedIncrements(increments, globalModes);
-				}
+		private ResolvedIncrements resolveIncrements(Mob mob) {
+			if (mob == null || mobScalingIncrements.isEmpty()) {
+				return new ResolvedIncrements(increments, globalModes);
+			}
+			String entityKey = EntityType.getKey(mob.getType()).toString();
+			ResolvedIncrements cached = resolvedIncrementsCache.get(entityKey);
+			if (cached != null) {
+				return cached;
+			}
 			for (String key : RegionalDifficultyConfigManager.resolveMobScalingFileKeys(mob.getType())) {
 				ScalingProfile specific = mobScalingIncrements.get(key);
 				if (specific != null) {
-					return new ResolvedIncrements(specific.increments(), specific.modes());
+					ResolvedIncrements resolved = new ResolvedIncrements(specific.increments(), specific.modes());
+					resolvedIncrementsCache.put(entityKey, resolved);
+					return resolved;
 				}
 			}
-			return new ResolvedIncrements(increments, globalModes);
+			ResolvedIncrements resolved = new ResolvedIncrements(increments, globalModes);
+			resolvedIncrementsCache.put(entityKey, resolved);
+			return resolved;
 		}
 
 		private int biomeAdjustment(Identifier biomeId) {

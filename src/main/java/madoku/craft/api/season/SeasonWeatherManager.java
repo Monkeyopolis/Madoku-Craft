@@ -12,6 +12,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.saveddata.WeatherData;
 
 import java.lang.reflect.Method;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /** Owns the global Madoku seasonal weather condition and Vanilla weather state. */
 public final class SeasonWeatherManager {
@@ -37,6 +39,7 @@ public final class SeasonWeatherManager {
 	private static volatile long lastObservedAbsoluteTime = -1L;
 	private static volatile WeatherCondition lastAppliedCondition;
 	private static volatile long nextAdaptivePollGameplayTick = -1L;
+	private static final Map<ServerLevel, WeatherCondition> lastAppliedLevelConditions = new IdentityHashMap<>();
 
 	private SeasonWeatherManager() { }
 
@@ -53,6 +56,7 @@ public final class SeasonWeatherManager {
 		lastObservedAbsoluteTime = -1L;
 		lastAppliedCondition = null;
 		nextAdaptivePollGameplayTick = -1L;
+		lastAppliedLevelConditions.clear();
 		SchedulerAdaptiveIntervalManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
 	}
 
@@ -77,6 +81,7 @@ public final class SeasonWeatherManager {
 		conditionEndAbsoluteTime = -1L;
 		lastAppliedCondition = null;
 		nextAdaptivePollGameplayTick = -1L;
+		lastAppliedLevelConditions.clear();
 		long now = currentAbsoluteTime(server);
 		lastObservedAbsoluteTime = now;
 		nextEvaluationAbsoluteTime = safeAdd(now, resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes()));
@@ -251,6 +256,7 @@ public final class SeasonWeatherManager {
 		if (server == null || condition == null) return;
 		int timer = Integer.MAX_VALUE;
 		for (ServerLevel level : server.getAllLevels()) {
+			if (!forceSync && lastAppliedLevelConditions.get(level) == condition) continue;
 			WeatherData weatherData = level.getWeatherData();
 			if (weatherData == null) continue;
 			weatherData.setClearWeatherTime(condition == WeatherCondition.CLEAR ? timer : 0);
@@ -258,6 +264,7 @@ public final class SeasonWeatherManager {
 			weatherData.setThunderTime(condition == WeatherCondition.THUNDERSTORM ? timer : 0);
 			weatherData.setRaining(condition.precipitating());
 			weatherData.setThundering(condition == WeatherCondition.THUNDERSTORM);
+			lastAppliedLevelConditions.put(level, condition);
 		}
 
 		if (forceSync || lastAppliedCondition != condition) {

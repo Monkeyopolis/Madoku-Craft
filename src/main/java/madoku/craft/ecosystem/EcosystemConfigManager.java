@@ -14,9 +14,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class EcosystemConfigManager {
 	public static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
@@ -29,6 +31,7 @@ public final class EcosystemConfigManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemConfigManager.class);
 	private static volatile Settings settings = defaults();
+	private static final Map<String, Block> RESOLVED_BLOCKS = new ConcurrentHashMap<>();
 
 	private EcosystemConfigManager() {
 	}
@@ -38,6 +41,7 @@ public final class EcosystemConfigManager {
 	}
 
 	public static void reset() {
+		RESOLVED_BLOCKS.clear();
 	}
 
 	public static Settings getSettings() {
@@ -179,11 +183,14 @@ public final class EcosystemConfigManager {
 	}
 
 	public static Block resolveBlock(String blockId) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(blockId));
-		if (id == null) {
+		String normalized = MadokuJSONManager.normalizeRegistryIdentifierForLookup(blockId);
+		if (normalized == null || normalized.isBlank()) {
 			return null;
 		}
-		return BuiltInRegistries.BLOCK.getValue(id);
+		return RESOLVED_BLOCKS.computeIfAbsent(normalized, key -> {
+			Identifier id = Identifier.tryParse(key);
+			return id == null ? null : BuiltInRegistries.BLOCK.getValue(id);
+		});
 	}
 
 	public static String blockId(Block block) {

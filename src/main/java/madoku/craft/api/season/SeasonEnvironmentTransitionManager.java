@@ -4,6 +4,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
 
@@ -28,6 +29,8 @@ public final class SeasonEnvironmentTransitionManager {
 		Direction.EAST,
 		Direction.WEST
 	};
+	private static final MadokuSeasonManager.Season[] SEASONS = MadokuSeasonManager.Season.values();
+	private static final ShelterCoverage NO_SHELTER = new ShelterCoverage(0, 0);
 	private static final int MINUTES_PER_DAY = 24 * 60;
 	private static final int[] DAILY_TEMPERATURE_MINUTES = {
 		0, 1 * 60, 5 * 60, 7 * 60, 11 * 60, 13 * 60, 17 * 60, 19 * 60, 23 * 60
@@ -37,6 +40,13 @@ public final class SeasonEnvironmentTransitionManager {
 	};
 	private static volatile double temperatureOffset;
 	private static volatile double humidityOffset;
+	private static EnvironmentTransitionConfigManager.Settings lastUpdatedSettings;
+	private static SeasonConfigManager.Settings lastUpdatedSeasonSettings;
+	private static MadokuSeasonManager.SeasonState lastUpdatedState;
+	private static LevelReader cachedShelterLevel;
+	private static long cachedShelterGameTime = Long.MIN_VALUE;
+	private static long cachedShelterPosition = Long.MIN_VALUE;
+	private static ShelterCoverage cachedShelterCoverage;
 
 	private SeasonEnvironmentTransitionManager() { }
 
@@ -47,13 +57,26 @@ public final class SeasonEnvironmentTransitionManager {
 	public static void reset() {
 		temperatureOffset = 0.0;
 		humidityOffset = 0.0;
+		lastUpdatedSettings = null;
+		lastUpdatedSeasonSettings = null;
+		lastUpdatedState = null;
+		cachedShelterLevel = null;
+		cachedShelterGameTime = Long.MIN_VALUE;
+		cachedShelterPosition = Long.MIN_VALUE;
+		cachedShelterCoverage = null;
 	}
 
 	static void updateSeasonState(MadokuSeasonManager.SeasonState state) {
 		if (state == null || state.season() == null) return;
 		EnvironmentTransitionConfigManager.Settings settings = EnvironmentTransitionConfigManager.getSettings();
+		SeasonConfigManager.Settings seasonSettings = SeasonConfigManager.getSettings();
+		if (state.equals(lastUpdatedState)
+			&& settings == lastUpdatedSettings
+			&& seasonSettings == lastUpdatedSeasonSettings) {
+			return;
+		}
 		int timeRateDays = Math.max(1, settings.timeRateDays());
-		int seasonLengthDays = Math.max(1, SeasonConfigManager.getSettings().seasonLengthDays());
+		int seasonLengthDays = Math.max(1, seasonSettings.seasonLengthDays());
 		int elapsedIntervals = Math.max(0, state.seasonDay() / timeRateDays);
 		// The first transition is active on season day 0; subsequent transitions
 		// begin at each configured time-rate boundary.
@@ -79,6 +102,9 @@ public final class SeasonEnvironmentTransitionManager {
 		if (Double.compare(previousTemperatureOffset, temperatureOffset) != 0
 			|| Double.compare(previousHumidityOffset, humidityOffset) != 0) {
 		}
+		lastUpdatedState = state;
+		lastUpdatedSettings = settings;
+		lastUpdatedSeasonSettings = seasonSettings;
 	}
 
 	public static double adjustTemperature(double base, String season) {
@@ -112,16 +138,12 @@ public final class SeasonEnvironmentTransitionManager {
 			return climate;
 		}
 		boolean roofed = !level.canSeeSky(pos);
+		ShelterCoverage coverage = roofed ? resolveShelterCoverage(level, pos) : NO_SHELTER;
 		int verticalBlocks = roofed
-			? resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS)
+			? coverage.verticalBlocks()
 			: 0;
 		int horizontalBlocks = roofed
-			? resolveShelterBlockCount(
-				level,
-				pos.above(),
-				SHELTER_HORIZONTAL_DIRECTIONS,
-				SHELTER_HORIZONTAL_SCAN_DEPTH,
-				SHELTER_MAX_HORIZONTAL_BLOCKS)
+			? coverage.horizontalBlocks()
 			: 0;
 		double shelterEffect = Math.min(1.0D,
 			((verticalBlocks + horizontalBlocks) * SHELTER_PER_BLOCK_EFFECT));
@@ -141,8 +163,8 @@ public final class SeasonEnvironmentTransitionManager {
 	public static boolean isSheltered(LevelReader level, BlockPos pos) {
 		if (level == null || pos == null || level.getFluidState(pos).is(FluidTags.WATER)) return false;
 		if (level.canSeeSky(pos)) return false;
-		return resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS) > 0
-			|| resolveShelterBlockCount(level, pos.above(), SHELTER_HORIZONTAL_DIRECTIONS, SHELTER_HORIZONTAL_SCAN_DEPTH, SHELTER_MAX_HORIZONTAL_BLOCKS) > 0;
+		ShelterCoverage coverage = resolveShelterCoverage(level, pos);
+		return coverage.verticalBlocks() > 0 || coverage.horizontalBlocks() > 0;
 	}
 
 	/**
@@ -162,9 +184,11 @@ public final class SeasonEnvironmentTransitionManager {
 		}
 
 		int coveredBlocks = 0;
+		BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos(pos.getX(), pos.getY(), pos.getZ());
 		for (Direction direction : directions) {
 			for (int offset = 1; offset <= scanDepth; offset++) {
-				if (!level.getBlockState(pos.relative(direction, offset)).isAir()) {
+				mutablePos.set(pos.getX(), pos.getY(), pos.getZ()).move(direction, offset);
+				if (!level.getBlockState(mutablePos).isAir()) {
 					coveredBlocks++;
 					if (coveredBlocks >= maximumBlocks) return maximumBlocks;
 				}
@@ -172,6 +196,32 @@ public final class SeasonEnvironmentTransitionManager {
 		}
 
 		return coveredBlocks;
+	}
+
+	private static ShelterCoverage resolveShelterCoverage(LevelReader level, BlockPos pos) {
+		if (!(level instanceof Level minecraftLevel)) {
+			return new ShelterCoverage(
+				resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS),
+				resolveShelterBlockCount(level, pos.above(), SHELTER_HORIZONTAL_DIRECTIONS, SHELTER_HORIZONTAL_SCAN_DEPTH, SHELTER_MAX_HORIZONTAL_BLOCKS));
+		}
+
+		long gameTime = minecraftLevel.getGameTime();
+		long position = pos.asLong();
+		if (level == cachedShelterLevel
+			&& gameTime == cachedShelterGameTime
+			&& position == cachedShelterPosition
+			&& cachedShelterCoverage != null) {
+			return cachedShelterCoverage;
+		}
+
+		ShelterCoverage coverage = new ShelterCoverage(
+			resolveShelterBlockCount(level, pos, SHELTER_VERTICAL_DIRECTIONS, SHELTER_VERTICAL_SCAN_DEPTH, SHELTER_MAX_VERTICAL_BLOCKS),
+			resolveShelterBlockCount(level, pos.above(), SHELTER_HORIZONTAL_DIRECTIONS, SHELTER_HORIZONTAL_SCAN_DEPTH, SHELTER_MAX_HORIZONTAL_BLOCKS));
+		cachedShelterLevel = level;
+		cachedShelterGameTime = gameTime;
+		cachedShelterPosition = position;
+		cachedShelterCoverage = coverage;
+		return coverage;
 	}
 
 	public static double getTemperatureOffset() {
@@ -343,8 +393,7 @@ public final class SeasonEnvironmentTransitionManager {
 	}
 
 	private static MadokuSeasonManager.Season nextSeason(MadokuSeasonManager.Season season) {
-		MadokuSeasonManager.Season[] seasons = MadokuSeasonManager.Season.values();
-		return seasons[(season.ordinal() + 1) % seasons.length];
+		return SEASONS[(season.ordinal() + 1) % SEASONS.length];
 	}
 
 	private static Biome.Precipitation vanillaPrecipitation(Biome biome) {
@@ -362,9 +411,8 @@ public final class SeasonEnvironmentTransitionManager {
 		// the midpoint of the warm and cold seasonal range for the default balanced cycle.
 		int fullCount = Math.max(0, adjustmentCount);
 		double offset = -0.5 * (signedValue(adjustments, "spring") + signedValue(adjustments, "summer")) * fullCount;
-		MadokuSeasonManager.Season[] seasons = MadokuSeasonManager.Season.values();
 		for (int index = 0; index < season.ordinal(); index++) {
-			offset += signedValue(adjustments, seasons[index].id()) * fullCount;
+			offset += signedValue(adjustments, SEASONS[index].id()) * fullCount;
 		}
 		return offset + signedValue(adjustments, season.id()) * Math.max(0, currentCount);
 	}
@@ -377,5 +425,7 @@ public final class SeasonEnvironmentTransitionManager {
 		if (adjustment == null) return 0.0;
 		return adjustment.type().equals("subtraction") ? -adjustment.value() : adjustment.value();
 	}
+
+	private record ShelterCoverage(int verticalBlocks, int horizontalBlocks) { }
 
 }
