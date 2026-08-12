@@ -1,7 +1,7 @@
 package madoku.craft;
 
 import madoku.craft.entity.MadokuEntitiesClient;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.agriculture.MadokuFarmingManager;
 import madoku.craft.inventory.PetInventoryClient;
 import madoku.craft.item.system.MadokuItem;
 import madoku.craft.levels.MadokuLevelsClient;

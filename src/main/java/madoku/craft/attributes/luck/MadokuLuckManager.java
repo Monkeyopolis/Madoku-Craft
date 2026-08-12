@@ -4,7 +4,8 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.api.helper.MadokuBlockDropContextManager;
+import madoku.craft.agriculture.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
@@ -37,7 +38,6 @@ public final class MadokuLuckManager {
 	private static final Identifier EFFECT_LUCK_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck_effect");
 	private static volatile LuckConfigManager.Settings settings = LuckConfigManager.Settings.defaults();
-	private static final ThreadLocal<ActiveDropContext> ACTIVE_DROP_CONTEXT = new ThreadLocal<>();
 
 	private MadokuLuckManager() {
 	}
@@ -110,8 +110,12 @@ public final class MadokuLuckManager {
 	}
 
 	public static ServerPlayer resolveActiveDropPlayer() {
-		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
-		return context == null ? null : context.player();
+		return MadokuBlockDropContextManager.resolvePlayer();
+	}
+
+	/** Returns whether the block currently producing drops was placed by a player. */
+	public static boolean isActiveDropPlayerPlacedBlock() {
+		return MadokuBlockDropContextManager.isActiveDropPlayerPlacedBlock();
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -182,7 +186,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
+		MadokuBlockDropContextManager.Context context = MadokuBlockDropContextManager.current();
 		if (context != null) {
 			applyGeneratedBlockDrops(lootContext, stacks, context);
 			return;
@@ -196,18 +200,18 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
+		MadokuBlockDropContextManager.Context context = MadokuBlockDropContextManager.current();
 		if (context == null) {
 			return;
 		}
 
-		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level, context.pos, context.state)
-			&& MadokuFarmingManager.isCropHarvestReady(context.level, context.pos, context.state);
-		if (!managedCrop || context.player.isCreative()) {
+		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level(), context.pos(), context.state())
+			&& MadokuFarmingManager.isCropHarvestReady(context.level(), context.pos(), context.state());
+		if (!managedCrop || context.player().isCreative()) {
 			return;
 		}
 
-		double luckValue = resolveLuckValue(context.player);
+		double luckValue = resolveLuckValue(context.player());
 		if (luckValue <= 0.0d) {
 			return;
 		}
@@ -264,15 +268,15 @@ public final class MadokuLuckManager {
 	private static void applyGeneratedBlockDrops(
 		LootContext lootContext,
 		ObjectArrayList<ItemStack> stacks,
-		ActiveDropContext context
+		MadokuBlockDropContextManager.Context context
 	) {
 		if (!settings.enabled || !settings.blockDrops.enabled) {
 			return;
 		}
-		boolean creative = context.player.isCreative();
-		boolean playerPlaced = MadokuChunkDataManager.isPlayerPlacedBlock(context.level, context.pos);
-		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level, context.pos, context.state)
-			&& MadokuFarmingManager.isCropHarvestReady(context.level, context.pos, context.state);
+		boolean creative = context.player().isCreative();
+		boolean playerPlaced = MadokuChunkDataManager.isPlayerPlacedBlock(context.level(), context.pos());
+		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level(), context.pos(), context.state())
+			&& MadokuFarmingManager.isCropHarvestReady(context.level(), context.pos(), context.state());
 		if (creative || (playerPlaced && !managedCrop)) {
 			return;
 		}
@@ -280,7 +284,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		double luckValue = resolveLuckValue(context.player);
+		double luckValue = resolveLuckValue(context.player());
 		if (luckValue <= 0.0d) {
 			return;
 		}
@@ -475,16 +479,11 @@ public final class MadokuLuckManager {
 	}
 
 	public static void beginBlockDropContext(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
-		if (level == null || player == null || pos == null || state == null) {
-			ACTIVE_DROP_CONTEXT.remove();
-			return;
-		}
-
-		ACTIVE_DROP_CONTEXT.set(new ActiveDropContext(level, player, pos.immutable(), state));
+		MadokuBlockDropContextManager.begin(level, player, pos, state);
 	}
 
 	public static void endBlockDropContext() {
-		ACTIVE_DROP_CONTEXT.remove();
+		MadokuBlockDropContextManager.end();
 	}
 
 
@@ -569,9 +568,6 @@ public final class MadokuLuckManager {
 
 
 	private record DropScalingResult(int scaledStacks, int originalTotal, int extraTotal) {
-	}
-
-	private record ActiveDropContext(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
 	}
 
 }

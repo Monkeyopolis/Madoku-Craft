@@ -9,7 +9,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mob.MadokuMobManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.agriculture.MadokuFarmingManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.item.system.MadokuItem;

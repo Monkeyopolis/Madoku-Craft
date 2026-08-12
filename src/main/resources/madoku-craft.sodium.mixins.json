@@ -1,6 +1,6 @@
 {
   "required": false,
-  "package": "madoku.craft.mixin.client.sodium",
+  "package": "madoku.craft.mixin.color",
   "compatibilityLevel": "JAVA_25",
   "client": [
     "SodiumColorProviderContextMixin",

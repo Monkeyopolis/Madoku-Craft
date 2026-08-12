@@ -60,11 +60,12 @@ public final class LootTableCropsManager {
 		// Farming owns crop harvesting while enabled, including its tracked crop
 		// state and fertilized-yield adjustments. The loot API still handles the
 		// vanilla crop tables when Farming is disabled.
-		if (madoku.craft.farming.MadokuFarmingManager.isEnabled()) {
+		if (madoku.craft.agriculture.MadokuFarmingManager.isEnabled()) {
 			return null;
 		}
 		ServerLevel level = lootContext.getLevel();
-		if (MadokuChunkDataManager.isPlayerPlacedBlock(level, resolveBlockPos(lootContext))) {
+		if (MadokuLuckManager.isActiveDropPlayerPlacedBlock()
+			|| MadokuChunkDataManager.isPlayerPlacedBlock(level, resolveBlockPos(lootContext))) {
 			return null;
 		}
 		reloadIfNeeded(level == null ? null : level.getServer());

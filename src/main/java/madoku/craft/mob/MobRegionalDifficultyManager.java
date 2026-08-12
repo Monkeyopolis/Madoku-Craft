@@ -6,7 +6,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.mixin.MobExperienceAccessor;
+import madoku.craft.mixin.mob.MobExperienceAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.sync.SyncWorldManager;
 import madoku.craft.api.time.MadokuTimeManager;

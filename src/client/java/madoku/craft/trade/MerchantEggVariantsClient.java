@@ -1,7 +1,7 @@
 package madoku.craft.trade;
 
-import madoku.craft.mixin.client.AbstractContainerScreenAccessor;
-import madoku.craft.mixin.client.MerchantScreenAccessor;
+import madoku.craft.mixin.inventory.AbstractContainerScreenAccessor;
+import madoku.craft.mixin.trade.MerchantScreenAccessor;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

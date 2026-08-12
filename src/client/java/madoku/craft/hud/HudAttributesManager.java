@@ -5,7 +5,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.attributes.oxygen.MadokuOxygenManager;
-import madoku.craft.mixin.client.GuiAccessor;
+import madoku.craft.mixin.hud.GuiAccessor;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudStatusBarHeightRegistry;

@@ -1,8 +1,8 @@
 package madoku.craft.inventory;
 
-import madoku.craft.mixin.client.AbstractContainerScreenAccessor;
-import madoku.craft.mixin.client.CreativeModeInventoryScreenAccessor;
-import madoku.craft.mixin.client.SlotAccessor;
+import madoku.craft.mixin.inventory.AbstractContainerScreenAccessor;
+import madoku.craft.mixin.inventory.CreativeModeInventoryScreenAccessor;
+import madoku.craft.mixin.inventory.SlotAccessor;
 import madoku.craft.pet.PetEntitiesManager;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;

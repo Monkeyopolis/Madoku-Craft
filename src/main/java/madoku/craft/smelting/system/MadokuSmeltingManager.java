@@ -7,7 +7,7 @@ import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.mixin.AbstractFurnaceServerTickInvoker;
+import madoku.craft.mixin.smelting.AbstractFurnaceServerTickInvoker;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
