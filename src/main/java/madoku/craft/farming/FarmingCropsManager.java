@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.data.DataSystemsManager;
 import madoku.craft.api.data.DataWorldManager;
+import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
@@ -390,6 +391,12 @@ public final class FarmingCropsManager {
 		if (rule == null) {
 			return;
 		}
+		// A mature pumpkin/melon placed as a block is not a farming harvest.
+		// Do not let a farmland scan turn it into tracked crop state.
+		if (isCropMatureBlock(cropState, rule)
+			&& MadokuChunkDataManager.isPlayerPlacedBlock(world, cropPos)) {
+			return;
+		}
 
 		BlockPos soilPos = cropPos.below();
 		if (!isFarmland(world.getBlockState(soilPos))) {
@@ -682,6 +689,7 @@ public final class FarmingCropsManager {
 		return !rule.usesDistinctMatureBlock() || isCropMatureBlock(state, rule);
 	}
 
+
 	public static boolean hasPendingHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
 		return resolvePendingHarvestRule(world, cropPos) != null;
 	}
@@ -775,6 +783,9 @@ public final class FarmingCropsManager {
 		if (rule.usesDistinctMatureBlock()) {
 			if (progress + 1e-6d >= required) {
 				if (!isCropMatureBlock(state, rule) && rule.matureBlock() != null) {
+					// The stem was player-planted, but the mature block is generated
+					// by farming and must use the managed harvest path.
+					MadokuChunkDataManager.removePlayerPlacedBlock(world, cropPos);
 					world.setBlockAndUpdate(cropPos, rule.matureBlock().defaultBlockState());
 					dirty = true;
 				}

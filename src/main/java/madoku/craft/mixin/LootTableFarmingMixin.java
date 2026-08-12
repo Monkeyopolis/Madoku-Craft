@@ -1,6 +1,7 @@
 package madoku.craft.mixin;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.core.BlockPos;
@@ -37,6 +38,9 @@ public abstract class LootTableFarmingMixin {
 		ServerLevel level = lootContext.getLevel();
 		BlockState state = resolveBlockStateParameter(lootContext);
 		BlockPos pos = resolveBlockPosParameter(lootContext);
+		if (MadokuChunkDataManager.isPlayerPlacedBlock(level, pos)) {
+			return;
+		}
 		if (!MadokuFarmingManager.isManagedCrop(level, pos, state) || !MadokuFarmingManager.isCropHarvestReady(level, pos, state)) {
 			return;
 		}
