@@ -137,6 +137,11 @@ public final class LootTableStructuresManager {
 			container.setChanged();
 			return;
 		}
+		List<ItemStack> consolidated = consolidateStacks(generated);
+		if (consolidated.isEmpty()) {
+			container.setChanged();
+			return;
+		}
 
 		int containerSize = container.getContainerSize();
 		if (containerSize <= 0) {
@@ -155,15 +160,46 @@ public final class LootTableStructuresManager {
 			}
 		}
 
-		int maxPlacements = Math.min(targetSlots.size(), generated.size());
+		int maxPlacements = Math.min(targetSlots.size(), consolidated.size());
 		for (int index = 0; index < maxPlacements; index++) {
-			ItemStack stack = generated.get(index);
+			ItemStack stack = consolidated.get(index);
 			if (stack == null || stack.isEmpty()) {
 				continue;
 			}
 			container.setItem(targetSlots.get(index), stack.copy());
 		}
 		container.setChanged();
+	}
+
+	private static List<ItemStack> consolidateStacks(List<ItemStack> generated) {
+		List<ItemStack> consolidated = new ArrayList<>();
+		for (ItemStack source : generated) {
+			if (source == null || source.isEmpty()) {
+				continue;
+			}
+
+			int remaining = source.getCount();
+			int maxStackSize = Math.max(1, source.getMaxStackSize());
+			for (ItemStack target : consolidated) {
+				if (!ItemStack.isSameItemSameComponents(source, target) || target.getCount() >= maxStackSize) {
+					continue;
+				}
+
+				int amount = Math.min(remaining, maxStackSize - target.getCount());
+				target.grow(amount);
+				remaining -= amount;
+				if (remaining <= 0) {
+					break;
+				}
+			}
+
+			while (remaining > 0) {
+				int amount = Math.min(maxStackSize, remaining);
+				consolidated.add(source.copyWithCount(amount));
+				remaining -= amount;
+			}
+		}
+		return consolidated;
 	}
 
 	private static RandomSource createRandom(ServerLevel level, long lootTableSeed) {

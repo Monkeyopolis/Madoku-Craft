@@ -4,9 +4,11 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mob.MobEntityManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,7 +16,9 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -84,7 +88,9 @@ public final class LootTableEntitiesManager {
 		}
 
 		RandomSource random = createRandom(level, lootTableSeed);
-		List<ItemStack> generated = MadokuLootTableManager.rollSharedTable(managed, random);
+		List<ItemStack> generated = MadokuLootTableManager.rollSharedTable(
+			managed, random, player, activeSettings.useMadokuLuck
+		);
 		fillContainer(container, generated, random);
 		return true;
 	}
@@ -101,13 +107,13 @@ public final class LootTableEntitiesManager {
 			return null;
 		}
 
+		LivingEntity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", LivingEntity.class);
 		String tableId = resolveQueriedLootTableId(lootContext);
 		if (tableId.isBlank()) {
-			return null;
+			tableId = resolveEntityLootTableId(thisEntity);
 		}
 
 		MadokuLootTableManager.SharedLootTable managed = null;
-		LivingEntity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", LivingEntity.class);
 		boolean zombieEntity = thisEntity != null && isZombieMobType(thisEntity.getType());
 		String zombieConfiguredReference = "";
 		boolean zombieCustomDropsEnabled = false;
@@ -137,7 +143,11 @@ public final class LootTableEntitiesManager {
 			ServerLevel level = lootContext.getLevel();
 			random = level == null ? RandomSource.create() : level.getRandom();
 		}
-		return MadokuLootTableManager.rollSharedTable(managed, random);
+		ServerPlayer player = MadokuLuckManager.resolveLootPlayer(lootContext);
+		return applySheepDropBehavior(
+			MadokuLootTableManager.rollSharedTable(managed, random, player, activeSettings.useMadokuLuck),
+			thisEntity
+		);
 	}
 
 	public static List<ItemStack> generateManagedLootForReference(String configuredReference, ServerPlayer player, RandomSource random) {
@@ -152,10 +162,32 @@ public final class LootTableEntitiesManager {
 		}
 		RandomSource resolvedRandom = random == null ? RandomSource.create() : random;
 		ObjectArrayList<ItemStack> generated = new ObjectArrayList<>(
-			MadokuLootTableManager.rollSharedTable(managed, resolvedRandom)
+			MadokuLootTableManager.rollSharedTable(managed, resolvedRandom, player, activeSettings.useMadokuLuck)
 		);
-		madoku.craft.attributes.luck.MadokuLuckManager.applyManagedMobDrops(player, resolvedRandom, generated);
+		MadokuLuckManager.applyManagedMobDrops(player, resolvedRandom, generated);
 		return List.copyOf(generated);
+	}
+
+	private static List<ItemStack> applySheepDropBehavior(List<ItemStack> generated, LivingEntity entity) {
+		if (!(entity instanceof Sheep sheep) || generated == null || generated.isEmpty()) {
+			return generated;
+		}
+
+		ItemStack wool = new ItemStack(Items.WOOL.pick(sheep.getColor()));
+		List<ItemStack> adjusted = new ArrayList<>(generated.size());
+		for (ItemStack stack : generated) {
+			if (stack == null || stack.isEmpty()) {
+				continue;
+			}
+			if (Items.WOOL.asList().contains(stack.getItem())) {
+				if (!sheep.isSheared()) {
+					adjusted.add(stack.transmuteCopy(wool.getItem(), stack.getCount()));
+				}
+				continue;
+			}
+			adjusted.add(stack);
+		}
+		return List.copyOf(adjusted);
 	}
 
 
@@ -435,6 +467,17 @@ public final class LootTableEntitiesManager {
 			return "";
 		}
 		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(tableId);
+	}
+
+	private static String resolveEntityLootTableId(LivingEntity entity) {
+		if (entity == null) {
+			return "";
+		}
+		var entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+		if (entityId == null) {
+			return "";
+		}
+		return normalizeTableId(entityId.getNamespace() + ":entities/" + entityId.getPath());
 	}
 
 	private static String normalizeFileKey(String value) {

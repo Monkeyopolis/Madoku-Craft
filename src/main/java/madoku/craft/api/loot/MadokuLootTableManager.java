@@ -3,6 +3,7 @@ package madoku.craft.api.loot;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -159,6 +160,26 @@ public final class MadokuLootTableManager {
 	}
 
 	static List<ItemStack> rollSharedTable(SharedLootTable table, RandomSource random) {
+		return rollSharedTable(table, random, 0.0d, false);
+	}
+
+	static List<ItemStack> rollSharedTable(
+		SharedLootTable table,
+		RandomSource random,
+		ServerPlayer player,
+		boolean useMadokuLuck
+	) {
+		boolean luckActive = useMadokuLuck && player != null && MadokuLuckManager.isEnabled();
+		double luckStat = luckActive ? MadokuLuckManager.resolveLootLuckStat(player) : 0.0d;
+		return rollSharedTable(table, random, luckStat, luckActive);
+	}
+
+	private static List<ItemStack> rollSharedTable(
+		SharedLootTable table,
+		RandomSource random,
+		double luckStat,
+		boolean luckActive
+	) {
 		if (table == null || random == null || table.tableEntries().isEmpty()) {
 			return List.of();
 		}
@@ -170,6 +191,7 @@ public final class MadokuLootTableManager {
 			int rolls = minRolls == maxRolls
 				? minRolls
 				: minRolls + random.nextInt(maxRolls - minRolls + 1);
+			rolls = applySharedRollLuckMultiplier(rolls, luckStat, luckActive, random);
 			for (int roll = 0; roll < rolls; roll++) {
 				SharedLootEntry entry = pickSharedEntry(tableEntry.entries(), random);
 				if (entry == null) {
@@ -182,6 +204,29 @@ public final class MadokuLootTableManager {
 			}
 		}
 		return List.copyOf(generated);
+	}
+
+	private static int applySharedRollLuckMultiplier(
+		int baseRolls,
+		double luckStat,
+		boolean luckActive,
+		RandomSource random
+	) {
+		if (baseRolls <= 0) {
+			return 0;
+		}
+		if (!luckActive || !Double.isFinite(luckStat)) {
+			return baseRolls;
+		}
+
+		double multiplier = Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d));
+		double rawRolls = Math.max(0.0d, baseRolls * multiplier);
+		int wholeRolls = (int) Math.floor(rawRolls);
+		double fractionalRoll = rawRolls - wholeRolls;
+		if (fractionalRoll > 0.0d && random != null && random.nextDouble() < fractionalRoll) {
+			wholeRolls++;
+		}
+		return Math.max(0, wholeRolls);
 	}
 
 	static String normalizeSharedTableId(String value) {

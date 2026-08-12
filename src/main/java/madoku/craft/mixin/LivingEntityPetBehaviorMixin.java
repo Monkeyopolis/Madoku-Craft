@@ -30,6 +30,18 @@ public abstract class LivingEntityPetBehaviorMixin {
 		}
 	}
 
+	@Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$preventManagedPetDamage(
+		ServerLevel level,
+		DamageSource source,
+		float amount,
+		CallbackInfoReturnable<Boolean> cir
+	) {
+		if (PetComponentsManager.isManaged((Entity) (Object) this)) {
+			cir.setReturnValue(false);
+		}
+	}
+
 	@Inject(method = "getSpeed", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$scaleWebSlowMovement(CallbackInfoReturnable<Float> cir) {
 		LivingEntity entity = (LivingEntity) (Object) this;

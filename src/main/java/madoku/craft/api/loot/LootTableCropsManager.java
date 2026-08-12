@@ -3,12 +3,14 @@ package madoku.craft.api.loot;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -72,7 +74,16 @@ public final class LootTableCropsManager {
 			return null;
 		}
 		RandomSource random = lootContext.getRandom();
-		return MadokuLootTableManager.rollSharedTable(table, random == null ? RandomSource.create() : random);
+		ServerPlayer player = MadokuLuckManager.resolveLootPlayer(lootContext);
+		if (player == null) {
+			player = MadokuLuckManager.resolveActiveDropPlayer();
+		}
+		return MadokuLootTableManager.rollSharedTable(
+			table,
+			random == null ? RandomSource.create() : random,
+			player,
+			true
+		);
 	}
 
 	/** Rolls a crop table referenced by a crop file's yield-id field. */
@@ -82,9 +93,15 @@ public final class LootTableCropsManager {
 			return List.of();
 		}
 		MadokuLootTableManager.SharedLootTable table = tablesById.get(resolveTableId(tableId));
+		ServerPlayer player = MadokuLuckManager.resolveActiveDropPlayer();
 		return table == null
 			? List.of()
-			: MadokuLootTableManager.rollSharedTable(table, random == null ? RandomSource.create() : random);
+			: MadokuLootTableManager.rollSharedTable(
+				table,
+				random == null ? RandomSource.create() : random,
+				player,
+				true
+			);
 	}
 
 	public static boolean hasManagedLootTable(String tableId) {

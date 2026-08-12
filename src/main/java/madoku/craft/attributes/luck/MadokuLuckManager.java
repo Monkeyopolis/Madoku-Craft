@@ -17,11 +17,11 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootContext;
@@ -103,6 +103,15 @@ public final class MadokuLuckManager {
 			return 0.0d;
 		}
 		return resolveLuckValue(player);
+	}
+
+	public static ServerPlayer resolveLootPlayer(LootContext lootContext) {
+		return resolveMobLootPlayer(lootContext);
+	}
+
+	public static ServerPlayer resolveActiveDropPlayer() {
+		ActiveDropContext context = ACTIVE_DROP_CONTEXT.get();
+		return context == null ? null : context.player();
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -481,12 +490,12 @@ public final class MadokuLuckManager {
 
 
 	private static ServerPlayer resolveMobLootPlayer(LootContext lootContext) {
-		ServerPlayer player = resolveLootContextParameter(lootContext, "LAST_DAMAGE_PLAYER", ServerPlayer.class);
-		if (player != null) {
-			return player;
+		Player lastDamagePlayer = resolveLootContextParameter(lootContext, "LAST_DAMAGE_PLAYER", Player.class);
+		if (lastDamagePlayer instanceof ServerPlayer serverPlayer) {
+			return serverPlayer;
 		}
 
-		player = resolveLootContextParameter(lootContext, "ATTACKING_ENTITY", ServerPlayer.class);
+		ServerPlayer player = resolveLootContextParameter(lootContext, "ATTACKING_ENTITY", ServerPlayer.class);
 		if (player != null) {
 			return player;
 		}

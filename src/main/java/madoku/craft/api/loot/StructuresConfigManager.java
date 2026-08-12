@@ -176,7 +176,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -221,7 +224,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:diamond_sword", 100, 1, 1, "mythic"),
@@ -273,7 +279,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "rare"),
@@ -328,7 +337,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -370,7 +382,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -412,7 +427,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -454,7 +472,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "rare"),
@@ -517,7 +538,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				))))
 			.build();
 
@@ -558,7 +582,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -600,7 +627,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:netherite_sword", 100, 1, 1, "common"),
@@ -663,7 +693,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:golden_sword", 100, 1, 1, "mythic"),
@@ -718,7 +751,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -798,7 +834,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
 				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
@@ -851,7 +890,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
 				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
@@ -907,7 +949,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("mythic", 20, List.of("madoku-pets"), defaultMadokuPetEntries())))
 			.build();
@@ -972,7 +1017,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:music_disc_relic", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator", 1, 0, 1),
 					StructuresConfigManager.item("minecraft:music_disc_creator_music_box", 1, 0, 1),
-					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1)
+					StructuresConfigManager.item("minecraft:music_disc_precipice", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-tears", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-lava-chicken", 1, 0, 1),
+					StructuresConfigManager.item("minecraft:music-disc-bounce", 1, 0, 1)
 				)))
 				.add(StructuresConfigManager.group("legendary", 40, List.of("madoku-pets"), defaultMadokuPetEntries()))
 				.add(StructuresConfigManager.group("mythic", 20, StructuresConfigManager.entries(
