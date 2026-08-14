@@ -785,9 +785,10 @@ public final class EcosystemNaturalGrowthManager {
 			return;
 		}
 
-		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = position.getX() >> 4;
 		int chunkZ = position.getZ() >> 4;
+
+		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		processDirtInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, "surface_dirt", position.asLong());
 		processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
 		processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);

@@ -79,7 +79,6 @@ public final class EcosystemNaturalErosionManager {
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
-
 		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = position.getX() >> 4;
 		int chunkZ = position.getZ() >> 4;

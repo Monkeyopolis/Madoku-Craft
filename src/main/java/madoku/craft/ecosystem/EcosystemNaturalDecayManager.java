@@ -254,7 +254,6 @@ public final class EcosystemNaturalDecayManager {
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
-
 		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, world.getBlockState(position));
 
