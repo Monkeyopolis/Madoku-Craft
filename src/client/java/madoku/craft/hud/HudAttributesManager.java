@@ -74,10 +74,8 @@ public final class HudAttributesManager {
 	private static final int FOOD_RIGHT_EDGE = 91;
 	private static final int SECOND_LEFT_VANILLA_FOOD_SLOT_INDEX = 8;
 	private static final String HUNGER_BASELINE_TEXT = "Hunger: 20/20";
-	private static final String OXYGEN_BASELINE_TEXT = "Oxygen: 20/20";
+	private static final String OXYGEN_BASELINE_TEXT = "Oxygen: 30/30";
 	private static final String LUCK_BASELINE_TEXT = "Luck: 100%";
-	private static final int VANILLA_MAX_FOOD_LEVEL = 20;
-	private static final int VANILLA_MAX_AIR_SUPPLY_TICKS = 300;
 	private static final int TICKS_PER_SECOND = 20;
 	private static final int OXYGEN_POP_TICKS_PER_SECOND_LOSS = 2;
 	private static final float HEALTH_TEXT_SCALE = 0.8F;
@@ -87,8 +85,8 @@ public final class HudAttributesManager {
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
 	private static final float ARMOR_STEP = 0.25F;
-	private static volatile int cachedAirSupply = 300;
-	private static volatile int cachedMaxAirSupply = 300;
+	private static volatile int cachedAirSupply = 600;
+	private static volatile int cachedMaxAirSupply = 600;
 	private static volatile int cachedOxygenPoints = 10;
 	private static volatile int previousDisplayedOxygenSeconds = -1;
 	private static volatile int oxygenPopTicksRemaining;
@@ -106,10 +104,6 @@ public final class HudAttributesManager {
 
 	public static void reset() {
 		clearOxygenHudState();
-	}
-
-	public static void stabilizeVanillaFoodAfterClientConsume() {
-		HudPayloadManager.stabilizeVanillaFoodAfterClientConsume();
 	}
 
 	static void clearOxygenHudState() {
@@ -222,20 +216,16 @@ public final class HudAttributesManager {
 		int fallbackMax = Math.max(1, MadokuHungerManager.getConfiguredMaximumHungerPoints());
 		int currentHunger;
 		int maxHunger;
-		int pendingHunger;
 		if (HudPayloadManager.hasServerHunger()) {
 			maxHunger = Math.max(1, HudPayloadManager.getServerHungerMax());
 			currentHunger = MadokuHudManager.clamp(HudPayloadManager.getServerHungerCurrent(), 0, maxHunger);
-			pendingHunger = Math.max(0, HudPayloadManager.getServerHungerPending());
 		} else {
-			int vanillaFoodLevel = MadokuHudManager.clamp(player.getFoodData().getFoodLevel(), 0, VANILLA_MAX_FOOD_LEVEL);
 			maxHunger = fallbackMax;
-			currentHunger = MadokuHudManager.clamp(Math.round((vanillaFoodLevel / (float) VANILLA_MAX_FOOD_LEVEL) * maxHunger), 0, maxHunger);
-			pendingHunger = 0;
+			currentHunger = MadokuHudManager.clamp(player.getFoodData().getFoodLevel(), 0, maxHunger);
 		}
 		float hungerPercent = currentHunger / (float) Math.max(1, maxHunger);
 
-		String hungerText = "Hunger: " + ((long) currentHunger + (long) pendingHunger) + "/" + maxHunger;
+		String hungerText = "Hunger: " + currentHunger + "/" + maxHunger;
 		int foodX = computeFoodX(context, client, hungerText);
 		int foodY = context.guiHeight() - HudStatusBarHeightRegistry.getHeight(VanillaHudElements.FOOD_BAR);
 		boolean hasHungerEffect = player.hasEffect(MobEffects.HUNGER);
@@ -583,9 +573,8 @@ public final class HudAttributesManager {
 			return;
 		}
 		lastOxygenStateUpdateTick = gameTime;
-		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(player));
-		int observedAirSupply = MadokuHudManager.clamp(player.getAirSupply(), 0, Math.max(cachedMaxAirSupply, VANILLA_MAX_AIR_SUPPLY_TICKS));
-		cachedAirSupply = decodeAirSupplyForDisplay(observedAirSupply, cachedMaxAirSupply);
+		cachedMaxAirSupply = Math.max(1, player.getMaxAirSupply());
+		cachedAirSupply = MadokuHudManager.clamp(player.getAirSupply(), 0, cachedMaxAirSupply);
 		cachedOxygenPoints = toOxygenPoints(cachedAirSupply, cachedMaxAirSupply);
 		int displayedSeconds = toDisplaySeconds(cachedAirSupply);
 		if (previousDisplayedOxygenSeconds >= 0
@@ -599,45 +588,4 @@ public final class HudAttributesManager {
 		previousDisplayedOxygenSeconds = displayedSeconds;
 	}
 
-	private static int decodeAirSupplyForDisplay(int observedAirSupply, int maximumAirSupply) {
-		int safeMax = Math.max(1, maximumAirSupply);
-		int clampedObserved = MadokuHudManager.clamp(observedAirSupply, 0, safeMax);
-		if (safeMax <= VANILLA_MAX_AIR_SUPPLY_TICKS) {
-			return clampedObserved;
-		}
-		if (clampedObserved > VANILLA_MAX_AIR_SUPPLY_TICKS) {
-			return clampedObserved;
-		}
-		double ratio = clampedObserved / (double) VANILLA_MAX_AIR_SUPPLY_TICKS;
-		return MadokuHudManager.clamp((int) Math.round(ratio * safeMax), 0, safeMax);
-	}
-
-	private static int toVanillaFood(int hungerPoints, int maxHungerPoints) {
-		int safeMax = Math.max(1, maxHungerPoints);
-		int safeCurrent = MadokuHudManager.clamp(hungerPoints, 0, safeMax);
-		double ratio = safeCurrent / (double) safeMax;
-		return MadokuHudManager.clamp((int) Math.round(ratio * VANILLA_MAX_FOOD_LEVEL), 0, VANILLA_MAX_FOOD_LEVEL);
-	}
-
-	static void syncVanillaFoodFromServerSnapshotIfNeeded() {
-		if (HudConfigManager.isEnabled() || !HudPayloadManager.hasServerHunger()) {
-			return;
-		}
-
-		Minecraft client = Minecraft.getInstance();
-		LocalPlayer player = client == null ? null : client.player;
-		if (player == null) {
-			return;
-		}
-
-		int maxHunger = Math.max(1, HudPayloadManager.getServerHungerMax());
-		int currentHunger = MadokuHudManager.clamp(HudPayloadManager.getServerHungerCurrent(), 0, maxHunger);
-		int vanillaFood = toVanillaFood(currentHunger, maxHunger);
-		if (player.getFoodData().getFoodLevel() != vanillaFood) {
-			player.getFoodData().setFoodLevel(vanillaFood);
-		}
-		if (player.getFoodData().getSaturationLevel() != 0.0f) {
-			player.getFoodData().setSaturation(0.0f);
-		}
-	}
 }

@@ -1,8 +1,5 @@
 package madoku.craft.hud;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
-
 /** Client payload subsystem for synchronized HUD state. */
 public final class HudPayloadManager {
 	private static final int DEFAULT_MAX_HUNGER = 20;
@@ -20,7 +17,6 @@ public final class HudPayloadManager {
 	private static volatile double serverHumidity = 50.0D;
 	private static volatile boolean hasServerClimate;
 	private static volatile int serverHungerCurrent;
-	private static volatile int serverHungerPending;
 	private static volatile int serverHungerMax = DEFAULT_MAX_HUNGER;
 	private static volatile boolean hasServerHunger;
 
@@ -115,40 +111,24 @@ public final class HudPayloadManager {
 	public static double getServerTemperature() { return serverTemperature; }
 	public static double getServerHumidity() { return serverHumidity; }
 
-	public static void setServerHunger(int current, int pending, int max) {
+	public static void setServerHunger(int current, int max) {
 		serverHungerCurrent = Math.max(0, current);
-		serverHungerPending = Math.max(0, pending);
 		serverHungerMax = Math.max(1, max);
 		hasServerHunger = true;
-		stabilizeVanillaFoodAfterClientConsume();
 	}
 
 	public static void clearServerHunger() {
 		serverHungerCurrent = 0;
-		serverHungerPending = 0;
 		serverHungerMax = DEFAULT_MAX_HUNGER;
 		hasServerHunger = false;
 	}
 
 	public static boolean hasServerHunger() { return hasServerHunger; }
 	public static int getServerHungerCurrent() { return serverHungerCurrent; }
-	public static int getServerHungerPending() { return serverHungerPending; }
 	public static int getServerHungerMax() { return serverHungerMax; }
 
 	public static boolean canConsumeFoodClient(boolean ignoreHunger) {
 		if (ignoreHunger || !hasServerHunger) return true;
-		long total = (long) Math.max(0, serverHungerCurrent) + Math.max(0, serverHungerPending);
-		return total < Math.max(1, serverHungerMax);
-	}
-
-	public static void stabilizeVanillaFoodAfterClientConsume() {
-		if (HudConfigManager.isEnabled() || !hasServerHunger) return;
-		Minecraft client = Minecraft.getInstance();
-		LocalPlayer player = client == null ? null : client.player;
-		if (player == null) return;
-		int vanillaFood = Math.max(0, Math.min(20, Math.round(
-			Math.max(0, Math.min(serverHungerCurrent, serverHungerMax)) * 20.0F / Math.max(1, serverHungerMax))));
-		if (player.getFoodData().getFoodLevel() != vanillaFood) player.getFoodData().setFoodLevel(vanillaFood);
-		if (player.getFoodData().getSaturationLevel() != 0.0F) player.getFoodData().setSaturation(0.0F);
+		return Math.max(0, serverHungerCurrent) < Math.max(1, serverHungerMax);
 	}
 }

@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class PlayerEatClientGateMixin {
 	@Inject(method = "canEat(Z)Z", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$gateClientCanEat(boolean ignoreHunger, CallbackInfoReturnable<Boolean> cir) {
-		if ((Object) this instanceof LocalPlayer && !HudPayloadManager.canConsumeFoodClient(ignoreHunger)) {
-			cir.setReturnValue(false);
+		if ((Object) this instanceof LocalPlayer && HudPayloadManager.hasServerHunger()) {
+			cir.setReturnValue(HudPayloadManager.canConsumeFoodClient(ignoreHunger));
 		}
 	}
 }

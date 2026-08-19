@@ -8,7 +8,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -25,34 +24,18 @@ public abstract class FoodDataSaturationDisableMixin {
 		saturationLevel = 0.0f;
 	}
 
-	@ModifyArg(
-		method = "eat(IF)V",
-		at = @At(
-			value = "INVOKE",
-			target = "Lnet/minecraft/world/food/FoodData;add(IF)V"
-		),
-		index = 1
-	)
-	private float madokuCraft$removeSaturationFromEatByValues(float saturation) {
-		if (!MadokuHungerManager.isEnabled()) {
-			return saturation;
+	@Inject(method = "eat(IF)V", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$preventVanillaFoodWriteByValues(int nutrition, float saturation, CallbackInfo ci) {
+		if (MadokuHungerManager.isEnabled()) {
+			ci.cancel();
 		}
-		return 0.0f;
 	}
 
-	@ModifyArg(
-		method = "eat(Lnet/minecraft/world/food/FoodProperties;)V",
-		at = @At(
-			value = "INVOKE",
-			target = "Lnet/minecraft/world/food/FoodData;add(IF)V"
-		),
-		index = 1
-	)
-	private float madokuCraft$removeSaturationFromEatByProperties(float saturation) {
-		if (!MadokuHungerManager.isEnabled()) {
-			return saturation;
+	@Inject(method = "eat(Lnet/minecraft/world/food/FoodProperties;)V", at = @At("HEAD"), cancellable = true)
+	private void madokuCraft$preventVanillaFoodWriteByProperties(net.minecraft.world.food.FoodProperties food, CallbackInfo ci) {
+		if (MadokuHungerManager.isEnabled()) {
+			ci.cancel();
 		}
-		return 0.0f;
 	}
 
 	@Inject(method = "readAdditionalSaveData", at = @At("RETURN"))

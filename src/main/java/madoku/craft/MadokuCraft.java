@@ -16,7 +16,6 @@ import madoku.craft.item.system.MadokuItem;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.attributes.oxygen.MadokuOxygenManager;
 import madoku.craft.rarity.MadokuRarity;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
@@ -59,7 +58,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuChunkDataManager.reset();
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
-			MadokuOxygenManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
 			MadokuAPIManager.reset();
@@ -74,14 +72,12 @@ public class MadokuCraft implements ModInitializer {
 			MadokuSmeltingManager.onServerStarted();
 			MadokuHealthManager.loadPersistedData(server);
 			MadokuHungerManager.loadPersistedData(server);
-			MadokuOxygenManager.loadPersistedData(server);
 			MadokuLevelsManager.loadPersistedData(server);
 			MadokuPetManager.loadPersistedData(server);
 			MadokuItemStack.loadPersistedData(server);
 			MadokuItem.onServerStarted(server);
 			MadokuHungerManager.onServerStarted(server);
 			MadokuHealthManager.onServerStarted(server);
-			MadokuOxygenManager.onServerStarted(server);
 			MadokuEntities.onServerStarted(server);
 			MadokuPetManager.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
@@ -106,7 +102,6 @@ public class MadokuCraft implements ModInitializer {
 			MadokuMobManager.onServerStopped();
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
-			MadokuOxygenManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
 			MadokuItemStack.reset();

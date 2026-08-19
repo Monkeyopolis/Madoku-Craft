@@ -49,7 +49,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(TimePayloadManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
 		ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE, (payload, context) ->
-			HudPayloadManager.setServerHunger(payload.current(), payload.pending(), payload.max())
+			HudPayloadManager.setServerHunger(payload.current(), payload.max())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(MobPayloadManager.TYPE, (payload, context) ->
 			HudPayloadManager.setServerDifficulty(payload.level())
