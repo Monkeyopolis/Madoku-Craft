@@ -51,7 +51,6 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 			}
 
 			inventory.setItem(petSlot, ItemStack.EMPTY);
-			inventory.setChanged();
 			madokuCraft$resyncMenus();
 			ci.cancel();
 			return;
@@ -74,7 +73,6 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 		}
 
 		inventory.setItem(petSlot, resolved);
-		inventory.setChanged();
 		player.inventoryMenu.broadcastChanges();
 		if (player.containerMenu != null && player.containerMenu != player.inventoryMenu) {
 			player.containerMenu.broadcastChanges();
@@ -92,6 +90,5 @@ public abstract class ServerGamePacketListenerCreativePetSlotMixin {
 		}
 	}
 }
-
 
 

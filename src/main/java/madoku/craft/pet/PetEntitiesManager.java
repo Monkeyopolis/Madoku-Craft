@@ -6,7 +6,6 @@ import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRe
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -255,12 +254,10 @@ public final class PetEntitiesManager {
 		PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);
 		MinecraftServer server = player.level().getServer();
 		if (server == null) return;
-		if (!PetConfigManager.isEnabled() || !PetConfigManager.areEntitiesEnabled()) {
-			removeAllPets(server, player.getUUID());
+		if (!PetConfigManager.isEnabled()) {
 			return;
 		}
 		MadokuPetManager.requestPetProcessing(server, player.getUUID(), 0L);
-		MadokuPetManager.onPlayerTick(server, player, MadokuTimeManager.getGameplayTicks());
 	}
 
 	public static boolean isManaged(Entity entity) {

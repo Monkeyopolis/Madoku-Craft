@@ -54,9 +54,11 @@ public final class PetAbilitiesManager {
 	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_max_health_bonus");
 	private static final Identifier PLAYER_ARMOR_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final Identifier PLAYER_ARMOR_TOUGHNESS_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_toughness_bonus");
+	private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(PetAbilitiesManager.class);
 
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
 	static final String TASK_TYPE_PET_ATTACK = "pet_attack";
+	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
 	private static final String PET_ABILITY_WEB_PROJECTILE = MadokuPetManager.PET_ABILITY_WEB_PROJECTILE;
 	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
@@ -1044,13 +1046,7 @@ public final class PetAbilitiesManager {
 				}
 				continue;
 			}
-			for (ReadyReactiveAttack attack : abilityGroup) {
-				Vec3 spawnPosition = resolveRangedAttackSpawn(player, 0, 1, attack.ability);
-				List<ReadyReactiveAttack> singleAttack = List.of(attack);
-				if (spawnPetReactiveAttack(player, target, spawnPosition, singleAttack)) {
-					setAbilityGroupCooldown(player, singleAttack, gameplayTicks);
-				}
-			}
+			triggerNonSharedAbilityGroup(player, target, abilityGroup, gameplayTicks);
 		}
 	}
 
@@ -1104,6 +1100,68 @@ public final class PetAbilitiesManager {
 			long cooldown = Math.max(0L, attack.ability.cooldownTicks);
 			setAbilityCooldown(player.getUUID(), attack.slot, attack.ability.abilityType, gameplayTicks + cooldown);
 		}
+	}
+
+	/**
+	 * Fires duplicate non-shared abilities in sequence. The first attack is immediate;
+	 * later attacks reserve their slot and are launched using the configured shot delay.
+	 * This prevents duplicate arrow/explosive pets from activating on the same tick while
+	 * preserving independent cooldowns for each pet.
+	 */
+	private static void triggerNonSharedAbilityGroup(
+		ServerPlayer player,
+		LivingEntity target,
+		List<ReadyReactiveAttack> abilityGroup,
+		long gameplayTicks
+	) {
+		if (player == null || target == null || abilityGroup == null || abilityGroup.isEmpty()) {
+			return;
+		}
+
+		long delayTicks = 0L;
+		for (int index = 0; index < abilityGroup.size(); index++) {
+			ReadyReactiveAttack attack = abilityGroup.get(index);
+			if (attack == null || attack.ability == null) {
+				continue;
+			}
+
+			Vec3 spawnPosition = resolveRangedAttackSpawn(player, index, abilityGroup.size(), attack.ability);
+			List<ReadyReactiveAttack> singleAttack = List.of(attack);
+			boolean launched;
+			if (delayTicks <= 0L) {
+				launched = spawnPetReactiveAttack(player, target, spawnPosition, singleAttack);
+				if (launched) {
+					setAbilityCooldown(player.getUUID(), attack.slot, attack.ability.abilityType, gameplayTicks + attack.ability.cooldownTicks);
+				}
+			} else {
+				launched = enqueueDelayedPetAttack(player, attack.slot, attack.ability.abilityType, target, spawnPosition, delayTicks);
+				if (launched) {
+					// Reserve the ability until its delayed task executes. The task replaces
+					// this reservation with the normal full cooldown after spawning.
+					setAbilityCooldown(player.getUUID(), attack.slot, attack.ability.abilityType, gameplayTicks + delayTicks);
+				}
+			}
+
+			if (index + 1 < abilityGroup.size()) {
+				delayTicks = safeAddTicks(delayTicks, duplicateDelayTicks(attack.ability));
+			}
+		}
+	}
+
+	private static long duplicateDelayTicks(PetAbilityRule ability) {
+		if (ability == null) {
+			return 0L;
+		}
+		// shot-delay-ticks is the explicit duplicate-pet delay. Fall back to the
+		// projectile interval so older/custom configs still get staggered shots.
+		return Math.max(0L, ability.shotDelayTicks > 0L ? ability.shotDelayTicks : ability.projectileIntervalTicks);
+	}
+
+	private static long safeAddTicks(long first, long second) {
+		if (second <= 0L || first >= Long.MAX_VALUE - second) {
+			return second <= 0L ? Math.max(0L, first) : Long.MAX_VALUE;
+		}
+		return first + second;
 	}
 
 	private static LivingEntity resolveLeftClickTarget(ServerPlayer player) {
@@ -1176,13 +1234,7 @@ public final class PetAbilitiesManager {
 				}
 				continue;
 			}
-			for (ReadyReactiveAttack attack : abilityGroup) {
-				Vec3 spawnPosition = resolveRangedAttackSpawn(player, 0, 1, attack.ability);
-				List<ReadyReactiveAttack> singleAttack = List.of(attack);
-				if (spawnPetReactiveAttack(player, target, spawnPosition, singleAttack)) {
-					setAbilityGroupCooldown(player, singleAttack, gameplayTicks);
-				}
-			}
+			triggerNonSharedAbilityGroup(player, target, abilityGroup, gameplayTicks);
 		}
 	}
 
@@ -2821,6 +2873,77 @@ public final class PetAbilitiesManager {
 
 			double centeringOffset = (clampedCount - 1) * 0.5D;
 			return (index - centeringOffset) * Math.max(0.0D, ability.attackArcStepDegrees);
+		}
+
+		private static boolean enqueueDelayedPetAttack(
+			ServerPlayer player,
+			int slot,
+			String abilityType,
+			LivingEntity target,
+			Vec3 spawnPosition,
+			long delayTicks
+		) {
+			MinecraftServer server = player == null ? null : player.level().getServer();
+			if (server == null || player == null || target == null || spawnPosition == null) {
+				return false;
+			}
+
+			UUID playerId = player.getUUID();
+			String schedulerId = ensureSchedulerExists(playerId);
+			if (enqueuePetAttackTask(schedulerId, slot, abilityType, target, spawnPosition, delayTicks)) {
+				return true;
+			}
+
+			String created = MadokuSchedulerManager.createOrGetScheduler(
+				MadokuSchedulerManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId)
+			);
+			PLAYER_SCHEDULER_IDS.put(playerId, created);
+			if (!enqueuePetAttackTask(created, slot, abilityType, target, spawnPosition, delayTicks)) {
+				LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
+				return false;
+			}
+			return true;
+		}
+
+		private static String ensureSchedulerExists(UUID playerId) {
+			String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
+			if (schedulerId == null || schedulerId.isBlank()) {
+				schedulerId = MadokuSchedulerManager.createOrGetScheduler(
+					MadokuSchedulerManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId)
+				);
+				PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
+			}
+			return schedulerId;
+		}
+
+		private static boolean enqueuePetAttackTask(
+			String schedulerId,
+			int slot,
+			String abilityType,
+			LivingEntity target,
+			Vec3 spawnPosition,
+			long delayTicks
+		) {
+			if (schedulerId == null || schedulerId.isBlank() || target == null || spawnPosition == null) {
+				return false;
+			}
+
+			JsonObject payload = madoku.craft.api.json.JSONFormatManager.object()
+				.put(FIELD_SLOT, slot)
+				.put(FIELD_ABILITY_ID, abilityType)
+				.put(FIELD_TARGET_UUID, target.getUUID().toString())
+				.put(FIELD_SPAWN_X, spawnPosition.x)
+				.put(FIELD_SPAWN_Y, spawnPosition.y)
+				.put(FIELD_SPAWN_Z, spawnPosition.z)
+				.build();
+			MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+				schedulerId,
+				Math.max(0L, delayTicks),
+				TASK_TYPE_PET_ATTACK,
+				payload,
+				MadokuSchedulerManager.TickDomain.GAMEPLAY
+			);
+			return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED;
 		}
 
 		static boolean isAbilityOffCooldown(ServerPlayer player, int slot, String abilityType, long gameplayTicks) {
