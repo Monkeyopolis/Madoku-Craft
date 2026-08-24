@@ -1,6 +1,6 @@
-package madoku.craft.mixin.rarity;
+package madoku.craft.mixin.api;
 
-import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.api.rarity.MadokuRarityManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -22,7 +22,7 @@ public class ResultSlotRarityMixin {
 	private void madokuCraft$applyCraftRarity(Player player, ItemStack stack, CallbackInfo ci) {
 		madokuCraft$pendingCraftExtras = List.of();
 		if (player instanceof ServerPlayer serverPlayer) {
-			madokuCraft$pendingCraftExtras = MadokuRarity.applyCraftedRarity(serverPlayer, stack);
+			madokuCraft$pendingCraftExtras = MadokuRarityManager.applyCraftedRarity(serverPlayer, stack);
 		}
 	}
 
@@ -31,9 +31,7 @@ public class ResultSlotRarityMixin {
 		if (!(player instanceof ServerPlayer serverPlayer) || madokuCraft$pendingCraftExtras.isEmpty()) {
 			return;
 		}
-		MadokuRarity.deliverCraftExtras(serverPlayer, madokuCraft$pendingCraftExtras);
+		MadokuRarityManager.deliverCraftExtras(serverPlayer, madokuCraft$pendingCraftExtras);
 		madokuCraft$pendingCraftExtras = List.of();
 	}
 }
-
-

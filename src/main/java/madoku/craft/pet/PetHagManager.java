@@ -12,6 +12,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
 import java.util.Random;
+import madoku.craft.api.rarity.MadokuRarityManager;
+import madoku.craft.api.rarity.RarityTierManager;
+import madoku.craft.api.rarity.RarityTierManager.Tier;
 
 /** Owns the Hag-facing pet trade pool, rarity, and item presentation helpers. */
 public final class PetHagManager {
@@ -35,13 +38,9 @@ public final class PetHagManager {
 	}
 
 	public static int rarityWeight(String rarity) {
-		return switch (PetConfigManager.normalizePetRarity(rarity)) {
-			case MadokuPetManager.PET_RARITY_RARE -> PetConfigManager.settings().petRarityRareChanceWeight;
-			case MadokuPetManager.PET_RARITY_EPIC -> PetConfigManager.settings().petRarityEpicChanceWeight;
-			case MadokuPetManager.PET_RARITY_LEGENDARY -> PetConfigManager.settings().petRarityLegendaryChanceWeight;
-			case MadokuPetManager.PET_RARITY_MYTHIC -> PetConfigManager.settings().petRarityMythicChanceWeight;
-			default -> PetConfigManager.settings().petRarityCommonChanceWeight;
-		};
+		Tier tier = RarityTierManager.fromString(PetConfigManager.normalizePetRarity(rarity));
+		Tier resolved = tier == null ? Tier.COMMON : tier;
+		return Math.max(0, (int) Math.round(MadokuRarityManager.resolveWeight(resolved, 0.0D, false)));
 	}
 
 	public static int randomTradeLevel(Random random) {
@@ -56,6 +55,8 @@ public final class PetHagManager {
 	public static ItemStack tradeStack(Item item, int level) {
 		ItemStack stack = new ItemStack(item);
 		PetEntitiesManager.setPetLevel(stack, level);
+		Tier tier = RarityTierManager.fromString(rarity(stack));
+		MadokuRarityManager.applyConfiguredRarity(stack, tier == null ? Tier.COMMON : tier);
 		applyLore(stack);
 		return stack;
 	}

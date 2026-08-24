@@ -1,7 +1,7 @@
-package madoku.craft.mixin.rarity;
+package madoku.craft.mixin.api;
 
 import madoku.craft.pet.PetHagManager;
-import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.api.rarity.MadokuRarityManager;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
@@ -21,9 +21,7 @@ public class ItemInputRarityMixin {
 		CallbackInfoReturnable<ItemStack> cir
 	) {
 		ItemStack stack = cir.getReturnValue();
-		MadokuRarity.applyGeneratedRarity(stack, RandomSource.create());
+		MadokuRarityManager.applyGeneratedRarity(stack, RandomSource.create());
 		PetHagManager.applyLore(stack);
 	}
 }
-
-

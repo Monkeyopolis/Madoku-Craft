@@ -1,6 +1,6 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.api.rarity.MadokuRarityManager;
 import madoku.craft.pet.PetHudManager;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -23,8 +23,7 @@ public class ItemStackDurabilityLoreMixin {
 
 	@Inject(method = "setDamageValue", at = @At("TAIL"))
 	private void madokuCraft$updateDurabilityLore(int damage, CallbackInfo ci) {
-		MadokuRarity.updateDurabilityLore((ItemStack) (Object) this);
+		MadokuRarityManager.updateDurabilityLore((ItemStack) (Object) this);
 	}
 }
-
 

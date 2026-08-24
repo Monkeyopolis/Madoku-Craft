@@ -72,6 +72,7 @@ public final class MadokuItem {
 	private static final String ARMOR_ITEMS_FOLDER_NAME = "armor-items";
 
 	private static volatile boolean enabled = true;
+	private static volatile boolean useMadokuLuck = true;
 	private static volatile Map<Item, Integer> fuelTicksByItem = Map.of();
 	private static volatile Map<Item, StackMode> stackModesByItem = Map.of();
 	private static volatile Map<Item, MadokuToolProfile> toolProfilesByItem = Map.of();
@@ -220,6 +221,10 @@ public final class MadokuItem {
 
 	public static boolean isEnabled() {
 		return enabled;
+	}
+
+	public static boolean useMadokuLuck() {
+		return enabled && useMadokuLuck;
 	}
 
 	public static int applySingleStackRule(ItemStack stack, int currentLimit) {
@@ -418,6 +423,7 @@ public final class MadokuItem {
 			boolean miscCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_MISC_ENABLED, true);
 			boolean toolCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_TOOL_ENABLED, true);
 			boolean armorCategoryEnabled = readBoolean(settingsRoot, MadokuItemConfig.FIELD_ARMOR_ENABLED, true);
+			useMadokuLuck = readBoolean(settingsRoot, MadokuItemConfig.FIELD_USE_MADOKU_LUCK, true);
 
 			Path itemsDirectory = rootDirectory.resolve(ITEM_CONFIG_ITEMS_FOLDER_NAME);
 			Path fuelDirectory = itemsDirectory.resolve(FUEL_ITEMS_FOLDER_NAME);
@@ -485,6 +491,7 @@ public final class MadokuItem {
 			stackModesByItem = Map.of();
 			toolProfilesByItem = Map.of();
 			armorProfilesByItem = Map.of();
+			useMadokuLuck = false;
 			categoriesByItem = Map.of();
 			toolCategoryItems = Set.of();
 			armorCategoryItems = Set.of();
@@ -730,6 +737,7 @@ public final class MadokuItem {
 		normalized.addProperty(MadokuItemConfig.FIELD_MISC_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_MISC_ENABLED, true));
 		normalized.addProperty(MadokuItemConfig.FIELD_TOOL_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_TOOL_ENABLED, true));
 		normalized.addProperty(MadokuItemConfig.FIELD_ARMOR_ENABLED, readBoolean(source, MadokuItemConfig.FIELD_ARMOR_ENABLED, true));
+		normalized.addProperty(MadokuItemConfig.FIELD_USE_MADOKU_LUCK, readBoolean(source, MadokuItemConfig.FIELD_USE_MADOKU_LUCK, true));
 		return normalized;
 	}
 

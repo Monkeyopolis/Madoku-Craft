@@ -1,8 +1,8 @@
-package madoku.craft.mixin.rarity;
+package madoku.craft.mixin.api;
 
 import madoku.craft.item.system.MadokuItem;
-import madoku.craft.rarity.MadokuRarity;
-import madoku.craft.rarity.MadokuRarityTier;
+import madoku.craft.api.rarity.MadokuRarityManager;
+import madoku.craft.api.rarity.RarityTierManager.Tier;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -15,8 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsRarityOverlayMixin {
-	private static final int INDICATOR_X_OFFSET = -1;
-	private static final int INDICATOR_Y_OFFSET = 5;
+	private static final int INDICATOR_X_OFFSET = 4;
+	private static final int INDICATOR_Y_OFFSET = 4;
+	private static final float INDICATOR_SCALE = 0.8F;
 	private static final int SLOT_SIZE = 16;
 	private static final int DURABILITY_BAR_Y_OFFSET = 1;
 	private static final int DURABILITY_BAR_MAX_WIDTH = 14;
@@ -62,7 +63,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			drawTopDurabilityBar(context, stack, x, y);
 		}
 
-		if (!MadokuRarity.isEnabled()) {
+		if (!MadokuRarityManager.isEnabled()) {
 			return;
 		}
 		if (!managedRarityItem) {
@@ -72,20 +73,22 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			return;
 		}
 
-		MadokuRarityTier rarity = MadokuRarity.detectAppliedRarity(stack);
+		Tier rarity = MadokuRarityManager.detectAppliedRarity(stack);
 		if (rarity == null) {
-			rarity = MadokuRarityTier.COMMON;
+			rarity = Tier.COMMON;
 		}
 
 		String indicator = rarity.inventoryIndicator();
 		int indicatorWidth = textRenderer.width(indicator);
 		int indicatorHeight = textRenderer.lineHeight;
-		int textX = x + 17 - indicatorWidth + INDICATOR_X_OFFSET;
-		int textY = y + 16 - indicatorHeight + INDICATOR_Y_OFFSET;
 		Integer colorValue = net.minecraft.network.chat.TextColor.fromLegacyFormat(rarity.color()).getValue();
 		int textColor = (colorValue != null ? colorValue : 0xFFFFFF) | 0xFF000000;
 
-		this.text(textRenderer, indicator, textX, textY, textColor, true);
+		context.pose().pushMatrix();
+		context.pose().translate(x + 12 + INDICATOR_X_OFFSET, y + 16 + INDICATOR_Y_OFFSET);
+		context.pose().scale(INDICATOR_SCALE, INDICATOR_SCALE);
+		this.text(textRenderer, indicator, -indicatorWidth, -indicatorHeight, textColor, true);
+		context.pose().popMatrix();
 	}
 
 	private static void drawTopDurabilityBar(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {

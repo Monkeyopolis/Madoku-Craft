@@ -15,6 +15,7 @@ public final class MadokuItemConfig {
 	public static final String FIELD_MISC_ENABLED = "misc-enabled";
 	public static final String FIELD_TOOL_ENABLED = "tool-enabled";
 	public static final String FIELD_ARMOR_ENABLED = "armor-enabled";
+	public static final String FIELD_USE_MADOKU_LUCK = "use-madoku-luck";
 	public static final String FIELD_CATEGORY = "categories";
 	public static final String FIELD_CATEGORY_NAME = "category";
 	public static final String FIELD_CATEGORY_WEIGHT = "weight";
@@ -50,6 +51,7 @@ public final class MadokuItemConfig {
 			.put(FIELD_MISC_ENABLED, true)
 			.put(FIELD_TOOL_ENABLED, true)
 			.put(FIELD_ARMOR_ENABLED, true)
+			.put(FIELD_USE_MADOKU_LUCK, true)
 			.build();
 	}
 

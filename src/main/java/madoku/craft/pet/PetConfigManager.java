@@ -5,6 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.rarity.RarityTierManager;
+import madoku.craft.api.rarity.RarityTierManager.Tier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -236,10 +238,8 @@ public final class PetConfigManager {
 	}
 
 	static String normalizePetRarity(String rawRarity) {
-		return switch (normalizeKey(rawRarity)) {
-			case MadokuPetManager.PET_RARITY_COMMON, MadokuPetManager.PET_RARITY_RARE, MadokuPetManager.PET_RARITY_EPIC, MadokuPetManager.PET_RARITY_LEGENDARY, MadokuPetManager.PET_RARITY_MYTHIC -> normalizeKey(rawRarity);
-			default -> MadokuPetManager.PET_RARITY_COMMON;
-		};
+		Tier tier = RarityTierManager.fromString(rawRarity);
+		return tier == null ? Tier.COMMON.id() : tier.id();
 	}
 
 	static String getString(JsonObject source, String key, String fallback) {
@@ -270,31 +270,16 @@ public final class PetConfigManager {
 
 	static final class PetSettings {
 		final boolean enabled;
-			final boolean entitiesEnabled;
-			final int petRarityCommonChanceWeight;
-			final int petRarityRareChanceWeight;
-			final int petRarityEpicChanceWeight;
-			final int petRarityLegendaryChanceWeight;
-			final int petRarityMythicChanceWeight;
+		final boolean entitiesEnabled;
 		final int maxLevel;
 
-			PetSettings(
+		PetSettings(
 				boolean enabled,
 				boolean entitiesEnabled,
-				int petRarityCommonChanceWeight,
-				int petRarityRareChanceWeight,
-				int petRarityEpicChanceWeight,
-				int petRarityLegendaryChanceWeight,
-				int petRarityMythicChanceWeight,
 				int maxLevel
 			) {
 				this.enabled = enabled;
 				this.entitiesEnabled = entitiesEnabled;
-				this.petRarityCommonChanceWeight = petRarityCommonChanceWeight;
-				this.petRarityRareChanceWeight = petRarityRareChanceWeight;
-				this.petRarityEpicChanceWeight = petRarityEpicChanceWeight;
-				this.petRarityLegendaryChanceWeight = petRarityLegendaryChanceWeight;
-				this.petRarityMythicChanceWeight = petRarityMythicChanceWeight;
 				this.maxLevel = maxLevel;
 			}
 
@@ -302,11 +287,6 @@ public final class PetConfigManager {
 				return new PetSettings(
 					true,
 					true,
-					334,
-					120,
-					40,
-					5,
-					1,
 					5
 				);
 			}
@@ -314,43 +294,12 @@ public final class PetConfigManager {
 			static PetSettings fromJson(JsonObject source) {
 				PetSettings defaults = defaults();
 				JsonObject petEntity = objectField(source, "pet-entity");
-				JsonObject petRarity = objectField(source, "pet-rarity");
 				boolean enabled = getBoolean(source, "enabled", defaults.enabled);
 				boolean entitiesEnabled = getBoolean(petEntity, "enabled", defaults.entitiesEnabled);
 				int maxLevel = (int) clampLong(getLong(petEntity, "max-level", defaults.maxLevel), 1L, 100L);
-				int petRarityCommonChanceWeight = (int) clampLong(
-					getLong(petRarity, "common", defaults.petRarityCommonChanceWeight),
-					0,
-					100000
-				);
-				int petRarityRareChanceWeight = (int) clampLong(
-					getLong(petRarity, "rare", defaults.petRarityRareChanceWeight),
-					0,
-					100000
-				);
-				int petRarityEpicChanceWeight = (int) clampLong(
-					getLong(petRarity, "epic", defaults.petRarityEpicChanceWeight),
-					0,
-					100000
-				);
-				int petRarityLegendaryChanceWeight = (int) clampLong(
-					getLong(petRarity, "legendary", defaults.petRarityLegendaryChanceWeight),
-					0,
-					100000
-				);
-				int petRarityMythicChanceWeight = (int) clampLong(
-					getLong(petRarity, "mythic", defaults.petRarityMythicChanceWeight),
-					0,
-					100000
-				);
 				return new PetSettings(
 					enabled,
 					entitiesEnabled,
-					petRarityCommonChanceWeight,
-					petRarityRareChanceWeight,
-					petRarityEpicChanceWeight,
-					petRarityLegendaryChanceWeight,
-					petRarityMythicChanceWeight,
 					maxLevel
 				);
 			}
@@ -360,12 +309,6 @@ public final class PetConfigManager {
 					.object("pet-entity", child -> child
 						.put("enabled", entitiesEnabled)
 						.put("max-level", maxLevel))
-					.object("pet-rarity", child -> child
-						.put("common", petRarityCommonChanceWeight)
-						.put("rare", petRarityRareChanceWeight)
-						.put("epic", petRarityEpicChanceWeight)
-						.put("legendary", petRarityLegendaryChanceWeight)
-						.put("mythic", petRarityMythicChanceWeight))
 					.build();
 			}
 

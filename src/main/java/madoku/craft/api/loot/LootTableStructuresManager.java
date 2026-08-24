@@ -6,11 +6,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.rarity.MadokuRarityManager;
+import madoku.craft.api.rarity.RarityTierManager;
+import madoku.craft.api.rarity.RarityTierManager.Tier;
 import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.pet.PetConfigManager;
-import madoku.craft.rarity.MadokuRarity;
-import madoku.craft.rarity.MadokuRarityTier;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -338,7 +339,7 @@ public final class LootTableStructuresManager {
 		return min + random.nextInt((max - min) + 1);
 	}
 
-	private static void appendSingleStackForRoll(List<ItemStack> into, Item item, int count, MadokuRarityTier itemRarity) {
+	private static void appendSingleStackForRoll(List<ItemStack> into, Item item, int count, Tier itemRarity) {
 		if (into == null || item == null || count <= 0) {
 			return;
 		}
@@ -348,7 +349,7 @@ public final class LootTableStructuresManager {
 		int stackCount = Math.min(maxStackSize, count);
 		ItemStack stack = new ItemStack(item, stackCount);
 		if (itemRarity != null) {
-			MadokuRarity.applyConfiguredRarity(stack, itemRarity);
+			MadokuRarityManager.applyConfiguredRarity(stack, itemRarity);
 		}
 		PetHagManager.applyLore(stack);
 		into.add(stack);
@@ -383,18 +384,11 @@ public final class LootTableStructuresManager {
 		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d));
 	}
 
-	private static double resolveGroupWeightMultiplier(LootTableRarity rarity, double luckStat, boolean luckActive) {
-		if (!luckActive || rarity == null || !Double.isFinite(luckStat)) {
-			return 1.0d;
+	private static double resolveGroupWeightMultiplier(Tier rarity, double luckStat, boolean luckActive) {
+		if (rarity == null) {
+			return 0.0d;
 		}
-		double rarityModifier = switch (rarity) {
-			case COMMON -> 0.5d;
-			case RARE -> 0.75d;
-			case EPIC -> 1.25d;
-			case LEGENDARY -> 2.0d;
-			case MYTHIC -> 3.0d;
-		};
-		return Math.max(0.0d, 1.0d + (Math.max(0.0d, luckStat) * 0.01d * rarityModifier));
+		return MadokuRarityManager.resolveWeightMultiplier(rarity, luckStat, luckActive);
 	}
 
 	private static boolean isLuckActiveForLoot(ServerPlayer player, Settings activeSettings) {
@@ -674,9 +668,12 @@ public final class LootTableStructuresManager {
 				continue;
 			}
 
-			LootTableRarity rarity = LootTableRarity.fromString(
-				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, LootTableRarity.COMMON.id())
+			Tier parsedRarity = RarityTierManager.fromString(
+				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, Tier.COMMON.id())
 			);
+			if (parsedRarity == null) {
+				parsedRarity = Tier.COMMON;
+			}
 			double weight = Math.max(0.0d, readDouble(groupRoot, LootTableConfigManager.FIELD_WEIGHT, 0.0d));
 			if (weight <= 0.0d) {
 				continue;
@@ -687,7 +684,7 @@ public final class LootTableStructuresManager {
 				continue;
 			}
 			List<String> tags = parseGroupTags(groupRoot.get(LootTableConfigManager.FIELD_TAGS));
-			groups.add(new ManagedLootGroup(rarity, weight, List.copyOf(entries), tags));
+			groups.add(new ManagedLootGroup(parsedRarity, weight, List.copyOf(entries), tags));
 		}
 		return groups;
 	}
@@ -730,7 +727,7 @@ public final class LootTableStructuresManager {
 		return switch (tag) {
 			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
 			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
-			case GROUP_TAG_MADOKU_RARITY -> MadokuRarity.isEnabled();
+			case GROUP_TAG_MADOKU_RARITY -> MadokuRarityManager.isEnabled();
 			default -> true;
 		};
 	}
@@ -765,7 +762,7 @@ public final class LootTableStructuresManager {
 			int weight = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_WEIGHT, 1));
 			int minCount = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_MIN_COUNT, 1));
 			int maxCount = Math.max(minCount, readInt(entryRoot, LootTableConfigManager.FIELD_MAX_COUNT, minCount));
-			MadokuRarityTier itemRarity = MadokuRarityTier.fromString(
+		Tier itemRarity = RarityTierManager.fromString(
 				readString(entryRoot, LootTableConfigManager.FIELD_ITEM_RARITY, "")
 			);
 			entries.add(new ManagedLootEntry(item, weight, minCount, maxCount, itemRarity));
@@ -931,14 +928,14 @@ public final class LootTableStructuresManager {
 	}
 
 	private record ManagedLootGroup(
-		LootTableRarity rarity,
+		Tier rarity,
 		double weight,
 		List<ManagedLootEntry> entries,
 		List<String> tags
 	) {
 	}
 
-	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount, MadokuRarityTier itemRarity) {
+	private record ManagedLootEntry(Item item, int weight, int minCount, int maxCount, Tier itemRarity) {
 	}
 
 	private static final class Settings {

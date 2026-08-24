@@ -1,6 +1,6 @@
-package madoku.craft.mixin.rarity;
+package madoku.craft.mixin.api;
 
-import madoku.craft.rarity.MadokuRarity;
+import madoku.craft.api.rarity.MadokuRarityManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.SmithingRecipeInput;
 import net.minecraft.world.item.crafting.SmithingTransformRecipe;
@@ -16,9 +16,7 @@ public class SmithingTransformRecipeRarityMixin {
 		SmithingRecipeInput input,
 		CallbackInfoReturnable<ItemStack> cir
 	) {
-		ItemStack upgradedResult = MadokuRarity.createSmithingUpgradeResult(input.base(), cir.getReturnValue());
+		ItemStack upgradedResult = MadokuRarityManager.createSmithingUpgradeResult(input.base(), cir.getReturnValue());
 		cir.setReturnValue(upgradedResult);
 	}
 }
-
-

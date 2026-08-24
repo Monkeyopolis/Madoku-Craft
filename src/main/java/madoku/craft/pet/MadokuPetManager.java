@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.api.rarity.RarityTierManager;
 
 public final class MadokuPetManager {
 	public static final int SLOT_COUNT = 4;
@@ -49,11 +50,11 @@ public final class MadokuPetManager {
 	static final String PET_ABILITY_HEALTH_REGENERATION = "health_regeneration";
 	static final String PET_ABILITY_MOB_SCAN = "mob_scan";
 	static final String PET_ABILITY_BEE_SWARM = "bee_swarm";
-	static final String PET_RARITY_COMMON = "common";
-	static final String PET_RARITY_RARE = "rare";
-	static final String PET_RARITY_EPIC = "epic";
-	static final String PET_RARITY_LEGENDARY = "legendary";
-	static final String PET_RARITY_MYTHIC = "mythic";
+	static final String PET_RARITY_COMMON = RarityTierManager.Tier.COMMON.id();
+	static final String PET_RARITY_RARE = RarityTierManager.Tier.RARE.id();
+	static final String PET_RARITY_EPIC = RarityTierManager.Tier.EPIC.id();
+	static final String PET_RARITY_LEGENDARY = RarityTierManager.Tier.LEGENDARY.id();
+	static final String PET_RARITY_MYTHIC = RarityTierManager.Tier.MYTHIC.id();
 
 	private static final Map<UUID, Long> NEXT_PROCESS_TICKS_BY_PLAYER = new HashMap<>();
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();

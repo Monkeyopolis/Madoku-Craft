@@ -30,7 +30,7 @@ public final class PetInventoryClient {
 	private static final Identifier RECIPE_BUTTON_HIGHLIGHTED_TEXTURE =
 		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/button_highlighted.png");
 	private static final Identifier ENTITY_SLOT_TEXTURE =
-		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/trinket.png");
+		Identifier.fromNamespaceAndPath("madoku-craft", "textures/icons/pet-slot.png");
 	private static final int TEXTURE_SIZE = 256;
 	private static final int INVENTORY_WIDTH = 176;
 	private static final int INVENTORY_HEIGHT = 166;
