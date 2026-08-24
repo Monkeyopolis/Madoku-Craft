@@ -1,6 +1,5 @@
-package madoku.craft.agriculture;
+package madoku.craft.farming;
 
-import madoku.craft.agriculture.composter.FarmingComposterManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.server.MinecraftServer;

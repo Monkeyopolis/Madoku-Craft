@@ -1,6 +1,6 @@
 package madoku.craft.mixin.farming;
 
-import madoku.craft.agriculture.MadokuFarmingManager;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.entity.Entity;

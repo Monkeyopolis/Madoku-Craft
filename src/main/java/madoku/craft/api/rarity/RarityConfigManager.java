@@ -2,6 +2,7 @@ package madoku.craft.api.rarity;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import madoku.craft.api.MadokuAPIManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
 import org.slf4j.Logger;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 public final class RarityConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RarityConfigManager.class);
-	private static final String RARITY_CONFIG_FOLDER_NAME = "madoku-craft-rarity";
+	private static final String RARITY_CONFIG_FOLDER_NAME = MadokuAPIManager.API_FOLDER_NAME + "/madoku-rarity";
 	private static final String RARITY_CONFIG_FILE_NAME = "madoku-rarity";
 	private static final String FIELD_ENABLED = "enabled";
 	private static final String FIELD_RARITY = "rarity";
@@ -24,10 +25,10 @@ public final class RarityConfigManager {
 	private static final String FIELD_USE_MADOKU_LUCK = "use-madoku-luck";
 
 	private static final Map<Tier, RarityDefaults> DEFAULTS = Map.of(
-		Tier.COMMON, new RarityDefaults(true, 334, 0.25D),
-		Tier.RARE, new RarityDefaults(true, 120, 0.5D),
-		Tier.EPIC, new RarityDefaults(true, 40, 1.25D),
-		Tier.LEGENDARY, new RarityDefaults(true, 5, 1.0D),
+		Tier.COMMON, new RarityDefaults(true, 669, 0.25D),
+		Tier.RARE, new RarityDefaults(true, 240, 0.5D),
+		Tier.EPIC, new RarityDefaults(true, 80, 1.25D),
+		Tier.LEGENDARY, new RarityDefaults(true, 10, 1.0D),
 		Tier.MYTHIC, new RarityDefaults(true, 1, 0.75D)
 	);
 

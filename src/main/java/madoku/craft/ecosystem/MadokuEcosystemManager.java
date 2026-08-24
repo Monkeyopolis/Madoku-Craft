@@ -2,8 +2,9 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.data.DataWorldChunkManager;
 import madoku.craft.api.chunk.MadokuChunkManager;
+import madoku.craft.api.data.DataWorldChunkManager;
+import madoku.craft.api.scheduler.SchedulerAdaptiveIntervalManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
 import net.minecraft.core.BlockPos;
@@ -44,6 +45,7 @@ public final class MadokuEcosystemManager {
 	private static final String FIELD_CACTUS_GROUND_POS = "cactus-ground-pos";
 	private static final String FIELD_GRASS_GROUND_POS = "grass-ground-pos";
 	private static final String FIELD_FOLIAGE_GROUND_POS = "foliage-ground-pos";
+	private static final String FIELD_TREE_DECAY_SOURCE_POS = "tree-decay-source-pos";
 	private static final String FIELD_TREE_DECAY_TARGET_POS = "tree-decay-target-pos";
 	private static final String FIELD_TREE_TYPE = "tree-type";
 	private static final String FIELD_FOLIAGE_TYPE = "foliage-type";
@@ -108,10 +110,31 @@ public final class MadokuEcosystemManager {
 	static volatile List<NaturalErosionConfigManager.NamedErosionRule> cachedErosionRules = List.of();
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Set<ChunkRefKey> LOADED_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
-
+	private static final List<DiscoveryChunk> PERIODIC_DISCOVERY_CHUNKS = new ArrayList<>();
+	private static final String DISCOVERY_INTERVAL_SYSTEM_ID = "ecosystem.discovery";
+	private static final long DISCOVERY_MIN_INTERVAL_TICKS = 1L;
+	private static final long DISCOVERY_MAX_INTERVAL_TICKS = 20L;
+	private static long lastPeriodicDiscoveryDay = Long.MIN_VALUE;
+	private static long nextPeriodicDiscoveryTick = Long.MIN_VALUE;
+	private static int periodicDiscoveryCursor;
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
+	static final Map<ColumnRefKey, Set<String>> dirtKeysByColumn = new LinkedHashMap<>();
+
+	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
+		@Override
+		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+			scheduleLoadedChunkDiscovery(level, chunkX, chunkZ);
+		}
+
+		@Override
+		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+			removeLoadedDiscoveryChunk(level, chunkX, chunkZ);
+			removePeriodicDiscoveryChunk(level, chunkX, chunkZ);
+		}
+	};
 	private static String cachedProbeLevelId = "";
 	private static long cachedProbeGameTime = Long.MIN_VALUE;
 	private static int cachedProbeX;
@@ -120,18 +143,6 @@ public final class MadokuEcosystemManager {
 	private static String cachedAbsoluteTimeLevelId = "";
 	private static long cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
 	private static long cachedAbsoluteDayTime = Long.MIN_VALUE;
-
-	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
-		@Override
-		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			loadPersistedChunkData(level, chunkX, chunkZ);
-			processLoadedChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-		}
-	};
 
 	MadokuEcosystemManager() {
 	}
@@ -152,11 +163,18 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalDecayManager.reset();
 		dirtBlocksByKey.clear();
 		dirtKeysByChunk.clear();
+		dirtKeysByColumn.clear();
 		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
 		PERSISTED_CHUNK_KEYS.clear();
 		LOADED_PERSISTED_CHUNK_KEYS.clear();
+		LOADED_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
+		PERIODIC_DISCOVERY_CHUNKS.clear();
+		lastPeriodicDiscoveryDay = Long.MIN_VALUE;
+		nextPeriodicDiscoveryTick = Long.MIN_VALUE;
+		periodicDiscoveryCursor = 0;
+		SchedulerAdaptiveIntervalManager.clearSystem(DISCOVERY_INTERVAL_SYSTEM_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
@@ -167,6 +185,149 @@ public final class MadokuEcosystemManager {
 		cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
 		cachedAbsoluteDayTime = Long.MIN_VALUE;
 	}
+
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null || !isEnabled()) {
+			return;
+		}
+
+		ServerLevel overworld = server.overworld();
+		if (overworld == null) {
+			return;
+		}
+
+		long absoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(overworld);
+		long currentDay = MadokuTimeManager.getDay(absoluteDayTime);
+		if (MadokuTimeManager.getClockHour(absoluteDayTime) == 6 && lastPeriodicDiscoveryDay != currentDay) {
+			beginPeriodicDiscovery(server);
+			lastPeriodicDiscoveryDay = currentDay;
+		}
+
+		if (PERIODIC_DISCOVERY_CHUNKS.isEmpty()) {
+			return;
+		}
+
+		long currentGameplayTick = MadokuTimeManager.getGameplayTicks();
+		long interval = SchedulerAdaptiveIntervalManager.resolve(
+			DISCOVERY_INTERVAL_SYSTEM_ID,
+			server,
+			DISCOVERY_MIN_INTERVAL_TICKS,
+			DISCOVERY_MAX_INTERVAL_TICKS
+		);
+		if (nextPeriodicDiscoveryTick != Long.MIN_VALUE && currentGameplayTick < nextPeriodicDiscoveryTick) {
+			return;
+		}
+		nextPeriodicDiscoveryTick = currentGameplayTick + Math.max(1L, interval);
+		processNextPeriodicDiscoveryChunk();
+	}
+
+	private static void beginPeriodicDiscovery(MinecraftServer server) {
+		PERIODIC_DISCOVERY_CHUNKS.clear();
+		periodicDiscoveryCursor = 0;
+		nextPeriodicDiscoveryTick = Long.MIN_VALUE;
+		for (ServerLevel level : server.getAllLevels()) {
+			if (level == null) {
+				continue;
+			}
+			level.getChunkSource().chunkMap.forEachReadyToSendChunk(chunk -> {
+				if (chunk == null) {
+					return;
+				}
+				ChunkRefKey key = new ChunkRefKey(levelId(level), chunk.getPos().x(), chunk.getPos().z());
+				for (DiscoveryChunk existing : PERIODIC_DISCOVERY_CHUNKS) {
+					if (existing.key().equals(key)) {
+						return;
+					}
+				}
+				PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunk(level, key));
+			});
+		}
+	}
+
+	private static void processNextPeriodicDiscoveryChunk() {
+		while (periodicDiscoveryCursor < PERIODIC_DISCOVERY_CHUNKS.size()) {
+			DiscoveryChunk discoveryChunk = PERIODIC_DISCOVERY_CHUNKS.get(periodicDiscoveryCursor);
+			if (!MadokuChunkManager.isChunkAccessible(
+				discoveryChunk.level(),
+				discoveryChunk.key().chunkX(),
+				discoveryChunk.key().chunkZ()
+			)) {
+				PERIODIC_DISCOVERY_CHUNKS.remove(periodicDiscoveryCursor);
+				continue;
+			}
+			periodicDiscoveryCursor++;
+			discoverChunk(
+				discoveryChunk.level(),
+				discoveryChunk.key().chunkX(),
+				discoveryChunk.key().chunkZ()
+			);
+			LOADED_DISCOVERY_CHUNK_KEYS.add(discoveryChunk.key());
+			if (periodicDiscoveryCursor >= PERIODIC_DISCOVERY_CHUNKS.size()) {
+				PERIODIC_DISCOVERY_CHUNKS.clear();
+				periodicDiscoveryCursor = 0;
+			}
+			return;
+		}
+		PERIODIC_DISCOVERY_CHUNKS.clear();
+		periodicDiscoveryCursor = 0;
+	}
+
+	private static void removePeriodicDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null) {
+			return;
+		}
+		ChunkRefKey key = new ChunkRefKey(levelId(level), chunkX, chunkZ);
+		for (int index = PERIODIC_DISCOVERY_CHUNKS.size() - 1; index >= 0; index--) {
+			if (!PERIODIC_DISCOVERY_CHUNKS.get(index).key().equals(key)) {
+				continue;
+			}
+			PERIODIC_DISCOVERY_CHUNKS.remove(index);
+			if (index < periodicDiscoveryCursor) {
+				periodicDiscoveryCursor--;
+			}
+		}
+		periodicDiscoveryCursor = Math.max(0, Math.min(periodicDiscoveryCursor, PERIODIC_DISCOVERY_CHUNKS.size()));
+	}
+
+	private static void scheduleLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null || !isEnabled() || !MadokuChunkManager.isChunkAccessible(level, chunkX, chunkZ)) {
+			return;
+		}
+		ChunkRefKey key = new ChunkRefKey(levelId(level), chunkX, chunkZ);
+		if (LOADED_DISCOVERY_CHUNK_KEYS.contains(key) || containsPeriodicDiscoveryChunk(key)) {
+			return;
+		}
+		PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunk(level, key));
+	}
+
+	private static boolean containsPeriodicDiscoveryChunk(ChunkRefKey key) {
+		if (key == null) {
+			return false;
+		}
+		for (DiscoveryChunk discoveryChunk : PERIODIC_DISCOVERY_CHUNKS) {
+			if (discoveryChunk.key().equals(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static void removeLoadedDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
+		if (level != null) {
+			LOADED_DISCOVERY_CHUNK_KEYS.remove(new ChunkRefKey(levelId(level), chunkX, chunkZ));
+		}
+	}
+
+	/** Runs discovery only from the deferred load/startup/daily discovery snapshot. */
+	private static void discoverChunk(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null || !isEnabled() || !MadokuChunkManager.isChunkAccessible(level, chunkX, chunkZ)) {
+			return;
+		}
+		EcosystemNaturalGrowthManager.discoverChunk(level, chunkX, chunkZ);
+		EcosystemNaturalErosionManager.discoverChunk(level, chunkX, chunkZ);
+		EcosystemNaturalDecayManager.discoverChunk(level, chunkX, chunkZ);
+	}
+
 
 	public static boolean isEnabled() {
 		return ecosystemEnabled;
@@ -275,7 +436,7 @@ public final class MadokuEcosystemManager {
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
 				if (chunk != null) {
 					loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
-					processLoadedChunk(level, chunk.getPos().x(), chunk.getPos().z());
+					scheduleLoadedChunkDiscovery(level, chunk.getPos().x(), chunk.getPos().z());
 				}
 			});
 		}
@@ -293,6 +454,7 @@ public final class MadokuEcosystemManager {
 			if (!isEnabled()) {
 				dirtBlocksByKey.clear();
 				dirtKeysByChunk.clear();
+				dirtKeysByColumn.clear();
 				EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 				EcosystemNaturalDecayManager.clearTrackedCandidateState();
 				EcosystemNaturalGrowthManager.reset();
@@ -304,6 +466,7 @@ public final class MadokuEcosystemManager {
 
 			dirtBlocksByKey.clear();
 			dirtKeysByChunk.clear();
+			dirtKeysByColumn.clear();
 			EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 			EcosystemNaturalDecayManager.clearTrackedCandidateState();
 			EcosystemNaturalGrowthManager.reset();
@@ -382,14 +545,6 @@ public final class MadokuEcosystemManager {
 			source.addProperty(FIELD_CHUNK_Z, chunkZ);
 			applyPersistedData(source);
 		}
-	}
-
-	private static void processLoadedChunk(ServerLevel level, int chunkX, int chunkZ) {
-		if (level == null || !isEnabled()) {
-			return;
-		}
-		EcosystemNaturalGrowthManager.processChunkOnLoad(level, chunkX, chunkZ);
-		EcosystemNaturalDecayManager.processChunkOnLoad(level, chunkX, chunkZ);
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
@@ -490,12 +645,14 @@ public final class MadokuEcosystemManager {
 		if (previous != null) {
 			previousChunkKey = chunkRefForPos(previous.levelId, previous.dirtPos);
 			removeChunkIndex(dirtKeysByChunk, previousChunkKey, key);
+			removeColumnIndex(previous, key);
 			markChunkDirty(previousChunkKey);
 		}
 		ChunkRefKey nextChunkKey = null;
 		if (value != null) {
 			nextChunkKey = chunkRefForPos(value.levelId, value.dirtPos);
 			addChunkIndex(dirtKeysByChunk, nextChunkKey, key);
+			addColumnIndex(value, key);
 			markChunkDirty(nextChunkKey);
 		}
 		if (previousChunkKey != null) {
@@ -512,10 +669,36 @@ public final class MadokuEcosystemManager {
 		if (removed != null) {
 			ChunkRefKey chunkKey = chunkRefForPos(removed.levelId, removed.dirtPos);
 			removeChunkIndex(dirtKeysByChunk, chunkKey, key);
+			removeColumnIndex(removed, key);
 			markChunkDirty(chunkKey);
 			syncChunkProcessorTracking(chunkKey);
 		}
 		return removed;
+	}
+
+	private static void addColumnIndex(DirtState dirt, String entryKey) {
+		if (dirt == null) {
+			return;
+		}
+		dirtKeysByColumn.computeIfAbsent(
+			new ColumnRefKey(dirt.levelId, BlockPos.getX(dirt.dirtPos), BlockPos.getZ(dirt.dirtPos)),
+			ignored -> new LinkedHashSet<>()
+		).add(entryKey);
+	}
+
+	private static void removeColumnIndex(DirtState dirt, String entryKey) {
+		if (dirt == null) {
+			return;
+		}
+		ColumnRefKey columnKey = new ColumnRefKey(dirt.levelId, BlockPos.getX(dirt.dirtPos), BlockPos.getZ(dirt.dirtPos));
+		Set<String> keys = dirtKeysByColumn.get(columnKey);
+		if (keys == null) {
+			return;
+		}
+		keys.remove(entryKey);
+		if (keys.isEmpty()) {
+			dirtKeysByColumn.remove(columnKey);
+		}
 	}
 
 	private static void addChunkIndex(Map<ChunkRefKey, Set<String>> indexMap, ChunkRefKey chunkKey, String entryKey) {
@@ -577,7 +760,7 @@ public final class MadokuEcosystemManager {
 		return false;
 	}
 
-	private static String dirtKey(ServerLevel world, BlockPos dirtPos) {
+	static String dirtKey(ServerLevel world, BlockPos dirtPos) {
 		return levelId(world) + "|" + (dirtPos == null ? -1L : dirtPos.asLong());
 	}
 
@@ -867,6 +1050,12 @@ public final class MadokuEcosystemManager {
 	record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
 	}
 
+	record DiscoveryChunk(ServerLevel level, ChunkRefKey key) {
+	}
+
+	record ColumnRefKey(String levelId, int blockX, int blockZ) {
+	}
+
 	record TreeCandidateOption(long groundPos, String treeType, double requiredGrowthTicks) {
 	}
 
@@ -1131,6 +1320,7 @@ public final class MadokuEcosystemManager {
 		final int chunkX;
 		final int chunkZ;
 		final long leafPos;
+		final long targetPos;
 		final String initialSeasonId;
 		final double requiredDecayTicks;
 		double progressDecayTicks;
@@ -1141,6 +1331,7 @@ public final class MadokuEcosystemManager {
 			int chunkX,
 			int chunkZ,
 			long leafPos,
+			long targetPos,
 			String initialSeasonId,
 			double requiredDecayTicks,
 			double progressDecayTicks,
@@ -1150,6 +1341,7 @@ public final class MadokuEcosystemManager {
 			this.chunkX = chunkX;
 			this.chunkZ = chunkZ;
 			this.leafPos = leafPos;
+			this.targetPos = targetPos;
 			this.initialSeasonId = EcosystemConfigManager.normalize(initialSeasonId);
 			this.requiredDecayTicks = Math.max(1.0d, requiredDecayTicks);
 			this.progressDecayTicks = Math.max(0.0d, Math.min(this.requiredDecayTicks, progressDecayTicks));
@@ -1161,7 +1353,8 @@ public final class MadokuEcosystemManager {
 					.put(FIELD_LEVEL_ID, levelId)
 					.put(FIELD_CHUNK_X, chunkX)
 					.put(FIELD_CHUNK_Z, chunkZ)
-					.put(FIELD_TREE_DECAY_TARGET_POS, leafPos)
+					.put(FIELD_TREE_DECAY_SOURCE_POS, leafPos)
+					.put(FIELD_TREE_DECAY_TARGET_POS, targetPos)
 					.put(FIELD_INITIAL_SEASON_ID, initialSeasonId)
 					.put(FIELD_REQUIRED_GROWTH_TICKS, requiredDecayTicks)
 					.put(FIELD_PROGRESS_GROWTH_TICKS, progressDecayTicks)
@@ -1184,10 +1377,11 @@ public final class MadokuEcosystemManager {
 			if (chunkX == Integer.MIN_VALUE || chunkZ == Integer.MIN_VALUE) {
 				return null;
 			}
-			long leafPos = getLong(source, FIELD_TREE_DECAY_TARGET_POS, Long.MIN_VALUE);
-			if (leafPos == Long.MIN_VALUE) {
+			long targetPos = getLong(source, FIELD_TREE_DECAY_TARGET_POS, Long.MIN_VALUE);
+			if (targetPos == Long.MIN_VALUE) {
 				return null;
 			}
+			long leafPos = getLong(source, FIELD_TREE_DECAY_SOURCE_POS, targetPos);
 			String initialSeasonId = EcosystemConfigManager.normalize(getString(source, FIELD_INITIAL_SEASON_ID, "spring"));
 			double requiredDecayTicks = getDouble(
 				source,
@@ -1201,6 +1395,7 @@ public final class MadokuEcosystemManager {
 				chunkX,
 				chunkZ,
 				leafPos,
+				targetPos,
 				initialSeasonId,
 				requiredDecayTicks,
 				progressDecayTicks,

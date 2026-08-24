@@ -1,4 +1,4 @@
-package madoku.craft.agriculture;
+package madoku.craft.farming;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -14,7 +14,6 @@ import madoku.craft.mixin.item.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonBiomeClimateManager;
-import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.api.loot.LootTableCropsManager;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -107,17 +106,6 @@ public final class FarmingCropsManager {
 	private static final Map<String, JsonObject> serializedCropsByKey = new HashMap<>();
 	private static final Map<String, Long> serializedCropFingerprintsByKey = new HashMap<>();
 
-	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
-		@Override
-		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			processCropsInChunk(level, chunkX, chunkZ);
-		}
-
-		@Override
-		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
-		}
-	};
-
 	private FarmingCropsManager() {
 	}
 
@@ -131,7 +119,6 @@ public final class FarmingCropsManager {
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreak(world, pos, state, blockEntity)
 		);
-		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 	}
 
 	public static void reset() {

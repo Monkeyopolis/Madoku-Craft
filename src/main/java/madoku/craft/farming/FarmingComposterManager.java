@@ -1,9 +1,8 @@
-package madoku.craft.agriculture.composter;
+package madoku.craft.farming;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.agriculture.FarmingConfigManager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;

@@ -75,67 +75,58 @@ public final class EcosystemNaturalErosionManager {
 		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
+	/** Discovers new erosion candidates without advancing or processing existing candidates. */
+	static void discoverChunk(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null || !isEnabled()) {
+			return;
+		}
+
+		for (int localX = 0; localX < 16; localX++) {
+			for (int localZ = 0; localZ < 16; localZ++) {
+				int x = (chunkX << 4) + localX;
+				int z = (chunkZ << 4) + localZ;
+				int topY = Math.min(
+					world.getMaxY() - 1,
+					world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1
+				);
+				if (topY < world.getMinY()) {
+					continue;
+				}
+
+				BlockPos groundPos = new BlockPos(x, topY, z);
+				BlockState groundState = world.getBlockState(groundPos);
+				if (isWetSeedCandidate(world, groundPos, groundState)) {
+					MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
+					BlockPos above = groundPos.above();
+					BlockState aboveState = world.getBlockState(above);
+					if (isWetTrackedCandidate(world, above, aboveState)) {
+						MadokuEcosystemManager.trackDirtCandidateForMode(world, above, aboveState, "wet");
+					}
+				}
+				if (isLavaMagmaSeedCandidate(world, groundPos, groundState)) {
+					MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
+				}
+			}
+		}
+	}
+
 	static void handleRandomPosition(ServerLevel world, BlockPos position) {
+		// Random ticking may only advance an existing wet candidate at this position.
+		// Candidate discovery and seed detection belong to discoverChunk.
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
 		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = position.getX() >> 4;
 		int chunkZ = position.getZ() >> 4;
-		EcosystemNaturalGrowthManager.processDirtInColumn(
+		EcosystemNaturalGrowthManager.processDirtAtPosition(
 			world,
 			chunkX,
 			chunkZ,
 			currentAbsoluteDayTime,
 			"wet",
-			position.getX(),
-			position.getZ()
+			position.asLong()
 		);
-
-		BlockPos groundPosition = MadokuEcosystemManager.resolveCachedGroundPosition(world, position);
-		if (groundPosition != null) {
-			BlockState groundState = world.getBlockState(groundPosition);
-			String seedKey = MadokuEcosystemManager.levelId(world) + "|" + groundPosition.asLong();
-			MadokuEcosystemManager.DirtState trackedSeed = MadokuEcosystemManager.dirtBlocksByKey.get(seedKey);
-			if (isWetSeedCandidate(world, groundPosition, groundState)
-				&& (trackedSeed == null || !"wet".equals(trackedSeed.mode))) {
-				spreadWetTrackingFromSeed(world, groundPosition);
-			}
-		}
-
-		BlockState state = world.getBlockState(position);
-		if (isLavaMagmaSeedCandidate(world, position, state)) {
-			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
-		}
-	}
-
-	static void spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPosition) {
-		if (world == null || seedPosition == null || !isWaterErosionEnabled()) {
-			return;
-		}
-
-		int radius = currentSettings().waterErosionRadius();
-		for (int offsetX = -radius; offsetX <= radius; offsetX++) {
-			for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
-				if (Math.abs(offsetX) + Math.abs(offsetZ) > radius) {
-					continue;
-				}
-
-				BlockPos groundPosition = seedPosition.offset(offsetX, 0, offsetZ);
-				trackWetCandidate(world, groundPosition);
-				trackWetCandidate(world, groundPosition.above());
-			}
-		}
-	}
-
-	private static void trackWetCandidate(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
-			return;
-		}
-		BlockState state = world.getBlockState(position);
-		if (isWetTrackedCandidate(world, position, state)) {
-			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
-		}
 	}
 
 	static boolean isWetSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {

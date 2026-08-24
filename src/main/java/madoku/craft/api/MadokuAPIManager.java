@@ -10,6 +10,7 @@ import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.api.recipes.MadokuRecipesManager;
 import madoku.craft.api.loot.MadokuLootTableManager;
 import madoku.craft.api.helper.MadokuHelperManager;
+import madoku.craft.ecosystem.MadokuEcosystemManager;
 
 import java.nio.file.Path;
 
@@ -69,6 +70,7 @@ public final class MadokuAPIManager {
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
 		MadokuHelperManager.onServerTick(server);
 		MadokuChunkManager.onServerTick(server);
+		MadokuEcosystemManager.onServerTick(server);
 		if (MadokuTimeManager.isEnabled()) {
 			MadokuSchedulerManager.onClockTick(server);
 		} else {

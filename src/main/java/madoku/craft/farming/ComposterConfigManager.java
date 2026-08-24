@@ -1,4 +1,4 @@
-package madoku.craft.agriculture.composter;
+package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 import madoku.craft.api.json.JSONFormatManager;

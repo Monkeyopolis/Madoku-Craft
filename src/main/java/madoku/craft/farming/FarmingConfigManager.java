@@ -1,4 +1,4 @@
-package madoku.craft.agriculture;
+package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonElement;

@@ -1,4 +1,4 @@
-package madoku.craft.agriculture;
+package madoku.craft.farming;
 
 import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.api.season.SeasonBiomeClimateManager;

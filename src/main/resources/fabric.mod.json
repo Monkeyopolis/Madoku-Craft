@@ -27,10 +27,10 @@
 		"madoku-craft.sodium.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.18.4",
+		"fabricloader": "${loader_version}",
 		"minecraft": "~${minecraft_version}",
 		"java": ">=25",
-		"fabric-api": "*"
+		"fabric-api": "${fabric_api_version}"
 	},
 	"suggests": {
 		"sodium": "*",

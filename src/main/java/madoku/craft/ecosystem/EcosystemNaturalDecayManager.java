@@ -25,7 +25,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class EcosystemNaturalDecayManager {
 	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_decay";
@@ -250,50 +249,51 @@ public final class EcosystemNaturalDecayManager {
 		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
+	/** Discovers new decay candidates without advancing or processing existing candidates. */
+	static void discoverChunk(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null || !isEnabled()) {
+			return;
+		}
+
+		BlockPos.MutableBlockPos scanPos = new BlockPos.MutableBlockPos();
+		for (int localX = 0; localX < 16; localX++) {
+			for (int localZ = 0; localZ < 16; localZ++) {
+				int x = (chunkX << 4) + localX;
+				int z = (chunkZ << 4) + localZ;
+				for (int y = world.getMinY(); y < world.getMaxY(); y++) {
+					scanPos.set(x, y, z);
+					BlockState state = world.getBlockState(scanPos);
+					if (!state.is(BlockTags.LEAVES) || !isNaturallyGeneratedLeaf(state)) {
+						continue;
+					}
+					BlockPos targetPos = resolveTreeDecayTargetPos(world, scanPos, state);
+					if (targetPos != null) {
+						pickTreeDecayCandidateForPosition(
+							world,
+							chunkX,
+							chunkZ,
+							scanPos.asLong(),
+							targetPos.asLong()
+						);
+					}
+				}
+			}
+		}
+	}
+
 	static void handleRandomPosition(ServerLevel world, BlockPos position) {
+		// Random ticking may only advance an existing source-leaf candidate.
+		// Leaf/target discovery belongs exclusively to discoverChunk.
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
 		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
-		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, world.getBlockState(position));
-
-		if (targetPos != null) {
-			processTreeDecayCandidateInChunk(
-				world,
-				targetPos.getX() >> 4,
-				targetPos.getZ() >> 4,
-				currentAbsoluteDayTime,
-				targetPos.asLong()
-			);
-
-			pickTreeDecayCandidateForChunk(
-				world,
-				targetPos.getX() >> 4,
-				targetPos.getZ() >> 4,
-				Set.of(targetPos.asLong())
-			);
-		} else {
-			// Selecting a persisted target also validates and advances it when its source leaf is gone.
-			processTreeDecayCandidateInChunk(
-				world,
-				position.getX() >> 4,
-				position.getZ() >> 4,
-				currentAbsoluteDayTime,
-				position.asLong()
-			);
-		}
-	}
-
-	/** Applies elapsed progress to every persisted decay candidate in a loaded chunk. */
-	static void processChunkOnLoad(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled()) {
-			return;
-		}
 		processTreeDecayCandidateInChunk(
 			world,
-			chunkX,
-			chunkZ,
-			MadokuTimeManager.getCurrentAbsoluteDayTime(world)
+			position.getX() >> 4,
+			position.getZ() >> 4,
+			currentAbsoluteDayTime,
+			position.asLong()
 		);
 	}
 
@@ -341,40 +341,22 @@ public final class EcosystemNaturalDecayManager {
 		return false;
 	}
 
-	static void pickTreeDecayCandidateForChunk(ServerLevel world, int chunkX, int chunkZ, Set<Long> treeDecayLeafCandidates) {
-		if (world == null || treeDecayLeafCandidates == null || treeDecayLeafCandidates.isEmpty() || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+	static void pickTreeDecayCandidateForPosition(ServerLevel world, int chunkX, int chunkZ, long leafPos, long targetPos) {
+		if (world == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
 			return;
 		}
 
 		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
 		List<MadokuEcosystemManager.TreeDecayCandidateState> existingCandidates = treeDecayCandidatesByChunk.get(chunkKey);
-
-		List<Long> options = new ArrayList<>();
-		for (Long packedPos : treeDecayLeafCandidates) {
-			if (packedPos == null) {
-				continue;
-			}
-		BlockPos targetPos = BlockPos.of(packedPos);
-		if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
-				continue;
-			}
-			boolean alreadyTracked = false;
-			if (existingCandidates != null) {
-				for (MadokuEcosystemManager.TreeDecayCandidateState existing : existingCandidates) {
-					if (existing != null && existing.leafPos == packedPos.longValue()) {
-						alreadyTracked = true;
-						break;
-					}
+		if (leafPos == Long.MIN_VALUE || targetPos == Long.MIN_VALUE || !isValidTreeDecayTargetCandidate(world, BlockPos.of(targetPos))) {
+			return;
+		}
+		if (existingCandidates != null) {
+			for (MadokuEcosystemManager.TreeDecayCandidateState existing : existingCandidates) {
+				if (existing != null && existing.leafPos == leafPos) {
+					return;
 				}
 			}
-			if (alreadyTracked) {
-				continue;
-			}
-			options.add(packedPos);
-		}
-
-		if (options.isEmpty()) {
-			return;
 		}
 
 		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
@@ -383,25 +365,21 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 
-		int availableSlots = options.size();
-		for (int i = 0; i < availableSlots; i++) {
-			int selectedIndex = ThreadLocalRandom.current().nextInt(options.size());
-			long selectedLeafPos = options.remove(selectedIndex);
-			treeDecayCandidatesByChunk
-				.computeIfAbsent(chunkKey, ignored -> new ArrayList<>())
-				.add(new MadokuEcosystemManager.TreeDecayCandidateState(
-					MadokuEcosystemManager.levelId(world),
-					chunkX,
-					chunkZ,
-					selectedLeafPos,
-					seasonId,
-					requiredDecayTicks,
-					0.0d,
-					MadokuTimeManager.getCurrentAbsoluteDayTime(world)
-				));
-			syncChunkProcessorTracking(chunkKey);
-			MadokuEcosystemManager.dirty = true;
-		}
+		treeDecayCandidatesByChunk
+			.computeIfAbsent(chunkKey, ignored -> new ArrayList<>())
+			.add(new MadokuEcosystemManager.TreeDecayCandidateState(
+				MadokuEcosystemManager.levelId(world),
+				chunkX,
+				chunkZ,
+				leafPos,
+				targetPos,
+				seasonId,
+				requiredDecayTicks,
+				0.0d,
+				MadokuTimeManager.getCurrentAbsoluteDayTime(world)
+			));
+		syncChunkProcessorTracking(chunkKey);
+		MadokuEcosystemManager.dirty = true;
 	}
 
 	private static double randomDaysToTicks(EcosystemConfigManager.DayRange range) {
@@ -491,14 +469,8 @@ public final class EcosystemNaturalDecayManager {
 				continue;
 			}
 
-			BlockPos targetPos = BlockPos.of(candidate.leafPos);
+			BlockPos targetPos = BlockPos.of(candidate.targetPos);
 			if (selectedTargetPosition != Long.MIN_VALUE && candidate.leafPos != selectedTargetPosition) {
-				continue;
-			}
-			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
-				candidates.remove(index);
-				removedAny = true;
-				MadokuEcosystemManager.markChunkDirty(chunkKey);
 				continue;
 			}
 
@@ -513,6 +485,17 @@ public final class EcosystemNaturalDecayManager {
 				}
 			}
 			candidate.lastProcessedAbsoluteDayTime = safeCurrentAbsolute;
+
+			if (candidate.progressDecayTicks + 1e-6d < candidate.requiredDecayTicks) {
+				continue;
+			}
+
+			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
+				candidates.remove(index);
+				removedAny = true;
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
+				continue;
+			}
 
 			if (candidate.progressDecayTicks + 1e-6d >= candidate.requiredDecayTicks) {
 				boolean applied = tryApplyTreeDecayAtTarget(world, targetPos);

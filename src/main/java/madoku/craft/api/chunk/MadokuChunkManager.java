@@ -26,6 +26,14 @@ public final class MadokuChunkManager {
 	}
 
 	public interface ChunkLifecycleListener {
+		default String profilerName() {
+			String className = getClass().getName();
+			int packageSeparator = className.lastIndexOf('.');
+			String simpleName = packageSeparator >= 0 ? className.substring(packageSeparator + 1) : className;
+			int anonymousClassSeparator = simpleName.indexOf('$');
+			return anonymousClassSeparator > 0 ? simpleName.substring(0, anonymousClassSeparator) : simpleName;
+		}
+
 		void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ);
 
 		void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ);

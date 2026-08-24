@@ -5,7 +5,7 @@ import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.agriculture.MadokuFarmingManager;
+import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.pet.MadokuPetManager;

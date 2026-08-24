@@ -7,9 +7,13 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Runtime group for configured entity components and attributes. */
 public final class EntityComponentsManager {
+	private static final ConcurrentHashMap<UUID, MobBabySettings> MOB_BABY_SETTINGS_CACHE = new ConcurrentHashMap<>();
+
 	public record MobBabySettings(boolean configured, boolean ageable, long durationTicks) {
 		private static final MobBabySettings DISABLED = new MobBabySettings(false, false, 0L);
 	}
@@ -31,6 +35,18 @@ public final class EntityComponentsManager {
 		if (entity == null) {
 			return MobBabySettings.DISABLED;
 		}
+		UUID entityId = entity.getUUID();
+		MobBabySettings cached = MOB_BABY_SETTINGS_CACHE.get(entityId);
+		if (cached != null) {
+			return cached;
+		}
+
+		MobBabySettings resolved = resolveMobBabySettingsUncached(entity);
+		MOB_BABY_SETTINGS_CACHE.put(entityId, resolved);
+		return resolved;
+	}
+
+	private static MobBabySettings resolveMobBabySettingsUncached(LivingEntity entity) {
 		JsonObject variant = MobEntityManager.resolveConfiguredEntityVariantForRuntime(entity);
 		JsonElement componentsElement = variant.get(MobConfigManager.FIELD_MOB_COMPONENTS);
 		if (componentsElement == null || !componentsElement.isJsonObject()) {
@@ -58,6 +74,16 @@ public final class EntityComponentsManager {
 			return MobBabySettings.DISABLED;
 		}
 		return new MobBabySettings(true, ageable, resolveDurationTicks(durationSeconds));
+	}
+
+	public static void invalidateMobBabySettings(UUID entityId) {
+		if (entityId != null) {
+			MOB_BABY_SETTINGS_CACHE.remove(entityId);
+		}
+	}
+
+	public static void clearMobBabySettingsCache() {
+		MOB_BABY_SETTINGS_CACHE.clear();
 	}
 
 	public static boolean applyMobBabyComponent(LivingEntity entity) {

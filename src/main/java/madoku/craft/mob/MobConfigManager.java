@@ -226,6 +226,7 @@ public final class MobConfigManager {
 	public static synchronized void reset() {
 		initialized = false;
 		runtimeConfig = RuntimeConfig.disabled();
+		EntityComponentsManager.clearMobBabySettingsCache();
 	}
 
 	public static boolean isEnabled() {

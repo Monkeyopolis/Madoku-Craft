@@ -119,6 +119,7 @@ public final class MobEntityManager {
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
 			TRACKED_BEES.remove(entity.getUUID());
 			TRACKED_AGEABLE_MOBS.remove(entity.getUUID());
+			EntityComponentsManager.invalidateMobBabySettings(entity.getUUID());
 			CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 			APPLIED_SPAWN_OVERRIDES.remove(entity.getUUID());
 			cleanupEntityState(entity);
@@ -133,6 +134,7 @@ public final class MobEntityManager {
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_BEES.clear();
 		TRACKED_AGEABLE_MOBS.clear();
+		EntityComponentsManager.clearMobBabySettingsCache();
 		CONFIGURED_MOB_BABY_STATES.clear();
 		APPLIED_SPAWN_OVERRIDES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();
@@ -158,6 +160,7 @@ public final class MobEntityManager {
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_BEES.clear();
 		TRACKED_AGEABLE_MOBS.clear();
+		EntityComponentsManager.clearMobBabySettingsCache();
 		CONFIGURED_MOB_BABY_STATES.clear();
 		APPLIED_SPAWN_OVERRIDES.clear();
 		EntityBehaviorsManager.BeeBehavior.resetRuntimeState();

@@ -9,7 +9,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.mob.MadokuMobManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
-import madoku.craft.agriculture.MadokuFarmingManager;
+import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.attributes.health.MadokuHealthManager;
 import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.item.system.MadokuItem;
@@ -108,8 +108,8 @@ public class MadokuCraft implements ModInitializer {
 			MadokuJSONManager.clearRuntimeState();
 		});
 
-		ServerTickEvents.START_SERVER_TICK.register(TimeSleepManager::refreshTickIncrement);
-		ServerTickEvents.START_SERVER_TICK.register(MadokuSeasonManager::onServerStartTick);
+		ServerTickEvents.START_SERVER_TICK.register(server -> TimeSleepManager.refreshTickIncrement(server));
+		ServerTickEvents.START_SERVER_TICK.register(server -> MadokuSeasonManager.onServerStartTick(server));
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			long tickIncrement = TimeSleepManager.getCachedTickIncrement();

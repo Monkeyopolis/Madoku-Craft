@@ -115,11 +115,15 @@ final class SchedulerRuntimeManager {
 	}
 
 	static void onClockTick(MinecraftServer server) {
-		if (server != null && MadokuTimeManager.isEnabled()) processDue(server);
+		if (server != null && MadokuTimeManager.isEnabled()) {
+			processDue(server);
+		}
 	}
 
 	static void onServerTick(MinecraftServer server) {
-		if (server != null && !MadokuTimeManager.isEnabled()) processDue(server);
+		if (server != null && !MadokuTimeManager.isEnabled()) {
+			processDue(server);
+		}
 	}
 
 	static long resolveAdaptiveDelayTicks(MinecraftServer server, String ownerId, long minimum, long maximum) {
@@ -250,7 +254,11 @@ final class SchedulerRuntimeManager {
 				continue;
 			}
 			try {
-				handler.execute(server, new MadokuSchedulerManager.TaskContext(entry.schedulerId, next.requestId, nowTick, entry.binding, next.domain), next.payload.deepCopy());
+				handler.execute(
+					server,
+					new MadokuSchedulerManager.TaskContext(entry.schedulerId, next.requestId, nowTick, entry.binding, next.domain),
+					next.payload.deepCopy()
+				);
 			} catch (RuntimeException exception) {
 				LOGGER.error("Scheduler task failed: scheduler={} request_id={} task_type={}", entry.schedulerId, next.requestId, next.taskType, exception);
 			}

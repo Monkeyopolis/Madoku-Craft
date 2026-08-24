@@ -5,7 +5,7 @@ import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.api.helper.MadokuBlockDropContextManager;
-import madoku.craft.agriculture.MadokuFarmingManager;
+import madoku.craft.farming.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;

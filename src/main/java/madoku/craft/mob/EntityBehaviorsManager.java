@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.UUID;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.agriculture.MadokuFarmingManager;
+import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.mixin.mob.AbstractSkeletonArrowInvoker;
 import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.core.BlockPos;
@@ -63,6 +63,7 @@ public final class EntityBehaviorsManager {
 		private static final int DEFAULT_SEARCH_DURATION_TICKS = 1200;
 		private static final int DEFAULT_SEARCH_RADIUS_HORIZONTAL = 12;
 		private static final int DEFAULT_SEARCH_RADIUS_VERTICAL = 3;
+		private static final int DEFAULT_CROP_SEARCH_RETRY_TICKS = 20;
 		private static final double DEFAULT_CROP_REACH_DISTANCE_SQR = 4.0D;
 		private static final int DEFAULT_CROP_RESERVATION_TTL_TICKS = 40;
 		private static final double DEFAULT_MOVE_SPEED_MODIFIER = 1.1D;
@@ -75,6 +76,7 @@ public final class EntityBehaviorsManager {
 		private static final double DEFAULT_GROWTH_PERCENT_PER_CHARGE = 2.0D;
 
 		private static final Map<UUID, BeeNectarState> BEE_NECTAR_STATES = new ConcurrentHashMap<>();
+		private static final Map<UUID, BeeCropTarget> BEE_KNOWN_CROP_TARGETS = new ConcurrentHashMap<>();
 		private static final Map<String, BeeCropReservation> BEE_CROP_RESERVATIONS = new ConcurrentHashMap<>();
 		private static final java.util.Set<UUID> BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE = ConcurrentHashMap.newKeySet();
 
@@ -114,6 +116,7 @@ public final class EntityBehaviorsManager {
 
 		public static void resetRuntimeState() {
 			BEE_NECTAR_STATES.clear();
+			BEE_KNOWN_CROP_TARGETS.clear();
 			BEE_CROP_RESERVATIONS.clear();
 			BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE.clear();
 		}
@@ -123,6 +126,7 @@ public final class EntityBehaviorsManager {
 				return;
 			}
 			resetBeeNectarCycle(entity.getUUID());
+			BEE_KNOWN_CROP_TARGETS.remove(entity.getUUID());
 		}
 
 		public static boolean tickRuntime(
@@ -136,6 +140,8 @@ public final class EntityBehaviorsManager {
 				return false;
 			}
 			long nowTick = server.overworld() == null ? 0L : server.overworld().getGameTime();
+			boolean behaviorOverrideEnabled = MobEntityManager.isBeeBehaviorOverrideEnabled();
+			boolean goalsOverrideEnabled = MobEntityManager.isBeeGoalsOverrideEnabled();
 			pruneBeeCropReservations(nowTick);
 			if (trackedEntities == null) {
 				return !BEE_NECTAR_STATES.isEmpty() || !BEE_CROP_RESERVATIONS.isEmpty();
@@ -144,12 +150,17 @@ public final class EntityBehaviorsManager {
 				if (!(entity instanceof Bee bee) || !bee.isAlive() || !(bee.level() instanceof ServerLevel level)) {
 					continue;
 				}
-				if (!MobEntityManager.isBeeBehaviorOverrideEnabled()) {
+				if (!behaviorOverrideEnabled) {
 					allowBeeHiveReturn(bee);
 					resetBeeNectarCycle(bee.getUUID());
 					continue;
 				}
-				if (!MobEntityManager.isBeeGoalsOverrideEnabled()) {
+				if (!goalsOverrideEnabled) {
+					allowBeeHiveReturn(bee);
+					resetBeeNectarCycle(bee.getUUID());
+					continue;
+				}
+				if (!bee.hasNectar()) {
 					allowBeeHiveReturn(bee);
 					resetBeeNectarCycle(bee.getUUID());
 					continue;
@@ -211,11 +222,6 @@ public final class EntityBehaviorsManager {
 				double growthPercentPerCharge = Math.max(0.0D, getDouble(pollinateCropsRoot, "growth_percent_per_charge", DEFAULT_GROWTH_PERCENT_PER_CHARGE));
 				double arrivalThresholdSqr = arrivalThreshold * arrivalThreshold;
 				UUID beeId = bee.getUUID();
-				if (!bee.hasNectar()) {
-					allowBeeHiveReturn(bee);
-					resetBeeNectarCycle(beeId);
-					continue;
-				}
 				if (BEE_MINIMUM_REACHED_THIS_NECTAR_CYCLE.contains(beeId)) {
 					allowBeeHiveReturn(bee);
 					clearBeeNectarState(beeId);
@@ -242,22 +248,33 @@ public final class EntityBehaviorsManager {
 				bee.setStayOutOfHiveCountdown(stayOutTicks);
 				if (state.hasTarget() && !isBeeCropTargetStillValid(level, state, beeId, nowTick, cropReservationTtlTicks)) {
 					releaseBeeCropReservation(beeId, state.reservedCropKey);
+					forgetKnownCropTarget(beeId, state.reservedCropKey);
 					state.clearTarget();
 				}
 
 				if (!state.hasTarget()) {
-					BeeCropTarget target = findBeeCropTarget(
-						bee,
+					BeeCropTarget target = findKnownBeeCropTarget(
 						level,
 						beeId,
 						nowTick,
-						searchRadiusHorizontal,
-						searchRadiusVertical,
 						cropReservationTtlTicks
 					);
+					if (target == null && nowTick >= state.nextCropSearchAtTick) {
+						target = findBeeCropTarget(
+							bee,
+							level,
+							beeId,
+							nowTick,
+							searchRadiusHorizontal,
+							searchRadiusVertical,
+							cropReservationTtlTicks
+						);
+						state.nextCropSearchAtTick = nowTick + DEFAULT_CROP_SEARCH_RETRY_TICKS;
+					}
 					if (target == null) {
 						continue;
 					}
+					BEE_KNOWN_CROP_TARGETS.put(beeId, target);
 					state.assignTarget(target.cropKey(), target.pos(), target.levelId());
 				}
 
@@ -379,6 +396,42 @@ public final class EntityBehaviorsManager {
 			return new BeeCropTarget(levelId, best.asLong(), bestKey);
 		}
 
+		private static BeeCropTarget findKnownBeeCropTarget(
+			ServerLevel level,
+			UUID beeId,
+			long nowTick,
+			int cropReservationTtlTicks
+		) {
+			if (level == null || beeId == null) {
+				return null;
+			}
+			BeeCropTarget known = BEE_KNOWN_CROP_TARGETS.get(beeId);
+			if (known == null) {
+				return null;
+			}
+			String levelId = MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
+			if (!levelId.equals(known.levelId())) {
+				BEE_KNOWN_CROP_TARGETS.remove(beeId, known);
+				return null;
+			}
+			BlockPos knownPos = BlockPos.of(known.pos());
+			BlockState state = level.getBlockState(knownPos);
+			if (!isBeeSupportedCrop(state) || isBeeCropFullyGrown(state) || !isFarmlandBelow(level, knownPos)) {
+				BEE_KNOWN_CROP_TARGETS.remove(beeId, known);
+				return null;
+			}
+			BeeCropReservation reservation = BEE_CROP_RESERVATIONS.get(known.cropKey());
+			if (reservation != null && reservation.expiresAtTick <= nowTick) {
+				BEE_CROP_RESERVATIONS.remove(known.cropKey(), reservation);
+				reservation = null;
+			}
+			if (reservation != null && !beeId.equals(reservation.beeId)) {
+				return null;
+			}
+			BEE_CROP_RESERVATIONS.put(known.cropKey(), new BeeCropReservation(beeId, nowTick + cropReservationTtlTicks));
+			return known;
+		}
+
 		private static boolean isBeeCropTargetStillValid(
 			ServerLevel level,
 			BeeNectarState state,
@@ -439,6 +492,16 @@ public final class EntityBehaviorsManager {
 			BeeCropReservation reservation = BEE_CROP_RESERVATIONS.get(cropKey);
 			if (reservation != null && beeId.equals(reservation.beeId)) {
 				BEE_CROP_RESERVATIONS.remove(cropKey, reservation);
+			}
+		}
+
+		private static void forgetKnownCropTarget(UUID beeId, String cropKey) {
+			if (beeId == null || cropKey == null || cropKey.isBlank()) {
+				return;
+			}
+			BeeCropTarget known = BEE_KNOWN_CROP_TARGETS.get(beeId);
+			if (known != null && cropKey.equals(known.cropKey())) {
+				BEE_KNOWN_CROP_TARGETS.remove(beeId, known);
 			}
 		}
 
@@ -595,6 +658,7 @@ public final class EntityBehaviorsManager {
 			private final int minimumChargesRemaining;
 			private long searchExpiresAtTick;
 			private long nextChargeAllowedAtTick;
+			private long nextCropSearchAtTick;
 			private String reservedCropKey;
 			private long reservedCropPos;
 			private String reservedLevelId;
@@ -608,6 +672,7 @@ public final class EntityBehaviorsManager {
 				this.minimumChargesRemaining = Math.max(0, minimumChargesRemaining);
 				this.searchExpiresAtTick = Math.max(0L, searchExpiresAtTick);
 				this.nextChargeAllowedAtTick = 0L;
+				this.nextCropSearchAtTick = 0L;
 				this.reservedCropKey = "";
 				this.reservedCropPos = Long.MIN_VALUE;
 				this.reservedLevelId = "";

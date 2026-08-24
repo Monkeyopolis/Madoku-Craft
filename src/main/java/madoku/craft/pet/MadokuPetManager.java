@@ -171,8 +171,8 @@ public final class MadokuPetManager {
 			return;
 		}
 		long gameplayTick = MadokuTimeManager.getGameplayTicks();
-			for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-				onPlayerTick(server, player, gameplayTick);
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+			onPlayerTick(server, player, gameplayTick);
 		}
 	}
 
@@ -388,10 +388,10 @@ public final class MadokuPetManager {
 
 		if (ongoingReactiveTarget != null) {
 			PetAbilitiesManager.triggerReactiveAbilities(player, ongoingReactiveTarget);
-			nextDelay = nextDelay < 0L
-				? PetEntitiesManager.activeSchedulerTickInterval(server)
-				: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval(server));
-		}
+				nextDelay = nextDelay < 0L
+					? PetEntitiesManager.activeSchedulerTickInterval(server)
+					: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval(server));
+			}
 		PetAbilitiesManager.tickAutomaticAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
 			requestPetProcessing(server, playerId, nextDelay);
