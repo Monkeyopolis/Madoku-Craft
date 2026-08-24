@@ -33,6 +33,7 @@ public final class MadokuEcosystemManager {
 	private static final String FIELD_REQUIRED_GROWTH_TICKS = "required-growth-ticks";
 	private static final String FIELD_PROGRESS_GROWTH_TICKS = "progress-growth-ticks";
 	private static final String FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME = "last-processed-absolute-day-time";
+	private static final String FIELD_STARTED_ABSOLUTE_DAY_TIME = "started-absolute-day-time";
 	private static final String FIELD_TREE_CANDIDATES = "tree-candidates";
 	private static final String FIELD_CACTUS_CANDIDATES = "cactus-candidates";
 	private static final String FIELD_GRASS_CANDIDATES = "grass-candidates";
@@ -112,16 +113,26 @@ public final class MadokuEcosystemManager {
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final List<DiscoveryChunk> PERIODIC_DISCOVERY_CHUNKS = new ArrayList<>();
+	private static final List<DiscoveryChunkState> PERIODIC_DISCOVERY_CHUNKS = new ArrayList<>();
+	private static final Set<ChunkRefKey> PERIODIC_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final String DISCOVERY_INTERVAL_SYSTEM_ID = "ecosystem.discovery";
 	private static final long DISCOVERY_MIN_INTERVAL_TICKS = 1L;
 	private static final long DISCOVERY_MAX_INTERVAL_TICKS = 20L;
+	private static final int DISCOVERY_MAX_WORK_UNITS_PER_TICK = 32;
 	private static long lastPeriodicDiscoveryDay = Long.MIN_VALUE;
-	private static long nextPeriodicDiscoveryTick = Long.MIN_VALUE;
 	private static int periodicDiscoveryCursor;
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
 	static final Map<ColumnRefKey, Set<String>> dirtKeysByColumn = new LinkedHashMap<>();
+	private static final Map<CandidatePositionKey, Integer> CANDIDATE_POSITION_MASKS = new LinkedHashMap<>();
+	private static final Map<ChunkRefKey, Set<CandidatePositionKey>> CANDIDATE_POSITION_KEYS_BY_CHUNK = new LinkedHashMap<>();
+	static final int CANDIDATE_DIRT = 1;
+	static final int CANDIDATE_TREE = 1 << 1;
+	static final int CANDIDATE_CACTUS = 1 << 2;
+	static final int CANDIDATE_GRASS = 1 << 3;
+	static final int CANDIDATE_FOLIAGE = 1 << 4;
+	static final int CANDIDATE_DECAY = 1 << 5;
+	static final int CANDIDATE_WET = 1 << 6;
 
 	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
 		@Override
@@ -164,6 +175,8 @@ public final class MadokuEcosystemManager {
 		dirtBlocksByKey.clear();
 		dirtKeysByChunk.clear();
 		dirtKeysByColumn.clear();
+		CANDIDATE_POSITION_MASKS.clear();
+		CANDIDATE_POSITION_KEYS_BY_CHUNK.clear();
 		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
 		PERSISTED_CHUNK_KEYS.clear();
@@ -171,8 +184,8 @@ public final class MadokuEcosystemManager {
 		LOADED_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
 		PERIODIC_DISCOVERY_CHUNKS.clear();
+		PERIODIC_DISCOVERY_CHUNK_KEYS.clear();
 		lastPeriodicDiscoveryDay = Long.MIN_VALUE;
-		nextPeriodicDiscoveryTick = Long.MIN_VALUE;
 		periodicDiscoveryCursor = 0;
 		SchedulerAdaptiveIntervalManager.clearSystem(DISCOVERY_INTERVAL_SYSTEM_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
@@ -207,24 +220,31 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 
-		long currentGameplayTick = MadokuTimeManager.getGameplayTicks();
 		long interval = SchedulerAdaptiveIntervalManager.resolve(
 			DISCOVERY_INTERVAL_SYSTEM_ID,
 			server,
 			DISCOVERY_MIN_INTERVAL_TICKS,
 			DISCOVERY_MAX_INTERVAL_TICKS
 		);
-		if (nextPeriodicDiscoveryTick != Long.MIN_VALUE && currentGameplayTick < nextPeriodicDiscoveryTick) {
-			return;
+		processPeriodicDiscoveryWork(resolveDiscoveryWorkUnits(interval));
+	}
+
+	private static int resolveDiscoveryWorkUnits(long adaptiveInterval) {
+		long clampedInterval = Math.max(DISCOVERY_MIN_INTERVAL_TICKS, Math.min(DISCOVERY_MAX_INTERVAL_TICKS, adaptiveInterval));
+		long intervalSpan = DISCOVERY_MAX_INTERVAL_TICKS - DISCOVERY_MIN_INTERVAL_TICKS;
+		if (intervalSpan <= 0L) {
+			return DISCOVERY_MAX_WORK_UNITS_PER_TICK;
 		}
-		nextPeriodicDiscoveryTick = currentGameplayTick + Math.max(1L, interval);
-		processNextPeriodicDiscoveryChunk();
+		long workSpan = DISCOVERY_MAX_WORK_UNITS_PER_TICK - 1L;
+		return Math.max(1, DISCOVERY_MAX_WORK_UNITS_PER_TICK - (int) Math.round(
+			((double) (clampedInterval - DISCOVERY_MIN_INTERVAL_TICKS) * workSpan) / intervalSpan
+		));
 	}
 
 	private static void beginPeriodicDiscovery(MinecraftServer server) {
 		PERIODIC_DISCOVERY_CHUNKS.clear();
+		PERIODIC_DISCOVERY_CHUNK_KEYS.clear();
 		periodicDiscoveryCursor = 0;
-		nextPeriodicDiscoveryTick = Long.MIN_VALUE;
 		for (ServerLevel level : server.getAllLevels()) {
 			if (level == null) {
 				continue;
@@ -234,42 +254,79 @@ public final class MadokuEcosystemManager {
 					return;
 				}
 				ChunkRefKey key = new ChunkRefKey(levelId(level), chunk.getPos().x(), chunk.getPos().z());
-				for (DiscoveryChunk existing : PERIODIC_DISCOVERY_CHUNKS) {
-					if (existing.key().equals(key)) {
-						return;
-					}
+				if (!PERIODIC_DISCOVERY_CHUNK_KEYS.add(key)) {
+					return;
 				}
-				PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunk(level, key));
+				PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunkState(level, key, chunk));
 			});
 		}
 	}
 
-	private static void processNextPeriodicDiscoveryChunk() {
-		while (periodicDiscoveryCursor < PERIODIC_DISCOVERY_CHUNKS.size()) {
-			DiscoveryChunk discoveryChunk = PERIODIC_DISCOVERY_CHUNKS.get(periodicDiscoveryCursor);
+	private static void processPeriodicDiscoveryWork(int workUnits) {
+		int remaining = Math.max(0, workUnits);
+		while (remaining-- > 0 && !PERIODIC_DISCOVERY_CHUNKS.isEmpty()) {
+			if (periodicDiscoveryCursor >= PERIODIC_DISCOVERY_CHUNKS.size()) {
+				periodicDiscoveryCursor = 0;
+			}
+			DiscoveryChunkState discoveryChunk = PERIODIC_DISCOVERY_CHUNKS.get(periodicDiscoveryCursor);
 			if (!MadokuChunkManager.isChunkAccessible(
 				discoveryChunk.level(),
 				discoveryChunk.key().chunkX(),
 				discoveryChunk.key().chunkZ()
 			)) {
-				PERIODIC_DISCOVERY_CHUNKS.remove(periodicDiscoveryCursor);
+				removePeriodicDiscoveryState(periodicDiscoveryCursor);
 				continue;
 			}
-			periodicDiscoveryCursor++;
-			discoverChunk(
-				discoveryChunk.level(),
-				discoveryChunk.key().chunkX(),
-				discoveryChunk.key().chunkZ()
-			);
-			LOADED_DISCOVERY_CHUNK_KEYS.add(discoveryChunk.key());
-			if (periodicDiscoveryCursor >= PERIODIC_DISCOVERY_CHUNKS.size()) {
-				PERIODIC_DISCOVERY_CHUNKS.clear();
-				periodicDiscoveryCursor = 0;
+
+			if (!advanceDiscoveryChunk(discoveryChunk)) {
+				// Keep the selected chunk active until its column and decay cursors finish.
+				// The adaptive interval controls the one-column rate; queued chunks do not
+				// dilute that rate for the chunk currently being discovered.
+				continue;
 			}
+			LOADED_DISCOVERY_CHUNK_KEYS.add(discoveryChunk.key());
+			removePeriodicDiscoveryState(periodicDiscoveryCursor);
+		}
+	}
+
+	private static boolean advanceDiscoveryChunk(DiscoveryChunkState state) {
+		if (state == null || state.chunk() == null) {
+			return true;
+		}
+		int columnIndex = state.nextColumn < 256 ? state.nextColumn++ : -1;
+		if (columnIndex >= 0) {
+			discoverSurfaceColumn(state, columnIndex);
+			if (isNaturalDecayEnabled()) {
+				EcosystemNaturalDecayManager.discoverColumn(
+					state.level(),
+					state.chunk(),
+					state.key().chunkX(),
+					state.key().chunkZ(),
+					columnIndex,
+					state
+				);
+			}
+		}
+		state.decayComplete = !isNaturalDecayEnabled() || state.nextColumn >= 256;
+		if (state.nextColumn >= 256 && !state.candidatesFinalized) {
+			EcosystemNaturalGrowthManager.finalizeDiscoveryCandidates(state);
+			state.candidatesFinalized = true;
+		}
+		return state.nextColumn >= 256 && state.decayComplete;
+	}
+
+	private static void removePeriodicDiscoveryState(int index) {
+		if (index < 0 || index >= PERIODIC_DISCOVERY_CHUNKS.size()) {
 			return;
 		}
-		PERIODIC_DISCOVERY_CHUNKS.clear();
-		periodicDiscoveryCursor = 0;
+		DiscoveryChunkState removed = PERIODIC_DISCOVERY_CHUNKS.remove(index);
+		if (removed != null) {
+			PERIODIC_DISCOVERY_CHUNK_KEYS.remove(removed.key());
+		}
+		if (index < periodicDiscoveryCursor) {
+			periodicDiscoveryCursor--;
+		}
+		periodicDiscoveryCursor = Math.max(0, Math.min(periodicDiscoveryCursor, PERIODIC_DISCOVERY_CHUNKS.size()));
 	}
 
 	private static void removePeriodicDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
@@ -281,10 +338,7 @@ public final class MadokuEcosystemManager {
 			if (!PERIODIC_DISCOVERY_CHUNKS.get(index).key().equals(key)) {
 				continue;
 			}
-			PERIODIC_DISCOVERY_CHUNKS.remove(index);
-			if (index < periodicDiscoveryCursor) {
-				periodicDiscoveryCursor--;
-			}
+			removePeriodicDiscoveryState(index);
 		}
 		periodicDiscoveryCursor = Math.max(0, Math.min(periodicDiscoveryCursor, PERIODIC_DISCOVERY_CHUNKS.size()));
 	}
@@ -294,22 +348,15 @@ public final class MadokuEcosystemManager {
 			return;
 		}
 		ChunkRefKey key = new ChunkRefKey(levelId(level), chunkX, chunkZ);
-		if (LOADED_DISCOVERY_CHUNK_KEYS.contains(key) || containsPeriodicDiscoveryChunk(key)) {
+		if (LOADED_DISCOVERY_CHUNK_KEYS.contains(key) || !PERIODIC_DISCOVERY_CHUNK_KEYS.add(key)) {
 			return;
 		}
-		PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunk(level, key));
-	}
-
-	private static boolean containsPeriodicDiscoveryChunk(ChunkRefKey key) {
-		if (key == null) {
-			return false;
+		LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+		if (chunk == null) {
+			PERIODIC_DISCOVERY_CHUNK_KEYS.remove(key);
+			return;
 		}
-		for (DiscoveryChunk discoveryChunk : PERIODIC_DISCOVERY_CHUNKS) {
-			if (discoveryChunk.key().equals(key)) {
-				return true;
-			}
-		}
-		return false;
+		PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunkState(level, key, chunk));
 	}
 
 	private static void removeLoadedDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
@@ -318,14 +365,32 @@ public final class MadokuEcosystemManager {
 		}
 	}
 
-	/** Runs discovery only from the deferred load/startup/daily discovery snapshot. */
-	private static void discoverChunk(ServerLevel level, int chunkX, int chunkZ) {
-		if (level == null || !isEnabled() || !MadokuChunkManager.isChunkAccessible(level, chunkX, chunkZ)) {
+	private static void discoverSurfaceColumn(DiscoveryChunkState discoveryState, int columnIndex) {
+		ServerLevel level = discoveryState == null ? null : discoveryState.level();
+		int chunkX = discoveryState == null ? 0 : discoveryState.key().chunkX();
+		int chunkZ = discoveryState == null ? 0 : discoveryState.key().chunkZ();
+		if (level == null || !isEnabled()) {
 			return;
 		}
-		EcosystemNaturalGrowthManager.discoverChunk(level, chunkX, chunkZ);
-		EcosystemNaturalErosionManager.discoverChunk(level, chunkX, chunkZ);
-		EcosystemNaturalDecayManager.discoverChunk(level, chunkX, chunkZ);
+		int localX = columnIndex & 15;
+		int localZ = columnIndex >> 4;
+		int x = (chunkX << 4) + localX;
+		int z = (chunkZ << 4) + localZ;
+		int topY = Math.min(
+			level.getMaxY() - 1,
+			level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1
+		);
+		if (topY < level.getMinY()) {
+			return;
+		}
+		BlockPos groundPos = new BlockPos(x, topY, z);
+		SurfaceDiscoverySample sample = new SurfaceDiscoverySample(
+			groundPos,
+			level.getBlockState(groundPos),
+			level.getBlockState(groundPos.above())
+		);
+		EcosystemNaturalGrowthManager.discoverColumn(level, chunkX, chunkZ, sample, discoveryState);
+		EcosystemNaturalErosionManager.discoverColumn(level, chunkX, chunkZ, sample);
 	}
 
 
@@ -455,6 +520,8 @@ public final class MadokuEcosystemManager {
 				dirtBlocksByKey.clear();
 				dirtKeysByChunk.clear();
 				dirtKeysByColumn.clear();
+				CANDIDATE_POSITION_MASKS.clear();
+				CANDIDATE_POSITION_KEYS_BY_CHUNK.clear();
 				EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 				EcosystemNaturalDecayManager.clearTrackedCandidateState();
 				EcosystemNaturalGrowthManager.reset();
@@ -467,6 +534,8 @@ public final class MadokuEcosystemManager {
 			dirtBlocksByKey.clear();
 			dirtKeysByChunk.clear();
 			dirtKeysByColumn.clear();
+			CANDIDATE_POSITION_MASKS.clear();
+			CANDIDATE_POSITION_KEYS_BY_CHUNK.clear();
 			EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 			EcosystemNaturalDecayManager.clearTrackedCandidateState();
 			EcosystemNaturalGrowthManager.reset();
@@ -548,13 +617,17 @@ public final class MadokuEcosystemManager {
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode) {
+		return trackDirtCandidateForMode(world, dirtPos, state, mode, null);
+	}
+
+	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode, BlockState discoveredAboveState) {
 		if (world == null || dirtPos == null || state == null || mode == null || mode.isBlank()) {
 			return false;
 		}
 		if (!isModeEnabled(mode)) {
 			return false;
 		}
-		if (!isCandidateForMode(world, dirtPos, state, mode)) {
+		if (!isCandidateForMode(world, dirtPos, state, mode, discoveredAboveState)) {
 			return false;
 		}
 
@@ -596,6 +669,10 @@ public final class MadokuEcosystemManager {
 	}
 
 	static boolean isCandidateForMode(ServerLevel world, BlockPos blockPos, BlockState state, String mode) {
+		return isCandidateForMode(world, blockPos, state, mode, null);
+	}
+
+	static boolean isCandidateForMode(ServerLevel world, BlockPos blockPos, BlockState state, String mode, BlockState discoveredAboveState) {
 		if (!isModeEnabled(mode)) {
 			return false;
 		}
@@ -603,7 +680,7 @@ public final class MadokuEcosystemManager {
 			return EcosystemNaturalErosionManager.isWaterErosionEnabled() && EcosystemNaturalErosionManager.isWetTrackedCandidate(world, blockPos, state);
 		}
 		if (MODE_SURFACE_DIRT.equals(mode)) {
-			return isBlockGrowthEnabled() && EcosystemNaturalGrowthManager.isSurfaceDirtCandidate(world, blockPos, state);
+			return isBlockGrowthEnabled() && EcosystemNaturalGrowthManager.isSurfaceDirtCandidate(world, blockPos, state, discoveredAboveState);
 		}
 		return false;
 	}
@@ -644,6 +721,7 @@ public final class MadokuEcosystemManager {
 		ChunkRefKey previousChunkKey = null;
 		if (previous != null) {
 			previousChunkKey = chunkRefForPos(previous.levelId, previous.dirtPos);
+			removeCandidatePositionBit(previous.levelId, previous.dirtPos, MODE_WET.equals(previous.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			removeChunkIndex(dirtKeysByChunk, previousChunkKey, key);
 			removeColumnIndex(previous, key);
 			markChunkDirty(previousChunkKey);
@@ -651,6 +729,7 @@ public final class MadokuEcosystemManager {
 		ChunkRefKey nextChunkKey = null;
 		if (value != null) {
 			nextChunkKey = chunkRefForPos(value.levelId, value.dirtPos);
+			addCandidatePositionBit(value.levelId, value.dirtPos, MODE_WET.equals(value.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			addChunkIndex(dirtKeysByChunk, nextChunkKey, key);
 			addColumnIndex(value, key);
 			markChunkDirty(nextChunkKey);
@@ -668,6 +747,7 @@ public final class MadokuEcosystemManager {
 		DirtState removed = dirtBlocksByKey.remove(key);
 		if (removed != null) {
 			ChunkRefKey chunkKey = chunkRefForPos(removed.levelId, removed.dirtPos);
+			removeCandidatePositionBit(removed.levelId, removed.dirtPos, MODE_WET.equals(removed.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			removeChunkIndex(dirtKeysByChunk, chunkKey, key);
 			removeColumnIndex(removed, key);
 			markChunkDirty(chunkKey);
@@ -724,7 +804,66 @@ public final class MadokuEcosystemManager {
 	}
 
 	static void syncChunkProcessorTracking(ChunkRefKey chunkKey) {
-		// Candidate maps are queried directly by random-position dispatch.
+		// Candidate masks are maintained incrementally by candidate stores.
+	}
+
+	static int candidateMaskAt(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
+			return 0;
+		}
+		return CANDIDATE_POSITION_MASKS.getOrDefault(
+			new CandidatePositionKey(levelId(world), position.asLong()),
+			0
+		);
+	}
+
+	private static void addCandidatePositionMask(String levelId, long position, int bit) {
+		if (levelId == null || levelId.isBlank() || position == Long.MIN_VALUE) {
+			return;
+		}
+		CandidatePositionKey key = new CandidatePositionKey(levelId, position);
+		CANDIDATE_POSITION_MASKS.put(key, CANDIDATE_POSITION_MASKS.getOrDefault(key, 0) | bit);
+		CANDIDATE_POSITION_KEYS_BY_CHUNK
+			.computeIfAbsent(chunkRefForPos(levelId, position), ignored -> new LinkedHashSet<>())
+			.add(key);
+	}
+
+	static void addCandidatePositionBit(String levelId, long position, int bit) {
+		addCandidatePositionMask(levelId, position, bit);
+	}
+
+	static void removeCandidatePositionBit(String levelId, long position, int bit) {
+		if (levelId == null || levelId.isBlank() || position == Long.MIN_VALUE) {
+			return;
+		}
+		CandidatePositionKey key = new CandidatePositionKey(levelId, position);
+		int currentMask = CANDIDATE_POSITION_MASKS.getOrDefault(key, 0);
+		int nextMask = currentMask & ~bit;
+		if (nextMask == currentMask) return;
+		if (nextMask == 0) {
+			CANDIDATE_POSITION_MASKS.remove(key);
+			ChunkRefKey chunkKey = chunkRefForPos(levelId, position);
+			Set<CandidatePositionKey> keys = CANDIDATE_POSITION_KEYS_BY_CHUNK.get(chunkKey);
+			if (keys != null) {
+				keys.remove(key);
+				if (keys.isEmpty()) CANDIDATE_POSITION_KEYS_BY_CHUNK.remove(chunkKey);
+			}
+		} else {
+			CANDIDATE_POSITION_MASKS.put(key, nextMask);
+		}
+	}
+
+	static long deriveCandidateStartTime(long lastProcessedAbsoluteDayTime, double progressTicks) {
+		if (lastProcessedAbsoluteDayTime <= 0L || !Double.isFinite(progressTicks) || progressTicks <= 0.0d) {
+			return Math.max(0L, lastProcessedAbsoluteDayTime);
+		}
+		return Math.max(0L, lastProcessedAbsoluteDayTime - (long) progressTicks);
+	}
+
+	static double resolveCandidateProgress(long startedAbsoluteDayTime, long currentAbsoluteDayTime, double requiredTicks) {
+		long safeStart = Math.max(0L, startedAbsoluteDayTime);
+		long safeCurrent = Math.max(safeStart, currentAbsoluteDayTime);
+		return Math.min(Math.max(1.0d, requiredTicks), Math.max(0L, safeCurrent - safeStart));
 	}
 
 	static void markChunkDirty(ChunkRefKey chunkKey) {
@@ -1050,10 +1189,55 @@ public final class MadokuEcosystemManager {
 	record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
 	}
 
-	record DiscoveryChunk(ServerLevel level, ChunkRefKey key) {
+	static final class DiscoveryChunkState {
+		final ServerLevel level;
+		final ChunkRefKey key;
+		final LevelChunk chunk;
+		int nextColumn;
+		int decaySectionIndex;
+		int decayBlockIndex;
+		boolean decayComplete;
+		boolean candidatesFinalized;
+		long sampledTreeGroundPos = Long.MIN_VALUE;
+		int sampledTreeCandidateCount;
+		long sampledCactusGroundPos = Long.MIN_VALUE;
+		int sampledCactusCandidateCount;
+		final List<Long> sampledGrassGroundPositions = new ArrayList<>();
+		int sampledGrassCandidateCount;
+		final List<Long> sampledDesertFoliageGroundPositions = new ArrayList<>();
+		int sampledDesertFoliageCandidateCount;
+		final List<Long> sampledWildflowerGroundPositions = new ArrayList<>();
+		int sampledWildflowerCandidateCount;
+		final List<Long> sampledPinkPetalGroundPositions = new ArrayList<>();
+		int sampledPinkPetalCandidateCount;
+
+		DiscoveryChunkState(ServerLevel level, ChunkRefKey key, LevelChunk chunk) {
+			this.level = level;
+			this.key = key;
+			this.chunk = chunk;
+			this.decayComplete = false;
+		}
+
+		ServerLevel level() {
+			return level;
+		}
+
+		ChunkRefKey key() {
+			return key;
+		}
+
+		LevelChunk chunk() {
+			return chunk;
+		}
+	}
+
+	record SurfaceDiscoverySample(BlockPos groundPos, BlockState groundState, BlockState aboveState) {
 	}
 
 	record ColumnRefKey(String levelId, int blockX, int blockZ) {
+	}
+
+	record CandidatePositionKey(String levelId, long position) {
 	}
 
 	record TreeCandidateOption(long groundPos, String treeType, double requiredGrowthTicks) {
@@ -1068,6 +1252,7 @@ public final class MadokuEcosystemManager {
 		final double requiredGrowthTicks;
 		double progressGrowthTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		CactusCandidateState(
 			String levelId,
@@ -1087,6 +1272,7 @@ public final class MadokuEcosystemManager {
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressGrowthTicks);
 		}
 
 		JsonObject toJson() {
@@ -1099,6 +1285,7 @@ public final class MadokuEcosystemManager {
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 				.build();
 		}
 
@@ -1129,7 +1316,7 @@ public final class MadokuEcosystemManager {
 			);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new CactusCandidateState(
+			CactusCandidateState result = new CactusCandidateState(
 				levelId,
 				chunkX,
 				chunkZ,
@@ -1139,6 +1326,9 @@ public final class MadokuEcosystemManager {
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
 			);
+			long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+			if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+			return result;
 		}
 	}
 
@@ -1151,6 +1341,7 @@ public final class MadokuEcosystemManager {
 		final double requiredGrowthTicks;
 		double progressGrowthTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		GrassCandidateState(
 			String levelId,
@@ -1170,6 +1361,7 @@ public final class MadokuEcosystemManager {
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressGrowthTicks);
 		}
 
 		JsonObject toJson() {
@@ -1182,6 +1374,7 @@ public final class MadokuEcosystemManager {
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 				.build();
 		}
 
@@ -1212,7 +1405,7 @@ public final class MadokuEcosystemManager {
 			);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new GrassCandidateState(
+			GrassCandidateState result = new GrassCandidateState(
 				levelId,
 				chunkX,
 				chunkZ,
@@ -1222,6 +1415,9 @@ public final class MadokuEcosystemManager {
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
 			);
+			long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+			if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+			return result;
 		}
 	}
 
@@ -1235,6 +1431,7 @@ public final class MadokuEcosystemManager {
 		final double requiredGrowthTicks;
 		double progressGrowthTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		FoliageCandidateState(
 			String levelId,
@@ -1257,6 +1454,7 @@ public final class MadokuEcosystemManager {
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressGrowthTicks);
 		}
 
 		JsonObject toJson() {
@@ -1270,6 +1468,7 @@ public final class MadokuEcosystemManager {
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 				.build();
 		}
 
@@ -1301,7 +1500,7 @@ public final class MadokuEcosystemManager {
 				);
 				double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 				long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-				return new FoliageCandidateState(
+				FoliageCandidateState result = new FoliageCandidateState(
 					levelId,
 					chunkX,
 					chunkZ,
@@ -1311,7 +1510,10 @@ public final class MadokuEcosystemManager {
 					requiredGrowthTicks,
 					progressGrowthTicks,
 					lastProcessedAbsoluteDayTime
-			);
+				);
+				long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+				if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+				return result;
 		}
 	}
 
@@ -1325,6 +1527,7 @@ public final class MadokuEcosystemManager {
 		final double requiredDecayTicks;
 		double progressDecayTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		TreeDecayCandidateState(
 			String levelId,
@@ -1346,6 +1549,7 @@ public final class MadokuEcosystemManager {
 			this.requiredDecayTicks = Math.max(1.0d, requiredDecayTicks);
 			this.progressDecayTicks = Math.max(0.0d, Math.min(this.requiredDecayTicks, progressDecayTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressDecayTicks);
 		}
 
 			JsonObject toJson() {
@@ -1359,6 +1563,7 @@ public final class MadokuEcosystemManager {
 					.put(FIELD_REQUIRED_GROWTH_TICKS, requiredDecayTicks)
 					.put(FIELD_PROGRESS_GROWTH_TICKS, progressDecayTicks)
 					.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+					.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 					.build();
 		}
 
@@ -1390,7 +1595,7 @@ public final class MadokuEcosystemManager {
 			);
 			double progressDecayTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new TreeDecayCandidateState(
+			TreeDecayCandidateState result = new TreeDecayCandidateState(
 				levelId,
 				chunkX,
 				chunkZ,
@@ -1401,6 +1606,9 @@ public final class MadokuEcosystemManager {
 				progressDecayTicks,
 				lastProcessedAbsoluteDayTime
 			);
+			long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+			if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+			return result;
 		}
 	}
 
@@ -1414,6 +1622,7 @@ public final class MadokuEcosystemManager {
 		final double requiredGrowthTicks;
 		double progressGrowthTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		TreeCandidateState(
 			String levelId,
@@ -1453,6 +1662,7 @@ public final class MadokuEcosystemManager {
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressGrowthTicks);
 		}
 
 		JsonObject toJson() {
@@ -1466,6 +1676,7 @@ public final class MadokuEcosystemManager {
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 				.build();
 		}
 
@@ -1497,7 +1708,7 @@ public final class MadokuEcosystemManager {
 			);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new TreeCandidateState(
+			TreeCandidateState result = new TreeCandidateState(
 				levelId,
 				chunkX,
 				chunkZ,
@@ -1508,6 +1719,9 @@ public final class MadokuEcosystemManager {
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
 			);
+			long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+			if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+			return result;
 		}
 	}
 
@@ -1519,6 +1733,7 @@ public final class MadokuEcosystemManager {
 		double requiredGrowthTicks;
 		double progressGrowthTicks;
 		long lastProcessedAbsoluteDayTime;
+		long startedAbsoluteDayTime;
 
 		DirtState(
 			String levelId,
@@ -1536,6 +1751,7 @@ public final class MadokuEcosystemManager {
 			this.requiredGrowthTicks = Math.max(1.0d, requiredGrowthTicks);
 			this.progressGrowthTicks = Math.max(0.0d, Math.min(this.requiredGrowthTicks, progressGrowthTicks));
 			this.lastProcessedAbsoluteDayTime = Math.max(0L, lastProcessedAbsoluteDayTime);
+			this.startedAbsoluteDayTime = deriveCandidateStartTime(this.lastProcessedAbsoluteDayTime, this.progressGrowthTicks);
 		}
 
 		String key() {
@@ -1551,6 +1767,7 @@ public final class MadokuEcosystemManager {
 				.put(FIELD_REQUIRED_GROWTH_TICKS, requiredGrowthTicks)
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
+				.put(FIELD_STARTED_ABSOLUTE_DAY_TIME, startedAbsoluteDayTime)
 				.build();
 		}
 
@@ -1576,7 +1793,7 @@ public final class MadokuEcosystemManager {
 			);
 			double progressGrowthTicks = getDouble(source, FIELD_PROGRESS_GROWTH_TICKS, 0.0d);
 			long lastProcessedAbsoluteDayTime = getLong(source, FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, 0L);
-			return new DirtState(
+			DirtState result = new DirtState(
 				levelId,
 				dirtPos,
 				mode,
@@ -1585,6 +1802,9 @@ public final class MadokuEcosystemManager {
 				progressGrowthTicks,
 				lastProcessedAbsoluteDayTime
 			);
+			long started = getLong(source, FIELD_STARTED_ABSOLUTE_DAY_TIME, Long.MIN_VALUE);
+			if (started != Long.MIN_VALUE) result.startedAbsoluteDayTime = Math.max(0L, started);
+			return result;
 		}
 	}
 }

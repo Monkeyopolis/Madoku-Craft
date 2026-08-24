@@ -37,8 +37,14 @@ public final class EcosystemNaturalErosionManager {
 	private static final Map<String, Identifier> BIOME_IDENTIFIERS = new ConcurrentHashMap<>();
 	private static final Map<String, ResourceKey<Biome>> BIOME_KEYS = new ConcurrentHashMap<>();
 	private static final Map<String, TagKey<Biome>> BIOME_TAG_KEYS = new ConcurrentHashMap<>();
+	private static final Map<Holder<Biome>, Map<String, Boolean>> BIOME_RULE_MATCHES = new ConcurrentHashMap<>();
 
 	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
+		@Override
+		public boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
+			return (MadokuEcosystemManager.candidateMaskAt(level, position) & MadokuEcosystemManager.CANDIDATE_WET) != 0;
+		}
+
 		@Override
 		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
 			EcosystemNaturalErosionManager.handleRandomPosition(level, position);
@@ -57,6 +63,7 @@ public final class EcosystemNaturalErosionManager {
 		BIOME_IDENTIFIERS.clear();
 		BIOME_KEYS.clear();
 		BIOME_TAG_KEYS.clear();
+		BIOME_RULE_MATCHES.clear();
 	}
 
 	public static NaturalErosionConfigManager.Settings getSettings() {
@@ -75,44 +82,32 @@ public final class EcosystemNaturalErosionManager {
 		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
-	/** Discovers new erosion candidates without advancing or processing existing candidates. */
-	static void discoverChunk(ServerLevel world, int chunkX, int chunkZ) {
-		if (world == null || !isEnabled()) {
+	static void discoverColumn(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		MadokuEcosystemManager.SurfaceDiscoverySample sample
+	) {
+		if (world == null || sample == null || sample.groundPos() == null || sample.groundState() == null || !isEnabled()) {
 			return;
 		}
-
-		for (int localX = 0; localX < 16; localX++) {
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int x = (chunkX << 4) + localX;
-				int z = (chunkZ << 4) + localZ;
-				int topY = Math.min(
-					world.getMaxY() - 1,
-					world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1
-				);
-				if (topY < world.getMinY()) {
-					continue;
-				}
-
-				BlockPos groundPos = new BlockPos(x, topY, z);
-				BlockState groundState = world.getBlockState(groundPos);
-				if (isWetSeedCandidate(world, groundPos, groundState)) {
-					MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
-					BlockPos above = groundPos.above();
-					BlockState aboveState = world.getBlockState(above);
-					if (isWetTrackedCandidate(world, above, aboveState)) {
-						MadokuEcosystemManager.trackDirtCandidateForMode(world, above, aboveState, "wet");
-					}
-				}
-				if (isLavaMagmaSeedCandidate(world, groundPos, groundState)) {
-					MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
-				}
+		BlockPos groundPos = sample.groundPos();
+		BlockState groundState = sample.groundState();
+		if (isWetSeedCandidate(world, groundPos, groundState)) {
+			String seedKey = MadokuEcosystemManager.levelId(world) + "|" + groundPos.asLong();
+			MadokuEcosystemManager.DirtState trackedSeed = MadokuEcosystemManager.dirtBlocksByKey.get(seedKey);
+			if (trackedSeed == null || !"wet".equals(trackedSeed.mode)) {
+				spreadWetTrackingFromSeed(world, groundPos);
+			} else {
+				MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
 			}
+		}
+		if (isLavaMagmaSeedCandidate(world, groundPos, groundState)) {
+			MadokuEcosystemManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
 		}
 	}
 
 	static void handleRandomPosition(ServerLevel world, BlockPos position) {
-		// Random ticking may only advance an existing wet candidate at this position.
-		// Candidate discovery and seed detection belong to discoverChunk.
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
@@ -127,6 +122,53 @@ public final class EcosystemNaturalErosionManager {
 			"wet",
 			position.asLong()
 		);
+
+		// Preserve the old erosion behavior: reaching a water-adjacent seed expands
+		// the tracked wet area instead of only advancing the seed itself.
+		BlockPos groundPosition = MadokuEcosystemManager.resolveCachedGroundPosition(world, position);
+		if (groundPosition != null) {
+			BlockState groundState = world.getBlockState(groundPosition);
+			String seedKey = MadokuEcosystemManager.levelId(world) + "|" + groundPosition.asLong();
+			MadokuEcosystemManager.DirtState trackedSeed = MadokuEcosystemManager.dirtBlocksByKey.get(seedKey);
+			if (isWetSeedCandidate(world, groundPosition, groundState)
+				&& (trackedSeed == null || !"wet".equals(trackedSeed.mode))) {
+				spreadWetTrackingFromSeed(world, groundPosition);
+			}
+		}
+
+		BlockState state = world.getBlockState(position);
+		if (isLavaMagmaSeedCandidate(world, position, state)) {
+			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
+		}
+	}
+
+	static void spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPosition) {
+		if (world == null || seedPosition == null || !isWaterErosionEnabled()) {
+			return;
+		}
+
+		int radius = currentSettings().waterErosionRadius();
+		for (int offsetX = -radius; offsetX <= radius; offsetX++) {
+			for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
+				if (Math.abs(offsetX) + Math.abs(offsetZ) > radius) {
+					continue;
+				}
+
+				BlockPos groundPosition = seedPosition.offset(offsetX, 0, offsetZ);
+				trackWetCandidate(world, groundPosition);
+				trackWetCandidate(world, groundPosition.above());
+			}
+		}
+	}
+
+	private static void trackWetCandidate(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
+			return;
+		}
+		BlockState state = world.getBlockState(position);
+		if (isWetTrackedCandidate(world, position, state)) {
+			MadokuEcosystemManager.trackDirtCandidateForMode(world, position, state, "wet");
+		}
 	}
 
 	static boolean isWetSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
@@ -161,7 +203,7 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
-		// Candidate maps are queried directly by random-position dispatch.
+		MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
 	}
 
 	static boolean isLavaMagmaSourceBlockId(String blockId) {
@@ -265,6 +307,11 @@ public final class EcosystemNaturalErosionManager {
 		}
 
 		Holder<Biome> biomeHolder = world.getBiome(pos);
+		Map<String, Boolean> cachedRules = BIOME_RULE_MATCHES.computeIfAbsent(biomeHolder, ignored -> new ConcurrentHashMap<>());
+		return cachedRules.computeIfAbsent(ruleId, ignored -> matchesEligibleBiome(biomeHolder, eligibleBiomes));
+	}
+
+	private static boolean matchesEligibleBiome(Holder<Biome> biomeHolder, List<String> eligibleBiomes) {
 		for (String biomeEntry : eligibleBiomes) {
 			String normalized = biomeEntry == null ? "" : biomeEntry.trim();
 			if (normalized.isEmpty()) {
@@ -444,6 +491,7 @@ public final class EcosystemNaturalErosionManager {
 
 	private static void loadConfig() {
 		NaturalErosionConfigManager.Settings fallback = NaturalErosionConfigManager.defaults();
+		BIOME_RULE_MATCHES.clear();
 		JsonObject defaults = NaturalErosionConfigManager.buildDefaultsJson();
 		try {
 			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);

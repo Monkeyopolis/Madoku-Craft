@@ -58,6 +58,9 @@ final class ChunkProcessorManager {
 			return;
 		}
 		for (MadokuChunkManager.ChunkProcessor processor : ACTIVE_PROCESSOR_SNAPSHOT.forWorld(level)) {
+			if (!processor.acceptsRandomPosition(level, position)) {
+				continue;
+			}
 			processor.handleRandomPosition(level, position, random);
 		}
 	}

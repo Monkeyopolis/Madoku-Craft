@@ -49,6 +49,11 @@ public final class MadokuChunkManager {
 			return true;
 		}
 
+		/** Optional position-level filter for hot random-tick dispatch. */
+		default boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
+			return true;
+		}
+
 		void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random);
 	}
 
