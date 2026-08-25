@@ -110,6 +110,7 @@ public final class MadokuEcosystemManager {
 	static volatile NaturalDecayConfigManager.Settings naturalDecaySettings = NaturalDecayConfigManager.defaults();
 	static volatile List<NaturalErosionConfigManager.NamedErosionRule> cachedErosionRules = List.of();
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Set<ChunkRefKey> RETAINED_UNLOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
@@ -119,6 +120,7 @@ public final class MadokuEcosystemManager {
 	private static final long DISCOVERY_MIN_INTERVAL_TICKS = 1L;
 	private static final long DISCOVERY_MAX_INTERVAL_TICKS = 20L;
 	private static final int DISCOVERY_MAX_WORK_UNITS_PER_TICK = 32;
+	private static final int PERIODIC_DISCOVERY_CHECKPOINT_HOUR = 6;
 	private static long lastPeriodicDiscoveryDay = Long.MIN_VALUE;
 	private static int periodicDiscoveryCursor;
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
@@ -142,6 +144,7 @@ public final class MadokuEcosystemManager {
 
 		@Override
 		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+			persistAndEvictChunkState(level, chunkX, chunkZ);
 			removeLoadedDiscoveryChunk(level, chunkX, chunkZ);
 			removePeriodicDiscoveryChunk(level, chunkX, chunkZ);
 		}
@@ -180,6 +183,7 @@ public final class MadokuEcosystemManager {
 		EcosystemNaturalGrowthManager.clearTrackedCandidateState();
 		EcosystemNaturalDecayManager.clearTrackedCandidateState();
 		PERSISTED_CHUNK_KEYS.clear();
+		RETAINED_UNLOADED_CHUNK_KEYS.clear();
 		LOADED_PERSISTED_CHUNK_KEYS.clear();
 		LOADED_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
@@ -211,7 +215,7 @@ public final class MadokuEcosystemManager {
 
 		long absoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(overworld);
 		long currentDay = MadokuTimeManager.getDay(absoluteDayTime);
-		if (MadokuTimeManager.getClockHour(absoluteDayTime) == 6 && lastPeriodicDiscoveryDay != currentDay) {
+		if (hasPassedPeriodicDiscoveryCheckpoint(absoluteDayTime) && currentDay > lastPeriodicDiscoveryDay) {
 			beginPeriodicDiscovery(server);
 			lastPeriodicDiscoveryDay = currentDay;
 		}
@@ -574,6 +578,7 @@ public final class MadokuEcosystemManager {
 		}
 
 		Set<ChunkRefKey> currentChunkKeys = collectCurrentChunkKeys();
+		currentChunkKeys.addAll(RETAINED_UNLOADED_CHUNK_KEYS);
 		Set<ChunkRefKey> dirtyChunkKeys = collectDirtyChunkKeys();
 		Set<ChunkRefKey> staleChunkKeys = new LinkedHashSet<>(PERSISTED_CHUNK_KEYS);
 		staleChunkKeys.removeAll(currentChunkKeys);
@@ -606,6 +611,7 @@ public final class MadokuEcosystemManager {
 	private static void loadPersistedChunkData(ServerLevel level, int chunkX, int chunkZ) {
 		if (level == null || !isEnabled()) return;
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
+		RETAINED_UNLOADED_CHUNK_KEYS.remove(chunkKey);
 		if (chunkKey.levelId().isBlank() || !LOADED_PERSISTED_CHUNK_KEYS.add(chunkKey)) return;
 		JsonObject source = DataWorldChunkManager.getChunkSystemData(level, chunkX, chunkZ, DATA_SYSTEM_ID);
 		if (source != null && !source.isEmpty()) {
@@ -860,10 +866,113 @@ public final class MadokuEcosystemManager {
 		return Math.max(0L, lastProcessedAbsoluteDayTime - (long) progressTicks);
 	}
 
+	private static boolean hasPassedPeriodicDiscoveryCheckpoint(long absoluteDayTime) {
+		return MadokuTimeManager.getClockHour(absoluteDayTime) >= PERIODIC_DISCOVERY_CHECKPOINT_HOUR;
+	}
+
+	private static void persistAndEvictChunkState(ServerLevel level, int chunkX, int chunkZ) {
+		if (level == null || !isEnabled()) {
+			return;
+		}
+		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
+		if (chunkKey.levelId().isBlank()) {
+			return;
+		}
+
+		JsonObject chunkData = createChunkPersistedData(chunkKey);
+		DataWorldChunkManager.ChunkDataKey dataKey = new DataWorldChunkManager.ChunkDataKey(
+			chunkKey.levelId(),
+			chunkKey.chunkX(),
+			chunkKey.chunkZ()
+		);
+		if (chunkData != null) {
+			DataWorldChunkManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
+			PERSISTED_CHUNK_KEYS.add(chunkKey);
+			RETAINED_UNLOADED_CHUNK_KEYS.add(chunkKey);
+		} else {
+			DataWorldChunkManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
+			PERSISTED_CHUNK_KEYS.remove(chunkKey);
+			RETAINED_UNLOADED_CHUNK_KEYS.remove(chunkKey);
+		}
+		DataWorldChunkManager.savePersistedData(level.getServer());
+
+		evictRuntimeChunkState(chunkKey);
+	}
+
+	private static void evictRuntimeChunkState(ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+
+		Set<String> dirtKeys = dirtKeysByChunk.remove(chunkKey);
+		if (dirtKeys != null) {
+			for (String dirtKey : dirtKeys) {
+				DirtState dirt = dirtBlocksByKey.remove(dirtKey);
+				if (dirt == null) {
+					continue;
+				}
+				removeCandidatePositionBit(
+					dirt.levelId,
+					dirt.dirtPos,
+					MODE_WET.equals(dirt.mode) ? CANDIDATE_WET : CANDIDATE_DIRT
+				);
+				removeColumnIndex(dirt, dirtKey);
+			}
+		}
+		dirtKeysByColumn.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
+
+		EcosystemNaturalGrowthManager.evictTrackedCandidateState(chunkKey);
+		EcosystemNaturalDecayManager.evictTrackedCandidateState(chunkKey);
+
+		Set<CandidatePositionKey> positionKeys = CANDIDATE_POSITION_KEYS_BY_CHUNK.remove(chunkKey);
+		if (positionKeys != null) {
+			for (CandidatePositionKey positionKey : positionKeys) {
+				CANDIDATE_POSITION_MASKS.remove(positionKey);
+			}
+		}
+		LOADED_PERSISTED_CHUNK_KEYS.remove(chunkKey);
+		DIRTY_CHUNK_KEYS.remove(chunkKey);
+		dirty = !DIRTY_CHUNK_KEYS.isEmpty();
+	}
+
+	static CandidateProgress advanceCandidateProgress(
+		double trackedProgress,
+		long lastProcessedAbsoluteDayTime,
+		long currentAbsoluteDayTime,
+		double requiredTicks
+	) {
+		double safeRequired = Math.max(1.0d, requiredTicks);
+		double safeProgress = Double.isFinite(trackedProgress)
+			? Math.max(0.0d, Math.min(safeRequired, trackedProgress))
+			: 0.0d;
+		long safeLast = Math.max(0L, lastProcessedAbsoluteDayTime);
+		long safeCurrent = Math.max(0L, currentAbsoluteDayTime);
+
+		// A rollback is a new clock baseline, not negative growth. Preserve the
+		// accumulated progress and let subsequent forward time advance it again.
+		if (safeCurrent < safeLast) {
+			return new CandidateProgress(
+				safeProgress,
+				safeCurrent,
+				deriveCandidateStartTime(safeCurrent, safeProgress)
+			);
+		}
+
+		double nextProgress = Math.min(safeRequired, safeProgress + (safeCurrent - safeLast));
+		return new CandidateProgress(
+			nextProgress,
+			safeCurrent,
+			deriveCandidateStartTime(safeCurrent, nextProgress)
+		);
+	}
+
 	static double resolveCandidateProgress(long startedAbsoluteDayTime, long currentAbsoluteDayTime, double requiredTicks) {
 		long safeStart = Math.max(0L, startedAbsoluteDayTime);
 		long safeCurrent = Math.max(safeStart, currentAbsoluteDayTime);
 		return Math.min(Math.max(1.0d, requiredTicks), Math.max(0L, safeCurrent - safeStart));
+	}
+
+	record CandidateProgress(double progressGrowthTicks, long lastProcessedAbsoluteDayTime, long startedAbsoluteDayTime) {
 	}
 
 	static void markChunkDirty(ChunkRefKey chunkKey) {

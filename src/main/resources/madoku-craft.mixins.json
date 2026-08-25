@@ -73,7 +73,6 @@
     "pet.ServerGamePacketListenerPetLeftClickMixin",
     "pet.PetInventoryMixin",
     "levels.PlayerExperienceMadokuLevelsMixin",
-    "itemstack.PlayerInventoryDeathDropMixin",
     "attributes.PlayerLuckCriticalHitMixin",
     "api.PlayerSleepTickMixin",
     "attributes.PlayerFoodExhaustionMixin",

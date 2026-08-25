@@ -1,6 +1,6 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.items.ItemsStacksManager;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +13,7 @@ public interface ContainerStackLimitMixin {
 	@Inject(method = "getMaxStackSize()I", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$raiseContainerStackLimit(CallbackInfoReturnable<Integer> cir) {
 		int original = cir.getReturnValue();
-		int adjusted = MadokuItemStack.adjustStackLimit(original);
+		int adjusted = ItemsStacksManager.adjustStackLimit(original);
 		if (adjusted != original) {
 			cir.setReturnValue(adjusted);
 		}
@@ -31,5 +31,4 @@ public interface ContainerStackLimitMixin {
 		}
 	}
 }
-
 

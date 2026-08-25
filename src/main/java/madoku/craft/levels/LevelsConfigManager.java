@@ -141,7 +141,7 @@ public final class LevelsConfigManager {
 
 	public record PlayerSettings(int maxLevel, double baseXpRequirement, double baseXpMultiplier) {
 		private static PlayerSettings defaults() {
-			return new PlayerSettings(60, 5.0d, 0.1d);
+			return new PlayerSettings(60, 5.0d, 0.05d);
 		}
 	}
 

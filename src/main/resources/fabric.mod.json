@@ -33,7 +33,7 @@
 		"fabric-api": "${fabric_api_version}"
 	},
 	"suggests": {
-		"sodium": "*",
-		"iris": "*"
+		"sodium": "${sodium_version}",
+		"iris": "${iris_version}"
 	}
 }

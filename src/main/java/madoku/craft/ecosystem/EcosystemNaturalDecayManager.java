@@ -71,6 +71,22 @@ public final class EcosystemNaturalDecayManager {
 		treeDecayTargetOwnersByChunk.clear();
 	}
 
+	static void evictTrackedCandidateState(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+		if (chunkKey == null) {
+			return;
+		}
+		Map<Long, MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.remove(chunkKey);
+		treeDecayTargetOwnersByChunk.remove(chunkKey);
+		if (candidates != null) {
+			for (MadokuEcosystemManager.TreeDecayCandidateState candidate : candidates.values()) {
+				if (candidate != null) {
+					MadokuEcosystemManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+				}
+			}
+		}
+		MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
+	}
+
 	static Set<MadokuEcosystemManager.ChunkRefKey> collectTrackedChunkKeys() {
 		return new java.util.LinkedHashSet<>(treeDecayCandidatesByChunk.keySet());
 	}
@@ -500,7 +516,22 @@ public final class EcosystemNaturalDecayManager {
 				continue;
 			}
 
-			double currentProgress = MadokuEcosystemManager.resolveCandidateProgress(candidate.startedAbsoluteDayTime, currentAbsoluteDayTime, candidate.requiredDecayTicks);
+			MadokuEcosystemManager.CandidateProgress advanced = MadokuEcosystemManager.advanceCandidateProgress(
+				candidate.progressDecayTicks,
+				candidate.lastProcessedAbsoluteDayTime,
+				currentAbsoluteDayTime,
+				candidate.requiredDecayTicks
+			);
+			boolean progressChanged = candidate.progressDecayTicks != advanced.progressGrowthTicks()
+				|| candidate.lastProcessedAbsoluteDayTime != advanced.lastProcessedAbsoluteDayTime()
+				|| candidate.startedAbsoluteDayTime != advanced.startedAbsoluteDayTime();
+			candidate.progressDecayTicks = advanced.progressGrowthTicks();
+			candidate.lastProcessedAbsoluteDayTime = advanced.lastProcessedAbsoluteDayTime();
+			candidate.startedAbsoluteDayTime = advanced.startedAbsoluteDayTime();
+			if (progressChanged) {
+				MadokuEcosystemManager.markChunkDirty(chunkKey);
+			}
+			double currentProgress = advanced.progressGrowthTicks();
 			if (currentProgress + 1e-6d < candidate.requiredDecayTicks) {
 				continue;
 			}

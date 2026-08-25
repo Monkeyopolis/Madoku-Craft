@@ -1,7 +1,7 @@
 package madoku.craft.mixin.itemstack;
 
 import com.mojang.serialization.Codec;
-import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.items.ItemsStacksManager;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,10 +18,9 @@ public abstract class ItemStackCodecMixin {
 	)
 	private static Codec<Integer> madokuCraft$extendItemStackCountCodec(int min, int max) {
 		return Codec.INT.flatXmap(
-			value -> MadokuItemStack.validateCodecCount(min, max, value),
-			value -> MadokuItemStack.validateCodecCount(min, max, value)
+			value -> ItemsStacksManager.validateCodecCount(min, max, value),
+			value -> ItemsStacksManager.validateCodecCount(min, max, value)
 		);
 	}
 }
-
 

@@ -44,8 +44,8 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// Optional client-side integrations, following the Curse Maven dependency pattern used by Madoku Craft Items.
-	implementation "curse.maven:sodium-394468:8396428"
-	implementation "curse.maven:irisshaders-455508:8396841"
+	implementation "curse.maven:sodium-394468:${project.sodium_id}"
+	implementation "curse.maven:irisshaders-455508:${project.iris_id}"
 }
 
 processResources {
@@ -53,12 +53,16 @@ processResources {
 	inputs.property "minecraft_version", project.minecraft_version
 	inputs.property "loader_version", project.loader_version
 	inputs.property "fabric_api_version", project.fabric_api_version
+	inputs.property "sodium_version", project.sodium_version
+	inputs.property "iris_version", project.iris_version
 
 	filesMatching("fabric.mod.json") {
 		expand "version": inputs.properties.version,
 			"minecraft_version": inputs.properties.minecraft_version,
 			"loader_version": inputs.properties.loader_version,
-			"fabric_api_version": inputs.properties.fabric_api_version
+			"fabric_api_version": inputs.properties.fabric_api_version,
+			"sodium_version": inputs.properties.sodium_version,
+			"iris_version": inputs.properties.iris_version
 	}
 }
 

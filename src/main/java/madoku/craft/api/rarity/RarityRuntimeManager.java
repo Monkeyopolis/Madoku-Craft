@@ -1,7 +1,7 @@
 package madoku.craft.api.rarity;
 
 import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.item.system.MadokuItem;
+import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -48,25 +48,25 @@ public final class RarityRuntimeManager {
 
 	public static List<ItemStack> applyCraftedRarity(ServerPlayer player, ItemStack stack) {
 		if (!isEnabled() || player == null || stack == null || stack.isEmpty()
-			|| !MadokuItem.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
+			|| !MadokuItemsManager.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
 			return List.of();
 		}
 
 		int craftedAmount = Math.max(1, stack.getCount());
 		if (craftedAmount == 1) {
-			rollAndApplySingle(player.getRandom(), stack, player, MadokuItem.useMadokuLuck());
+			rollAndApplySingle(player.getRandom(), stack, player, MadokuItemsManager.useMadokuLuck());
 			return List.of();
 		}
 
 		ItemStack base = stack.copy();
 		base.setCount(1);
 		stack.setCount(1);
-		rollAndApplySingle(player.getRandom(), stack, player, MadokuItem.useMadokuLuck());
+		rollAndApplySingle(player.getRandom(), stack, player, MadokuItemsManager.useMadokuLuck());
 
 		List<ItemStack> extras = new ArrayList<>(craftedAmount - 1);
 		for (int index = 1; index < craftedAmount; index++) {
 			ItemStack extra = base.copy();
-			rollAndApplySingle(player.getRandom(), extra, player, MadokuItem.useMadokuLuck());
+			rollAndApplySingle(player.getRandom(), extra, player, MadokuItemsManager.useMadokuLuck());
 			extras.add(extra);
 		}
 		return extras;
@@ -74,13 +74,13 @@ public final class RarityRuntimeManager {
 
 	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource, ServerPlayer luckPlayer) {
 		if (!isEnabled() || stack == null || stack.isEmpty()
-			|| !MadokuItem.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
+			|| !MadokuItemsManager.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
 			return;
 		}
 
 		ServerPlayer resolvedPlayer = luckPlayer == null ? MadokuLuckManager.resolveActiveDropPlayer() : luckPlayer;
 		RandomSource random = randomSource == null ? RandomSource.create() : randomSource;
-		rollAndApplySingle(random, stack, resolvedPlayer, MadokuItem.useMadokuLuck());
+		rollAndApplySingle(random, stack, resolvedPlayer, MadokuItemsManager.useMadokuLuck());
 	}
 
 	public static void applyConfiguredRarity(ItemStack stack, Tier rarity) {
@@ -104,7 +104,7 @@ public final class RarityRuntimeManager {
 
 	public static ItemStack createSmithingUpgradeResult(ItemStack baseStack, ItemStack vanillaResult) {
 		if (!isEnabled() || baseStack == null || baseStack.isEmpty() || vanillaResult == null || vanillaResult.isEmpty()
-			|| !MadokuItem.isRarityCategoryItem(baseStack) || !MadokuItem.isRarityCategoryItem(vanillaResult)) {
+			|| !MadokuItemsManager.isRarityCategoryItem(baseStack) || !MadokuItemsManager.isRarityCategoryItem(vanillaResult)) {
 			return vanillaResult;
 		}
 
@@ -118,7 +118,7 @@ public final class RarityRuntimeManager {
 	}
 
 	public static void updateDurabilityLore(ItemStack stack) {
-		if (stack == null || stack.isEmpty() || !stack.isDamageableItem() || !MadokuItem.isRarityCategoryItem(stack)) {
+		if (stack == null || stack.isEmpty() || !stack.isDamageableItem() || !MadokuItemsManager.isRarityCategoryItem(stack)) {
 			return;
 		}
 		int maxDurability = stack.getMaxDamage();

@@ -1,6 +1,6 @@
-package madoku.craft.item.system;
+package madoku.craft.items.categories;
 
-final class MadokuToolProfile {
+public final class CategoriesToolManager {
 	private final Integer durability;
 	private final Double attackDamage;
 	private final Double attackSpeed;
@@ -8,7 +8,7 @@ final class MadokuToolProfile {
 	private final Integer materialLevel;
 	private final ReachProfile reach;
 
-	MadokuToolProfile(
+	public CategoriesToolManager(
 		Integer durability,
 		Double attackDamage,
 		Double attackSpeed,
@@ -24,55 +24,55 @@ final class MadokuToolProfile {
 		this.reach = reach;
 	}
 
-	Integer durability() {
+	public Integer durability() {
 		return durability;
 	}
 
-	Double attackDamage() {
+	public Double attackDamage() {
 		return attackDamage;
 	}
 
-	Double attackSpeed() {
+	public Double attackSpeed() {
 		return attackSpeed;
 	}
 
-	Double miningSpeed() {
+	public Double miningSpeed() {
 		return miningSpeed;
 	}
 
-	Integer materialLevel() {
+	public Integer materialLevel() {
 		return materialLevel;
 	}
 
-	ReachProfile reach() {
+	public ReachProfile reach() {
 		return reach;
 	}
 
-	boolean hasDurability() {
+	public boolean hasDurability() {
 		return durability != null && durability > 0;
 	}
 
-	boolean hasAttackDamage() {
+	public boolean hasAttackDamage() {
 		return attackDamage != null;
 	}
 
-	boolean hasAttackSpeed() {
+	public boolean hasAttackSpeed() {
 		return attackSpeed != null;
 	}
 
-	boolean hasMiningSpeed() {
+	public boolean hasMiningSpeed() {
 		return miningSpeed != null;
 	}
 
-	boolean hasMaterialLevel() {
+	public boolean hasMaterialLevel() {
 		return materialLevel != null && materialLevel >= 0;
 	}
 
-	boolean hasReach() {
+	public boolean hasReach() {
 		return reach != null && reach.hasValues();
 	}
 
-	static final class ReachProfile {
+	public static final class ReachProfile {
 		private final Double minRange;
 		private final Double maxRange;
 		private final Double minCreativeRange;
@@ -80,7 +80,7 @@ final class MadokuToolProfile {
 		private final Double hitboxMargin;
 		private final Double mobFactor;
 
-		ReachProfile(
+		public ReachProfile(
 			Double minRange,
 			Double maxRange,
 			Double minCreativeRange,
@@ -96,31 +96,31 @@ final class MadokuToolProfile {
 			this.mobFactor = mobFactor;
 		}
 
-		Double minRange() {
+		public Double minRange() {
 			return minRange;
 		}
 
-		Double maxRange() {
+		public Double maxRange() {
 			return maxRange;
 		}
 
-		Double minCreativeRange() {
+		public Double minCreativeRange() {
 			return minCreativeRange;
 		}
 
-		Double maxCreativeRange() {
+		public Double maxCreativeRange() {
 			return maxCreativeRange;
 		}
 
-		Double hitboxMargin() {
+		public Double hitboxMargin() {
 			return hitboxMargin;
 		}
 
-		Double mobFactor() {
+		public Double mobFactor() {
 			return mobFactor;
 		}
 
-		boolean hasValues() {
+		public boolean hasValues() {
 			return minRange != null
 				|| maxRange != null
 				|| minCreativeRange != null

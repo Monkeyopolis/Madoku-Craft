@@ -1,6 +1,6 @@
 package madoku.craft.mixin.smelting;
 
-import madoku.craft.item.system.MadokuItem;
+import madoku.craft.items.ItemsCategoriesManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -41,7 +41,7 @@ public abstract class FurnaceCookTimeMixin {
 		}
 
 		int original = cir.getReturnValue();
-		int itemConfigured = MadokuItem.adjustFuelTicks(stack, original);
+		int itemConfigured = ItemsCategoriesManager.adjustFuelTicks(stack, original);
 		AbstractFurnaceBlockEntity furnace = (AbstractFurnaceBlockEntity) (Object) this;
 		int adjusted = MadokuSmeltingManager.getAdjustedFuelTicks(furnace, stack, itemConfigured);
 		if (adjusted > 0 && adjusted != original) {
@@ -49,5 +49,4 @@ public abstract class FurnaceCookTimeMixin {
 		}
 	}
 }
-
 

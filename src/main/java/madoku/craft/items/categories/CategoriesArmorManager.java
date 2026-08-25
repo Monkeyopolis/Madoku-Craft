@@ -1,37 +1,37 @@
-package madoku.craft.item.system;
+package madoku.craft.items.categories;
 
-final class MadokuArmorProfile {
+public final class CategoriesArmorManager {
 	private final Integer durability;
 	private final Double armor;
 	private final Double armorToughness;
 
-	MadokuArmorProfile(Integer durability, Double armor, Double armorToughness) {
+	public CategoriesArmorManager(Integer durability, Double armor, Double armorToughness) {
 		this.durability = durability;
 		this.armor = armor;
 		this.armorToughness = armorToughness;
 	}
 
-	Integer durability() {
+	public Integer durability() {
 		return durability;
 	}
 
-	Double armor() {
+	public Double armor() {
 		return armor;
 	}
 
-	Double armorToughness() {
+	public Double armorToughness() {
 		return armorToughness;
 	}
 
-	boolean hasDurability() {
+	public boolean hasDurability() {
 		return durability != null && durability > 0;
 	}
 
-	boolean hasArmor() {
+	public boolean hasArmor() {
 		return armor != null;
 	}
 
-	boolean hasArmorToughness() {
+	public boolean hasArmorToughness() {
 		return armorToughness != null;
 	}
 }

@@ -1,45 +1,46 @@
-package madoku.craft.itemstack.system;
+package madoku.craft.items.stacks;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 
-public final class MadokuItemStackConfig {
+public final class StacksConfigManager {
 	public static final int DEFAULT_STACK_LIMIT = 128;
 	public static final long MAX_STACK_CAP = 999_000_000L;
 	public static final int MAX_STACK_RUNTIME_CAP = Integer.MAX_VALUE;
-	public static final int DEFAULT_DEATH_DROP_PERCENT = 50;
-
 	public boolean enabled = true;
 	public int customStackAmount = DEFAULT_STACK_LIMIT;
-	public boolean deathDropEnabled = true;
-	public int deathDropStackPercent = DEFAULT_DEATH_DROP_PERCENT;
 
 	public void resetToDefaults() {
-		enabled = true;
+		 enabled = true;
 		customStackAmount = DEFAULT_STACK_LIMIT;
-		deathDropEnabled = true;
-		deathDropStackPercent = DEFAULT_DEATH_DROP_PERCENT;
 	}
 
-	public boolean updateItemStack(JsonObject root) {
+	public boolean update(JsonObject root) {
 		boolean changed = false;
-		customStackAmount = clampStackAmount(readLong(root, "customStackAmount", customStackAmount));
-		deathDropEnabled = readBoolean(root, "deathDropEnabled", deathDropEnabled);
-		deathDropStackPercent = clampPercent(readInteger(root, "deathDropStackPercent", deathDropStackPercent));
-		changed |= setInteger(root, "customStackAmount", customStackAmount);
-		changed |= setBoolean(root, "deathDropEnabled", deathDropEnabled);
-		changed |= setInteger(root, "deathDropStackPercent", deathDropStackPercent);
+		JsonObject customStacks = object(root, "custom-item-stacks");
+		enabled = readBoolean(customStacks, "enabled", enabled);
+		customStackAmount = clampStackAmount(readLong(customStacks, "value", customStackAmount));
+		changed |= setBoolean(customStacks, "enabled", enabled);
+		changed |= setInteger(customStacks, "value", customStackAmount);
+		root.add("custom-item-stacks", customStacks);
+		root.remove("item-stacks");
 		return changed;
 	}
 
-	public static JsonObject buildItemStackDefaults() {
+	public static JsonObject buildDefaults() {
 		return JSONFormatManager.object()
-			.put("customStackAmount", DEFAULT_STACK_LIMIT)
-			.put("deathDropEnabled", true)
-			.put("deathDropStackPercent", DEFAULT_DEATH_DROP_PERCENT)
+			.object("custom-item-stacks", group -> {
+				group.put("enabled", true);
+				group.put("value", DEFAULT_STACK_LIMIT);
+			})
 			.build();
+	}
+
+	private static JsonObject object(JsonObject source, String key) {
+		JsonElement element = source == null ? null : source.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
 	private static int clampStackAmount(long rawValue) {
@@ -50,25 +51,10 @@ public final class MadokuItemStackConfig {
 		return (int) Math.min(clampedByConfigCap, (long) MAX_STACK_RUNTIME_CAP);
 	}
 
-	private static int clampPercent(int rawValue) {
-		if (rawValue < 0) {
-			return 0;
-		}
-		return Math.min(rawValue, 100);
-	}
-
 	private static boolean readBoolean(JsonObject root, String key, boolean fallback) {
 		JsonElement element = root.get(key);
 		if (element instanceof JsonPrimitive primitive && primitive.isBoolean()) {
 			return primitive.getAsBoolean();
-		}
-		return fallback;
-	}
-
-	private static int readInteger(JsonObject root, String key, int fallback) {
-		JsonElement element = root.get(key);
-		if (element instanceof JsonPrimitive primitive && primitive.isNumber()) {
-			return primitive.getAsInt();
 		}
 		return fallback;
 	}

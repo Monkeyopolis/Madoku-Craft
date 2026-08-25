@@ -1,4 +1,4 @@
-package madoku.craft.item.system;
+package madoku.craft.items;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -7,18 +7,18 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-public record ItemProfilePayloadManager(String snapshot) implements CustomPacketPayload {
-	public static final CustomPacketPayload.Type<ItemProfilePayloadManager> TYPE =
+public record ItemsPayloadManager(String snapshot) implements CustomPacketPayload {
+	public static final CustomPacketPayload.Type<ItemsPayloadManager> TYPE =
 		new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "item_profile_sync"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, ItemProfilePayloadManager> CODEC =
+	public static final StreamCodec<RegistryFriendlyByteBuf, ItemsPayloadManager> CODEC =
 		StreamCodec.composite(
 			ByteBufCodecs.STRING_UTF8,
-			ItemProfilePayloadManager::snapshot,
-			ItemProfilePayloadManager::new
+			ItemsPayloadManager::snapshot,
+			ItemsPayloadManager::new
 		);
 
 	@Override
-	public Type<ItemProfilePayloadManager> type() {
+	public Type<ItemsPayloadManager> type() {
 		return TYPE;
 	}
 }

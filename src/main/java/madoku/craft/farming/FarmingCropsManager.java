@@ -8,7 +8,7 @@ import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.item.system.MadokuItem;
+import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.item.ItemComponentsAccessor;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
@@ -620,7 +620,7 @@ public final class FarmingCropsManager {
 	}
 
 	public static void applyCropItemMetadata() {
-		if (!MadokuItem.isEnabled() || !settings.enabled) {
+		if (!MadokuItemsManager.isEnabled() || !settings.enabled) {
 			return;
 		}
 

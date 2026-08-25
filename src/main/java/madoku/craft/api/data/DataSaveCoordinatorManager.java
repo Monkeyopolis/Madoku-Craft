@@ -6,7 +6,6 @@ import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
-import madoku.craft.itemstack.system.MadokuItemStack;
 import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.pet.MadokuPetManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
@@ -128,7 +127,6 @@ public final class DataSaveCoordinatorManager {
 			MadokuHungerManager.savePersistedData(server);
 			MadokuLevelsManager.savePersistedData(server);
 			MadokuPetManager.savePersistedData(server);
-			MadokuItemStack.savePersistedData(server);
 		} else {
 			MadokuEntities.autosavePersistedData(server);
 			MadokuFarmingManager.autosavePersistedData(server);
@@ -138,7 +136,6 @@ public final class DataSaveCoordinatorManager {
 			MadokuHungerManager.autosavePersistedData(server);
 			MadokuLevelsManager.autosavePersistedData(server);
 			MadokuPetManager.autosavePersistedData(server);
-			MadokuItemStack.autosavePersistedData(server);
 		}
 		if (shutdown) MadokuChunkDataManager.savePersistedData(server);
 		else MadokuChunkDataManager.autosavePersistedData(server);

@@ -3,7 +3,8 @@ package madoku.craft;
 import madoku.craft.entity.MadokuEntitiesClient;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.inventory.PetInventoryClient;
-import madoku.craft.item.system.MadokuItem;
+import madoku.craft.items.ItemsCategoriesManager;
+import madoku.craft.items.ItemsPayloadManager;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.hud.HudAttributesManager;
 import madoku.craft.hud.HudPayloadManager;
@@ -13,7 +14,6 @@ import madoku.craft.api.season.PlayerClimatePayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
 import madoku.craft.attributes.hunger.HungerPayloadManager;
 import madoku.craft.mob.MobPayloadManager;
-import madoku.craft.item.system.ItemProfilePayloadManager;
 import madoku.craft.pet.PetPayloadManager;
 import madoku.craft.pet.PetHudManagerClient;
 import madoku.craft.pet.PetRendererManager;
@@ -44,7 +44,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 				return;
 			}
 			configuredItemMetadataApplied = true;
-			MadokuItem.applyConfiguredItemMetadata();
+			ItemsCategoriesManager.applyConfiguredItemMetadata();
 			MadokuFarmingManager.applyCropItemMetadata();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(TimePayloadManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
@@ -65,8 +65,8 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(PlayerClimatePayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> HudPayloadManager.setServerClimate(payload.temperature(), payload.humidity()))
 		);
-		ClientPlayNetworking.registerGlobalReceiver(ItemProfilePayloadManager.TYPE, (payload, context) ->
-			context.client().execute(() -> MadokuItem.applySynchronizedProfiles(payload.snapshot()))
+		ClientPlayNetworking.registerGlobalReceiver(ItemsPayloadManager.TYPE, (payload, context) ->
+			context.client().execute(() -> ItemsCategoriesManager.applySynchronizedProfiles(payload.snapshot()))
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())

@@ -8,7 +8,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import madoku.craft.itemstack.system.MadokuItemStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,14 +53,13 @@ public final class PetComponentsManager {
 		if (occupiedSlots.isEmpty()) {
 			return;
 		}
-		int dropPercent = MadokuItemStack.usesManagedDeathDrop() ? MadokuItemStack.getDeathDropStackPercent() : 100;
 		for (int i = occupiedSlots.size() - 1; i > 0; i--) {
 			int j = player.getRandom().nextInt(i + 1);
 			int temp = occupiedSlots.get(i);
 			occupiedSlots.set(i, occupiedSlots.get(j));
 			occupiedSlots.set(j, temp);
 		}
-		int dropCount = Math.min(occupiedSlots.size(), Math.max(0, Math.round(occupiedSlots.size() * (Math.max(0, Math.min(100, dropPercent)) / 100.0F))));
+		int dropCount = occupiedSlots.size();
 		for (int index = 0; index < dropCount; index++) {
 			int slot = occupiedSlots.get(index);
 			ItemStack stack = inventory.getItem(slot);

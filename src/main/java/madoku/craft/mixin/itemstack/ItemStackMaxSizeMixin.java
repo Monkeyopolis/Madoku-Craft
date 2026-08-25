@@ -1,7 +1,7 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.item.system.MadokuItem;
-import madoku.craft.itemstack.system.MadokuItemStack;
+import madoku.craft.items.ItemsCategoriesManager;
+import madoku.craft.items.ItemsStacksManager;
 import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,12 +17,11 @@ public interface ItemStackMaxSizeMixin {
 			return;
 		}
 		int original = cir.getReturnValue();
-		int adjusted = MadokuItemStack.adjustStackLimit(original);
-		adjusted = MadokuItem.applySingleStackRule(stack, adjusted);
+		int adjusted = ItemsStacksManager.adjustStackLimit(original);
+		adjusted = ItemsCategoriesManager.applySingleStackRule(stack, adjusted);
 		if (adjusted != original) {
 			cir.setReturnValue(adjusted);
 		}
 	}
 }
-
 
