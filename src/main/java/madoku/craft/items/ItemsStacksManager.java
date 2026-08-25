@@ -4,7 +4,6 @@ import com.mojang.serialization.DataResult;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.JSONTypeManager;
 import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.items.stacks.StacksConfigManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +23,11 @@ public final class ItemsStacksManager {
 
 	public static void initialize() { loadStaticConfig(); }
 
-	public static void reset() { configuration.resetToDefaults(); }
+	/**
+	 * Clears per-server runtime state without discarding the static configuration
+	 * loaded during initialization.
+	 */
+	public static void reset() { }
 
 	public static void onServerStarted(MinecraftServer server) { }
 

@@ -412,7 +412,7 @@ public final class ItemsConfigManager {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {64, 128, 256, 512, 1024, 2048, 4096};
+		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 		double[] pickAndShovelDamage = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
 
@@ -421,23 +421,23 @@ public final class ItemsConfigManager {
 			int itemDurability = durability[index];
 			int itemLevel = materialLevel[index];
 			double attackStep = index;
-			double miningSpeed = 2.0 + (index * 2.0);
+			double miningSpeed = 2.0 + (index * 1.5);
 
 			defaults.put(
 				prefix + "axe",
-				buildToolItemDefaults(prefix + "axe", itemDurability, 9.0 + attackStep, 0.8 + (index * 0.1), miningSpeed, itemLevel, STACK_SINGLE)
+				buildAxeItemDefaults(prefix + "axe", itemDurability, 8.0 + attackStep, 0.8 + (index * 0.025), miningSpeed, itemLevel, STACK_SINGLE)
 			);
 			defaults.put(
 				prefix + "pickaxe",
-				buildToolItemDefaults(prefix + "pickaxe", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.1), miningSpeed, itemLevel, STACK_SINGLE)
+				buildToolItemDefaults(prefix + "pickaxe", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.05), miningSpeed, itemLevel, STACK_SINGLE)
 			);
 			defaults.put(
 				prefix + "shovel",
-				buildToolItemDefaults(prefix + "shovel", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.1), miningSpeed, itemLevel, STACK_SINGLE)
+				buildToolItemDefaults(prefix + "shovel", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.05), miningSpeed, itemLevel, STACK_SINGLE)
 			);
 			defaults.put(
 				prefix + "hoe",
-				buildToolItemDefaults(prefix + "hoe", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.1), miningSpeed, itemLevel, STACK_SINGLE)
+				buildToolItemDefaults(prefix + "hoe", itemDurability, pickAndShovelDamage[index], 1.2 + (index * 0.05), miningSpeed, itemLevel, STACK_SINGLE)
 			);
 		}
 
@@ -447,28 +447,47 @@ public final class ItemsConfigManager {
 		);
 		defaults.put(
 			"minecraft:flint_and_steel",
-			buildToolItemDefaults("minecraft:flint_and_steel", 128, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_INT_UNSET, STACK_SINGLE)
+			buildToolItemDefaults("minecraft:flint_and_steel", 256, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_INT_UNSET, STACK_SINGLE)
 		);
 		defaults.put(
 			"minecraft:fishing_rod",
-			buildToolItemDefaults("minecraft:fishing_rod", 64, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_INT_UNSET, STACK_SINGLE)
+			buildToolItemDefaults("minecraft:fishing_rod", 128, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_INT_UNSET, STACK_SINGLE)
 		);
 
 		return defaults;
 	}
 
+	public static JsonObject buildAxeItemDefaults(
+		String itemId,
+		int durability,
+		double attackDamage,
+		double attackSpeed,
+		double miningSpeed,
+		int materialLevel,
+		String stackValue
+	) {
+		return JSONFormatManager.object()
+			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_TOOL, CATEGORY_WEAPON))
+			.put(FIELD_DURABILITY, durability)
+			.put(FIELD_ATTACK_DAMAGE, attackDamage)
+			.put(FIELD_ATTACK_SPEED, attackSpeed)
+			.put(FIELD_MINING_SPEED, miningSpeed)
+			.put(FIELD_MATERIAL_LEVEL, materialLevel)
+			.build();
+	}
+
 	public static Map<String, JsonObject> buildDefaultWeaponItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {64, 128, 256, 512, 1024, 2048, 4096};
+		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 		for (int index = 0; index < materials.length; index++) {
 			String itemId = "minecraft:" + materials[index] + "_sword";
 			defaults.put(itemId, buildWeaponItemDefaults(
 				itemId,
 				durability[index],
-				6.0 + index,
-				1.6 + (index * 0.1),
+				6.0 + (index * 0.75),
+				1.6 + (index * 0.075),
 				TOOL_DOUBLE_UNSET,
 				materialLevel[index],
 				STACK_SINGLE
@@ -481,7 +500,7 @@ public final class ItemsConfigManager {
 	public static Map<String, JsonObject> buildDefaultSpearItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {64, 128, 256, 512, 1024, 2048, 4096};
+		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 
 		for (int index = 0; index < materials.length; index++) {
@@ -491,8 +510,8 @@ public final class ItemsConfigManager {
 				buildSpearItemDefaults(
 					itemId,
 					durability[index],
-					3.0 + index,
-					1.2 + (index * 0.1),
+					4.0 + (index * 0.5),
+					1.2 + (index * 0.05),
 					materialLevel[index],
 					1.0d,
 					4.5d,
@@ -507,7 +526,7 @@ public final class ItemsConfigManager {
 	public static Map<String, JsonObject> buildDefaultArmorItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		String[] materials = {"leather", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {192, 256, 384, 512, 768, 1024};
+		int[] durability = {384, 576, 864, 1296, 1944, 2916};
 		double[] armor = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
 		double[] toughness = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0};
 		String[] pieces = {"helmet", "chestplate", "leggings", "boots"};

@@ -1,6 +1,4 @@
-package madoku.craft.items.categories;
-
-import madoku.craft.items.ItemsConfigManager;
+package madoku.craft.items;
 
 import java.util.List;
 import java.util.Set;

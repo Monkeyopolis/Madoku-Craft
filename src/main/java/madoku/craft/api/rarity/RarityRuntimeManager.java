@@ -245,7 +245,8 @@ public final class RarityRuntimeManager {
 	private static void scaleMaxDurability(ItemStack stack, double multiplier) {
 		Integer maxDamage = stack.get(DataComponents.MAX_DAMAGE);
 		if (maxDamage != null && maxDamage > 0) {
-			stack.set(DataComponents.MAX_DAMAGE, Math.max(1, (int) Math.round(maxDamage * multiplier)));
+			long rounded = Math.round((maxDamage * multiplier) / 8.0D) * 8L;
+			stack.set(DataComponents.MAX_DAMAGE, (int) Math.max(8L, Math.min(Integer.MAX_VALUE, rounded)));
 		}
 	}
 
@@ -261,12 +262,12 @@ public final class RarityRuntimeManager {
 			AttributeModifier updated = modifier;
 			if (isMainHandAddValue(entry, modifier) && modifier.id().equals(Item.BASE_ATTACK_DAMAGE_ID)
 				&& isAttribute(entry, Attributes.ATTACK_DAMAGE)) {
-				double value = Math.round((1.0D + modifier.amount()) * damageMultiplier * 2.0D) / 2.0D;
+				double value = roundQuarter((1.0D + modifier.amount()) * damageMultiplier);
 				updated = new AttributeModifier(modifier.id(), value - 1.0D, modifier.operation());
 				changed = true;
 			} else if (isMainHandAddValue(entry, modifier) && modifier.id().equals(Item.BASE_ATTACK_SPEED_ID)
 				&& isAttribute(entry, Attributes.ATTACK_SPEED)) {
-				double value = Math.round((4.0D + modifier.amount()) * speedMultiplier * 10.0D) / 10.0D;
+				double value = roundIncrement((4.0D + modifier.amount()) * speedMultiplier, 0.025D);
 				updated = new AttributeModifier(modifier.id(), value - 4.0D, modifier.operation());
 				changed = true;
 			}
@@ -311,13 +312,13 @@ public final class RarityRuntimeManager {
 		for (Tool.Rule rule : current.rules()) {
 			Optional<Float> speed = rule.speed();
 			if (speed.isPresent()) {
-				rules.add(new Tool.Rule(rule.blocks(), Optional.of((float) roundHalf(speed.get() * multiplier)), rule.correctForDrops()));
+				rules.add(new Tool.Rule(rule.blocks(), Optional.of((float) roundQuarter(speed.get() * multiplier)), rule.correctForDrops()));
 				changed = true;
 			} else {
 				rules.add(rule);
 			}
 		}
-		float defaultSpeed = (float) roundHalf(current.defaultMiningSpeed() * multiplier);
+		float defaultSpeed = (float) roundQuarter(current.defaultMiningSpeed() * multiplier);
 		changed |= defaultSpeed != current.defaultMiningSpeed();
 		if (changed) {
 			stack.set(DataComponents.TOOL, new Tool(rules, defaultSpeed, current.damagePerBlock(), current.canDestroyBlocksInCreative()));
@@ -336,11 +337,11 @@ public final class RarityRuntimeManager {
 		return entry.attribute().value() == attribute.value();
 	}
 
-	private static double roundHalf(double value) {
-		return Math.round(value * 2.0D) / 2.0D;
+	private static double roundQuarter(double value) {
+		return roundIncrement(value, 0.25D);
 	}
 
-	private static double roundQuarter(double value) {
-		return Math.round(value * 4.0D) / 4.0D;
+	private static double roundIncrement(double value, double increment) {
+		return Math.round(value / increment) * increment;
 	}
 }

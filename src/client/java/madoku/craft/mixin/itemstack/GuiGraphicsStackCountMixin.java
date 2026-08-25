@@ -13,9 +13,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class GuiGraphicsStackCountMixin {
-	private static final float STACK_COUNT_SCALE_LARGE = 0.9f;
-	private static final float STACK_COUNT_SCALE_COMPACT = 0.65f;
-	private static final float STACK_COUNT_SCALE_DECIMAL = 0.7f;
+	private static final float STACK_COUNT_DEFAULT_SCALE = 1.0f;
+	private static final int STACK_COUNT_DEFAULT_TEXT_LENGTH = 2;
+	private static final float STACK_COUNT_DECIMAL_SCALE_REDUCTION = 0.05f;
+	private static final float STACK_COUNT_ADDITIONAL_TEXT_SCALE_REDUCTION = 0.15f;
 
 	@Shadow
 	@Final
@@ -51,17 +52,18 @@ public abstract class GuiGraphicsStackCountMixin {
 			drawX += font.width(text) - font.width(renderedText);
 		}
 
-		float scale = resolveScale(renderedText, stack);
+		float scale = resolveScale(renderedText);
 		if (scale >= 0.999f) {
 			this.text(font, renderedText, drawX, y, color, shadow);
 			return;
 		}
 
 		int width = font.width(renderedText);
+		float bottomY = y + font.lineHeight;
 		this.pose.pushMatrix();
-		this.pose.translate((float) (drawX + width), (float) y);
+		this.pose.translate((float) (drawX + width), bottomY);
 		this.pose.scale(scale, scale);
-		this.pose.translate((float) (-drawX - width), (float) (-y));
+		this.pose.translate((float) (-drawX - width), -bottomY);
 		this.text(font, renderedText, drawX, y, color, shadow);
 		this.pose.popMatrix();
 	}
@@ -83,34 +85,18 @@ public abstract class GuiGraphicsStackCountMixin {
 		return ItemsStacksManager.formatCompactStackCount(count);
 	}
 
-	private static float resolveScale(String text, ItemStack stack) {
-		if (text != null && text.indexOf('.') >= 0) {
-			return STACK_COUNT_SCALE_DECIMAL;
-		}
-		if (stack != null && !stack.isEmpty()) {
-			int count = stack.getCount();
-			if (count > 999) {
-				return STACK_COUNT_SCALE_COMPACT;
-			}
-			if (count > 99) {
-				return STACK_COUNT_SCALE_LARGE;
-			}
-			return 1.0f;
-		}
+	private static float resolveScale(String text) {
 		if (text == null || text.isBlank()) {
 			return 1.0f;
 		}
-		try {
-			int parsed = Integer.parseInt(text);
-			if (parsed > 999) {
-				return STACK_COUNT_SCALE_COMPACT;
-			}
-			if (parsed > 99) {
-				return STACK_COUNT_SCALE_LARGE;
-			}
-			return 1.0f;
-		} catch (NumberFormatException ignored) {
-			return text.length() > 2 ? STACK_COUNT_SCALE_LARGE : 1.0f;
+
+		float scale = STACK_COUNT_DEFAULT_SCALE;
+		int additionalTextLength = Math.max(0, text.length() - STACK_COUNT_DEFAULT_TEXT_LENGTH);
+		scale -= additionalTextLength * STACK_COUNT_ADDITIONAL_TEXT_SCALE_REDUCTION;
+		if (text.indexOf('.') >= 0) {
+			scale -= STACK_COUNT_DECIMAL_SCALE_REDUCTION;
 		}
+
+		return Math.max(0.1f, scale);
 	}
 }

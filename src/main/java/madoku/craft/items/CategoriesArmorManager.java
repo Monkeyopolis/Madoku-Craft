@@ -1,4 +1,4 @@
-package madoku.craft.items.categories;
+package madoku.craft.items;
 
 public final class CategoriesArmorManager {
 	private final Integer durability;

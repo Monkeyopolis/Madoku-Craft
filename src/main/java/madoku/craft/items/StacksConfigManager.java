@@ -1,4 +1,4 @@
-package madoku.craft.items.stacks;
+package madoku.craft.items;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

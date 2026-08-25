@@ -1,4 +1,4 @@
-package madoku.craft.items.categories;
+package madoku.craft.items;
 
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;

@@ -1,6 +1,4 @@
-package madoku.craft.items.categories;
-
-import madoku.craft.items.ItemsConfigManager;
+package madoku.craft.items;
 
 /** Shared helpers for the catch-all "other" category. */
 public final class CategoriesOtherManager {

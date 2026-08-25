@@ -1,6 +1,4 @@
-package madoku.craft.items.categories;
-
-import madoku.craft.items.ItemsConfigManager;
+package madoku.craft.items;
 
 /** Shared helpers for weapon-category behavior. Weapon profiles reuse tool combat metadata. */
 public final class CategoriesWeaponManager {
