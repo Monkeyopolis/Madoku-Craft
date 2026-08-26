@@ -12,9 +12,11 @@ import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraft.world.item.crafting.Recipe;
 
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 public final class FormatCraftingManager {
 	private static volatile boolean initialized;
@@ -57,7 +59,7 @@ public final class FormatCraftingManager {
 		if (result == null) return null;
 		return new ShapedRecipe(
 			new Recipe.CommonInfo(recipe.showNotification()),
-			new CraftingRecipe.CraftingBookInfo(recipe.category(), recipe.group()), pattern, result
+			new CraftingRecipe.CraftingBookInfo(recipe.category(), RecipesFormatManager.readRecipeGroup(root, recipe.group())), pattern, result
 		);
 	}
 
@@ -69,7 +71,7 @@ public final class FormatCraftingManager {
 		if (result == null) return null;
 		return new ShapelessRecipe(
 			new Recipe.CommonInfo(recipe.showNotification()),
-			new CraftingRecipe.CraftingBookInfo(recipe.category(), recipe.group()), result, List.copyOf(ingredients)
+			new CraftingRecipe.CraftingBookInfo(recipe.category(), RecipesFormatManager.readRecipeGroup(root, recipe.group())), result, List.copyOf(ingredients)
 		);
 	}
 
@@ -109,9 +111,10 @@ public final class FormatCraftingManager {
 	private static void writeCraftingIngredientsDefaults(JSONFormatManager.ObjectBuilder root, List<Ingredient> ingredientList) {
 		if (ingredientList == null || ingredientList.isEmpty()) return;
 		JSONFormatManager.ArrayBuilder ingredients = JSONFormatManager.array();
+		Set<String> uniqueItemIds = new LinkedHashSet<>();
 		for (Ingredient ingredient : ingredientList) {
 			String itemId = RecipesFormatManager.firstItemIdFromIngredient(ingredient);
-			if (!itemId.isBlank()) ingredients.add(itemId);
+			if (!itemId.isBlank() && uniqueItemIds.add(itemId)) ingredients.add(itemId);
 		}
 		JsonArray built = ingredients.build();
 		if (!built.isEmpty()) root.put(RecipesConfigManager.FIELD_INGREDIENTS, built);

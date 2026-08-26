@@ -8,6 +8,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
@@ -15,11 +16,14 @@ import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.BlastingRecipe;
 import net.minecraft.world.item.crafting.CampfireCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.ShapedRecipe;
+import net.minecraft.world.item.crafting.ShapedRecipePattern;
 import net.minecraft.world.item.crafting.SingleItemRecipe;
 import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.item.crafting.SmeltingRecipe;
@@ -68,6 +72,49 @@ public final class MadokuRecipesManager {
 
 	public static boolean isInitialized() { return initialized; }
 
+	public static void onPlayerInventoryChanged(ServerPlayer player) {
+		if (player == null || !loadSystemEnabled()) {
+			return;
+		}
+
+		List<RecipeHolder<?>> unlockable = player.level().getServer().getRecipeManager().getRecipes().stream()
+			.filter(MadokuRecipesManager::isManagedRecipe)
+			.filter(holder -> !player.getRecipeBook().contains(holder.id()))
+			.filter(holder -> hasRecipeIngredients(player, holder.value()))
+			.toList();
+		if (!unlockable.isEmpty()) {
+			player.awardRecipes(unlockable);
+		}
+	}
+
+	private static boolean isManagedRecipe(RecipeHolder<?> holder) {
+		return holder != null
+			&& holder.id() != null
+			&& holder.id().identifier() != null
+			&& MADOKU_RECIPE_NAMESPACE.equals(holder.id().identifier().getNamespace());
+	}
+
+	private static boolean hasRecipeIngredients(ServerPlayer player, Recipe<?> recipe) {
+		if (player == null || recipe == null) {
+			return false;
+		}
+
+		if (recipe instanceof CraftingRecipe craftingRecipe) {
+			List<Ingredient> ingredients = RecipesFormatManager.readDefaultCraftingIngredients(craftingRecipe);
+			return !ingredients.isEmpty()
+				&& player.getInventory().contains(ingredients.get(0)::test);
+		}
+
+		if (recipe instanceof SingleItemRecipe singleItemRecipe) {
+			Ingredient ingredient = singleItemRecipe.input();
+			return ingredient != null
+				&& !ingredient.isEmpty()
+				&& player.getInventory().contains(ingredient::test);
+		}
+
+		return false;
+	}
+
 	public static List<RecipeHolder<?>> applyRecipeOverrides(Iterable<RecipeHolder<?>> loadedRecipes) {
 		List<RecipeHolder<?>> source = copyRecipes(loadedRecipes);
 		if (source.isEmpty()) {
@@ -79,6 +126,7 @@ public final class MadokuRecipesManager {
 			return source;
 		}
 		source = addMadokuDefaultCookingRecipes(source);
+		source = addMadokuDefaultCraftingRecipes(source);
 
 		try {
 			Path rootDirectory = RecipesConfigManager.getRootDirectory();
@@ -620,6 +668,7 @@ public final class MadokuRecipesManager {
 		boolean defaultEnabled = isDefaultEnabled(recipeId);
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object().putAll(RecipesConfigManager.buildBaseRecipeDefaults(
 			recipeId,
+			defaultRecipeGroup(recipe),
 			snapshot.recipeTypeId(),
 			snapshot.resultItemId(),
 			snapshot.resultCount(),
@@ -631,6 +680,16 @@ public final class MadokuRecipesManager {
 		RecipesFormatManager.writeDefaults(root, recipe);
 
 		return RecipesConfigManager.nestRecipeDefaults(root.build(), snapshot.processCategory());
+	}
+
+	private static String defaultRecipeGroup(Recipe<?> recipe) {
+		if (recipe instanceof CraftingRecipe craftingRecipe) {
+			return craftingRecipe.group();
+		}
+		if (recipe instanceof AbstractCookingRecipe cookingRecipe) {
+			return cookingRecipe.group();
+		}
+		return "";
 	}
 
 	private static boolean isDefaultEnabled(String recipeId) {
@@ -715,6 +774,77 @@ public final class MadokuRecipesManager {
 			return null;
 		}
 		return BuiltInRegistries.ITEM.getValue(identifier);
+	}
+
+	private static List<RecipeHolder<?>> addMadokuDefaultCraftingRecipes(List<RecipeHolder<?>> source) {
+		if (source == null || source.isEmpty()) {
+			return source == null ? List.of() : source;
+		}
+
+		CraftingRecipe template = findAnyCraftingRecipe(source);
+		if (template == null) {
+			return source;
+		}
+
+		List<RecipeHolder<?>> expanded = new ArrayList<>(source);
+		Set<String> recipeIds = collectRecipeIds(source);
+		for (ConfigCraftingManager.AddedCraftingRecipe configured : ConfigCraftingManager.buildAddedRecipes()) {
+			RecipeHolder<?> added = createConfiguredCraftingRecipe(configured, template, recipeIds);
+			if (added != null) {
+				expanded.add(added);
+			}
+		}
+		return expanded;
+	}
+
+	private static CraftingRecipe findAnyCraftingRecipe(List<RecipeHolder<?>> source) {
+		if (source == null || source.isEmpty()) {
+			return null;
+		}
+		for (RecipeHolder<?> holder : source) {
+			if (holder != null && holder.value() instanceof CraftingRecipe craftingRecipe) {
+				return craftingRecipe;
+			}
+		}
+		return null;
+	}
+
+	private static RecipeHolder<?> createConfiguredCraftingRecipe(
+		ConfigCraftingManager.AddedCraftingRecipe configured,
+		CraftingRecipe template,
+		Set<String> existingRecipeIds
+	) {
+		if (configured == null || template == null || existingRecipeIds == null) {
+			return null;
+		}
+
+		Item ingredientItem = resolveItem(configured.ingredientItemId());
+		Item resultItem = resolveItem(configured.resultItemId());
+		if (ingredientItem == null || resultItem == null || configured.pattern().isEmpty()) {
+			return null;
+		}
+
+		Map<Character, Ingredient> key = Map.of(configured.symbol(), Ingredient.of(ingredientItem));
+		ShapedRecipePattern pattern;
+		try {
+			pattern = ShapedRecipePattern.of(key, configured.pattern());
+		} catch (RuntimeException exception) {
+			return null;
+		}
+
+		ShapedRecipe created = new ShapedRecipe(
+			new Recipe.CommonInfo(template.showNotification()),
+			new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.EQUIPMENT, ""),
+			pattern,
+			new ItemStackTemplate(resultItem, 1)
+		);
+		String recipeId = uniqueDerivedRecipeId(existingRecipeIds, "crafting", configured.path());
+		var identifier = net.minecraft.resources.Identifier.tryParse(recipeId);
+		if (identifier == null) {
+			return null;
+		}
+		ResourceKey<Recipe<?>> keyResource = ResourceKey.create(Registries.RECIPE, identifier);
+		return new RecipeHolder<>(keyResource, created);
 	}
 
 	private static List<RecipeHolder<?>> copyRecipes(Iterable<RecipeHolder<?>> loadedRecipes) {

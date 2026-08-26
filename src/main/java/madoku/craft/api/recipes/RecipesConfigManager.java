@@ -9,6 +9,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 public final class RecipesConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
 	public static final String FIELD_RECIPE_ID = "recipe-id";
+	public static final String FIELD_RECIPE_GROUP = "recipe-group";
 	public static final String FIELD_RECIPE_TYPE_ID = "recipe-type-id";
 	public static final String FIELD_RESULT_ITEM_ID = "result-item-id";
 	public static final String FIELD_RESULT_COUNT = "result-count";
@@ -88,6 +89,7 @@ public final class RecipesConfigManager {
 
 		JsonObject recipe = new JsonObject();
 		copy(source, recipe, FIELD_RECIPE_ID);
+		copy(source, recipe, FIELD_RECIPE_GROUP);
 		copy(source, recipe, FIELD_CUSTOM_RECIPE);
 		copy(source, recipe, FIELD_CATEGORIES);
 		root.add(RECIPE_GROUP, recipe);
@@ -96,7 +98,7 @@ public final class RecipesConfigManager {
 		JsonObject format = new JsonObject();
 		for (var entry : source.entrySet()) {
 			String key = entry.getKey();
-			if (FIELD_ENABLED.equals(key) || FIELD_RECIPE_ID.equals(key) || FIELD_CUSTOM_RECIPE.equals(key)
+			if (FIELD_ENABLED.equals(key) || FIELD_RECIPE_ID.equals(key) || FIELD_RECIPE_GROUP.equals(key) || FIELD_CUSTOM_RECIPE.equals(key)
 				|| FIELD_CATEGORIES.equals(key) || FIELD_RECIPE_TYPE_ID.equals(key)) continue;
 			String outputKey = FIELD_CRAFTING_SHAPE.equals(key) ? "type" : key;
 			format.add(outputKey, entry.getValue().deepCopy());
@@ -111,6 +113,7 @@ public final class RecipesConfigManager {
 		copy(source, flat, FIELD_ENABLED);
 		JsonObject recipe = object(source, RECIPE_GROUP);
 		copy(recipe, flat, FIELD_RECIPE_ID);
+		copy(recipe, flat, FIELD_RECIPE_GROUP);
 		copy(recipe, flat, FIELD_CUSTOM_RECIPE);
 		copy(recipe, flat, FIELD_CATEGORIES);
 		for (var group : source.entrySet()) {
@@ -140,6 +143,7 @@ public final class RecipesConfigManager {
 
 	public static JsonObject buildBaseRecipeDefaults(
 		String recipeId,
+		String recipeGroup,
 		String recipeTypeId,
 		String resultItemId,
 		int resultCount,
@@ -150,8 +154,9 @@ public final class RecipesConfigManager {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, enabled)
 			.put(FIELD_RECIPE_ID, recipeId == null ? "" : recipeId)
+			.put(FIELD_RECIPE_GROUP, recipeGroup == null ? "" : recipeGroup)
 			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId == null ? "" : recipeTypeId)
-			.put(FIELD_RESULT_ITEM_ID, resultItemId == null ? "" : resultItemId)
+			.put(FIELD_RESULT_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(resultItemId))
 			.put(FIELD_RESULT_COUNT, Math.max(1, resultCount))
 			.put(FIELD_CATEGORIES, buildCategoryArray(outputCategory, processCategory))
 			.put(FIELD_CUSTOM_RECIPE, false)

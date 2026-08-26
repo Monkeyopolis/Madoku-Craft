@@ -45,6 +45,7 @@
     "pet.ItemCostEggVariantsMixin",
     "attributes.ItemFoodGateMixin",
     "api.ItemInputRarityMixin",
+    "api.PlayerInventoryRecipeUnlockMixin",
     "itemstack.ItemStackCodecMixin",
     "itemstack.ItemStackDurabilityLoreMixin",
     "farming.ItemStackFarmingMixin",

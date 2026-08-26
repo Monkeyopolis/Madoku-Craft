@@ -23,7 +23,7 @@ public final class FormatSmokingManager {
 		ItemStackTemplate result = RecipesFormatManager.buildResultTemplate(root, resultItemId, resultCount);
 		if (input == null || input.isEmpty() || result == null) return null;
 		return new SmokingRecipe(new Recipe.CommonInfo(recipe.showNotification()),
-			new net.minecraft.world.item.crafting.AbstractCookingRecipe.CookingBookInfo(recipe.category(), recipe.group()),
+			new net.minecraft.world.item.crafting.AbstractCookingRecipe.CookingBookInfo(recipe.category(), RecipesFormatManager.readRecipeGroup(root, recipe.group())),
 			input, result, recipe.experience(), recipe.cookingTime());
 	}
 

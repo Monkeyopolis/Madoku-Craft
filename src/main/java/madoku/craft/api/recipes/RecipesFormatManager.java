@@ -237,7 +237,7 @@ public final class RecipesFormatManager {
 		Item item = firstItemFromIngredient(ingredient);
 		if (item == null) return "";
 		var id = BuiltInRegistries.ITEM.getKey(item);
-		return id == null ? "" : id.toString();
+		return id == null ? "" : MadokuJSONManager.normalizeRegistryIdentifierForJson(id.toString());
 	}
 
 	private static Item firstItemFromIngredient(Ingredient ingredient) {
@@ -291,6 +291,11 @@ public final class RecipesFormatManager {
 			return null;
 		}
 		return BuiltInRegistries.ITEM.getValue(identifier);
+	}
+
+	static String readRecipeGroup(JsonObject root, String fallback) {
+		String group = readString(root, RecipesConfigManager.FIELD_RECIPE_GROUP, fallback);
+		return group == null ? "" : group.trim();
 	}
 
 	private static String readString(JsonObject root, String key, String fallback) {

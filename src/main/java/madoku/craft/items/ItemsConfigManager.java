@@ -412,7 +412,7 @@ public final class ItemsConfigManager {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
+		int[] durability = {64, 160, 320, 640, 960, 1600, 2048};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 		double[] pickAndShovelDamage = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
 
@@ -479,7 +479,7 @@ public final class ItemsConfigManager {
 	public static Map<String, JsonObject> buildDefaultWeaponItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
+		int[] durability = {64, 160, 320, 640, 960, 1600, 2048};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 		for (int index = 0; index < materials.length; index++) {
 			String itemId = "minecraft:" + materials[index] + "_sword";
@@ -500,7 +500,7 @@ public final class ItemsConfigManager {
 	public static Map<String, JsonObject> buildDefaultSpearItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
 		String[] materials = {"wooden", "stone", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {48, 96, 192, 384, 768, 1536, 3072};
+		int[] durability = {64, 160, 320, 640, 960, 1600, 2048};
 		int[] materialLevel = {0, 1, 2, 2, 3, 3, 4};
 
 		for (int index = 0; index < materials.length; index++) {
@@ -525,10 +525,10 @@ public final class ItemsConfigManager {
 
 	public static Map<String, JsonObject> buildDefaultArmorItemProfiles() {
 		Map<String, JsonObject> defaults = new LinkedHashMap<>();
-		String[] materials = {"leather", "copper", "iron", "golden", "diamond", "netherite"};
-		int[] durability = {384, 576, 864, 1296, 1944, 2916};
-		double[] armor = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
-		double[] toughness = {0.5, 1.0, 1.5, 2.0, 2.5, 3.0};
+		String[] materials = {"leather", "chainmail", "copper", "iron", "golden", "diamond", "netherite"};
+		int[] durability = {64, 160, 320, 640, 960, 1600, 2048};
+		double[] armor = {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0};
+		double[] toughness = {1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5};
 		String[] pieces = {"helmet", "chestplate", "leggings", "boots"};
 
 		for (int materialIndex = 0; materialIndex < materials.length; materialIndex++) {

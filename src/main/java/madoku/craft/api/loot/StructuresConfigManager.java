@@ -775,10 +775,10 @@ public final class StructuresConfigManager {
 					StructuresConfigManager.item("minecraft:stone_sword", 1, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:stone_spear", 1, 1, 1, "mythic"),
 					StructuresConfigManager.item("minecraft:stone_shovel", 1, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:leather_helmet", 1, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:leather_chestplate", 1, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:leather_leggings", 1, 1, 1, "mythic"),
-					StructuresConfigManager.item("minecraft:leather_boots", 1, 1, 1, "mythic")
+					StructuresConfigManager.item("minecraft:chainmail_helmet", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:chainmail_chestplate", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:chainmail_leggings", 1, 1, 1, "mythic"),
+					StructuresConfigManager.item("minecraft:chainmail_boots", 1, 1, 1, "mythic")
 				)))
 				.add(StructuresConfigManager.group("rare", 80, StructuresConfigManager.entries(
 					StructuresConfigManager.item("minecraft:baked_potato", 1, 2, 6),
