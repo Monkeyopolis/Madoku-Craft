@@ -1,7 +1,6 @@
 package madoku.craft.mixin.attributes;
 
 import madoku.craft.attributes.MadokuExperienceManager;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,11 +11,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Player.class)
 public abstract class PlayerExperienceCurveMixin {
-	@Inject(method = "die", at = @At("HEAD"))
-	private void madokuCraft$applyDeathExperiencePenalty(DamageSource damageSource, CallbackInfo callbackInfo) {
-		MadokuExperienceManager.applyDeathPenalty((Player) (Object) this);
-	}
-
 	@Inject(method = "getXpNeededForNextLevel", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$useConfiguredExperienceCurve(CallbackInfoReturnable<Integer> callbackInfo) {
 		if (MadokuExperienceManager.isEnabled()) {

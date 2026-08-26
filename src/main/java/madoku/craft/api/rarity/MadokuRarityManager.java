@@ -6,8 +6,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.List;
-
 import madoku.craft.api.rarity.RarityTierManager.Tier;
 
 /** Orchestrates the Madoku Rarity API subsystem and exposes its shared helpers. */
@@ -29,10 +27,6 @@ public final class MadokuRarityManager {
 		return RarityConfigManager.isEnabled();
 	}
 
-	public static List<ItemStack> applyCraftedRarity(ServerPlayer player, ItemStack stack) {
-		return RarityRuntimeManager.applyCraftedRarity(player, stack);
-	}
-
 	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource) {
 		RarityRuntimeManager.applyGeneratedRarity(stack, randomSource, null);
 	}
@@ -43,18 +37,6 @@ public final class MadokuRarityManager {
 
 	public static void applyConfiguredRarity(ItemStack stack, Tier rarity) {
 		RarityRuntimeManager.applyConfiguredRarity(stack, rarity);
-	}
-
-	public static void deliverCraftExtras(ServerPlayer player, List<ItemStack> extras) {
-		RarityRuntimeManager.deliverCraftExtras(player, extras);
-	}
-
-	public static ItemStack createSmithingUpgradeResult(ItemStack baseStack, ItemStack vanillaResult) {
-		return RarityRuntimeManager.createSmithingUpgradeResult(baseStack, vanillaResult);
-	}
-
-	public static void updateDurabilityLore(ItemStack stack) {
-		RarityRuntimeManager.updateDurabilityLore(stack);
 	}
 
 	public static Tier detectAppliedRarity(ItemStack stack) {

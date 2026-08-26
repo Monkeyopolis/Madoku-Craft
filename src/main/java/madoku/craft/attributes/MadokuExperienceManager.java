@@ -1,6 +1,11 @@
 package madoku.craft.attributes;
 
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 
 /** Replaces vanilla's player experience curve with Madoku's configured curve. */
 public final class MadokuExperienceManager {
@@ -10,6 +15,8 @@ public final class MadokuExperienceManager {
 
 	public static void initialize() {
 		settings = ExperienceConfigManager.loadSettings(MadokuAttributesManager.isEnabled());
+		ServerLivingEntityEvents.AFTER_DEATH.register(MadokuExperienceManager::applyDeathPenaltyAfterDeath);
+		ServerPlayerEvents.COPY_FROM.register(MadokuExperienceManager::copyExperienceOnRespawn);
 	}
 
 	public static boolean isEnabled() {
@@ -39,6 +46,22 @@ public final class MadokuExperienceManager {
 		}
 
 		setCurrentExperience(player, currentExperience * (1.0d - settings.levels.deathPenalty));
+	}
+
+	private static void applyDeathPenaltyAfterDeath(LivingEntity entity, DamageSource damageSource) {
+		if (entity instanceof Player player) {
+			applyDeathPenalty(player);
+		}
+	}
+
+	private static void copyExperienceOnRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer, boolean alive) {
+		if (!isEnabled() || alive || oldPlayer == null || newPlayer == null) {
+			return;
+		}
+
+		newPlayer.experienceLevel = oldPlayer.experienceLevel;
+		newPlayer.totalExperience = oldPlayer.totalExperience;
+		newPlayer.experienceProgress = oldPlayer.experienceProgress;
 	}
 
 	private static double getCurrentExperience(Player player) {

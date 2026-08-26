@@ -5,6 +5,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.api.rarity.MadokuRarityManager;
+import madoku.craft.api.rarity.RarityTierManager.Tier;
+import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -85,6 +88,72 @@ public final class MadokuRecipesManager {
 		if (!unlockable.isEmpty()) {
 			player.awardRecipes(unlockable);
 		}
+	}
+
+	/** Owns the crafting transaction; rarity only supplies the rarity operation. */
+	public static List<ItemStack> applyCraftedRarity(ServerPlayer player, ItemStack stack) {
+		if (!isInitialized() || !loadSystemEnabled() || player == null || stack == null || stack.isEmpty()) {
+			return List.of();
+		}
+
+		MadokuItemsManager.applyConfiguredItemLevel(stack, 1);
+		if (!MadokuRarityManager.isEnabled()
+			|| !MadokuItemsManager.isRarityCategoryItem(stack)
+			|| MadokuRarityManager.detectAppliedRarity(stack) != null) {
+			return List.of();
+		}
+
+		int craftedAmount = Math.max(1, stack.getCount());
+		if (craftedAmount == 1) {
+			MadokuRarityManager.applyGeneratedRarity(stack, player.getRandom(), player);
+			return List.of();
+		}
+
+		ItemStack base = stack.copy();
+		base.setCount(1);
+		stack.setCount(1);
+		MadokuRarityManager.applyGeneratedRarity(stack, player.getRandom(), player);
+
+		List<ItemStack> extras = new ArrayList<>(craftedAmount - 1);
+		for (int index = 1; index < craftedAmount; index++) {
+			ItemStack extra = base.copy();
+			MadokuRarityManager.applyGeneratedRarity(extra, player.getRandom(), player);
+			extras.add(extra);
+		}
+		return extras;
+	}
+
+	public static void deliverCraftExtras(ServerPlayer player, List<ItemStack> extras) {
+		if (player == null || extras == null || extras.isEmpty()) {
+			return;
+		}
+		for (ItemStack extra : extras) {
+			if (extra != null && !extra.isEmpty() && !player.getInventory().add(extra)) {
+				player.drop(extra, false);
+			}
+		}
+	}
+
+	/** Owns the smithing-result transaction while rarity supplies the carried tier. */
+	public static ItemStack createSmithingUpgradeResult(ItemStack baseStack, ItemStack vanillaResult) {
+		if (baseStack == null || baseStack.isEmpty()
+			|| vanillaResult == null || vanillaResult.isEmpty()
+			|| !MadokuItemsManager.isRarityCategoryItem(baseStack)
+			|| !MadokuItemsManager.isRarityCategoryItem(vanillaResult)) {
+			return vanillaResult;
+		}
+
+		ItemStack rebuiltResult = vanillaResult.copy();
+		MadokuItemsManager.applyConfiguredItemLevel(rebuiltResult, 1);
+		if (!isInitialized() || !loadSystemEnabled()) {
+			return rebuiltResult;
+		}
+
+		Tier sourceRarity = MadokuRarityManager.detectAppliedRarity(baseStack);
+		if (sourceRarity != null) {
+			MadokuRarityManager.applyConfiguredRarity(rebuiltResult, sourceRarity);
+		}
+		return rebuiltResult;
 	}
 
 	private static boolean isManagedRecipe(RecipeHolder<?> holder) {

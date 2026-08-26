@@ -10,6 +10,7 @@ import madoku.craft.api.rarity.MadokuRarityManager;
 import madoku.craft.api.rarity.RarityTierManager;
 import madoku.craft.api.rarity.RarityTierManager.Tier;
 import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.pet.PetConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -252,7 +253,7 @@ public final class LootTableStructuresManager {
 			}
 
 			int count = randomCount(entry.minCount(), entry.maxCount(), random);
-			appendSingleStackForRoll(generated, entry.item(), count, entry.itemRarity());
+			appendSingleStackForRoll(generated, entry.item(), count, entry.itemRarity(), random);
 		}
 		return List.copyOf(generated);
 	}
@@ -339,7 +340,13 @@ public final class LootTableStructuresManager {
 		return min + random.nextInt((max - min) + 1);
 	}
 
-	private static void appendSingleStackForRoll(List<ItemStack> into, Item item, int count, Tier itemRarity) {
+	private static void appendSingleStackForRoll(
+		List<ItemStack> into,
+		Item item,
+		int count,
+		Tier itemRarity,
+		RandomSource random
+	) {
 		if (into == null || item == null || count <= 0) {
 			return;
 		}
@@ -348,6 +355,7 @@ public final class LootTableStructuresManager {
 		int maxStackSize = Math.max(1, probe.getMaxStackSize());
 		int stackCount = Math.min(maxStackSize, count);
 		ItemStack stack = new ItemStack(item, stackCount);
+		MadokuItemsManager.applyGeneratedItemLevel(stack, random);
 		if (itemRarity != null) {
 			MadokuRarityManager.applyConfiguredRarity(stack, itemRarity);
 		}
@@ -762,9 +770,12 @@ public final class LootTableStructuresManager {
 			int weight = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_WEIGHT, 1));
 			int minCount = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_MIN_COUNT, 1));
 			int maxCount = Math.max(minCount, readInt(entryRoot, LootTableConfigManager.FIELD_MAX_COUNT, minCount));
-		Tier itemRarity = RarityTierManager.fromString(
-				readString(entryRoot, LootTableConfigManager.FIELD_ITEM_RARITY, "")
+			Tier itemRarity = RarityTierManager.fromString(
+				readString(entryRoot, LootTableConfigManager.FIELD_ITEM_RARITY, Tier.COMMON.id())
 			);
+			if (itemRarity == null) {
+				itemRarity = Tier.COMMON;
+			}
 			entries.add(new ManagedLootEntry(item, weight, minCount, maxCount, itemRarity));
 		}
 		return entries;

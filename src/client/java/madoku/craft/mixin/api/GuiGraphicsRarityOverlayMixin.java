@@ -75,7 +75,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 
 		Tier rarity = MadokuRarityManager.detectAppliedRarity(stack);
 		if (rarity == null) {
-			rarity = Tier.COMMON;
+			return;
 		}
 
 		String indicator = rarity.inventoryIndicator();

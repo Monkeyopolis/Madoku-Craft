@@ -18,9 +18,12 @@ import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
@@ -31,7 +34,9 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.AttackRange;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.component.ItemLore;
 import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.level.block.Block;
 import org.slf4j.Logger;
@@ -49,8 +54,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.StreamSupport;
+import net.minecraft.nbt.CompoundTag;
 
 public final class ItemsCategoriesManager {
+	private static final String DURABILITY_PREFIX = "Durability:";
+	private static final String LEVEL_PREFIX = "Level:";
+	private static final String ITEM_LEVEL_DATA_KEY = "madoku_item_level";
+	private static final String ITEM_LEVEL_SCALING_DATA_KEY = "madoku_item_level_scaling";
+	private static final String RARITY_SCALING_DATA_KEY = "madoku_rarity_scaling";
+	private static final double ATTACK_DAMAGE_SCALING_FACTOR = 0.50D;
+	private static final double ATTACK_SPEED_SCALING_FACTOR = 0.25D;
+	private static final double MINING_SPEED_SCALING_FACTOR = 0.25D;
+	private static final double ARMOR_SCALING_FACTOR = 0.50D;
+	private static final double ARMOR_TOUGHNESS_SCALING_FACTOR = 0.50D;
 	private static final Logger LOGGER = LoggerFactory.getLogger(ItemsCategoriesManager.class);
 	private static final AttackRange DEFAULT_REACH = new AttackRange(0.0F, 3.0F, 0.0F, 5.0F, 0.3F, 1.0F);
 	private static final int MAX_FUEL_TICKS = 201600;
@@ -72,13 +88,16 @@ public final class ItemsCategoriesManager {
 	private static final String ARMOR_ITEMS_FOLDER_NAME = "items-armor";
 
 	private static volatile boolean enabled = true;
-	private static volatile boolean useMadokuLuck = true;
+	private static volatile boolean itemLevelsEnabled = true;
+	private static volatile int itemStartingLevel = 1;
+	private static volatile int itemMaximumLevel = 5;
 	private static volatile Map<Item, Integer> fuelTicksByItem = Map.of();
 	private static volatile Map<Item, StackMode> stackModesByItem = Map.of();
 	private static volatile Map<Item, CategoriesToolManager> toolProfilesByItem = Map.of();
 	private static volatile Map<Item, CategoriesArmorManager> armorProfilesByItem = Map.of();
 	private static volatile Map<Item, Set<String>> categoriesByItem = Map.of();
 	private static volatile Set<Item> toolCategoryItems = Set.of();
+	private static volatile Set<Item> weaponCategoryItems = Set.of();
 	private static volatile Set<Item> armorCategoryItems = Set.of();
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
@@ -113,6 +132,9 @@ public final class ItemsCategoriesManager {
 	public static void reset() {
 		schedulerId = "";
 		tickQueued = false;
+		itemLevelsEnabled = true;
+		itemStartingLevel = 1;
+		itemMaximumLevel = 5;
 	}
 
 	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
@@ -223,10 +245,6 @@ public final class ItemsCategoriesManager {
 		return enabled;
 	}
 
-	public static boolean useMadokuLuck() {
-		return enabled && useMadokuLuck;
-	}
-
 	public static int applySingleStackRule(ItemStack stack, int currentLimit) {
 		if (!enabled || stack == null || stack.isEmpty()) {
 			return currentLimit;
@@ -264,7 +282,7 @@ public final class ItemsCategoriesManager {
 		if (!enabled || player == null) {
 			return;
 		}
-		if (toolCategoryItems.isEmpty() && armorCategoryItems.isEmpty()) {
+		if (toolCategoryItems.isEmpty() && weaponCategoryItems.isEmpty() && armorCategoryItems.isEmpty()) {
 			return;
 		}
 		if (gameplayTick % PLAYER_COMPONENT_SYNC_INTERVAL_TICKS != 0L) {
@@ -300,7 +318,7 @@ public final class ItemsCategoriesManager {
 		}
 
 		Item item = stack.getItem();
-		boolean syncTool = isToolCategoryItem(item);
+		boolean syncTool = isToolCategoryItem(item) || isWeaponCategoryItem(item);
 		boolean syncArmor = isArmorCategoryItem(item);
 		if (!syncTool && !syncArmor) {
 			return false;
@@ -371,8 +389,15 @@ public final class ItemsCategoriesManager {
 		return isArmorCategoryItem(stack.getItem());
 	}
 
+	public static boolean isWeaponCategoryItem(Item item) {
+		if (!enabled || item == null) {
+			return false;
+		}
+		return weaponCategoryItems.contains(item) || hasCategory(item, ItemsConfigManager.CATEGORY_WEAPON);
+	}
+
 	public static boolean isRarityCategoryItem(Item item) {
-		return isToolCategoryItem(item) || isArmorCategoryItem(item);
+		return isToolCategoryItem(item) || isWeaponCategoryItem(item) || isArmorCategoryItem(item);
 	}
 
 	public static boolean isRarityCategoryItem(ItemStack stack) {
@@ -380,6 +405,160 @@ public final class ItemsCategoriesManager {
 			return false;
 		}
 		return isRarityCategoryItem(stack.getItem());
+	}
+
+	public static boolean areItemLevelsEnabled() {
+		return enabled && itemLevelsEnabled;
+	}
+
+	public static int getItemStartingLevel() {
+		return itemStartingLevel;
+	}
+
+	public static int getItemMaximumLevel() {
+		return itemMaximumLevel;
+	}
+
+	public static Integer getItemLevel(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) {
+			return null;
+		}
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		if (customData == null) {
+			return null;
+		}
+		return customData.copyTag().getInt(ITEM_LEVEL_DATA_KEY).orElse(null);
+	}
+
+	public static void applyGeneratedItemLevel(ItemStack stack, RandomSource randomSource) {
+		if (!areItemLevelsEnabled() || stack == null || stack.isEmpty() || !isRarityCategoryItem(stack)
+			|| getItemLevel(stack) != null) {
+			return;
+		}
+
+		RandomSource random = randomSource == null ? RandomSource.create() : randomSource;
+		int level = itemStartingLevel;
+		int range = itemMaximumLevel - itemStartingLevel + 1;
+		if (range > 1) {
+			level += random.nextInt(range);
+		}
+		applyConfiguredItemLevel(stack, level);
+	}
+
+	public static void applyConfiguredItemLevel(ItemStack stack, int level) {
+		if (!areItemLevelsEnabled() || stack == null || stack.isEmpty() || !isRarityCategoryItem(stack)
+			|| getItemLevel(stack) != null) {
+			return;
+		}
+
+		int resolvedLevel = Math.max(1, Math.min(itemMaximumLevel, level));
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		CompoundTag tag = customData == null ? new CompoundTag() : customData.copyTag();
+		tag.putInt(ITEM_LEVEL_DATA_KEY, resolvedLevel);
+		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+
+		double adjustmentPercent = itemMaximumLevel <= itemStartingLevel
+			? 0.0D
+			: (double) (resolvedLevel - itemStartingLevel) / (double) (itemMaximumLevel - itemStartingLevel);
+		applyItemLevelScaling(stack, 1.0D + Math.max(0.0D, Math.min(1.0D, adjustmentPercent)));
+		updateDurabilityLore(stack);
+	}
+
+	/** Applies rarity's requested multiplier to the item mechanics owned by this system. */
+	public static void applyRarityScaling(ItemStack stack, double multiplier) {
+		applyStatScaling(stack, multiplier, RARITY_SCALING_DATA_KEY);
+	}
+
+	/** Applies an item level's requested multiplier to the item mechanics owned by this system. */
+	public static void applyItemLevelScaling(ItemStack stack, double multiplier) {
+		applyStatScaling(stack, multiplier, ITEM_LEVEL_SCALING_DATA_KEY);
+	}
+
+	private static void applyStatScaling(ItemStack stack, double multiplier, String scalingDataKey) {
+		if (!enabled || stack == null || stack.isEmpty() || !isRarityCategoryItem(stack)
+			|| !Double.isFinite(multiplier) || multiplier <= 1.0D) {
+			return;
+		}
+		rememberScalingMultiplier(stack, scalingDataKey, multiplier);
+		rebuildStatScaling(stack);
+	}
+
+	private static void rememberScalingMultiplier(ItemStack stack, String key, double multiplier) {
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		CompoundTag tag = customData == null ? new CompoundTag() : customData.copyTag();
+		tag.putDouble(key, multiplier);
+		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+	}
+
+	private static void rebuildStatScaling(ItemStack stack) {
+		double rarityMultiplier = readScalingMultiplier(stack, RARITY_SCALING_DATA_KEY);
+		double levelMultiplier = readScalingMultiplier(stack, ITEM_LEVEL_SCALING_DATA_KEY);
+		double combinedMultiplier = rarityMultiplier + levelMultiplier - 1.0D;
+		if (!Double.isFinite(combinedMultiplier) || combinedMultiplier <= 1.0D) {
+			return;
+		}
+
+		DataComponentMap prototype = stack.getPrototype();
+		Integer baseMaxDamage = prototype == null ? stack.get(DataComponents.MAX_DAMAGE) : prototype.get(DataComponents.MAX_DAMAGE);
+		ItemAttributeModifiers baseAttributes = prototype == null
+			? stack.get(DataComponents.ATTRIBUTE_MODIFIERS)
+			: prototype.get(DataComponents.ATTRIBUTE_MODIFIERS);
+		Tool baseTool = prototype == null ? stack.get(DataComponents.TOOL) : prototype.get(DataComponents.TOOL);
+
+		scaleMaxDurability(stack, baseMaxDamage, combinedMultiplier);
+		scaleMainHandAttackAttributes(stack, baseAttributes,
+			combinedEffectMultiplier(rarityMultiplier, levelMultiplier, ATTACK_DAMAGE_SCALING_FACTOR),
+			combinedEffectMultiplier(rarityMultiplier, levelMultiplier, ATTACK_SPEED_SCALING_FACTOR));
+		scaleArmorAttributes(stack, baseAttributes,
+			combinedEffectMultiplier(rarityMultiplier, levelMultiplier, ARMOR_SCALING_FACTOR),
+			combinedEffectMultiplier(rarityMultiplier, levelMultiplier, ARMOR_TOUGHNESS_SCALING_FACTOR));
+		scaleMiningSpeed(stack, baseTool,
+			combinedEffectMultiplier(rarityMultiplier, levelMultiplier, MINING_SPEED_SCALING_FACTOR));
+	}
+
+	private static double readScalingMultiplier(ItemStack stack, String key) {
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		if (customData == null) {
+			return 1.0D;
+		}
+		return customData.copyTag().getDouble(key).orElse(1.0D);
+	}
+
+	private static double combinedEffectMultiplier(double rarityMultiplier, double levelMultiplier, double factor) {
+		return 1.0D
+			+ (rarityMultiplier - 1.0D) * factor
+			+ (levelMultiplier - 1.0D) * factor;
+	}
+
+	public static void updateDurabilityLore(ItemStack stack) {
+		if (!enabled || stack == null || stack.isEmpty() || !stack.isDamageableItem()
+			|| !isRarityCategoryItem(stack)) {
+			return;
+		}
+		int maxDurability = stack.getMaxDamage();
+		if (maxDurability <= 0) {
+			return;
+		}
+
+		int currentDurability = Math.max(0, maxDurability - stack.getDamageValue());
+		Component durabilityLine = Component.literal(DURABILITY_PREFIX + " " + currentDurability + "/" + maxDurability)
+			.withStyle(ChatFormatting.GRAY);
+		ItemLore currentLore = stack.get(DataComponents.LORE);
+		List<Component> updatedLines = new ArrayList<>();
+		if (currentLore != null) {
+			for (Component line : currentLore.lines()) {
+				if (!line.getString().startsWith(DURABILITY_PREFIX)
+					&& !line.getString().startsWith(LEVEL_PREFIX)) {
+					updatedLines.add(line);
+				}
+			}
+		}
+		Integer itemLevel = getItemLevel(stack);
+		if (itemLevel != null) {
+			updatedLines.add(Component.literal(LEVEL_PREFIX + " " + itemLevel).withStyle(ChatFormatting.GRAY));
+		}
+		updatedLines.add(durabilityLine);
+		stack.set(DataComponents.LORE, new ItemLore(updatedLines));
 	}
 
 	public static Set<String> getCategories(Item item) {
@@ -420,12 +599,16 @@ public final class ItemsCategoriesManager {
 			JsonObject settingsGeneral = settingsDocument.settings();
 			settingsGeneral.addProperty(FIELD_ENABLED, itemSystemEnabled);
 			JSONFormatManager.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral, JSONTypeManager.STATIC_CONFIG);
+			JsonObject itemLevels = settingsRoot.getAsJsonObject(ItemsConfigManager.FIELD_ITEM_LEVELS);
+			boolean itemLevelsEnabled = readBoolean(itemLevels, ItemsConfigManager.FIELD_CATEGORY_ENABLED, true);
+			int itemStartingLevel = Math.max(1, readInt(itemLevels, ItemsConfigManager.FIELD_STARTING_LEVEL, 1));
+			int itemMaximumLevel = Math.max(itemStartingLevel,
+				readInt(itemLevels, ItemsConfigManager.FIELD_MAXIMUM_LEVEL, 5));
 			boolean armorCategoryEnabled = readCategoryEnabled(settingsRoot, ItemsConfigManager.FIELD_ARMOR_CATEGORY);
 			boolean toolCategoryEnabled = readCategoryEnabled(settingsRoot, ItemsConfigManager.FIELD_TOOL_CATEGORY);
 			boolean weaponCategoryEnabled = readCategoryEnabled(settingsRoot, ItemsConfigManager.FIELD_WEAPON_CATEGORY);
 			boolean fuelCategoryEnabled = readCategoryEnabled(settingsRoot, ItemsConfigManager.FIELD_FUEL_CATEGORY);
 			boolean otherCategoryEnabled = readCategoryEnabled(settingsRoot, ItemsConfigManager.FIELD_OTHER_CATEGORY);
-			useMadokuLuck = readBoolean(settingsRoot, ItemsConfigManager.FIELD_USE_MADOKU_LUCK, true);
 
 			Path itemsDirectory = rootDirectory.resolve(ITEM_CONFIG_ITEMS_FOLDER_NAME);
 			Path fuelDirectory = itemsDirectory.resolve(FUEL_ITEMS_FOLDER_NAME);
@@ -476,12 +659,14 @@ public final class ItemsCategoriesManager {
 
 			if (!itemSystemEnabled) {
 				enabled = false;
+				ItemsCategoriesManager.itemLevelsEnabled = false;
 				fuelTicksByItem = Map.of();
 				stackModesByItem = Map.of();
 				toolProfilesByItem = Map.of();
 				armorProfilesByItem = Map.of();
 				categoriesByItem = Map.of();
 				toolCategoryItems = Set.of();
+				weaponCategoryItems = Set.of();
 				armorCategoryItems = Set.of();
 				return;
 			}
@@ -496,17 +681,21 @@ public final class ItemsCategoriesManager {
 				otherCategoryEnabled,
 				toolCategoryEnabled,
 				weaponCategoryEnabled,
-				armorCategoryEnabled
+				armorCategoryEnabled,
+				itemLevelsEnabled,
+				itemStartingLevel,
+				itemMaximumLevel
 			);
 		} catch (IOException | RuntimeException exception) {
 			enabled = false;
+			itemLevelsEnabled = false;
 			fuelTicksByItem = Map.of();
 			stackModesByItem = Map.of();
 			toolProfilesByItem = Map.of();
 			armorProfilesByItem = Map.of();
-			useMadokuLuck = false;
 			categoriesByItem = Map.of();
 			toolCategoryItems = Set.of();
+			weaponCategoryItems = Set.of();
 			armorCategoryItems = Set.of();
 			LOGGER.error("Failed to load ItemsCategoriesManager folder config; disabling custom item rules.", exception);
 		}
@@ -522,7 +711,10 @@ public final class ItemsCategoriesManager {
 		boolean otherCategoryEnabled,
 		boolean toolCategoryEnabled,
 		boolean weaponCategoryEnabled,
-		boolean armorCategoryEnabled
+		boolean armorCategoryEnabled,
+		boolean configuredItemLevelsEnabled,
+		int configuredItemStartingLevel,
+		int configuredItemMaximumLevel
 	) {
 		Map<Item, Integer> resolvedFuel = new LinkedHashMap<>();
 		Map<Item, StackMode> resolvedStackModes = new LinkedHashMap<>();
@@ -530,6 +722,7 @@ public final class ItemsCategoriesManager {
 		Map<Item, CategoriesArmorManager> resolvedArmor = new LinkedHashMap<>();
 		Map<Item, Set<String>> resolvedCategories = new LinkedHashMap<>();
 		Set<Item> resolvedToolCategoryItems = new LinkedHashSet<>();
+		Set<Item> resolvedWeaponCategoryItems = new LinkedHashSet<>();
 		Set<Item> resolvedArmorCategoryItems = new LinkedHashSet<>();
 		Set<String> enabledCategories = new LinkedHashSet<>();
 		if (fuelCategoryEnabled) {
@@ -618,6 +811,7 @@ public final class ItemsCategoriesManager {
 				if (root == null) continue;
 				Item item = resolveItem(resolveItemId(entry.getKey(), root));
 				if (item == null) continue;
+				resolvedWeaponCategoryItems.add(item);
 				resolvedToolCategoryItems.add(item);
 				resolvedStackModes.put(item, readStackMode(root, StackMode.SINGLE));
 				resolvedCategories.put(item, readCategories(root, enabledCategories));
@@ -651,12 +845,16 @@ public final class ItemsCategoriesManager {
 		}
 
 			enabled = true;
+			itemLevelsEnabled = configuredItemLevelsEnabled;
+			itemStartingLevel = Math.max(1, configuredItemStartingLevel);
+			itemMaximumLevel = Math.max(itemStartingLevel, configuredItemMaximumLevel);
 			fuelTicksByItem = Map.copyOf(resolvedFuel);
 			stackModesByItem = Map.copyOf(resolvedStackModes);
 			toolProfilesByItem = Map.copyOf(resolvedTools);
 			armorProfilesByItem = Map.copyOf(resolvedArmor);
 			categoriesByItem = Map.copyOf(resolvedCategories);
 			toolCategoryItems = Set.copyOf(resolvedToolCategoryItems);
+			weaponCategoryItems = Set.copyOf(resolvedWeaponCategoryItems);
 			armorCategoryItems = Set.copyOf(resolvedArmorCategoryItems);
 		}
 
@@ -776,11 +974,23 @@ public final class ItemsCategoriesManager {
 
 	private static JsonObject normalizeCategoryFeatureSettings(JsonObject source) {
 		JsonObject normalized = ItemsConfigManager.buildCategoryFeatureDefaults();
+		JsonObject itemLevels = normalized.getAsJsonObject(ItemsConfigManager.FIELD_ITEM_LEVELS);
+		JsonObject sourceItemLevels = source != null
+			&& source.get(ItemsConfigManager.FIELD_ITEM_LEVELS) != null
+			&& source.get(ItemsConfigManager.FIELD_ITEM_LEVELS).isJsonObject()
+			? source.getAsJsonObject(ItemsConfigManager.FIELD_ITEM_LEVELS)
+			: null;
+		int startingLevel = Math.max(1, readInt(sourceItemLevels, ItemsConfigManager.FIELD_STARTING_LEVEL, 1));
+		int maximumLevel = Math.max(startingLevel,
+			readInt(sourceItemLevels, ItemsConfigManager.FIELD_MAXIMUM_LEVEL, 5));
+		itemLevels.addProperty(ItemsConfigManager.FIELD_CATEGORY_ENABLED,
+			readBoolean(sourceItemLevels, ItemsConfigManager.FIELD_CATEGORY_ENABLED, true));
+		itemLevels.addProperty(ItemsConfigManager.FIELD_STARTING_LEVEL, startingLevel);
+		itemLevels.addProperty(ItemsConfigManager.FIELD_MAXIMUM_LEVEL, maximumLevel);
 		for (String categoryField : CategoriesConfigManager.categoryFields()) {
 			JsonObject category = normalized.getAsJsonObject(categoryField);
 			category.addProperty(ItemsConfigManager.FIELD_CATEGORY_ENABLED, readCategoryEnabled(source, categoryField));
 		}
-		normalized.addProperty(ItemsConfigManager.FIELD_USE_MADOKU_LUCK, readBoolean(source, ItemsConfigManager.FIELD_USE_MADOKU_LUCK, true));
 		return normalized;
 	}
 
@@ -1169,6 +1379,112 @@ public final class ItemsCategoriesManager {
 		return profile.hasDurability()
 			|| profile.hasArmor()
 			|| profile.hasArmorToughness();
+	}
+
+	private static void scaleMaxDurability(ItemStack stack, Integer baseMaxDamage, double multiplier) {
+		Integer maxDamage = baseMaxDamage;
+		if (maxDamage != null && maxDamage > 0) {
+			long rounded = Math.round((maxDamage * multiplier) / 8.0D) * 8L;
+			stack.set(DataComponents.MAX_DAMAGE, (int) Math.max(8L, Math.min(Integer.MAX_VALUE, rounded)));
+		}
+	}
+
+	private static void scaleMainHandAttackAttributes(
+		ItemStack stack,
+		ItemAttributeModifiers current,
+		double damageMultiplier,
+		double speedMultiplier
+	) {
+		if (current == null) {
+			return;
+		}
+		boolean changed = false;
+		ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
+		for (ItemAttributeModifiers.Entry entry : current.modifiers()) {
+			AttributeModifier modifier = entry.modifier();
+			AttributeModifier updated = modifier;
+			if (isMainHandAddValue(entry, modifier) && modifier.id().equals(Item.BASE_ATTACK_DAMAGE_ID)
+				&& isAttribute(entry, Attributes.ATTACK_DAMAGE)) {
+				double value = roundQuarter((1.0D + modifier.amount()) * damageMultiplier);
+				updated = new AttributeModifier(modifier.id(), value - 1.0D, modifier.operation());
+				changed = true;
+			} else if (isMainHandAddValue(entry, modifier) && modifier.id().equals(Item.BASE_ATTACK_SPEED_ID)
+				&& isAttribute(entry, Attributes.ATTACK_SPEED)) {
+				double value = roundIncrement((4.0D + modifier.amount()) * speedMultiplier, 0.025D);
+				updated = new AttributeModifier(modifier.id(), value - 4.0D, modifier.operation());
+				changed = true;
+			}
+			builder.add(entry.attribute(), updated, entry.slot(), entry.display());
+		}
+		if (changed) {
+			stack.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
+		}
+	}
+
+	private static void scaleArmorAttributes(
+		ItemStack stack,
+		ItemAttributeModifiers current,
+		double armorMultiplier,
+		double toughnessMultiplier
+	) {
+		if (current == null) {
+			return;
+		}
+		boolean changed = false;
+		ItemAttributeModifiers.Builder builder = ItemAttributeModifiers.builder();
+		for (ItemAttributeModifiers.Entry entry : current.modifiers()) {
+			AttributeModifier modifier = entry.modifier();
+			AttributeModifier updated = modifier;
+			if (isAddValueModifier(modifier) && isAttribute(entry, Attributes.ARMOR)) {
+				updated = new AttributeModifier(modifier.id(), roundQuarter(modifier.amount() * armorMultiplier), modifier.operation());
+				changed = true;
+			} else if (isAddValueModifier(modifier) && isAttribute(entry, Attributes.ARMOR_TOUGHNESS)) {
+				updated = new AttributeModifier(modifier.id(), roundQuarter(modifier.amount() * toughnessMultiplier), modifier.operation());
+				changed = true;
+			}
+			builder.add(entry.attribute(), updated, entry.slot(), entry.display());
+		}
+		if (changed) {
+			stack.set(DataComponents.ATTRIBUTE_MODIFIERS, builder.build());
+		}
+	}
+
+	private static void scaleMiningSpeed(ItemStack stack, Tool current, double multiplier) {
+		if (current == null) {
+			return;
+		}
+		boolean changed = false;
+		List<Tool.Rule> rules = new ArrayList<>(current.rules().size());
+		for (Tool.Rule rule : current.rules()) {
+			Optional<Float> speed = rule.speed();
+			if (speed.isPresent()) {
+				rules.add(new Tool.Rule(rule.blocks(), Optional.of((float) roundQuarter(speed.get() * multiplier)), rule.correctForDrops()));
+				changed = true;
+			} else {
+				rules.add(rule);
+			}
+		}
+		float defaultSpeed = (float) roundQuarter(current.defaultMiningSpeed() * multiplier);
+		changed |= defaultSpeed != current.defaultMiningSpeed();
+		if (changed) {
+			stack.set(DataComponents.TOOL, new Tool(rules, defaultSpeed, current.damagePerBlock(), current.canDestroyBlocksInCreative()));
+		}
+	}
+
+	private static boolean isMainHandAddValue(ItemAttributeModifiers.Entry entry, AttributeModifier modifier) {
+		return entry.slot() == EquipmentSlotGroup.MAINHAND && isAddValueModifier(modifier);
+	}
+
+	private static boolean isAddValueModifier(AttributeModifier modifier) {
+		return modifier.operation() == AttributeModifier.Operation.ADD_VALUE;
+	}
+
+	private static double roundQuarter(double value) {
+		return roundIncrement(value, 0.25D);
+	}
+
+	private static double roundIncrement(double value, double increment) {
+		return Math.round(value / increment) * increment;
 	}
 
 	private static void applyToolProfiles(Map<Item, CategoriesToolManager> profiles) {

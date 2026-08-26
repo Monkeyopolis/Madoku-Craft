@@ -1,6 +1,7 @@
 package madoku.craft.items;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
@@ -26,11 +27,29 @@ public final class MadokuItemsManager {
 
 	public static boolean isEnabled() { return ItemsCategoriesManager.isEnabled(); }
 
-	public static boolean useMadokuLuck() { return ItemsCategoriesManager.useMadokuLuck(); }
-
 	public static boolean isConfiguredFuel(ItemStack stack) { return ItemsCategoriesManager.isConfiguredFuel(stack); }
 
 	public static boolean isRarityCategoryItem(ItemStack stack) { return ItemsCategoriesManager.isRarityCategoryItem(stack); }
 
 	public static boolean isRarityCategoryItem(Item item) { return ItemsCategoriesManager.isRarityCategoryItem(item); }
+
+	public static boolean isWeaponCategoryItem(Item item) { return ItemsCategoriesManager.isWeaponCategoryItem(item); }
+
+	public static void applyGeneratedItemLevel(ItemStack stack, RandomSource randomSource) {
+		ItemsCategoriesManager.applyGeneratedItemLevel(stack, randomSource);
+	}
+
+	public static void applyConfiguredItemLevel(ItemStack stack, int level) {
+		ItemsCategoriesManager.applyConfiguredItemLevel(stack, level);
+	}
+
+	public static Integer getItemLevel(ItemStack stack) { return ItemsCategoriesManager.getItemLevel(stack); }
+
+	public static void applyRarityScaling(ItemStack stack, double multiplier) {
+		ItemsCategoriesManager.applyRarityScaling(stack, multiplier);
+	}
+
+	public static void updateDurabilityLore(ItemStack stack) {
+		ItemsCategoriesManager.updateDurabilityLore(stack);
+	}
 }

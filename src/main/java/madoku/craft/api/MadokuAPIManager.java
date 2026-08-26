@@ -64,6 +64,7 @@ public final class MadokuAPIManager {
 		MadokuChunkManager.onServerStarted(server);
 		MadokuSeasonManager.onServerStarted(server);
 		MadokuSyncManager.onServerStarted(server);
+		MadokuRecipesManager.initialize();
 		MadokuLootTableManager.initialize();
 	}
 

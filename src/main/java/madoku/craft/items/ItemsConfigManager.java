@@ -11,13 +11,15 @@ import java.util.Map;
 
 public final class ItemsConfigManager {
 	public static final String FIELD_ITEM_ID = "item-id";
+	public static final String FIELD_ITEM_LEVELS = "item-levels";
+	public static final String FIELD_STARTING_LEVEL = "starting-level";
+	public static final String FIELD_MAXIMUM_LEVEL = "maximum-level";
 	public static final String FIELD_ARMOR_CATEGORY = "armor-category";
 	public static final String FIELD_TOOL_CATEGORY = "tool-category";
 	public static final String FIELD_WEAPON_CATEGORY = "weapon-category";
 	public static final String FIELD_FUEL_CATEGORY = "fuel-category";
 	public static final String FIELD_OTHER_CATEGORY = "other-category";
 	public static final String FIELD_CATEGORY_ENABLED = "enabled";
-	public static final String FIELD_USE_MADOKU_LUCK = "use-madoku-luck";
 	public static final String FIELD_CATEGORY = "categories";
 	public static final String FIELD_STACK = "stack";
 	public static final String STACK_SINGLE = "single";
@@ -52,12 +54,15 @@ public final class ItemsConfigManager {
 
 	public static JsonObject buildCategoryFeatureDefaults() {
 		return JSONFormatManager.object()
+			.object(FIELD_ITEM_LEVELS, levels -> levels
+				.put(FIELD_CATEGORY_ENABLED, true)
+				.put(FIELD_STARTING_LEVEL, 1)
+				.put(FIELD_MAXIMUM_LEVEL, 5))
 			.object(FIELD_ARMOR_CATEGORY, category -> category.put(FIELD_CATEGORY_ENABLED, true))
 			.object(FIELD_TOOL_CATEGORY, category -> category.put(FIELD_CATEGORY_ENABLED, true))
 			.object(FIELD_WEAPON_CATEGORY, category -> category.put(FIELD_CATEGORY_ENABLED, true))
 			.object(FIELD_FUEL_CATEGORY, category -> category.put(FIELD_CATEGORY_ENABLED, true))
 			.object(FIELD_OTHER_CATEGORY, category -> category.put(FIELD_CATEGORY_ENABLED, true))
-			.put(FIELD_USE_MADOKU_LUCK, true)
 			.build();
 	}
 
@@ -453,7 +458,6 @@ public final class ItemsConfigManager {
 			"minecraft:fishing_rod",
 			buildToolItemDefaults("minecraft:fishing_rod", 128, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_DOUBLE_UNSET, TOOL_INT_UNSET, STACK_SINGLE)
 		);
-
 		return defaults;
 	}
 
@@ -547,7 +551,6 @@ public final class ItemsConfigManager {
 				);
 			}
 		}
-
 		return defaults;
 	}
 

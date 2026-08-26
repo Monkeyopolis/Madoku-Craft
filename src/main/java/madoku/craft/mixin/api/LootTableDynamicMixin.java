@@ -2,6 +2,11 @@ package madoku.craft.mixin.api;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.api.loot.MadokuLootTableManager;
+import madoku.craft.api.rarity.MadokuRarityManager;
+import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.pet.PetHagManager;
+import madoku.craft.items.MadokuItemsManager;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -29,7 +34,9 @@ public class LootTableDynamicMixin {
 		if (generated == null) {
 			return;
 		}
-		cir.setReturnValue(new ObjectArrayList<>(generated));
+		ObjectArrayList<ItemStack> resolved = new ObjectArrayList<>(generated);
+		applyRarity(lootContext, resolved);
+		cir.setReturnValue(resolved);
 	}
 
 	@Inject(
@@ -46,12 +53,28 @@ public class LootTableDynamicMixin {
 		if (generated == null) {
 			return;
 		}
-		for (ItemStack stack : generated) {
+		ObjectArrayList<ItemStack> resolved = new ObjectArrayList<>(generated);
+		applyRarity(lootContext, resolved);
+		for (ItemStack stack : resolved) {
 			if (stack != null && !stack.isEmpty()) {
 				consumer.accept(stack);
 			}
 		}
 		ci.cancel();
+	}
+
+	private static void applyRarity(LootContext lootContext, ObjectArrayList<ItemStack> stacks) {
+		if (stacks == null || stacks.isEmpty()) {
+			return;
+		}
+
+		RandomSource random = lootContext == null ? null : lootContext.getRandom();
+		for (ItemStack stack : stacks) {
+			MadokuItemsManager.applyGeneratedItemLevel(stack, random);
+			MadokuRarityManager.applyGeneratedRarity(stack, random,
+				MadokuLuckManager.resolveLootPlayer(lootContext));
+			PetHagManager.applyLore(stack);
+		}
 	}
 }
 
