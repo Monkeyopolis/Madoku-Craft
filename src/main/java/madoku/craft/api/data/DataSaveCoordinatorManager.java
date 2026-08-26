@@ -1,8 +1,8 @@
 package madoku.craft.api.data;
 
 import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.attributes.health.MadokuHealthManager;
-import madoku.craft.attributes.hunger.MadokuHungerManager;
+import madoku.craft.attributes.MadokuHealthManager;
+import madoku.craft.attributes.MadokuHungerManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;

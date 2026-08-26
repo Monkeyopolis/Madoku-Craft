@@ -2,7 +2,7 @@ package madoku.craft.mixin.api;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.api.rarity.MadokuRarityManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import madoku.craft.pet.PetHagManager;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;

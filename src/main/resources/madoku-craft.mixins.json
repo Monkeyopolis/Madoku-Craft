@@ -75,6 +75,7 @@
     "pet.PetInventoryMixin",
     "levels.PlayerExperienceMadokuLevelsMixin",
     "attributes.PlayerLuckCriticalHitMixin",
+    "attributes.PlayerExperienceCurveMixin",
     "api.PlayerSleepTickMixin",
     "attributes.PlayerFoodExhaustionMixin",
     "api.RandomizableContainerLootMixin",

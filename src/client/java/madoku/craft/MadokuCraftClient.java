@@ -12,7 +12,7 @@ import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.api.season.SeasonPayloadManager;
 import madoku.craft.api.season.PlayerClimatePayloadManager;
 import madoku.craft.api.time.TimePayloadManager;
-import madoku.craft.attributes.hunger.HungerPayloadManager;
+import madoku.craft.attributes.HungerPayloadManager;
 import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.pet.PetPayloadManager;
 import madoku.craft.pet.PetHudManagerClient;

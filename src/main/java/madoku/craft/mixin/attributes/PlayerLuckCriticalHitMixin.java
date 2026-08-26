@@ -1,6 +1,5 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.luck.MadokuLuckManager;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.damagesource.DamageSource;
@@ -14,6 +13,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import madoku.craft.attributes.MadokuLuckManager;
 
 @Mixin(Player.class)
 public abstract class PlayerLuckCriticalHitMixin {

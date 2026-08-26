@@ -1,6 +1,5 @@
-package madoku.craft.attributes.armor;
+package madoku.craft.attributes;
 
-import madoku.craft.attributes.MadokuAttributesManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.core.Holder;
 import net.minecraft.world.damagesource.DamageSource;

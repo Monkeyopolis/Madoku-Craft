@@ -1,7 +1,7 @@
 package madoku.craft.api.rarity;
 
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;

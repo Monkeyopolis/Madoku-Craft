@@ -1,4 +1,4 @@
-package madoku.craft.attributes.hunger;
+package madoku.craft.attributes;
 
 import madoku.craft.MadokuCraft;
 import net.minecraft.network.RegistryFriendlyByteBuf;

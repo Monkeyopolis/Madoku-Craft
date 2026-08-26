@@ -1,11 +1,5 @@
 package madoku.craft.attributes;
 
-import madoku.craft.attributes.armor.MadokuArmorManager;
-import madoku.craft.attributes.health.MadokuHealthManager;
-import madoku.craft.attributes.hunger.MadokuHungerManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.attributes.oxygen.MadokuOxygenManager;
-
 public final class MadokuAttributesManager {
 	private static volatile AttributesConfigManager.Settings settings = AttributesConfigManager.Settings.defaults();
 
@@ -14,6 +8,7 @@ public final class MadokuAttributesManager {
 
 	public static void initialize() {
 		loadStaticConfig();
+		MadokuExperienceManager.initialize();
 		MadokuArmorManager.initialize();
 		MadokuHealthManager.initialize();
 		MadokuHungerManager.initialize();

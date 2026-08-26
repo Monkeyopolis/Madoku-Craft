@@ -1,6 +1,5 @@
 package madoku.craft.api.rarity;
 
-import madoku.craft.attributes.luck.MadokuLuckManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import madoku.craft.api.rarity.RarityTierManager.Tier;
+import madoku.craft.attributes.MadokuLuckManager;
 
 public final class RarityRuntimeManager {
 	private static final String DURABILITY_PREFIX = "Durability:";

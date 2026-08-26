@@ -1,8 +1,8 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.health.MadokuHealthManager;
-import madoku.craft.attributes.hunger.MadokuHungerManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuHealthManager;
+import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.LivingEntity;

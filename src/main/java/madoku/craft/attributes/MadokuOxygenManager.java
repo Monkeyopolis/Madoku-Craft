@@ -1,7 +1,6 @@
-package madoku.craft.attributes.oxygen;
+package madoku.craft.attributes;
 
 import net.minecraft.world.entity.LivingEntity;
-import madoku.craft.attributes.MadokuAttributesManager;
 
 /** Provides the configured vanilla oxygen maximum for player air-supply hooks and HUDs. */
 public final class MadokuOxygenManager {

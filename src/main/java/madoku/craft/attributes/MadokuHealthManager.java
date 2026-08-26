@@ -1,4 +1,4 @@
-package madoku.craft.attributes.health;
+package madoku.craft.attributes;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -7,11 +7,9 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.attributes.hunger.MadokuHungerManager;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;

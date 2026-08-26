@@ -1,8 +1,7 @@
-package madoku.craft.attributes.luck;
+package madoku.craft.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.api.helper.MadokuBlockDropContextManager;
 import madoku.craft.farming.MadokuFarmingManager;

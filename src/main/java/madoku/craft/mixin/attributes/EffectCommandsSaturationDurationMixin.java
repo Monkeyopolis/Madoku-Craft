@@ -1,12 +1,13 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.server.commands.EffectCommands;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffects;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import madoku.craft.attributes.MadokuHungerManager;
 
 @Mixin(EffectCommands.class)
 public abstract class EffectCommandsSaturationDurationMixin {

@@ -1,9 +1,9 @@
-package madoku.craft.attributes.hunger;
+package madoku.craft.attributes;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.attributes.MadokuAttributesManager;
+
 import madoku.craft.api.time.MadokuTimeManager;
 import madoku.craft.api.data.DataPlayerManager;
 import madoku.craft.api.sync.SyncPlayerManager;

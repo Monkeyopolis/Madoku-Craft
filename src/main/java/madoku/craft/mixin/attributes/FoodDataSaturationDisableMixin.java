@@ -1,6 +1,5 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.hunger.MadokuHungerManager;
 import net.minecraft.world.food.FoodData;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -10,6 +9,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import madoku.craft.attributes.MadokuHungerManager;
 
 @Mixin(FoodData.class)
 public abstract class FoodDataSaturationDisableMixin {

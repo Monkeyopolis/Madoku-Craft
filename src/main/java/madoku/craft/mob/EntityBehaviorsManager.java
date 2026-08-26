@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import madoku.craft.api.scheduler.MadokuSchedulerManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.mixin.mob.AbstractSkeletonArrowInvoker;
 import madoku.craft.api.helper.HelperProjectileManager;

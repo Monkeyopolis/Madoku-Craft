@@ -2,9 +2,9 @@ package madoku.craft.hud;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.hunger.MadokuHungerManager;
-import madoku.craft.attributes.luck.MadokuLuckManager;
-import madoku.craft.attributes.oxygen.MadokuOxygenManager;
+import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.MadokuOxygenManager;
 import madoku.craft.mixin.hud.GuiAccessor;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;

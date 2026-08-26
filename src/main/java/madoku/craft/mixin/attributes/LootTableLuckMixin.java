@@ -1,7 +1,7 @@
 package madoku.craft.mixin.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootTable;

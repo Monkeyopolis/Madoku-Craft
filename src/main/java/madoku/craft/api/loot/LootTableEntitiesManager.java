@@ -4,9 +4,10 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;

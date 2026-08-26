@@ -9,7 +9,7 @@ import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.api.rarity.MadokuRarityManager;
 import madoku.craft.api.rarity.RarityTierManager;
 import madoku.craft.api.rarity.RarityTierManager.Tier;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.pet.PetConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -861,6 +861,7 @@ public final class LootTableStructuresManager {
 			case "igloo_chest" -> STRUCTURE_CHEST_PREFIX + "igloo";
 			case "jungle_temple" -> STRUCTURE_CHEST_PREFIX + "jungle_temple";
 			case "nether_bridge" -> STRUCTURE_CHEST_PREFIX + "nether_fortress";
+			case "pillager_outpost" -> STRUCTURE_CHEST_PREFIX + "pillager_outpost";
 			case "ruined_portal" -> STRUCTURE_CHEST_PREFIX + "ruined_portal";
 			case "simple_dungeon" -> STRUCTURE_CHEST_PREFIX + "dungeon";
 			case "spawn_bonus_chest" -> STRUCTURE_CHEST_PREFIX + "starter_chest";

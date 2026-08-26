@@ -3,10 +3,11 @@ package madoku.craft.api.loot;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.attributes.luck.MadokuLuckManager;
+
 import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.api.json.JSONFormatManager;
 import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.attributes.MadokuLuckManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
