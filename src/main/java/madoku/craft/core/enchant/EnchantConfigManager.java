@@ -14,6 +14,7 @@ import java.nio.file.Path;
 public final class EnchantConfigManager {
 	private static final String CONFIG_FILE_NAME = "madoku-enchant.json";
 	private static final String TABLE_GROUP = "enchantment-table";
+	private static final String CUSTOM_ENCHANTMENTS_GROUP = "custom-enchantments";
 	private static volatile EnchantSettings settings = EnchantSettings.DEFAULT;
 
 	private EnchantConfigManager() {
@@ -39,6 +40,10 @@ public final class EnchantConfigManager {
 		return settings.enabled && settings.enchantmentTableEnabled;
 	}
 
+	public static boolean areCustomEnchantmentsEnabled() {
+		return settings.enabled && settings.customEnchantmentsEnabled;
+	}
+
 	public static Path enchantDirectory() {
 		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(MadokuEnchantManager.ENCHANT_FOLDER_NAME);
 	}
@@ -60,10 +65,12 @@ public final class EnchantConfigManager {
 			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, buildDefaults());
 			JSONFormatManager.ManagedDocument document = JSONFormatManager.readManagedDocument(file);
 			JsonObject table = object(normalized, TABLE_GROUP);
+			JsonObject customEnchantments = object(normalized, CUSTOM_ENCHANTMENTS_GROUP);
 			boolean enabled = booleanValue(document.settings(), "enabled", true);
 			settings = new EnchantSettings(
 				enabled,
-				booleanValue(table, "enabled", true)
+				booleanValue(table, "enabled", true),
+				booleanValue(customEnchantments, "enabled", true)
 			);
 			enchantmentsDirectory();
 		} catch (IOException | RuntimeException exception) {
@@ -74,6 +81,7 @@ public final class EnchantConfigManager {
 	private static JsonObject buildDefaults() {
 		return JSONFormatManager.object()
 			.group(TABLE_GROUP, group -> group.put("enabled", true))
+			.group(CUSTOM_ENCHANTMENTS_GROUP, group -> group.put("enabled", true))
 			.build();
 	}
 
@@ -91,13 +99,15 @@ public final class EnchantConfigManager {
 	}
 
 	private static final class EnchantSettings {
-		private static final EnchantSettings DEFAULT = new EnchantSettings(true, true);
+		private static final EnchantSettings DEFAULT = new EnchantSettings(true, true, true);
 		private final boolean enabled;
 		private final boolean enchantmentTableEnabled;
+		private final boolean customEnchantmentsEnabled;
 
-		private EnchantSettings(boolean enabled, boolean enchantmentTableEnabled) {
+		private EnchantSettings(boolean enabled, boolean enchantmentTableEnabled, boolean customEnchantmentsEnabled) {
 			this.enabled = enabled;
 			this.enchantmentTableEnabled = enchantmentTableEnabled;
+			this.customEnchantmentsEnabled = customEnchantmentsEnabled;
 		}
 	}
 }

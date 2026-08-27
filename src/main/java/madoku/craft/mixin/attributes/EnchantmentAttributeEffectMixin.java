@@ -12,16 +12,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EnchantmentAttributeEffect.class)
 public abstract class EnchantmentAttributeEffectMixin {
 	@Inject(method = "getModifier", at = @At("RETURN"), cancellable = true)
-	private void madokuCraft$applyConfiguredAquaAffinity(
+	private void madokuCraft$applyConfiguredAttribute(
 		int level,
 		StringRepresentable slot,
 		CallbackInfoReturnable<AttributeModifier> callbackInfo
 	) {
 		EnchantmentAttributeEffect effect = (EnchantmentAttributeEffect) (Object) this;
-		if (!"minecraft:enchantment.aqua_affinity".equals(effect.id().toString())) return;
-
-		callbackInfo.setReturnValue(
-			EnchantBooksManager.applyConfiguredAquaAffinityModifier(level, callbackInfo.getReturnValue())
-		);
+		String effectId = effect.id().toString();
+		if ("minecraft:enchantment.aqua_affinity".equals(effectId)) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredAquaAffinityModifier(level, callbackInfo.getReturnValue())
+			);
+		} else if ("minecraft:enchantment.depth_strider".equals(effectId)) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredDepthStriderModifier(level, callbackInfo.getReturnValue())
+			);
+		}
 	}
 }

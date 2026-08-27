@@ -1,5 +1,6 @@
 package madoku.craft.attributes;
 
+import madoku.craft.core.enchant.EnchantBooksManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.core.Holder;
 import net.minecraft.world.damagesource.DamageSource;
@@ -57,6 +58,9 @@ public final class MadokuArmorManager {
 			settings.armorToughnessPoints.startingArmorToughness,
 			settings.armorToughnessPoints.maxPoints
 		);
+		double breachEffectiveness = EnchantBooksManager.resolveBreachArmorEffectiveness(entity, source);
+		armorPoints *= breachEffectiveness;
+		armorToughnessPoints *= breachEffectiveness;
 
 		double damageAfterArmor = settings.armorPoints.enabled
 			? applyDamageReduction(amount, armorPoints, settings.armorPoints.damageReduction)
