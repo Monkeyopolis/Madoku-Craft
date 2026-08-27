@@ -1,9 +1,10 @@
 package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.json.JSONFormatManager;
+
+import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;

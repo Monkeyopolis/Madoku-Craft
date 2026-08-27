@@ -2,10 +2,10 @@ package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
+import madoku.craft.core.json.JSONFormatManager;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
-import madoku.craft.api.json.JSONFormatManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;

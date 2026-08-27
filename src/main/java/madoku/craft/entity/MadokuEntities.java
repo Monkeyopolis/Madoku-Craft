@@ -2,10 +2,10 @@ package madoku.craft.entity;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;

@@ -3,10 +3,7 @@ package madoku.craft.pet;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
-import madoku.craft.api.chunk.MadokuChunkManager;
 import madoku.craft.entity.Hag;
-import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.*;
@@ -15,8 +12,11 @@ import java.util.*;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.helper.HelperProjectileManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
 import madoku.craft.pet.PetConfigManager.PetAbilityRule;
 import madoku.craft.pet.PetConfigManager.PetRule;
@@ -2928,7 +2928,7 @@ public final class PetAbilitiesManager {
 				return false;
 			}
 
-			JsonObject payload = madoku.craft.api.json.JSONFormatManager.object()
+			JsonObject payload = madoku.craft.core.json.JSONFormatManager.object()
 				.put(FIELD_SLOT, slot)
 				.put(FIELD_ABILITY_ID, abilityType)
 				.put(FIELD_TARGET_UUID, target.getUUID().toString())
@@ -3035,11 +3035,11 @@ public final class PetAbilitiesManager {
 		}
 
 		static JsonObject toPersistedData() {
-			madoku.craft.api.json.JSONFormatManager.ArrayBuilder players = madoku.craft.api.json.JSONFormatManager.array();
+			madoku.craft.core.json.JSONFormatManager.ArrayBuilder players = madoku.craft.core.json.JSONFormatManager.array();
 			long now = MadokuTimeManager.getGameplayTicks();
 			for (Map.Entry<UUID, Map<Integer, Map<String, Long>>> playerEntry : PLAYER_ABILITY_COOLDOWNS.entrySet()) {
 				if (playerEntry.getKey() == null) continue;
-				madoku.craft.api.json.JSONFormatManager.ArrayBuilder playerCooldowns = madoku.craft.api.json.JSONFormatManager.array();
+				madoku.craft.core.json.JSONFormatManager.ArrayBuilder playerCooldowns = madoku.craft.core.json.JSONFormatManager.array();
 				boolean hasActiveCooldown = false;
 				for (Map.Entry<Integer, Map<String, Long>> slotEntry : playerEntry.getValue().entrySet()) {
 					for (Map.Entry<String, Long> abilityEntry : slotEntry.getValue().entrySet()) {
@@ -3059,7 +3059,7 @@ public final class PetAbilitiesManager {
 						.put("cooldowns", playerCooldowns.build()));
 				}
 			}
-			return madoku.craft.api.json.JSONFormatManager.object()
+			return madoku.craft.core.json.JSONFormatManager.object()
 				.put("ability-cooldowns", players.build())
 				.build();
 		}

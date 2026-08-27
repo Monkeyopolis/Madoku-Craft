@@ -1,8 +1,8 @@
 package madoku.craft.mixin.farming;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.api.data.MadokuChunkDataManager;
 import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.core.data.MadokuChunkDataManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;

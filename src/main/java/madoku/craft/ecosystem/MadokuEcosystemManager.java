@@ -2,11 +2,12 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.api.data.DataWorldChunkManager;
-import madoku.craft.api.scheduler.SchedulerAdaptiveIntervalManager;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.json.JSONFormatManager;
+
+import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.data.DataWorldChunkManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.scheduler.SchedulerAdaptiveIntervalManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;

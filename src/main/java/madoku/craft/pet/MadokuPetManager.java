@@ -1,9 +1,7 @@
 package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.data.DataPlayerManager;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
+
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -18,8 +16,12 @@ import net.minecraft.world.phys.Vec3;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import madoku.craft.core.data.DataPlayerManager;
+import madoku.craft.core.rarity.RarityTierManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
-import madoku.craft.api.rarity.RarityTierManager;
 
 public final class MadokuPetManager {
 	public static final int SLOT_COUNT = 4;

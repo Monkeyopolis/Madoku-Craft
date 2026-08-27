@@ -1,6 +1,5 @@
 package madoku.craft.mixin.season;
 
-import madoku.craft.api.season.MadokuSeasonManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -10,6 +9,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import madoku.craft.core.season.MadokuSeasonManager;
 
 @Mixin(SnowLayerBlock.class)
 public abstract class SnowLayerBlockSeasonalMeltMixin {

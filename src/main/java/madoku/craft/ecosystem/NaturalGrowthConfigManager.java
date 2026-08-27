@@ -1,8 +1,9 @@
 package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.season.MadokuSeasonManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.season.MadokuSeasonManager;
 
 import java.util.List;
 

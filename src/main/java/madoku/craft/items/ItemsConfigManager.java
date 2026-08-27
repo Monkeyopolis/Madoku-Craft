@@ -2,8 +2,9 @@ package madoku.craft.items;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.json.JSONFormatManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -532,7 +533,7 @@ public final class ItemsConfigManager {
 		String[] materials = {"leather", "chainmail", "copper", "iron", "golden", "diamond", "netherite"};
 		int[] durability = {64, 160, 320, 640, 960, 1600, 2048};
 		double[] armor = {1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5};
-		double[] toughness = {1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5};
+		double[] toughness = {0.5, 0.625, 0.75, 0.875, 1.0, 1.125, 1.25};
 		String[] pieces = {"helmet", "chestplate", "leggings", "boots"};
 
 		for (int materialIndex = 0; materialIndex < materials.length; materialIndex++) {

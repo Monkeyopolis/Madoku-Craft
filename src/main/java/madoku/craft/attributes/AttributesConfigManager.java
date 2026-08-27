@@ -1,8 +1,10 @@
 package madoku.craft.attributes;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

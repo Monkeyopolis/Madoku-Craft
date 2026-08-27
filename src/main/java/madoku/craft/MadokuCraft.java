@@ -3,20 +3,20 @@ package madoku.craft;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.attributes.MadokuHealthManager;
 import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.api.MadokuAPIManager;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.time.TimeSleepManager;
 import madoku.craft.block.MadokuBlocks;
-import madoku.craft.api.json.MadokuJSONManager;
+import madoku.craft.core.MadokuCoreManager;
+import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.rarity.MadokuRarityManager;
+import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.time.TimeSleepManager;
 import madoku.craft.mob.MadokuMobManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.levels.MadokuLevelsManager;
-import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.api.rarity.MadokuRarityManager;
-import madoku.craft.api.season.MadokuSeasonManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
 import madoku.craft.pet.MadokuPetManager;
 import madoku.craft.worldgen.MadokuWorldgen;
@@ -30,7 +30,7 @@ public class MadokuCraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		MadokuAPIManager.initialize();
+		MadokuCoreManager.initialize();
 		MadokuSmeltingManager.initialize();
 		MadokuMobManager.initialize();
 		MadokuWorldgen.initialize();
@@ -57,13 +57,13 @@ public class MadokuCraft implements ModInitializer {
 			MadokuHungerManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
-			MadokuAPIManager.reset();
-			MadokuAPIManager.loadPersistedData(server);
+			MadokuCoreManager.reset();
+			MadokuCoreManager.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarmingManager.loadPersistedData(server);
 			MadokuEcosystemManager.loadPersistedData(server);
 			MadokuChunkDataManager.loadPersistedData(server);
-			MadokuAPIManager.onServerStarted(server);
+			MadokuCoreManager.onServerStarted(server);
 			MadokuFarmingManager.onServerStarted(server);
 			MadokuEcosystemManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
@@ -83,7 +83,7 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-			MadokuAPIManager.onServerStopping(server);
+			MadokuCoreManager.onServerStopping(server);
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
@@ -92,7 +92,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuFarmingManager.reset();
 			MadokuEcosystemManager.reset();
 			MadokuItemsManager.reset();
-			MadokuAPIManager.reset();
+			MadokuCoreManager.reset();
 			MadokuChunkDataManager.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuMobManager.onServerStopped();
@@ -110,12 +110,12 @@ public class MadokuCraft implements ModInitializer {
 			long tickIncrement = TimeSleepManager.getCachedTickIncrement();
 			MadokuTimeManager.advance(server, tickIncrement);
 			MadokuTimeManager.update(server);
-			MadokuAPIManager.onServerTick(server);
-			MadokuAPIManager.autosavePersistedData(server);
+			MadokuCoreManager.onServerTick(server);
+			MadokuCoreManager.autosavePersistedData(server);
 			MadokuSeasonManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);
 			MadokuLevelsManager.flushDirtySyncs(server);
-			if (MadokuAPIManager.shouldRunWorldSync(server)) {
+			if (MadokuCoreManager.shouldRunWorldSync(server)) {
 				MadokuTimeManager.broadcastWorldTimeIfChanged(server);
 				MadokuMobManager.broadcastDifficultyIfChanged(server);
 				MadokuSeasonManager.broadcastWorldSeasonIfChanged(server);

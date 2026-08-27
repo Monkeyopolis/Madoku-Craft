@@ -1,9 +1,9 @@
 package madoku.craft.hud;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.api.season.SeasonBiomeClimateManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
-import madoku.craft.api.time.MadokuTimeManager;
+import madoku.craft.core.season.SeasonBiomeClimateManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;

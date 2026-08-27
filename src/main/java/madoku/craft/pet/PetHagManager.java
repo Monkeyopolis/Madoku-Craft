@@ -1,6 +1,10 @@
 package madoku.craft.pet;
 
 import java.util.List;
+
+import madoku.craft.core.rarity.MadokuRarityManager;
+import madoku.craft.core.rarity.RarityTierManager;
+import madoku.craft.core.rarity.RarityTierManager.Tier;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
@@ -11,9 +15,6 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
-import madoku.craft.api.rarity.MadokuRarityManager;
-import madoku.craft.api.rarity.RarityTierManager;
-import madoku.craft.api.rarity.RarityTierManager.Tier;
 
 /** Owns the Hag-facing pet trade pool, rarity, and item presentation helpers. */
 public final class PetHagManager {

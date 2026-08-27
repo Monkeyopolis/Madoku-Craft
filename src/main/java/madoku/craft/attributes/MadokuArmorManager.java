@@ -13,7 +13,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 
 public final class MadokuArmorManager {
 	private static final double DAMAGE_ROUND_INCREMENT = 0.05d;
-	private static final double POINT_STEP = 0.25d;
+	private static final double POINT_STEP = 0.125d;
 	private static volatile ArmorConfigManager.Settings settings = ArmorConfigManager.Settings.defaults();
 
 	private MadokuArmorManager() {
@@ -105,15 +105,15 @@ public final class MadokuArmorManager {
 			return amount;
 		}
 
-		long pointSteps = getStepCount(points, POINT_STEP);
-		if (pointSteps <= 0L) {
+		double roundedPoints = roundPoints(points);
+		if (roundedPoints <= 0.0d) {
 			return amount;
 		}
 
 		return switch (reduction.type) {
-			case FLAT -> Math.max(0.0d, amount - (pointSteps * reduction.value));
+			case FLAT -> Math.max(0.0d, amount - (roundedPoints * reduction.value));
 			case PERCENTAGE -> {
-				double multiplier = Math.max(0.0d, 1.0d - (pointSteps * reduction.value));
+				double multiplier = Math.max(0.0d, 1.0d - (roundedPoints * reduction.value));
 				yield amount * multiplier;
 			}
 			};
@@ -154,11 +154,11 @@ public final class MadokuArmorManager {
 		return Math.min(value, upperBound);
 	}
 
-	private static long getStepCount(double value, double stepSize) {
-		if (value <= 0.0d || stepSize <= 0.0d) {
-			return 0L;
+	private static double roundPoints(double value) {
+		if (value <= 0.0d || POINT_STEP <= 0.0d) {
+			return 0.0d;
 		}
-		return Math.max(0L, (long) Math.floor(value / stepSize));
+		return Math.max(0.0d, Math.round(value / POINT_STEP) * POINT_STEP);
 	}
 
 	private static double roundToDamageIncrement(double value) {

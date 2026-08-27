@@ -1,7 +1,5 @@
 package madoku.craft.mixin.season;
 
-import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -14,6 +12,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
 
 @Mixin(Biome.class)
 public abstract class BiomeSeasonalFreezeMixin {

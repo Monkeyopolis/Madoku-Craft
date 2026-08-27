@@ -1,7 +1,5 @@
 package madoku.craft.mixin.season;
 
-import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -13,6 +11,9 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
 
 @Mixin(IceBlock.class)
 public abstract class IceBlockSeasonalMeltMixin {

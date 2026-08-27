@@ -1,7 +1,7 @@
 package madoku.craft.mixin.color;
 
-import madoku.craft.api.season.EnvironmentTransitionConfigManager;
 import madoku.craft.color.ClientColorContext;
+import madoku.craft.core.season.EnvironmentTransitionConfigManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;

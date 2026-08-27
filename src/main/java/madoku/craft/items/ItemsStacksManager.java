@@ -1,9 +1,10 @@
 package madoku.craft.items;
 
 import com.mojang.serialization.DataResult;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.MadokuJSONManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

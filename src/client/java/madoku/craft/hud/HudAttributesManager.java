@@ -84,7 +84,7 @@ public final class HudAttributesManager {
 	private static final float OXYGEN_TEXT_SCALE = 0.8F;
 	private static final int COLOR = 0xFFFFFFFF;
 	private static final float HEALTH_STEP = 0.125F;
-	private static final float ARMOR_STEP = 0.25F;
+	private static final float ARMOR_STEP = 0.125F;
 	private static volatile int cachedAirSupply = 600;
 	private static volatile int cachedMaxAirSupply = 600;
 	private static volatile int cachedOxygenPoints = 10;

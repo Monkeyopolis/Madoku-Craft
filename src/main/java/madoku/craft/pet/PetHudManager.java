@@ -1,6 +1,6 @@
 package madoku.craft.pet;
 
-import madoku.craft.api.sync.SyncPlayerManager;
+import madoku.craft.core.sync.SyncPlayerManager;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;

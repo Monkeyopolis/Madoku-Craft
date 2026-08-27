@@ -1,8 +1,8 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.api.json.MadokuJSONManager;
 import madoku.craft.pet.PetComponentsManager.PetHolder;
 import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.pet.PetEntitiesManager;
 import madoku.craft.pet.PetHudManager;
 import net.minecraft.core.registries.BuiltInRegistries;

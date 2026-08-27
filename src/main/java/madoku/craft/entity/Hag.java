@@ -1,8 +1,8 @@
 package madoku.craft.entity;
 
 import madoku.craft.pet.PetHagManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.pet.PetConfigManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;

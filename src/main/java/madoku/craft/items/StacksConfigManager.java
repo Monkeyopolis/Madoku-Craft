@@ -3,7 +3,8 @@ package madoku.craft.items;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.api.json.JSONFormatManager;
+
+import madoku.craft.core.json.JSONFormatManager;
 
 public final class StacksConfigManager {
 	public static final int DEFAULT_STACK_LIMIT = 128;

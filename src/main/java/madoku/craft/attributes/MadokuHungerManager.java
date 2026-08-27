@@ -4,11 +4,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.data.DataPlayerManager;
-import madoku.craft.api.sync.SyncPlayerManager;
+import madoku.craft.core.data.DataPlayerManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.sync.SyncPlayerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.levels.MadokuLevelsManager;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.server.MinecraftServer;
@@ -708,7 +708,7 @@ public final class MadokuHungerManager {
 	}
 
 	private static JsonObject toPersistedData() {
-		madoku.craft.api.json.JSONFormatManager.ArrayBuilder players = madoku.craft.api.json.JSONFormatManager.array();
+		madoku.craft.core.json.JSONFormatManager.ArrayBuilder players = madoku.craft.core.json.JSONFormatManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			players.object(player -> player
@@ -720,7 +720,7 @@ public final class MadokuHungerManager {
 				.put("saturation-effect-progress-ticks", Math.max(0L, state.saturationEffectProgressTicks))
 				.put("zero-hunger-progress-ticks", Math.max(0L, state.zeroHungerProgressTicks)));
 		}
-		return madoku.craft.api.json.JSONFormatManager.object()
+		return madoku.craft.core.json.JSONFormatManager.object()
 			.put("players", players.build())
 			.build();
 	}

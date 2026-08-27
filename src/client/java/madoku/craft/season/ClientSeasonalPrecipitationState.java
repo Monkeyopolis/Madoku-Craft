@@ -1,8 +1,5 @@
 package madoku.craft.season;
 
-import madoku.craft.api.season.BiomeClimateConfigManager;
-import madoku.craft.api.season.SeasonBiomeClimateManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -12,6 +9,10 @@ import net.minecraft.world.level.biome.Biome;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
+
+import madoku.craft.core.season.BiomeClimateConfigManager;
+import madoku.craft.core.season.SeasonBiomeClimateManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
 
 public final class ClientSeasonalPrecipitationState {
 	private static volatile String season = "";

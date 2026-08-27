@@ -2,14 +2,15 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.chunk.MadokuChunkManager;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
+
+import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.sync.SyncWorldManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
-import madoku.craft.api.sync.SyncWorldManager;
-import madoku.craft.api.time.MadokuTimeManager;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.BlockPos;

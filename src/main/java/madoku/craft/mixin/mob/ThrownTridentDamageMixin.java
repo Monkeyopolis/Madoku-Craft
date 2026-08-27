@@ -1,7 +1,7 @@
 package madoku.craft.mixin.mob;
 
+import madoku.craft.core.helper.HelperProjectileManager;
 import madoku.craft.mob.MobEntityManager;
-import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;

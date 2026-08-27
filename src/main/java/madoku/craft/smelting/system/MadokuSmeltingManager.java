@@ -3,12 +3,13 @@ package madoku.craft.smelting.system;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import madoku.craft.api.time.MadokuTimeManager;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.mixin.smelting.AbstractFurnaceServerTickInvoker;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;

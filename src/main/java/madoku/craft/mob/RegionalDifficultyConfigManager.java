@@ -1,8 +1,9 @@
 package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
 

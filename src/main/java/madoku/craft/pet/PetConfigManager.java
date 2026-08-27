@@ -1,12 +1,15 @@
 package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.rarity.RarityTierManager;
+import madoku.craft.core.rarity.RarityTierManager.Tier;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.rarity.RarityTierManager;
-import madoku.craft.api.rarity.RarityTierManager.Tier;
+
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -305,7 +308,7 @@ public final class PetConfigManager {
 			}
 
 			JsonObject toConfigJson() {
-				return madoku.craft.api.json.JSONFormatManager.object()
+				return madoku.craft.core.json.JSONFormatManager.object()
 					.object("pet-entity", child -> child
 						.put("enabled", entitiesEnabled)
 						.put("max-level", maxLevel))
@@ -695,7 +698,7 @@ public final class PetConfigManager {
 					}
 				}
 				if (resolvedAbilities.isEmpty()) resolvedAbilities.add(MadokuPetManager.PET_ABILITY_NONE);
-				return madoku.craft.api.json.JSONFormatManager.object()
+				return madoku.craft.core.json.JSONFormatManager.object()
 					.object("pet-id", pet -> {
 						pet.put("id", resolvedPetId)
 							.put("rarity", defaultRarityForItem(resolvedPetId))
@@ -719,7 +722,7 @@ public final class PetConfigManager {
 				boolean usesHealthRegeneration = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(resolvedAbilityType);
 				boolean usesMobScan = MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
-				JsonObject ability = madoku.craft.api.json.JSONFormatManager.object()
+				JsonObject ability = madoku.craft.core.json.JSONFormatManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.build();
 				if (usesRangedHomingArrow) {
@@ -797,7 +800,7 @@ public final class PetConfigManager {
 				if (MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType)) {
 					ability.addProperty("armor-bonus", 1.5D);
 				}
-				return madoku.craft.api.json.JSONFormatManager.object().put("ability-id", ability).build();
+				return madoku.craft.core.json.JSONFormatManager.object().put("ability-id", ability).build();
 			}
 
 			static PetRule fromJson(JsonObject source, String fileKey, Map<String, JsonObject> abilityDefinitions) {

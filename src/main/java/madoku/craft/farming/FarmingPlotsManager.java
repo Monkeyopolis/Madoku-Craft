@@ -1,7 +1,7 @@
 package madoku.craft.farming;
 
-import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonBiomeClimateManager;
+import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonBiomeClimateManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;

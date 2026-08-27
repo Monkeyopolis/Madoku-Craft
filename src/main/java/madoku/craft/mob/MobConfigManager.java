@@ -4,10 +4,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
-import madoku.craft.api.loot.EquipmentsConfigManager;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.loot.EquipmentsConfigManager;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -2,8 +2,9 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -3,11 +3,12 @@ package madoku.craft.levels;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import madoku.craft.api.data.DataPlayerManager;
-import madoku.craft.api.time.MadokuTimeManager;
+
 import madoku.craft.attributes.MadokuHealthManager;
 import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.api.sync.SyncPlayerManager;
+import madoku.craft.core.data.DataPlayerManager;
+import madoku.craft.core.sync.SyncPlayerManager;
+import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;

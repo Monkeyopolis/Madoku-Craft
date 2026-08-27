@@ -4,13 +4,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.JSONTypeManager;
-import madoku.craft.api.json.MadokuJSONManager;
+
 import madoku.craft.mixin.item.ItemComponentsAccessor;
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.sync.SyncPlayerManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
-import madoku.craft.api.sync.SyncPlayerManager;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -1692,10 +1693,10 @@ public final class ItemsCategoriesManager {
 			AttributeModifier modifier = entry.modifier();
 			AttributeModifier updated = modifier;
 			if (isAddValueModifier(modifier) && isAttribute(entry, Attributes.ARMOR)) {
-				updated = new AttributeModifier(modifier.id(), roundQuarter(modifier.amount() * armorMultiplier), modifier.operation());
+				updated = new AttributeModifier(modifier.id(), roundArmorValue(modifier.amount() * armorMultiplier), modifier.operation());
 				changed = true;
 			} else if (isAddValueModifier(modifier) && isAttribute(entry, Attributes.ARMOR_TOUGHNESS)) {
-				updated = new AttributeModifier(modifier.id(), roundQuarter(modifier.amount() * toughnessMultiplier), modifier.operation());
+				updated = new AttributeModifier(modifier.id(), roundArmorValue(modifier.amount() * toughnessMultiplier), modifier.operation());
 				changed = true;
 			}
 			builder.add(entry.attribute(), updated, entry.slot(), entry.display());
@@ -1737,6 +1738,10 @@ public final class ItemsCategoriesManager {
 
 	private static double roundQuarter(double value) {
 		return roundIncrement(value, 0.25D);
+	}
+
+	private static double roundArmorValue(double value) {
+		return roundIncrement(value, 0.125D);
 	}
 
 	private static double roundIncrement(double value, double increment) {

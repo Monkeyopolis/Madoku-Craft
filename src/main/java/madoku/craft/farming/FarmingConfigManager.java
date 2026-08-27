@@ -1,9 +1,11 @@
 package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.MadokuJSONManager;
+
 import com.google.gson.JsonElement;
-import madoku.craft.api.json.JSONFormatManager;
-import madoku.craft.api.json.MadokuJSONManager;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -33,6 +33,11 @@ Pets:
 The pet system allows players to equip pet items in the player's inventory.
 This spawns a tiny mob that helps and follows you without getting in the way.
 
+Seasons:
+
+The seasonal system allows the world to change based on the in-game time.
+Based on the season, foliage color, temperature, humidity will change.
+
 ## Disclaimer:
 
 Make sure to backup your worlds before using this mod.

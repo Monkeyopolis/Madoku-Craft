@@ -7,11 +7,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import madoku.craft.api.scheduler.MadokuSchedulerManager;
+
 import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.core.helper.HelperProjectileManager;
+import madoku.craft.core.scheduler.MadokuSchedulerManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.mixin.mob.AbstractSkeletonArrowInvoker;
-import madoku.craft.api.helper.HelperProjectileManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;

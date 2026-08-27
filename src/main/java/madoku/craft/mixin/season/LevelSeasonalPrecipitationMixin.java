@@ -1,8 +1,5 @@
 package madoku.craft.mixin.season;
 
-import madoku.craft.api.season.MadokuSeasonManager;
-import madoku.craft.api.season.SeasonEnvironmentTransitionManager;
-import madoku.craft.api.season.SeasonWeatherManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -11,6 +8,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.core.season.SeasonWeatherManager;
 
 @Mixin(Level.class)
 public abstract class LevelSeasonalPrecipitationMixin {

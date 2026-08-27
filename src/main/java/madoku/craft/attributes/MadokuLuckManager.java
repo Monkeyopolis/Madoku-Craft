@@ -2,8 +2,8 @@ package madoku.craft.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
-import madoku.craft.api.data.MadokuChunkDataManager;
-import madoku.craft.api.helper.MadokuBlockDropContextManager;
+import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.helper.MadokuBlockDropContextManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
