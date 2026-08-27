@@ -9,6 +9,7 @@ import madoku.craft.api.scheduler.MadokuSchedulerManager;
 import madoku.craft.api.sync.MadokuSyncManager;
 import madoku.craft.api.recipes.MadokuRecipesManager;
 import madoku.craft.api.loot.MadokuLootTableManager;
+import madoku.craft.api.enchant.MadokuEnchantManager;
 import madoku.craft.api.helper.MadokuHelperManager;
 import madoku.craft.ecosystem.MadokuEcosystemManager;
 
@@ -32,6 +33,7 @@ public final class MadokuAPIManager {
 		MadokuSyncManager.initialize();
 		MadokuRecipesManager.initialize();
 		MadokuLootTableManager.initialize();
+		MadokuEnchantManager.initialize();
 	}
 
 	public static Path getApiRootDirectory() {
@@ -49,6 +51,7 @@ public final class MadokuAPIManager {
 		MadokuSyncManager.reset();
 		MadokuRecipesManager.reset();
 		MadokuLootTableManager.reset();
+		MadokuEnchantManager.reset();
 	}
 
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {
@@ -66,6 +69,7 @@ public final class MadokuAPIManager {
 		MadokuSyncManager.onServerStarted(server);
 		MadokuRecipesManager.initialize();
 		MadokuLootTableManager.initialize();
+		MadokuEnchantManager.initialize();
 	}
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {

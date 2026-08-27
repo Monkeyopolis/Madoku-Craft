@@ -11,15 +11,12 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
-import java.util.Random;
 import madoku.craft.api.rarity.MadokuRarityManager;
 import madoku.craft.api.rarity.RarityTierManager;
 import madoku.craft.api.rarity.RarityTierManager.Tier;
 
 /** Owns the Hag-facing pet trade pool, rarity, and item presentation helpers. */
 public final class PetHagManager {
-	private static final int[] LEVEL_TRADE_WEIGHTS = {59, 24, 12, 4, 1};
-
 	private PetHagManager() {
 	}
 
@@ -41,15 +38,6 @@ public final class PetHagManager {
 		Tier tier = RarityTierManager.fromString(PetConfigManager.normalizePetRarity(rarity));
 		Tier resolved = tier == null ? Tier.COMMON : tier;
 		return Math.max(0, (int) Math.round(MadokuRarityManager.resolveWeight(resolved, 0.0D, false)));
-	}
-
-	public static int randomTradeLevel(Random random) {
-		int roll = random.nextInt(100);
-		for (int level = 0; level < LEVEL_TRADE_WEIGHTS.length; level++) {
-			if (roll < LEVEL_TRADE_WEIGHTS[level]) return level + 1;
-			roll -= LEVEL_TRADE_WEIGHTS[level];
-		}
-		return LEVEL_TRADE_WEIGHTS.length;
 	}
 
 	public static ItemStack tradeStack(Item item, int level) {

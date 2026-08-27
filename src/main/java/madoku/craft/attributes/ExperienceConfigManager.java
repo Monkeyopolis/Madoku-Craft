@@ -13,7 +13,7 @@ import java.nio.file.Path;
 public final class ExperienceConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ExperienceConfigManager.class);
 	private static final String EXPERIENCE_CONFIG_FILE_NAME = "madoku-experience";
-	private static final int DEFAULT_MAX_LEVEL = 1000;
+	private static final int DEFAULT_MAX_LEVEL = 46_080;
 	private static final int DEFAULT_XP_REQUIRED = 30;
 	private static final double DEFAULT_DEATH_PENALTY = 0.5d;
 	private static final int MAX_CONFIG_LEVEL = 1_000_000;

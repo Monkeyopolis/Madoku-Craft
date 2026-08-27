@@ -96,10 +96,11 @@ public final class MadokuRecipesManager {
 			return List.of();
 		}
 
-		MadokuItemsManager.applyConfiguredItemLevel(stack, 1);
-		if (!MadokuRarityManager.isEnabled()
-			|| !MadokuItemsManager.isRarityCategoryItem(stack)
-			|| MadokuRarityManager.detectAppliedRarity(stack) != null) {
+		boolean rarityWillBeApplied = MadokuRarityManager.isEnabled()
+			&& MadokuItemsManager.isRarityCategoryItem(stack)
+			&& MadokuRarityManager.detectAppliedRarity(stack) == null;
+		MadokuItemsManager.applyConfiguredItemLevel(stack, 1, !rarityWillBeApplied);
+		if (!rarityWillBeApplied) {
 			return List.of();
 		}
 

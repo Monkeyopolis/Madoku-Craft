@@ -39,6 +39,11 @@ public final class MadokuRarityManager {
 		RarityRuntimeManager.applyConfiguredRarity(stack, rarity);
 	}
 
+	/** Keeps the rarity color when vanilla replaces an item's custom name, such as in an anvil. */
+	public static void preserveRarityOnRename(ItemStack source, ItemStack target) {
+		RarityRuntimeManager.preserveRarityOnRename(source, target);
+	}
+
 	public static Tier detectAppliedRarity(ItemStack stack) {
 		return RarityRuntimeManager.detectAppliedRarity(stack);
 	}

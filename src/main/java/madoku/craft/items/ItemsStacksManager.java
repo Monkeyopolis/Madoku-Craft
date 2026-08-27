@@ -18,6 +18,9 @@ public final class ItemsStacksManager {
 	private static final String CONFIG_ROOT_FOLDER_NAME = "madoku-craft-items";
 	private static final String CONFIG_FILE_NAME = "madoku-stacks";
 	private static final StacksConfigManager configuration = new StacksConfigManager();
+	private static volatile boolean clientSynchronized;
+	private static volatile boolean clientEnabled;
+	private static volatile int clientStackLimit;
 
 	private ItemsStacksManager() { }
 
@@ -27,13 +30,15 @@ public final class ItemsStacksManager {
 	 * Clears per-server runtime state without discarding the static configuration
 	 * loaded during initialization.
 	 */
-	public static void reset() { }
+	public static void reset() {
+		resetClientSynchronizedSettings();
+	}
 
 	public static void onServerStarted(MinecraftServer server) { }
 
-	public static boolean isEnabled() { return configuration.enabled; }
+	public static boolean isEnabled() { return clientSynchronized ? clientEnabled : configuration.enabled; }
 
-	public static int getStackLimit() { return configuration.customStackAmount; }
+	public static int getStackLimit() { return clientSynchronized ? clientStackLimit : configuration.customStackAmount; }
 
 	public static int getMaxStackCap() { return StacksConfigManager.MAX_STACK_RUNTIME_CAP; }
 
@@ -61,6 +66,19 @@ public final class ItemsStacksManager {
 		long value = count;
 		if (value >= 1_000_000L) return formatCompactUnit(value, 1_000_000L, "M");
 		return formatCompactUnit(value, 1_000L, "K");
+	}
+
+	/** Applies the server-resolved stack settings to the client while connected. */
+	public static void applySynchronizedSettings(boolean enabled, int stackLimit) {
+		clientEnabled = enabled;
+		clientStackLimit = Math.max(1, Math.min(stackLimit, StacksConfigManager.MAX_STACK_RUNTIME_CAP));
+		clientSynchronized = true;
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronized = false;
+		clientEnabled = false;
+		clientStackLimit = 0;
 	}
 
 	private static String formatCompactUnit(long value, long unit, String suffix) {

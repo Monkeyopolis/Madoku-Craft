@@ -3,6 +3,7 @@ package madoku.craft.mixin.api;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.api.rarity.MadokuRarityManager;
 import madoku.craft.api.rarity.RarityTierManager.Tier;
+import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -56,7 +57,8 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			return;
 		}
 
-		boolean managedRarityItem = MadokuItemsManager.isRarityCategoryItem(stack);
+		boolean managedRarityItem = MadokuItemsManager.isRarityCategoryItem(stack)
+			|| PetEntitiesManager.isPetItem(stack);
 		GuiGraphicsExtractor context = (GuiGraphicsExtractor) (Object) this;
 
 		if (managedRarityItem && stack.isBarVisible()) {

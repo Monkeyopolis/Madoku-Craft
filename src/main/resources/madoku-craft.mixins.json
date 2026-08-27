@@ -20,6 +20,7 @@
     "api.ContainerEntityLootMixin",
     "itemstack.ContainerStackLimitMixin",
     "api.CraftingMenuRarityMixin",
+    "api.EnchantmentMenuMixin",
     "mob.CreeperAccessor",
     "mob.CreeperExplosionMixin",
     "mob.CreeperPoweredAccessor",
@@ -42,6 +43,7 @@
     "api.InventoryMenuRarityMixin",
     "item.ItemBuiltInRegistryHolderAccessor",
     "item.ItemComponentsAccessor",
+	"inventory.SlotAccessor",
     "pet.ItemCostEggVariantsMixin",
     "attributes.ItemFoodGateMixin",
     "api.ItemInputRarityMixin",
@@ -95,6 +97,8 @@
     "attributes.ServerPlayerTeleportHungerMixin",
     "mob.SkeletonRuntimeTickMixin",
     "api.SmithingTransformRecipeRarityMixin",
+    "api.SmithingMenuMixin",
+    "api.SmithingItemCombinerMenuMixin",
     "season.SnowLayerBlockSeasonalMeltMixin",
     "farming.StemBlockFarmingMixin",
     "api.TimelineMixin",
@@ -104,6 +108,8 @@
   ],
   "client": [
     "inventory.AbstractContainerScreenAccessor",
+    "api.EnchantmentScreenMixin",
+    "api.SmithingScreenMixin",
     "season.BiomeSeasonalPrecipitationMixin",
     "color.BiomeTemperatureColorMixin",
     "inventory.CreativeModeInventoryScreenAccessor",
@@ -119,7 +125,6 @@
     "attributes.ItemFoodClientGateMixin",
     "trade.MerchantScreenAccessor",
     "attributes.PlayerEatClientGateMixin",
-    "inventory.SlotAccessor",
     "color.SpruceBirchLeafTintMixin"
   ],
   "injectors": {

@@ -27,6 +27,8 @@ public final class MadokuItemsManager {
 
 	public static boolean isEnabled() { return ItemsCategoriesManager.isEnabled(); }
 
+	public static boolean areItemLevelsEnabled() { return ItemsCategoriesManager.areItemLevelsEnabled(); }
+
 	public static boolean isConfiguredFuel(ItemStack stack) { return ItemsCategoriesManager.isConfiguredFuel(stack); }
 
 	public static boolean isRarityCategoryItem(ItemStack stack) { return ItemsCategoriesManager.isRarityCategoryItem(stack); }
@@ -43,7 +45,19 @@ public final class MadokuItemsManager {
 		ItemsCategoriesManager.applyConfiguredItemLevel(stack, level);
 	}
 
+	public static void applyConfiguredItemLevel(ItemStack stack, int level, boolean updateLore) {
+		ItemsCategoriesManager.applyConfiguredItemLevel(stack, level, updateLore);
+	}
+
+	public static void setItemLevel(ItemStack stack, int level) {
+		ItemsCategoriesManager.setItemLevel(stack, level);
+	}
+
 	public static Integer getItemLevel(ItemStack stack) { return ItemsCategoriesManager.getItemLevel(stack); }
+
+	public static int getItemStartingLevel() { return ItemsCategoriesManager.getItemStartingLevel(); }
+
+	public static int getItemMaximumLevel() { return ItemsCategoriesManager.getItemMaximumLevel(); }
 
 	public static void applyRarityScaling(ItemStack stack, double multiplier) {
 		ItemsCategoriesManager.applyRarityScaling(stack, multiplier);

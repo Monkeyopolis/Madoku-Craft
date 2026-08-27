@@ -17,8 +17,8 @@ public final class ArmorConfigManager {
 	private static final boolean DEFAULT_ENABLED = true;
 	private static final double DEFAULT_STARTING_ARMOR_POINTS = 0.0d;
 	private static final double DEFAULT_MAX_ARMOR_POINTS = 100.0d;
-	private static final DamageReductionType DEFAULT_ARMOR_POINTS_REDUCTION_TYPE = DamageReductionType.FLAT;
-	private static final double DEFAULT_ARMOR_POINTS_REDUCTION_VALUE = 0.05d;
+	private static final DamageReductionType DEFAULT_ARMOR_POINTS_REDUCTION_TYPE = DamageReductionType.PERCENTAGE;
+	private static final double DEFAULT_ARMOR_POINTS_REDUCTION_VALUE = 0.01d;
 
 	private static final double DEFAULT_STARTING_ARMOR_TOUGHNESS_POINTS = 0.0d;
 	private static final double DEFAULT_MAX_ARMOR_TOUGHNESS_POINTS = 100.0d;

@@ -72,6 +72,8 @@ public class MadokuCraftClient implements ClientModInitializer {
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			ItemsCategoriesManager.resetClientSynchronizedState();
+			configuredItemMetadataApplied = false;
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
 			PetHudManagerClient.reset();

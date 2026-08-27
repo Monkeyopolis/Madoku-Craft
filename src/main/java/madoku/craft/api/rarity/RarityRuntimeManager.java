@@ -116,6 +116,24 @@ public final class RarityRuntimeManager {
 		MadokuItemsManager.updateDurabilityLore(stack);
 	}
 
+	public static void preserveRarityOnRename(ItemStack source, ItemStack target) {
+		if (source == null || source.isEmpty() || target == null || target.isEmpty()) {
+			return;
+		}
+
+		Tier rarity = detectAppliedRarity(source);
+		if (rarity == null) {
+			return;
+		}
+
+		Component targetName = target.get(DataComponents.CUSTOM_NAME);
+		if (targetName == null) {
+			targetName = target.getItem().getName(target);
+		}
+		target.set(DataComponents.CUSTOM_NAME, targetName.copy()
+			.withStyle(style -> style.withColor(rarity.color()).withItalic(false)));
+	}
+
 	private static double getRarityStatBuffPercent(Tier rarity) {
 		return switch (rarity) {
 			case COMMON -> 0.0D;

@@ -311,6 +311,10 @@ public final class MadokuPetManager {
 		return PetConfigManager.settings().enabled;
 	}
 
+	public static int maxPetLevel() {
+		return PetConfigManager.maxPetLevel();
+	}
+
 	public static boolean areEntitiesEnabled() {
 		return PetConfigManager.areEntitiesEnabled();
 	}

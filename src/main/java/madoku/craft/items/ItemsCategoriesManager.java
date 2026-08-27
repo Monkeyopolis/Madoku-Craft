@@ -79,6 +79,15 @@ public final class ItemsCategoriesManager {
 	private static final String ITEM_CONFIG_SETTINGS_FILE_NAME = "madoku-items";
 	private static final String ITEM_CONFIG_ITEMS_FOLDER_NAME = "madoku-items";
 	private static final String FIELD_ENABLED = "enabled";
+	private static final String FIELD_SYNC_ITEM_LEVELS = "item-levels";
+	private static final String FIELD_SYNC_STACKS_ENABLED = "stacks-enabled";
+	private static final String FIELD_SYNC_STACK_LIMIT = "stack-limit";
+	private static final String FIELD_SYNC_FUEL_TICKS = "fuel-ticks";
+	private static final String FIELD_SYNC_STACK_MODES = "stack-modes";
+	private static final String FIELD_SYNC_CATEGORIES = "categories";
+	private static final String FIELD_SYNC_TOOL_ITEMS = "tool-items";
+	private static final String FIELD_SYNC_WEAPON_ITEMS = "weapon-items";
+	private static final String FIELD_SYNC_ARMOR_ITEMS = "armor-items";
 	private static final String FIELD_SYNC_TOOL_PROFILES = "tool-profiles";
 	private static final String FIELD_SYNC_ARMOR_PROFILES = "armor-profiles";
 	private static final String FUEL_ITEMS_FOLDER_NAME = "items-fuel";
@@ -99,6 +108,20 @@ public final class ItemsCategoriesManager {
 	private static volatile Set<Item> toolCategoryItems = Set.of();
 	private static volatile Set<Item> weaponCategoryItems = Set.of();
 	private static volatile Set<Item> armorCategoryItems = Set.of();
+	private static volatile boolean clientSynchronized;
+	private static boolean savedEnabled;
+	private static boolean savedItemLevelsEnabled;
+	private static int savedItemStartingLevel;
+	private static int savedItemMaximumLevel;
+	private static Map<Item, Integer> savedFuelTicksByItem = Map.of();
+	private static Map<Item, StackMode> savedStackModesByItem = Map.of();
+	private static Map<Item, CategoriesToolManager> savedToolProfilesByItem = Map.of();
+	private static Map<Item, CategoriesArmorManager> savedArmorProfilesByItem = Map.of();
+	private static Map<Item, Set<String>> savedCategoriesByItem = Map.of();
+	private static Set<Item> savedToolCategoryItems = Set.of();
+	private static Set<Item> savedWeaponCategoryItems = Set.of();
+	private static Set<Item> savedArmorCategoryItems = Set.of();
+	private static Map<Item, DataComponentMap> savedClientComponents = Map.of();
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
 
@@ -125,6 +148,8 @@ public final class ItemsCategoriesManager {
 		if (toolProfilesByItem.isEmpty() && armorProfilesByItem.isEmpty()) {
 			return;
 		}
+		captureClientComponents(toolProfilesByItem.keySet());
+		captureClientComponents(armorProfilesByItem.keySet());
 		applyToolProfiles(toolProfilesByItem);
 		applyArmorProfiles(armorProfilesByItem);
 	}
@@ -132,6 +157,7 @@ public final class ItemsCategoriesManager {
 	public static void reset() {
 		schedulerId = "";
 		tickQueued = false;
+		savedClientComponents = Map.of();
 		itemLevelsEnabled = true;
 		itemStartingLevel = 1;
 		itemMaximumLevel = 5;
@@ -204,12 +230,25 @@ public final class ItemsCategoriesManager {
 	}
 
 	public static String createClientSyncSnapshot() {
-		return JSONFormatManager.object()
+		JsonObject snapshot = JSONFormatManager.object()
 			.put(FIELD_ENABLED, enabled)
+			.put(FIELD_SYNC_STACKS_ENABLED, ItemsStacksManager.isEnabled())
+			.put(FIELD_SYNC_STACK_LIMIT, ItemsStacksManager.getStackLimit())
 			.put(FIELD_SYNC_TOOL_PROFILES, writeToolProfilesSnapshot(toolProfilesByItem))
 			.put(FIELD_SYNC_ARMOR_PROFILES, writeArmorProfilesSnapshot(armorProfilesByItem))
-			.build()
-			.toString();
+			.build();
+		JsonObject itemLevels = new JsonObject();
+		itemLevels.addProperty(ItemsConfigManager.FIELD_CATEGORY_ENABLED, itemLevelsEnabled);
+		itemLevels.addProperty(ItemsConfigManager.FIELD_STARTING_LEVEL, itemStartingLevel);
+		itemLevels.addProperty(ItemsConfigManager.FIELD_MAXIMUM_LEVEL, itemMaximumLevel);
+		snapshot.add(FIELD_SYNC_ITEM_LEVELS, itemLevels);
+		snapshot.add(FIELD_SYNC_FUEL_TICKS, writeFuelTicksSnapshot(fuelTicksByItem));
+		snapshot.add(FIELD_SYNC_STACK_MODES, writeStackModesSnapshot(stackModesByItem));
+		snapshot.add(FIELD_SYNC_CATEGORIES, writeCategoriesSnapshot(categoriesByItem));
+		snapshot.add(FIELD_SYNC_TOOL_ITEMS, writeItemSetSnapshot(toolCategoryItems));
+		snapshot.add(FIELD_SYNC_WEAPON_ITEMS, writeItemSetSnapshot(weaponCategoryItems));
+		snapshot.add(FIELD_SYNC_ARMOR_ITEMS, writeItemSetSnapshot(armorCategoryItems));
+		return snapshot.toString();
 	}
 
 	public static void applySynchronizedProfiles(String snapshotJson) {
@@ -224,15 +263,43 @@ public final class ItemsCategoriesManager {
 			}
 
 			JsonObject root = parsed.getAsJsonObject();
+			captureClientStateIfNeeded();
 			boolean syncedEnabled = readBoolean(root, FIELD_ENABLED, enabled);
+			JsonObject syncedLevels = readJsonObject(root, FIELD_SYNC_ITEM_LEVELS);
+			boolean syncedLevelsEnabled = readBoolean(syncedLevels, ItemsConfigManager.FIELD_CATEGORY_ENABLED, itemLevelsEnabled);
+			int syncedStartingLevel = Math.max(1, readInt(syncedLevels, ItemsConfigManager.FIELD_STARTING_LEVEL, itemStartingLevel));
+			int syncedMaximumLevel = Math.max(syncedStartingLevel,
+				readInt(syncedLevels, ItemsConfigManager.FIELD_MAXIMUM_LEVEL, itemMaximumLevel));
+			Map<Item, Integer> syncedFuelTicks = readFuelTicksSnapshot(readJsonObject(root, FIELD_SYNC_FUEL_TICKS));
+			Map<Item, StackMode> syncedStackModes = readStackModesSnapshot(readJsonObject(root, FIELD_SYNC_STACK_MODES));
+			Map<Item, Set<String>> syncedCategories = readCategoriesSnapshot(readJsonObject(root, FIELD_SYNC_CATEGORIES));
+			Set<Item> syncedToolItems = readItemSetSnapshot(root.get(FIELD_SYNC_TOOL_ITEMS));
+			Set<Item> syncedWeaponItems = readItemSetSnapshot(root.get(FIELD_SYNC_WEAPON_ITEMS));
+			Set<Item> syncedArmorItems = readItemSetSnapshot(root.get(FIELD_SYNC_ARMOR_ITEMS));
 			Map<Item, CategoriesToolManager> syncedTools = readToolProfilesSnapshot(readJsonObject(root, FIELD_SYNC_TOOL_PROFILES));
 			Map<Item, CategoriesArmorManager> syncedArmor = readArmorProfilesSnapshot(readJsonObject(root, FIELD_SYNC_ARMOR_PROFILES));
 
 			enabled = syncedEnabled;
+			itemLevelsEnabled = syncedLevelsEnabled;
+			itemStartingLevel = syncedStartingLevel;
+			itemMaximumLevel = syncedMaximumLevel;
+			fuelTicksByItem = Map.copyOf(syncedFuelTicks);
+			stackModesByItem = Map.copyOf(syncedStackModes);
+			categoriesByItem = Map.copyOf(syncedCategories);
+			toolCategoryItems = Set.copyOf(syncedToolItems);
+			weaponCategoryItems = Set.copyOf(syncedWeaponItems);
+			armorCategoryItems = Set.copyOf(syncedArmorItems);
 			toolProfilesByItem = Map.copyOf(syncedTools);
 			armorProfilesByItem = Map.copyOf(syncedArmor);
+			ItemsStacksManager.applySynchronizedSettings(
+				readBoolean(root, FIELD_SYNC_STACKS_ENABLED, ItemsStacksManager.isEnabled()),
+				Math.max(1, readInt(root, FIELD_SYNC_STACK_LIMIT, ItemsStacksManager.getStackLimit()))
+			);
+			clientSynchronized = true;
 
 			if (enabled) {
+				captureClientComponents(toolProfilesByItem.keySet());
+				captureClientComponents(armorProfilesByItem.keySet());
 				applyToolProfiles(toolProfilesByItem);
 				applyArmorProfiles(armorProfilesByItem);
 			}
@@ -436,16 +503,17 @@ public final class ItemsCategoriesManager {
 			return;
 		}
 
-		RandomSource random = randomSource == null ? RandomSource.create() : randomSource;
-		int level = itemStartingLevel;
-		int range = itemMaximumLevel - itemStartingLevel + 1;
-		if (range > 1) {
-			level += random.nextInt(range);
-		}
-		applyConfiguredItemLevel(stack, level);
+		// Loot and other generated outputs always begin at level 1. Item upgrades are
+		// handled explicitly by their owning runtime systems.
+		applyConfiguredItemLevel(stack, 1);
 	}
 
 	public static void applyConfiguredItemLevel(ItemStack stack, int level) {
+		applyConfiguredItemLevel(stack, level, true);
+	}
+
+	/** Applies an item level, optionally deferring lore until another item modifier finishes. */
+	public static void applyConfiguredItemLevel(ItemStack stack, int level, boolean updateLore) {
 		if (!areItemLevelsEnabled() || stack == null || stack.isEmpty() || !isRarityCategoryItem(stack)
 			|| getItemLevel(stack) != null) {
 			return;
@@ -461,6 +529,72 @@ public final class ItemsCategoriesManager {
 			? 0.0D
 			: (double) (resolvedLevel - itemStartingLevel) / (double) (itemMaximumLevel - itemStartingLevel);
 		applyItemLevelScaling(stack, 1.0D + Math.max(0.0D, Math.min(1.0D, adjustmentPercent)));
+		if (updateLore) {
+			updateDurabilityLore(stack);
+		}
+	}
+
+	private static void captureClientStateIfNeeded() {
+		if (clientSynchronized) return;
+		savedEnabled = enabled;
+		savedItemLevelsEnabled = itemLevelsEnabled;
+		savedItemStartingLevel = itemStartingLevel;
+		savedItemMaximumLevel = itemMaximumLevel;
+		savedFuelTicksByItem = fuelTicksByItem;
+		savedStackModesByItem = stackModesByItem;
+		savedToolProfilesByItem = toolProfilesByItem;
+		savedArmorProfilesByItem = armorProfilesByItem;
+		savedCategoriesByItem = categoriesByItem;
+		savedToolCategoryItems = toolCategoryItems;
+		savedWeaponCategoryItems = weaponCategoryItems;
+		savedArmorCategoryItems = armorCategoryItems;
+	}
+
+	public static void resetClientSynchronizedState() {
+		if (!clientSynchronized) {
+			savedClientComponents = Map.of();
+			ItemsStacksManager.resetClientSynchronizedSettings();
+			return;
+		}
+		restoreClientComponents();
+		enabled = savedEnabled;
+		itemLevelsEnabled = savedItemLevelsEnabled;
+		itemStartingLevel = savedItemStartingLevel;
+		itemMaximumLevel = savedItemMaximumLevel;
+		fuelTicksByItem = savedFuelTicksByItem;
+		stackModesByItem = savedStackModesByItem;
+		toolProfilesByItem = savedToolProfilesByItem;
+		armorProfilesByItem = savedArmorProfilesByItem;
+		categoriesByItem = savedCategoriesByItem;
+		toolCategoryItems = savedToolCategoryItems;
+		weaponCategoryItems = savedWeaponCategoryItems;
+		armorCategoryItems = savedArmorCategoryItems;
+		clientSynchronized = false;
+		savedClientComponents = Map.of();
+		ItemsStacksManager.resetClientSynchronizedSettings();
+	}
+
+	/** Sets an existing managed item's level while preserving the rarity and item components. */
+	public static void setItemLevel(ItemStack stack, int level) {
+		if (!areItemLevelsEnabled() || stack == null || stack.isEmpty() || !isRarityCategoryItem(stack)) {
+			return;
+		}
+
+		int resolvedLevel = Math.max(itemStartingLevel, Math.min(itemMaximumLevel, level));
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		CompoundTag tag = customData == null ? new CompoundTag() : customData.copyTag();
+		tag.putInt(ITEM_LEVEL_DATA_KEY, resolvedLevel);
+		double adjustmentPercent = itemMaximumLevel <= itemStartingLevel
+			? 0.0D
+			: (double) (resolvedLevel - itemStartingLevel) / (double) (itemMaximumLevel - itemStartingLevel);
+		double multiplier = 1.0D + Math.max(0.0D, Math.min(1.0D, adjustmentPercent));
+		if (multiplier <= 1.0D) {
+			tag.remove(ITEM_LEVEL_SCALING_DATA_KEY);
+		} else {
+			tag.putDouble(ITEM_LEVEL_SCALING_DATA_KEY, multiplier);
+		}
+		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+		rebuildStatScaling(stack);
 		updateDurabilityLore(stack);
 	}
 
@@ -555,10 +689,12 @@ public final class ItemsCategoriesManager {
 		}
 		Integer itemLevel = getItemLevel(stack);
 		if (itemLevel != null) {
-			updatedLines.add(Component.literal(LEVEL_PREFIX + " " + itemLevel).withStyle(ChatFormatting.GRAY));
+			updatedLines.add(Component.literal(LEVEL_PREFIX + " " + itemLevel).withStyle(ChatFormatting.AQUA));
 		}
 		updatedLines.add(durabilityLine);
-		stack.set(DataComponents.LORE, new ItemLore(updatedLines));
+		if (currentLore == null || !currentLore.lines().equals(updatedLines)) {
+			stack.set(DataComponents.LORE, new ItemLore(updatedLines));
+		}
 	}
 
 	public static Set<String> getCategories(Item item) {
@@ -1175,6 +1311,58 @@ public final class ItemsCategoriesManager {
 		return root.build();
 	}
 
+	private static JsonObject writeFuelTicksSnapshot(Map<Item, Integer> fuelTicks) {
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		if (fuelTicks != null) {
+			for (Map.Entry<Item, Integer> entry : fuelTicks.entrySet()) {
+				Identifier itemId = entry.getKey() == null ? null : BuiltInRegistries.ITEM.getKey(entry.getKey());
+				if (itemId != null && entry.getValue() != null && entry.getValue() > 0) {
+					root.put(itemId.toString(), entry.getValue());
+				}
+			}
+		}
+		return root.build();
+	}
+
+	private static JsonObject writeStackModesSnapshot(Map<Item, StackMode> stackModes) {
+		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		if (stackModes != null) {
+			for (Map.Entry<Item, StackMode> entry : stackModes.entrySet()) {
+				Identifier itemId = entry.getKey() == null ? null : BuiltInRegistries.ITEM.getKey(entry.getKey());
+				if (itemId != null && entry.getValue() != null) {
+					root.put(itemId.toString(), entry.getValue() == StackMode.SINGLE
+						? ItemsConfigManager.STACK_SINGLE : ItemsConfigManager.STACK_MULTI);
+				}
+			}
+		}
+		return root.build();
+	}
+
+	private static JsonObject writeCategoriesSnapshot(Map<Item, Set<String>> categoriesByItem) {
+		JsonObject root = new JsonObject();
+		if (categoriesByItem == null) return root;
+		for (Map.Entry<Item, Set<String>> entry : categoriesByItem.entrySet()) {
+			Identifier itemId = entry.getKey() == null ? null : BuiltInRegistries.ITEM.getKey(entry.getKey());
+			if (itemId == null || entry.getValue() == null || entry.getValue().isEmpty()) continue;
+			JsonArray categories = new JsonArray();
+			for (String category : entry.getValue()) {
+				if (category != null && !category.isBlank()) categories.add(category);
+			}
+			if (!categories.isEmpty()) root.add(itemId.toString(), categories);
+		}
+		return root;
+	}
+
+	private static JsonArray writeItemSetSnapshot(Set<Item> items) {
+		JsonArray root = new JsonArray();
+		if (items == null) return root;
+		for (Item item : items) {
+			Identifier itemId = item == null ? null : BuiltInRegistries.ITEM.getKey(item);
+			if (itemId != null) root.add(itemId.toString());
+		}
+		return root;
+	}
+
 	private static JsonObject writeArmorProfilesSnapshot(Map<Item, CategoriesArmorManager> profiles) {
 		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
 		if (profiles == null || profiles.isEmpty()) {
@@ -1295,6 +1483,74 @@ public final class ItemsCategoriesManager {
 			}
 		}
 		return resolved;
+	}
+
+	private static Map<Item, Integer> readFuelTicksSnapshot(JsonObject root) {
+		Map<Item, Integer> resolved = new LinkedHashMap<>();
+		if (root == null) return resolved;
+		for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+			if (entry.getValue() == null || !entry.getValue().isJsonPrimitive()
+				|| !entry.getValue().getAsJsonPrimitive().isNumber()) continue;
+			Item item = resolveItem(entry.getKey());
+			if (item == null) continue;
+			resolved.put(item, clampFuelTicks(readIntValue(entry.getValue(), 0)));
+		}
+		return resolved;
+	}
+
+	private static Map<Item, StackMode> readStackModesSnapshot(JsonObject root) {
+		Map<Item, StackMode> resolved = new LinkedHashMap<>();
+		if (root == null) return resolved;
+		for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+			if (entry.getValue() == null || !entry.getValue().isJsonPrimitive()) continue;
+			Item item = resolveItem(entry.getKey());
+			if (item == null) continue;
+			String mode = entry.getValue().getAsString();
+			if (ItemsConfigManager.STACK_SINGLE.equalsIgnoreCase(mode)) {
+				resolved.put(item, StackMode.SINGLE);
+			} else if (ItemsConfigManager.STACK_MULTI.equalsIgnoreCase(mode)) {
+				resolved.put(item, StackMode.MULTI);
+			}
+		}
+		return resolved;
+	}
+
+	private static Map<Item, Set<String>> readCategoriesSnapshot(JsonObject root) {
+		Map<Item, Set<String>> resolved = new LinkedHashMap<>();
+		if (root == null) return resolved;
+		for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+			if (entry.getValue() == null || !entry.getValue().isJsonArray()) continue;
+			Item item = resolveItem(entry.getKey());
+			if (item == null) continue;
+			Set<String> categories = new LinkedHashSet<>();
+			for (JsonElement category : entry.getValue().getAsJsonArray()) {
+				if (category != null && category.isJsonPrimitive()) {
+					String normalized = normalizeCategoryValue(category.getAsString());
+					if (!normalized.isEmpty()) categories.add(normalized);
+				}
+			}
+			if (!categories.isEmpty()) resolved.put(item, Set.copyOf(categories));
+		}
+		return resolved;
+	}
+
+	private static Set<Item> readItemSetSnapshot(JsonElement element) {
+		Set<Item> resolved = new LinkedHashSet<>();
+		if (element == null || !element.isJsonArray()) return resolved;
+		for (JsonElement itemElement : element.getAsJsonArray()) {
+			if (itemElement == null || !itemElement.isJsonPrimitive()) continue;
+			Item item = resolveItem(itemElement.getAsString());
+			if (item != null) resolved.add(item);
+		}
+		return resolved;
+	}
+
+	private static int readIntValue(JsonElement element, int fallback) {
+		try {
+			return element == null || !element.isJsonPrimitive() ? fallback : element.getAsInt();
+		} catch (RuntimeException ignored) {
+			return fallback;
+		}
 	}
 
 	private static JsonObject readJsonObject(JsonObject source, String key) {
@@ -1502,6 +1758,25 @@ public final class ItemsCategoriesManager {
 		}
 		for (Map.Entry<Item, CategoriesArmorManager> entry : profiles.entrySet()) {
 			applyArmorProfile(entry.getKey(), entry.getValue());
+		}
+	}
+
+	private static void captureClientComponents(Set<Item> items) {
+		if (items == null || items.isEmpty()) return;
+		Map<Item, DataComponentMap> captured = new LinkedHashMap<>(savedClientComponents);
+		for (Item item : items) {
+			if (item != null && !captured.containsKey(item)) captured.put(item, item.components());
+		}
+		savedClientComponents = Map.copyOf(captured);
+	}
+
+	private static void restoreClientComponents() {
+		for (Map.Entry<Item, DataComponentMap> entry : savedClientComponents.entrySet()) {
+			Item item = entry.getKey();
+			DataComponentMap components = entry.getValue();
+			if (item == null || components == null) continue;
+			((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) item).madokuCraft$getBuiltInRegistryHolder())
+				.madokuCraft$bindComponents(components);
 		}
 	}
 

@@ -14,4 +14,8 @@ public interface SlotAccessor {
 	@Mutable
 	@Accessor("y")
 	void madokuCraft$setY(int y);
+
+	@Mutable
+	@Accessor("index")
+	void madokuCraft$setIndex(int index);
 }

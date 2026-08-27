@@ -11,7 +11,7 @@ public final class RarityTierManager {
 
 	public enum Tier {
 		COMMON("common", ChatFormatting.WHITE, "*"),
-		RARE("rare", ChatFormatting.GREEN, "**"),
+		RARE("rare", ChatFormatting.DARK_GREEN, "**"),
 		EPIC("epic", ChatFormatting.BLUE, "***"),
 		LEGENDARY("legendary", ChatFormatting.LIGHT_PURPLE, "****"),
 		MYTHIC("mythic", ChatFormatting.GOLD, "*****");

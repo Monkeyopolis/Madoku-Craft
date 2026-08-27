@@ -91,7 +91,9 @@ public final class PetEntitiesManager {
 			Item item = Registry.register(
 				BuiltInRegistries.ITEM,
 				itemId,
-				new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM, itemId)))
+				new Item(new Item.Properties()
+					.setId(ResourceKey.create(Registries.ITEM, itemId))
+					.stacksTo(1))
 			);
 			PET_ITEMS_BY_ID.put(PetConfigManager.normalizePetId(petId), item);
 			PET_IDS_BY_ITEM.put(item, PetConfigManager.normalizePetId(petId));
