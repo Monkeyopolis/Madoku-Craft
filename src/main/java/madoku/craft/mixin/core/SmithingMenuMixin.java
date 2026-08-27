@@ -2,7 +2,6 @@ package madoku.craft.mixin.core;
 
 import madoku.craft.core.smithing.MadokuSmithingManager;
 import madoku.craft.core.smithing.SmithingConfigManager;
-import madoku.craft.core.smithing.TemporarySmithingDebug;
 import madoku.craft.mixin.inventory.SlotAccessor;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.SmithingMenu;
@@ -40,7 +39,6 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 		replaceSlot(menu, SmithingMenu.TEMPLATE_SLOT, SmithingMenu.TEMPLATE_SLOT_X_PLACEMENT, originalSlot(menu, SmithingMenu.TEMPLATE_SLOT));
 		replaceSlot(menu, SmithingMenu.BASE_SLOT, SmithingMenu.BASE_SLOT_X_PLACEMENT, originalSlot(menu, SmithingMenu.BASE_SLOT));
 		replaceSlot(menu, SmithingMenu.ADDITIONAL_SLOT, SmithingMenu.ADDITIONAL_SLOT_X_PLACEMENT, originalSlot(menu, SmithingMenu.ADDITIONAL_SLOT));
-		TemporarySmithingDebug.menuCreated(menu);
 	}
 
 	@Inject(method = "createResult()V", at = @At("TAIL"))
@@ -69,7 +67,6 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 				} else {
 					accepted = original.mayPlace(stack);
 				}
-				TemporarySmithingDebug.placement(menu, slotIndex, stack, accepted);
 				return accepted;
 			}
 

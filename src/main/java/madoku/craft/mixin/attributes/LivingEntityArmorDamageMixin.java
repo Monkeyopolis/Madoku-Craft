@@ -1,6 +1,7 @@
 package madoku.craft.mixin.attributes;
 
 import madoku.craft.attributes.MadokuArmorManager;
+import madoku.craft.core.enchant.EnchantBooksManager;
 import madoku.craft.mob.MobEntityManager;
 import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.core.Holder;
@@ -31,7 +32,8 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
 		boolean shouldOverrideVanillaArmor = MadokuArmorManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
-			cir.setReturnValue(PetAbilitiesManager.applyDamageVulnerabilities(entity, amount));
+			float damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, amount);
+			cir.setReturnValue(damageAfterArmor);
 			return;
 		}
 
@@ -50,6 +52,21 @@ public abstract class LivingEntityArmorDamageMixin {
 		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
+	}
+
+	@Redirect(
+		method = "getDamageAfterMagicAbsorb",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/item/enchantment/EnchantmentHelper;getDamageProtection(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/damagesource/DamageSource;)F"
+		)
+	)
+	private float madokuCraft$resolveConfiguredDamageProtection(
+		net.minecraft.server.level.ServerLevel serverLevel,
+		LivingEntity entity,
+		DamageSource source
+	) {
+		return EnchantBooksManager.resolveDamageProtection(serverLevel, entity, source);
 	}
 
 	@Redirect(

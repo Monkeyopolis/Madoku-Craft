@@ -105,15 +105,15 @@ public final class MadokuArmorManager {
 			return amount;
 		}
 
-		double roundedPoints = roundPoints(points);
-		if (roundedPoints <= 0.0d) {
+		long pointSteps = getStepCount(points, POINT_STEP);
+		if (pointSteps <= 0L) {
 			return amount;
 		}
 
 		return switch (reduction.type) {
-			case FLAT -> Math.max(0.0d, amount - (roundedPoints * reduction.value));
+			case FLAT -> Math.max(0.0d, amount - (pointSteps * reduction.value));
 			case PERCENTAGE -> {
-				double multiplier = Math.max(0.0d, 1.0d - (roundedPoints * reduction.value));
+				double multiplier = Math.max(0.0d, 1.0d - (pointSteps * reduction.value));
 				yield amount * multiplier;
 			}
 			};
@@ -154,11 +154,11 @@ public final class MadokuArmorManager {
 		return Math.min(value, upperBound);
 	}
 
-	private static double roundPoints(double value) {
-		if (value <= 0.0d || POINT_STEP <= 0.0d) {
-			return 0.0d;
+	private static long getStepCount(double value, double stepSize) {
+		if (value <= 0.0d || stepSize <= 0.0d) {
+			return 0L;
 		}
-		return Math.max(0.0d, Math.round(value / POINT_STEP) * POINT_STEP);
+		return Math.max(0L, (long) Math.floor(value / stepSize));
 	}
 
 	private static double roundToDamageIncrement(double value) {

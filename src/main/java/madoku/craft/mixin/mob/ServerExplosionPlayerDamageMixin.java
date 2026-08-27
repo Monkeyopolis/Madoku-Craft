@@ -1,8 +1,13 @@
 package madoku.craft.mixin.mob;
 
+import madoku.craft.core.enchant.EnchantBooksManager;
 import madoku.craft.mob.EntityBehaviorsManager;
 
+import net.minecraft.core.Holder;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Explosion;
@@ -43,5 +48,23 @@ public abstract class ServerExplosionPlayerDamageMixin {
 			return EntityBehaviorsManager.CreeperBehavior.resolveFixedPlayerExplosionDamage(creeper, radius);
 		}
 		return calculator.getEntityDamageAmount(explosion, damagedEntity, seenPercent);
+	}
+
+	@Redirect(
+		method = "hurtEntities",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/entity/LivingEntity;getAttributeValue(Lnet/minecraft/core/Holder;)D"
+		)
+	)
+	private double madokuCraft$applyBlastProtectionKnockbackResistance(
+		LivingEntity entity,
+		Holder<Attribute> attribute
+	) {
+		double currentResistance = entity.getAttributeValue(attribute);
+		if (attribute == Attributes.EXPLOSION_KNOCKBACK_RESISTANCE) {
+			return EnchantBooksManager.resolveExplosionKnockbackResistance(entity, currentResistance);
+		}
+		return currentResistance;
 	}
 }

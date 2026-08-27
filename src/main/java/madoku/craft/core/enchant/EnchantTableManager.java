@@ -1,26 +1,13 @@
 package madoku.craft.core.enchant;
 
-import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.tags.EnchantmentTags;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.EnchantmentMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /** Runtime group that owns the Madoku enchantment-table rules. */
 public final class EnchantTableManager {
-	private static final int MAX_ENCHANTMENTS_PER_BOOK = 3;
 	private static final int LEVELS_PER_ENCHANTMENT = 10;
 	private static final int MAX_BOTTLE_LEVEL_COST = 10;
 	private static final int SHIFT_BUTTON_OFFSET = 3;
@@ -60,7 +47,7 @@ public final class EnchantTableManager {
 
 		for (int option = 0; option < menu.costs.length; option++) {
 			int cost = (option + 1) * LEVELS_PER_ENCHANTMENT;
-			if (input.is(Items.ENCHANTED_BOOK) && !canUpgrade(input)) {
+			if (input.is(Items.ENCHANTED_BOOK) && !canUpgrade(input, option + 1)) {
 				continue;
 			}
 			menu.costs[option] = cost;
@@ -165,60 +152,15 @@ public final class EnchantTableManager {
 	}
 
 	private static ItemStack createEnchantedBook(Player player, int enchantmentCount) {
-		Registry<Enchantment> registry = player.level().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
-		List<Holder<Enchantment>> available = availableEnchantments(menuRandom(player), registry, enchantmentCount);
-		if (available.isEmpty()) return ItemStack.EMPTY;
-
-		ItemStack result = new ItemStack(Items.ENCHANTED_BOOK);
-		ItemEnchantments.Mutable enchantments = new ItemEnchantments.Mutable(ItemEnchantments.EMPTY);
-		for (Holder<Enchantment> enchantment : available) enchantments.set(enchantment, 1);
-		EnchantmentHelper.setEnchantments(result, enchantments.toImmutable());
-		return result;
+		return EnchantBooksManager.createEnchantedBook(player, enchantmentCount);
 	}
 
-	private static List<Holder<Enchantment>> availableEnchantments(RandomSource random, Registry<Enchantment> registry, int count) {
-		List<Holder<Enchantment>> candidates = new ArrayList<>();
-		for (Holder<Enchantment> holder : registry.getTagOrEmpty(EnchantmentTags.IN_ENCHANTING_TABLE)) {
-			candidates.add(holder);
-		}
-		if (candidates.isEmpty()) {
-			registry.stream().forEach(enchantment -> candidates.add(registry.wrapAsHolder(enchantment)));
-		}
-		Collections.shuffle(candidates, new RandomSourceAdapter(random));
-
-		List<Holder<Enchantment>> selected = new ArrayList<>();
-		for (Holder<Enchantment> candidate : candidates) {
-			if (selected.size() >= Math.min(MAX_ENCHANTMENTS_PER_BOOK, count)) break;
-			if (EnchantmentHelper.isEnchantmentCompatible(selected, candidate)) selected.add(candidate);
-		}
-		return selected;
-	}
-
-	private static boolean canUpgrade(ItemStack input) {
-		ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(input);
-		for (Holder<Enchantment> enchantment : enchantments.keySet()) {
-			int current = enchantments.getLevel(enchantment);
-			if (current < enchantment.value().getMaxLevel()) return true;
-		}
-		return false;
+	private static boolean canUpgrade(ItemStack input, int levels) {
+		return EnchantBooksManager.canUpgradeByLevels(input, levels);
 	}
 
 	private static ItemStack upgradeEnchantedBook(ItemStack input, int levels) {
-		ItemEnchantments existing = EnchantmentHelper.getEnchantmentsForCrafting(input);
-		ItemEnchantments.Mutable upgraded = new ItemEnchantments.Mutable(existing);
-		boolean changed = false;
-		for (Holder<Enchantment> enchantment : existing.keySet()) {
-			int current = existing.getLevel(enchantment);
-			int target = Math.min(enchantment.value().getMaxLevel(), current + levels);
-			if (target > current) {
-				upgraded.set(enchantment, target);
-				changed = true;
-			}
-		}
-		if (!changed) return ItemStack.EMPTY;
-		ItemStack result = new ItemStack(Items.ENCHANTED_BOOK);
-		EnchantmentHelper.setEnchantments(result, upgraded.toImmutable());
-		return result;
+		return EnchantBooksManager.upgradeEnchantedBook(input, levels);
 	}
 
 	private static void clearChoices(EnchantmentMenu menu) {
@@ -229,20 +171,4 @@ public final class EnchantTableManager {
 		}
 	}
 
-	private static RandomSource menuRandom(Player player) {
-		return player.getRandom();
-	}
-
-	private static final class RandomSourceAdapter extends java.util.Random {
-		private final RandomSource source;
-
-		private RandomSourceAdapter(RandomSource source) {
-			this.source = source;
-		}
-
-		@Override
-		protected int next(int bits) {
-			return source.nextInt() >>> (Integer.SIZE - bits);
-		}
-	}
 }

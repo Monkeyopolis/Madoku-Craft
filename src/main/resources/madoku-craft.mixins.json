@@ -57,6 +57,8 @@
     "attributes.LivingEntityEffectAttributeOverrideMixin",
     "attributes.LivingEntityEffectMixin",
     "attributes.LivingEntityLuckLootMixin",
+    "attributes.EnchantmentAttributeEffectMixin",
+    "attributes.EnchantmentMaximumLevelMixin",
     "mob.LivingEntityMobAggroMixin",
     "pet.LivingEntityPetBehaviorMixin",
     "season.LevelSeasonalPrecipitationMixin",

@@ -62,7 +62,6 @@ public final class MadokuSmithingManager {
 	public static boolean isAllowedAdditional(SmithingMenu menu, ItemStack stack) {
 		if (!acceptsExtendedItems() || stack == null || stack.isEmpty()) return false;
 		if (stack.is(Items.NETHERITE_INGOT)) {
-			TemporarySmithingDebug.additionalCheck(menu, stack, true);
 			return true;
 		}
 		ItemStack base = menu.getSlot(SmithingMenu.TEMPLATE_SLOT).getItem();
@@ -70,7 +69,6 @@ public final class MadokuSmithingManager {
 			&& base.getItem() == stack.getItem()
 			&& levelOf(base) == levelOf(stack)
 			&& rarityOf(base) == rarityOf(stack);
-		TemporarySmithingDebug.additionalCheck(menu, stack, accepted);
 		return accepted;
 	}
 
@@ -80,7 +78,6 @@ public final class MadokuSmithingManager {
 		ItemStack base = menu.getSlot(SmithingMenu.TEMPLATE_SLOT).getItem();
 		ItemStack template = menu.getSlot(SmithingMenu.BASE_SLOT).getItem();
 		ItemStack additional = menu.getSlot(SmithingMenu.ADDITIONAL_SLOT).getItem();
-		TemporarySmithingDebug.resultInputs(menu);
 		if (!isManagedBase(base)) return;
 
 		boolean duplicateUpgrade = isBottleCatalyst(template)
