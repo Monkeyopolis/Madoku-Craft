@@ -16,10 +16,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.storage.loot.LootContext;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import org.apache.commons.lang3.mutable.MutableFloat;
 
 import java.util.ArrayList;
@@ -33,6 +36,10 @@ import static madoku.craft.core.enchant.BooksConfigManager.BREACH_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.DEPTH_STRIDER_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.EFFICIENCY_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FEATHER_FALLING_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.FORTUNE_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.FIRE_ASPECT_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.FIRE_PROTECTION_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.FLAME_ID;
 
 /** Runtime group that owns configured enchantment books and enchantment effects. */
 public final class EnchantBooksManager {
@@ -140,6 +147,30 @@ public final class EnchantBooksManager {
 		return configuredModifier;
 	}
 
+	/** Replaces vanilla Fire Protection's burning-time attribute multiplier. */
+	public static AttributeModifier applyConfiguredFireProtectionModifier(
+		int level,
+		String slot,
+		AttributeModifier vanillaModifier
+	) {
+		if (vanillaModifier == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return vanillaModifier;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(FIRE_PROTECTION_ID);
+		if (definition == null || !definition.enabled) return vanillaModifier;
+
+		double configuredPercent = BooksConfigManager.resolveAdjustment(
+			definition.baseDuration,
+			definition.levelDuration,
+			Math.max(1, level)
+		);
+		AttributeModifier configuredModifier = new AttributeModifier(
+			vanillaModifier.id(),
+			-configuredPercent / 100.0D,
+			vanillaModifier.operation()
+		);
+		return configuredModifier;
+	}
+
 	/** Removes only configured enchantments that are incompatible with an anvil target. */
 	public static void removeIncompatibleConfiguredEnchantments(ItemStack target, ItemStack result) {
 		if (target == null || target.isEmpty() || result == null || result.isEmpty()
@@ -212,6 +243,7 @@ public final class EnchantBooksManager {
 		} else {
 			return;
 		}
+		applyFireAspect(target, weapon);
 		int level = resolveLevel(weapon, BANE_OF_ARTHROPODS_ID);
 		if (level <= 0 || !BooksConfigManager.isCompatible(definition, weapon)) return;
 
@@ -228,6 +260,103 @@ public final class EnchantBooksManager {
 		target.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, durationTicks, amplifier), attacker);
 	}
 
+	/** Replaces vanilla Fire Aspect's burn duration with the configured duration. */
+	private static void applyFireAspect(LivingEntity target, ItemStack weapon) {
+		EnchantmentDefinition definition = BooksConfigManager.definition(FIRE_ASPECT_ID);
+		if (definition == null || !definition.enabled) return;
+
+		int level = resolveLevel(weapon, FIRE_ASPECT_ID);
+		if (level <= 0) return;
+
+		boolean compatible = BooksConfigManager.isCompatible(definition, weapon);
+		double configuredSeconds = BooksConfigManager.resolveAdjustment(
+			definition.baseDuration,
+			definition.levelDuration,
+			level
+		);
+		int configuredTicks = Math.max(1, (int) Math.round(configuredSeconds * 20.0D));
+		boolean fireImmune = target.fireImmune();
+		boolean applied = compatible && !fireImmune;
+		if (applied) target.setRemainingFireTicks(configuredTicks);
+	}
+
+	/** Replaces vanilla Flame's arrow-hit ignition duration with the configured duration. */
+	public static boolean applyConfiguredFlame(Entity target, ItemStack weapon, float vanillaSeconds) {
+		if (target == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(FLAME_ID);
+		int level = resolveLevel(weapon, FLAME_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		double configuredSeconds = definitionEnabled
+			? BooksConfigManager.resolveAdjustment(definition.baseDuration, definition.levelDuration, Math.max(1, level))
+			: 0.0D;
+		boolean fireImmune = target.fireImmune();
+		boolean applied = definitionEnabled && level > 0 && compatible && !fireImmune;
+		if (applied) {
+			int configuredTicks = Math.max(1, (int) Math.round(configuredSeconds * 20.0D));
+			target.setRemainingFireTicks(configuredTicks);
+		}
+		return applied;
+	}
+
+	/** Replaces vanilla Fortune's variable bonus with one configured chance to double the stack. */
+	public static boolean applyConfiguredFortune(
+		Holder<Enchantment> enchantment,
+		ItemStack stack,
+		LootContext lootContext
+	) {
+		if (enchantment == null || stack == null || stack.isEmpty()
+			|| !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		boolean fortune = enchantment.unwrapKey()
+			.map(key -> FORTUNE_ID.equals(key.identifier().toString()))
+			.orElse(false);
+		if (!fortune) return false;
+
+		ItemInstance toolInstance = lootContext == null
+			? null
+			: lootContext.getOptionalParameter(LootContextParams.TOOL);
+		ItemStack tool = toolInstance instanceof ItemStack itemStack ? itemStack : ItemStack.EMPTY;
+		RandomSource random = lootContext == null ? null : lootContext.getRandom();
+		return applyConfiguredFortuneRoll(tool, stack, random);
+	}
+
+	/** Applies the configured Fortune roll to drops generated by Madoku Farming. */
+	public static boolean applyConfiguredFortune(ItemStack tool, ItemStack stack, RandomSource random) {
+		return applyConfiguredFortuneRoll(tool, stack, random);
+	}
+
+	private static boolean applyConfiguredFortuneRoll(
+		ItemStack tool,
+		ItemStack stack,
+		RandomSource random
+	) {
+		if (stack == null || stack.isEmpty() || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(FORTUNE_ID);
+		if (definition == null || !definition.enabled) return false;
+
+		ItemStack resolvedTool = tool == null ? ItemStack.EMPTY : tool;
+		int level = resolveLevel(resolvedTool, FORTUNE_ID);
+		boolean compatible = level > 0 && BooksConfigManager.isCompatible(definition, resolvedTool);
+		int countBefore = stack.getCount();
+		double chance = level > 0
+			? BooksConfigManager.resolveAdjustment(definition.baseAdjustment, definition.levelAdjustment, level)
+			: 0.0D;
+		chance = Math.min(100.0D, chance);
+		float roll = -1.0F;
+		boolean doubled = false;
+		if (compatible && chance > 0.0D) {
+			roll = (random == null ? RandomSource.create() : random).nextFloat() * 100.0F;
+			doubled = roll < chance;
+			if (doubled) stack.setCount(countBefore * 2);
+		}
+
+		return true;
+	}
+
 	/** Resolves vanilla protection points while replacing configured protection enchantment contributions. */
 	public static float resolveDamageProtection(
 		net.minecraft.server.level.ServerLevel serverLevel,
@@ -238,12 +367,33 @@ public final class EnchantBooksManager {
 
 		MutableFloat protection = new MutableFloat(0.0F);
 		EnchantmentHelper.runIterationOnEquipment(entity, (holder, level, enchantedItem) -> {
+			boolean fireDamage = source.is(DamageTypeTags.IS_FIRE);
+			boolean bypassesInvulnerability = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+			boolean fireProtection = holder.unwrapKey()
+				.map(key -> key.identifier().toString().equals(FIRE_PROTECTION_ID))
+				.orElse(false);
+			EnchantmentDefinition fireProtectionDefinition = BooksConfigManager.definition(FIRE_PROTECTION_ID);
+			boolean replaceFireProtection = fireProtection && fireDamage
+				&& !bypassesInvulnerability
+				&& fireProtectionDefinition != null && fireProtectionDefinition.enabled;
+			if (replaceFireProtection) {
+				boolean compatible = BooksConfigManager.isCompatible(fireProtectionDefinition, enchantedItem.itemStack());
+				if (compatible) {
+					double configuredProtection = BooksConfigManager.resolveAdjustment(
+						fireProtectionDefinition.baseAdjustment,
+						fireProtectionDefinition.levelAdjustment,
+						level
+					);
+					protection.add((float) configuredProtection);
+				}
+				return;
+			}
+
 			boolean featherFalling = holder.unwrapKey()
 				.map(key -> key.identifier().toString().equals(FEATHER_FALLING_ID))
 				.orElse(false);
 			EnchantmentDefinition featherFallingDefinition = BooksConfigManager.definition(FEATHER_FALLING_ID);
 			boolean fallDamage = source.is(DamageTypeTags.IS_FALL);
-			boolean bypassesInvulnerability = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
 			boolean compatible = featherFallingDefinition != null
 				&& BooksConfigManager.isCompatible(featherFallingDefinition, enchantedItem.itemStack());
 			boolean replaceFeatherFalling = featherFalling && fallDamage
@@ -252,46 +402,13 @@ public final class EnchantBooksManager {
 			if (replaceFeatherFalling) {
 				if (compatible) {
 					// CombatRules uses 25 protection points per 100% reduction.
-					double configuredPercent = BooksConfigManager.resolveAdjustment(
+						double configuredPercent = BooksConfigManager.resolveAdjustment(
 						featherFallingDefinition.baseAdjustment,
 						featherFallingDefinition.levelAdjustment,
 						level
 					);
 					double protectionPoints = configuredPercent / 4.0D;
-					float protectionBefore = protection.floatValue();
 					protection.add((float) protectionPoints);
-					TemporaryEnchantDebug.featherFallingProtection(level, configuredPercent, protectionPoints);
-					TemporaryEnchantDebug.featherFallingEvaluation(
-						source.typeHolder().unwrapKey().map(key -> key.identifier().toString()).orElse(source.getMsgId()),
-						enchantedItem.itemStack().getItem().toString(),
-						level,
-						fallDamage,
-						bypassesInvulnerability,
-						true,
-						true,
-						true,
-						configuredPercent,
-						protectionPoints,
-						protectionBefore,
-						protection.floatValue(),
-						true
-					);
-				} else {
-					TemporaryEnchantDebug.featherFallingEvaluation(
-						source.typeHolder().unwrapKey().map(key -> key.identifier().toString()).orElse(source.getMsgId()),
-						enchantedItem.itemStack().getItem().toString(),
-						level,
-						fallDamage,
-						bypassesInvulnerability,
-						featherFallingDefinition != null,
-						featherFallingDefinition != null && featherFallingDefinition.enabled,
-						compatible,
-						0.0D,
-						0.0D,
-						protection.floatValue(),
-						protection.floatValue(),
-						false
-					);
 				}
 				return;
 			}

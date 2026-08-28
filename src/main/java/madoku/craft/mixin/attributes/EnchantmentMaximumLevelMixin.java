@@ -82,6 +82,27 @@ public abstract class EnchantmentMaximumLevelMixin {
 		}
 	}
 
+	/** Prevents configured Fire Aspect from retaining vanilla's burn duration. */
+	@Inject(
+		method = "doPostAttack(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/enchantment/EnchantedItemInUse;Lnet/minecraft/world/item/enchantment/EnchantmentTarget;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceFireAspectPostAttack(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		EnchantmentTarget target,
+		Entity entity,
+		DamageSource source,
+		CallbackInfo callbackInfo
+	) {
+		Enchantment enchantment = (Enchantment) (Object) this;
+		if (!BooksConfigManager.isFireAspect(enchantment)) return;
+		boolean override = BooksConfigManager.shouldOverrideFireAspect(enchantment);
+		if (override) callbackInfo.cancel();
+	}
+
 	/** Replaces vanilla Breach's armor-effectiveness contribution in the vanilla armor path. */
 	@Inject(
 		method = "modifyArmorEffectivness(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",

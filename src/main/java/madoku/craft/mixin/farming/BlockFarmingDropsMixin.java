@@ -81,13 +81,23 @@ public abstract class BlockFarmingDropsMixin {
 		ItemStack tool,
 		CallbackInfo ci
 	) {
-		overrideCropHarvestDrops(state, level instanceof ServerLevel serverLevel ? serverLevel : null, pos, ci);
+		overrideCropHarvestDrops(state, level instanceof ServerLevel serverLevel ? serverLevel : null, pos, tool, ci);
 	}
 
 	private static void overrideCropHarvestDrops(
 		BlockState state,
 		ServerLevel level,
 		BlockPos pos,
+		CallbackInfo ci
+	) {
+		overrideCropHarvestDrops(state, level, pos, null, ci);
+	}
+
+	private static void overrideCropHarvestDrops(
+		BlockState state,
+		ServerLevel level,
+		BlockPos pos,
+		ItemStack tool,
 		CallbackInfo ci
 	) {
 		// Player-placed crop blocks must retain vanilla block drops. The placed
@@ -109,7 +119,7 @@ public abstract class BlockFarmingDropsMixin {
 			}
 			return;
 		}
-		MadokuLuckManager.applyManagedCropDrops(random, drops);
+		MadokuLuckManager.applyManagedCropDrops(random, drops, tool);
 		for (ItemStack drop : drops) {
 			if (drop != null && !drop.isEmpty()) {
 				Block.popResource(level, pos, drop);

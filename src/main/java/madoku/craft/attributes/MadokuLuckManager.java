@@ -3,6 +3,7 @@ package madoku.craft.attributes;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
 import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.enchant.EnchantBooksManager;
 import madoku.craft.core.helper.MadokuBlockDropContextManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -23,6 +24,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
@@ -205,7 +207,15 @@ public final class MadokuLuckManager {
 	}
 
 	public static void applyManagedCropDrops(RandomSource random, ObjectArrayList<ItemStack> stacks) {
-		if (!settings.enabled || !settings.cropDrops.enabled || stacks == null || stacks.isEmpty()) {
+		applyManagedCropDrops(random, stacks, null);
+	}
+
+	public static void applyManagedCropDrops(
+		RandomSource random,
+		ObjectArrayList<ItemStack> stacks,
+		ItemStack tool
+	) {
+		if (stacks == null || stacks.isEmpty()) {
 			return;
 		}
 
@@ -217,6 +227,14 @@ public final class MadokuLuckManager {
 		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level(), context.pos(), context.state())
 			&& MadokuFarmingManager.isCropHarvestReady(context.level(), context.pos(), context.state());
 		if (!managedCrop || context.player().isCreative()) {
+			return;
+		}
+
+		for (ItemStack stack : stacks) {
+			EnchantBooksManager.applyConfiguredFortune(tool, stack, random);
+		}
+
+		if (!settings.enabled || !settings.cropDrops.enabled) {
 			return;
 		}
 
@@ -236,7 +254,9 @@ public final class MadokuLuckManager {
 			applyManagedCropDrops((RandomSource) null, stacks);
 			return;
 		}
-		applyManagedCropDrops(lootContext.getRandom(), stacks);
+		ItemInstance toolInstance = lootContext.getOptionalParameter(LootContextParams.TOOL);
+		ItemStack tool = toolInstance instanceof ItemStack itemStack ? itemStack : null;
+		applyManagedCropDrops(lootContext.getRandom(), stacks, tool);
 	}
 
 	/** Applies Madoku Luck to managed mob-drop quantities generated outside LootTable#getRandomItems. */

@@ -35,6 +35,11 @@ public final class BooksConfigManager {
 	static final String DEPTH_STRIDER_ID = "minecraft:depth_strider";
 	static final String EFFICIENCY_ID = "minecraft:efficiency";
 	static final String FEATHER_FALLING_ID = "minecraft:feather_falling";
+	static final String FROST_WALKER_ID = "minecraft:frost_walker";
+	static final String FORTUNE_ID = "minecraft:fortune";
+	static final String FIRE_ASPECT_ID = "minecraft:fire_aspect";
+	static final String FIRE_PROTECTION_ID = "minecraft:fire_protection";
+	static final String FLAME_ID = "minecraft:flame";
 	private static final String FIELD_ENCHANTMENT_ID = "enchantment-id";
 	private static final String FIELD_MAXIMUM_LEVEL = "maximum-level";
 	private static final String FIELD_COMPATIBLE_ITEMS = "compatible-items";
@@ -64,6 +69,14 @@ public final class BooksConfigManager {
 	private static final String FIELD_BASE_MINING_EFFICIENCY = "base-mining-efficiency";
 	private static final String FIELD_FEATHER_FALLING = "efficiency";
 	private static final String FIELD_BASE_FALL_DAMAGE_REDUCTION = "base-fall-damage-reduction";
+	private static final String FIELD_FORTUNE = "fortune";
+	private static final String FIELD_BASE_MULTIPLIER_CHANCE = "base-multiplier-chance";
+	private static final String FIELD_FIRE_ASPECT = "fire-aspect";
+	private static final String FIELD_BASE_FIRE_DURATION = "base-fire-duration";
+	private static final String FIELD_FIRE_PROTECTION = "fire-protection";
+	private static final String FIELD_BURN_PROTECTION = "burn-protection";
+	private static final String FIELD_BURN_DURATION_REDUCTION = "burn-duration-reduction";
+	private static final String FIELD_FLAME = "flame";
 	private static final String FIELD_BASE_ADJUSTMENT = "base-adjustment";
 	private static final String FIELD_BASE_SUBMERGED_MINING_SPEED = "base-submerged-mining-speed";
 	private static final String FIELD_LEVEL_ADJUSTMENT = "level-adjustment";
@@ -79,6 +92,11 @@ public final class BooksConfigManager {
 	private static final String DEPTH_STRIDER_FILE_KEY = "depth-strider";
 	private static final String EFFICIENCY_FILE_KEY = "efficiency";
 	private static final String FEATHER_FALLING_FILE_KEY = "feather-falling";
+	private static final String FROST_WALKER_FILE_KEY = "frost-walker";
+	private static final String FORTUNE_FILE_KEY = "fortune";
+	private static final String FIRE_ASPECT_FILE_KEY = "fire-aspect";
+	private static final String FIRE_PROTECTION_FILE_KEY = "fire-protection";
+	private static final String FLAME_FILE_KEY = "flame";
 	private static final Map<String, EnchantmentDefinition> EMPTY_DEFINITIONS = Map.of();
 	private static volatile Map<String, EnchantmentDefinition> definitions = EMPTY_DEFINITIONS;
 	private static volatile Map<String, EnchantmentDefinition> clientSynchronizedDefinitions = EMPTY_DEFINITIONS;
@@ -219,6 +237,17 @@ public final class BooksConfigManager {
 		return definition != null && definition.enabled;
 	}
 
+	public static boolean shouldOverrideFireAspect(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!isFireAspect(enchantment)) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(FIRE_ASPECT_ID);
+		return definition != null && definition.enabled;
+	}
+
+	public static boolean isFireAspect(Enchantment enchantment) {
+		return enchantment != null && FIRE_ASPECT_ID.equals(resolveEnchantmentId(enchantment));
+	}
+
 	/** Returns configured Breach penetration, or a negative value when vanilla behavior should remain active. */
 	public static double getConfiguredBreachArmorPenetration(Enchantment enchantment, ItemStack stack, int level) {
 		if (enchantment == null || stack == null || stack.isEmpty()
@@ -259,6 +288,12 @@ public final class BooksConfigManager {
 				}
 				case "mace" -> {
 					if (stack.is(ItemTags.MACE_ENCHANTABLE)) return true;
+				}
+				case "bow" -> {
+					if (stack.is(ItemTags.BOW_ENCHANTABLE)) return true;
+				}
+				case "crossbow" -> {
+					if (stack.is(ItemTags.CROSSBOW_ENCHANTABLE)) return true;
 				}
 				case "trident" -> {
 					if (stack.is(ItemTags.TRIDENT_ENCHANTABLE)) return true;
@@ -362,6 +397,11 @@ public final class BooksConfigManager {
 			staticDefaults.put(DEPTH_STRIDER_FILE_KEY, buildDepthStriderDefaults());
 			staticDefaults.put(EFFICIENCY_FILE_KEY, buildEfficiencyDefaults());
 			staticDefaults.put(FEATHER_FALLING_FILE_KEY, buildFeatherFallingDefaults());
+			staticDefaults.put(FROST_WALKER_FILE_KEY, buildFrostWalkerDefaults());
+			staticDefaults.put(FORTUNE_FILE_KEY, buildFortuneDefaults());
+			staticDefaults.put(FIRE_ASPECT_FILE_KEY, buildFireAspectDefaults());
+			staticDefaults.put(FIRE_PROTECTION_FILE_KEY, buildFireProtectionDefaults());
+			staticDefaults.put(FLAME_FILE_KEY, buildFlameDefaults());
 			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				EnchantConfigManager.enchantmentsDirectory(),
 				staticDefaults,
@@ -376,13 +416,6 @@ public final class BooksConfigManager {
 				if (definition != null) loaded.put(definition.enchantmentId, definition);
 			}
 			definitions = loaded.isEmpty() ? EMPTY_DEFINITIONS : Map.copyOf(loaded);
-			EnchantmentDefinition featherFalling = loaded.get(FEATHER_FALLING_ID);
-			TemporaryEnchantDebug.featherFallingDefinition(
-				featherFalling != null,
-				featherFalling != null && featherFalling.enabled,
-				featherFalling == null ? 0.0D : featherFalling.baseAdjustment,
-				featherFalling == null ? 0.0D : featherFalling.levelAdjustment
-			);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load Madoku enchantment definitions.", exception);
 			definitions = EMPTY_DEFINITIONS;
@@ -547,6 +580,87 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildFrostWalkerDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, "minecraft:frost-walker")
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildFortuneDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, "minecraft:fortune")
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("pickaxe")
+				.add("shovel")
+				.add("axe")
+				.add("hoe"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_FORTUNE, fortune -> fortune
+				.put(FIELD_BASE_MULTIPLIER_CHANCE, 30)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildFireAspectDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, "minecraft:fire-aspect")
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("sword")
+				.add("trident")
+				.add("spear")
+				.add("axe")
+				.add("mace"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_FIRE_ASPECT, fireAspect -> fireAspect
+				.put(FIELD_BASE_FIRE_DURATION, 3)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
+	private static JsonObject buildFireProtectionDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, "minecraft:fire-protection")
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_FIRE_PROTECTION, fireProtection -> fireProtection
+				.object(FIELD_BURN_PROTECTION, burnProtection -> burnProtection
+					.put(FIELD_BASE_VALUE, 6)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1))
+				.object(FIELD_BURN_DURATION_REDUCTION, burnDuration -> burnDuration
+					.put(FIELD_BASE_VALUE, 6)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1)))
+			.build();
+	}
+
+	private static JsonObject buildFlameDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, "minecraft:flame")
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_FLAME, flame -> flame
+				.put(FIELD_BASE_FIRE_DURATION, 3)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
 	private static JsonObject buildGenericDefaults(String fileKey) {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "")
@@ -650,6 +764,48 @@ public final class BooksConfigManager {
 			levelAdjustment = Math.max(0.0D, readDouble(featherFalling, FIELD_LEVEL_ADJUSTMENT, 0.0D));
 			baseDuration = 0.0D;
 			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (FORTUNE_ID.equals(enchantmentId)) {
+			JsonObject fortune = object(root, FIELD_FORTUNE);
+			baseAdjustment = Math.max(0.0D, readDouble(fortune, FIELD_BASE_MULTIPLIER_CHANCE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(fortune, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (FIRE_ASPECT_ID.equals(enchantmentId)) {
+			JsonObject fireAspect = object(root, FIELD_FIRE_ASPECT);
+			baseDuration = Math.max(0.0D, readDouble(fireAspect, FIELD_BASE_FIRE_DURATION, 0.0D));
+			levelDuration = Math.max(0.0D, readDouble(fireAspect, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseAdjustment = 0.0D;
+			levelAdjustment = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (FIRE_PROTECTION_ID.equals(enchantmentId)) {
+			JsonObject fireProtection = object(root, FIELD_FIRE_PROTECTION);
+			JsonObject burnProtection = object(fireProtection, FIELD_BURN_PROTECTION);
+			baseAdjustment = Math.max(0.0D, readDouble(burnProtection, FIELD_BASE_VALUE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(burnProtection, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			JsonObject burnDurationReduction = object(fireProtection, FIELD_BURN_DURATION_REDUCTION);
+			baseDuration = Math.max(0.0D, readDouble(burnDurationReduction, FIELD_BASE_VALUE, 0.0D));
+			levelDuration = Math.max(0.0D, readDouble(burnDurationReduction, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (FLAME_ID.equals(enchantmentId)) {
+			JsonObject flame = object(root, FIELD_FLAME);
+			baseDuration = Math.max(0.0D, readDouble(flame, FIELD_BASE_FIRE_DURATION, 0.0D));
+			levelDuration = Math.max(0.0D, readDouble(flame, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseAdjustment = 0.0D;
+			levelAdjustment = 0.0D;
 			baseKnockbackResistance = 0.0D;
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;

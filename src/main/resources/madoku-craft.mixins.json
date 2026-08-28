@@ -3,7 +3,9 @@
   "package": "madoku.craft.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "core.ApplyBonusCountFortuneMixin",
     "mob.AbstractArrowDamageMixin",
+    "mob.AbstractArrowFlameMixin",
     "smelting.AbstractFurnaceCookTimeAccessor",
     "smelting.AbstractFurnaceServerTickInvoker",
     "smelting.AbstractFurnaceServerTickMixin",

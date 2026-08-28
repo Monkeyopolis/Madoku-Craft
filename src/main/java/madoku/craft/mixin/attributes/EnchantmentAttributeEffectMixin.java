@@ -31,6 +31,14 @@ public abstract class EnchantmentAttributeEffectMixin {
 			callbackInfo.setReturnValue(
 				EnchantBooksManager.applyConfiguredEfficiencyModifier(level, callbackInfo.getReturnValue())
 			);
+		} else if ("minecraft:enchantment.fire_protection".equals(effectId)) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredFireProtectionModifier(
+					level,
+					slot == null ? "null" : slot.toString(),
+					callbackInfo.getReturnValue()
+				)
+			);
 		}
 	}
 }
