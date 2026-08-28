@@ -2,11 +2,13 @@ package madoku.craft.core.recipes;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 
 import madoku.craft.core.json.JSONFormatManager;
 import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.core.rarity.MadokuRarityManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.core.rarity.RarityTierManager.Tier;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.core.registries.Registries;
@@ -39,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +56,8 @@ public final class MadokuRecipesManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuRecipesManager.class);
 	private static final String MADOKU_RECIPE_NAMESPACE = "madoku-craft";
 	private static volatile boolean initialized;
+	private static volatile Boolean clientSynchronizedSystemEnabled;
+	private static volatile Map<String, JsonObject> clientSynchronizedFiles;
 
 	private MadokuRecipesManager() {
 	}
@@ -63,6 +68,12 @@ public final class MadokuRecipesManager {
 		RecipesBlockManager.initialize();
 		RecipesItemManager.initialize();
 		loadSystemEnabled();
+		SyncConfigManager.register(
+			"recipes",
+			MadokuRecipesManager::createClientSyncSnapshot,
+			MadokuRecipesManager::applyClientSyncSnapshot,
+			MadokuRecipesManager::resetClientSyncState
+		);
 		initialized = true;
 	}
 
@@ -71,6 +82,7 @@ public final class MadokuRecipesManager {
 		RecipesBlockManager.reset();
 		RecipesFormatManager.reset();
 		RecipesConfigManager.reset();
+		resetClientSyncState();
 		initialized = false;
 	}
 
@@ -202,6 +214,7 @@ public final class MadokuRecipesManager {
 		try {
 			Path rootDirectory = RecipesConfigManager.getRootDirectory();
 			Path recipesDirectory = rootDirectory;
+			Map<String, JsonObject> synchronizedFiles = clientSynchronizedFiles;
 
 			List<RecipeDescriptor> descriptors = collectDescriptors(source);
 			Map<String, RecipeDescriptor> descriptorByRecipeId = new HashMap<>();
@@ -231,13 +244,15 @@ public final class MadokuRecipesManager {
 				Map<String, JsonObject> staticDefaults = defaultsByFolder.getOrDefault(folder, Map.of());
 				Set<String> validKeys = keysByFolder.getOrDefault(folder, Set.of());
 
-				Map<String, JsonObject> normalized = JSONFormatManager.ensureManagedFolder(
-					folder,
-					staticDefaults,
-					fileKey -> defaultsByFileKey.getOrDefault(fileKey, new JsonObject()),
-					(fileKey, sourceRoot) -> isSupportedRecipeConfigFile(fileKey, sourceRoot, validKeys, descriptorByRecipeId),
-					MadokuRecipesManager::copyDynamicEntry
-				);
+				Map<String, JsonObject> normalized = synchronizedFiles == null
+					? JSONFormatManager.ensureManagedFolder(
+						folder,
+						staticDefaults,
+						fileKey -> defaultsByFileKey.getOrDefault(fileKey, new JsonObject()),
+						(fileKey, sourceRoot) -> isSupportedRecipeConfigFile(fileKey, sourceRoot, validKeys, descriptorByRecipeId),
+						MadokuRecipesManager::copyDynamicEntry
+					)
+					: synchronizedFilesForFolder(recipesDirectory, folder, synchronizedFiles);
 
 				for (JsonObject normalizedRoot : normalized.values()) {
 					JsonObject flatRoot = RecipesConfigManager.flattenRecipeConfig(normalizedRoot);
@@ -931,7 +946,94 @@ public final class MadokuRecipesManager {
 		return source;
 	}
 
+	public static String createClientSyncSnapshot() {
+		JsonObject snapshot = JSONFormatManager.object()
+			.put(RecipesConfigManager.FIELD_ENABLED, loadSystemEnabled())
+			.object("files", files -> {
+				for (Map.Entry<String, JsonObject> entry : collectRecipeConfigFiles().entrySet()) {
+					files.put(entry.getKey(), entry.getValue());
+				}
+			})
+			.build();
+		return snapshot.toString();
+	}
+
+	public static void applyClientSyncSnapshot(String snapshot) {
+		JsonElement parsed = JsonParser.parseString(snapshot == null ? "" : snapshot);
+		if (!parsed.isJsonObject()) return;
+		JsonObject root = parsed.getAsJsonObject();
+		clientSynchronizedSystemEnabled = readBoolean(root, RecipesConfigManager.FIELD_ENABLED, true);
+		clientSynchronizedFiles = readJsonObjectMap(root, "files");
+	}
+
+	public static void resetClientSyncState() {
+		clientSynchronizedSystemEnabled = null;
+		clientSynchronizedFiles = null;
+	}
+
+	private static Map<String, JsonObject> collectRecipeConfigFiles() {
+		Map<String, JsonObject> files = new LinkedHashMap<>();
+		try {
+			Path rootDirectory = RecipesConfigManager.getRootDirectory();
+			Path settingsFile = resolveJsonFile(rootDirectory, RecipesConfigManager.SETTINGS_FILE_NAME);
+			if (!Files.isDirectory(rootDirectory)) return files;
+			try (var stream = Files.walk(rootDirectory)) {
+				stream.filter(Files::isRegularFile)
+					.filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+					.filter(path -> !path.equals(settingsFile))
+					.forEach(path -> {
+						try {
+							JSONFormatManager.ManagedDocument document = JSONFormatManager.readManagedDocument(path);
+							JsonObject data = document.data();
+							data.addProperty(RecipesConfigManager.FIELD_ENABLED,
+								readBoolean(document.settings(), RecipesConfigManager.FIELD_ENABLED, true));
+							String key = rootDirectory.relativize(path).toString().replace('\\', '/');
+							files.put(key, data);
+						} catch (IOException exception) {
+							throw new RuntimeException(exception);
+						}
+					});
+			}
+		} catch (IOException | RuntimeException exception) {
+			LOGGER.error("Failed to create synchronized MadokuRecipes configuration.", exception);
+		}
+		return files;
+	}
+
+	private static Map<String, JsonObject> synchronizedFilesForFolder(
+		Path rootDirectory,
+		Path folder,
+		Map<String, JsonObject> synchronizedFiles
+	) {
+		Map<String, JsonObject> result = new LinkedHashMap<>();
+		String folderKey = rootDirectory.relativize(folder).toString().replace('\\', '/');
+		for (Map.Entry<String, JsonObject> entry : synchronizedFiles.entrySet()) {
+			String key = entry.getKey();
+			int separator = key.lastIndexOf('/');
+			String parent = separator < 0 ? "" : key.substring(0, separator);
+			if (!parent.equals(folderKey)) continue;
+			String fileKey = separator < 0 ? key : key.substring(separator + 1);
+			if (fileKey.toLowerCase(Locale.ROOT).endsWith(".json")) {
+				fileKey = fileKey.substring(0, fileKey.length() - ".json".length());
+			}
+			result.put(fileKey, entry.getValue().deepCopy());
+		}
+		return result;
+	}
+
+	private static Map<String, JsonObject> readJsonObjectMap(JsonObject source, String key) {
+		Map<String, JsonObject> values = new LinkedHashMap<>();
+		JsonElement element = source == null ? null : source.get(key);
+		if (element == null || !element.isJsonObject()) return values;
+		for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
+			if (entry.getValue().isJsonObject()) values.put(entry.getKey(), entry.getValue().getAsJsonObject().deepCopy());
+		}
+		return values;
+	}
+
 	private static boolean loadSystemEnabled() {
+		Boolean synchronizedEnabled = clientSynchronizedSystemEnabled;
+		if (synchronizedEnabled != null) return synchronizedEnabled;
 		try {
 			Path rootDirectory = RecipesConfigManager.getRootDirectory();
 			Path settingsFile = resolveJsonFile(rootDirectory, RecipesConfigManager.SETTINGS_FILE_NAME);

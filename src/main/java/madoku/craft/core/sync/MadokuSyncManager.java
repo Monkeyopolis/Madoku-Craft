@@ -15,6 +15,7 @@ public final class MadokuSyncManager {
 		}
 
 		SyncGlobalManager.initialize();
+		SyncConfigManager.initialize();
 		SyncWorldManager.initialize();
 		SyncPlayerManager.initialize();
 		initialized = true;

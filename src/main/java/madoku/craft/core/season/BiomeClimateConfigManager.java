@@ -28,6 +28,7 @@ public final class BiomeClimateConfigManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(BiomeClimateConfigManager.class);
 	private static volatile Settings settings = defaults();
+	private static volatile Settings clientSynchronizedSettings;
 
 	private BiomeClimateConfigManager() {
 	}
@@ -43,10 +44,20 @@ public final class BiomeClimateConfigManager {
 
 	public static void reset() {
 		settings = defaults();
+		clientSynchronizedSettings = null;
 	}
 
 	public static Settings getSettings() {
-		return settings;
+		Settings synchronizedSettings = clientSynchronizedSettings;
+		return synchronizedSettings == null ? settings : synchronizedSettings;
+	}
+
+	public static void applyClientSynchronizedSettings(Settings synchronizedSettings) {
+		clientSynchronizedSettings = synchronizedSettings;
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronizedSettings = null;
 	}
 
 	public static Settings defaults() {
@@ -112,18 +123,18 @@ public final class BiomeClimateConfigManager {
 		if (biomeId == null || biomeId.isBlank()) return null;
 
 		String normalized = biomeId.trim().toLowerCase(java.util.Locale.ROOT);
-		Climate climate = settings.biomes().get(normalized);
+		Climate climate = getSettings().biomes().get(normalized);
 		if (climate != null) return climate;
 
 		int separator = normalized.indexOf(':');
 		String path = separator >= 0 ? normalized.substring(separator + 1) : normalized;
-		climate = settings.biomes().get(path);
+		climate = getSettings().biomes().get(path);
 		if (climate != null) return climate;
 
 		// Minecraft resource IDs use underscores, while Madoku config IDs use
 		// hyphens. Support both forms without requiring existing config files to
 		// be rewritten.
-		return settings.biomes().get(path.replace('_', '-'));
+		return getSettings().biomes().get(path.replace('_', '-'));
 	}
 
 	private static void loadConfig() {

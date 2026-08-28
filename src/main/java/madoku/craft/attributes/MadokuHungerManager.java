@@ -45,6 +45,8 @@ public final class MadokuHungerManager {
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static volatile HungerConfigManager.Settings settings = HungerConfigManager.Settings.defaults();
+	private static volatile Boolean clientSynchronizedEnabled;
+	private static volatile Integer clientSynchronizedMaximum;
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile String schedulerId = "";
 	private static volatile boolean tickQueued;
@@ -121,7 +123,8 @@ public final class MadokuHungerManager {
 	}
 
 	public static boolean isEnabled() {
-		return settings.hunger.enabled;
+		Boolean synchronizedEnabled = clientSynchronizedEnabled;
+		return synchronizedEnabled == null ? settings.hunger.enabled : synchronizedEnabled;
 	}
 
 	public static boolean isSaturationEnabled() {
@@ -157,7 +160,18 @@ public final class MadokuHungerManager {
 	}
 
 	public static int getConfiguredMaximumHungerPoints() {
-		return Math.max(1, settings.hunger.maxHunger);
+		Integer synchronizedMaximum = clientSynchronizedMaximum;
+		return Math.max(1, synchronizedMaximum == null ? settings.hunger.maxHunger : synchronizedMaximum);
+	}
+
+	public static void applyClientSynchronizedSettings(boolean enabled, int maximum) {
+		clientSynchronizedEnabled = enabled;
+		clientSynchronizedMaximum = Math.max(1, maximum);
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronizedEnabled = null;
+		clientSynchronizedMaximum = null;
 	}
 
 	public static boolean shouldApplyStarvationDamage(ServerPlayer player) {

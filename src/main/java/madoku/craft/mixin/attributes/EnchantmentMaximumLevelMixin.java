@@ -1,7 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
-import madoku.craft.core.enchant.TemporaryEnchantDebug;
+import madoku.craft.core.enchant.BooksConfigManager;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -22,7 +21,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 	@Inject(method = "getMaxLevel", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$useConfiguredMaximumLevel(CallbackInfoReturnable<Integer> callbackInfo) {
 		callbackInfo.setReturnValue(
-			EnchantBooksManager.getConfiguredMaximumLevel(
+			BooksConfigManager.getConfiguredMaximumLevel(
 				(Enchantment) (Object) this,
 				callbackInfo.getReturnValue()
 			)
@@ -35,7 +34,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfoReturnable<Boolean> callbackInfo
 	) {
 		callbackInfo.setReturnValue(
-			EnchantBooksManager.resolveConfiguredCanEnchant(
+			BooksConfigManager.resolveConfiguredCanEnchant(
 				(Enchantment) (Object) this,
 				stack,
 				callbackInfo.getReturnValue()
@@ -58,8 +57,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat damage,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
-			TemporaryEnchantDebug.baneVanillaDamageSuppressed(level, stack, entity, damage == null ? 0.0F : damage.floatValue());
+		if (BooksConfigManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
 	}
@@ -79,10 +77,35 @@ public abstract class EnchantmentMaximumLevelMixin {
 		DamageSource source,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
-			TemporaryEnchantDebug.baneVanillaPostAttackSuppressed(level, entity);
+		if (BooksConfigManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
+	}
+
+	/** Replaces vanilla Breach's armor-effectiveness contribution in the vanilla armor path. */
+	@Inject(
+		method = "modifyArmorEffectivness(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceBreachArmorEffectiveness(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat armorEffectiveness,
+		CallbackInfo callbackInfo
+	) {
+		double penetration = BooksConfigManager.getConfiguredBreachArmorPenetration(
+			(Enchantment) (Object) this,
+			stack,
+			level
+		);
+		if (penetration < 0.0D) return;
+
+		armorEffectiveness.add((float) (-penetration / 100.0D));
+		callbackInfo.cancel();
 	}
 
 	@Inject(method = "areCompatible", at = @At("RETURN"), cancellable = true)
@@ -92,7 +115,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfoReturnable<Boolean> callbackInfo
 	) {
 		callbackInfo.setReturnValue(
-			EnchantBooksManager.resolveConfiguredCompatibility(
+			BooksConfigManager.resolveConfiguredCompatibility(
 				first,
 				second,
 				callbackInfo.getReturnValue()

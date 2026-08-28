@@ -27,6 +27,10 @@ public abstract class EnchantmentAttributeEffectMixin {
 			callbackInfo.setReturnValue(
 				EnchantBooksManager.applyConfiguredDepthStriderModifier(level, callbackInfo.getReturnValue())
 			);
+		} else if ("minecraft:enchantment.efficiency".equals(effectId)) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredEfficiencyModifier(level, callbackInfo.getReturnValue())
+			);
 		}
 	}
 }

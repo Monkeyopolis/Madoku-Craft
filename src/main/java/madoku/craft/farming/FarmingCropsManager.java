@@ -2,6 +2,7 @@ package madoku.craft.farming;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import madoku.craft.core.data.DataSystemsManager;
 import madoku.craft.core.data.DataWorldManager;
@@ -12,10 +13,13 @@ import madoku.craft.core.loot.LootTableCropsManager;
 import madoku.craft.core.scheduler.MadokuSchedulerManager;
 import madoku.craft.core.season.MadokuSeasonManager;
 import madoku.craft.core.season.SeasonBiomeClimateManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.item.ItemComponentsAccessor;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
@@ -96,6 +100,10 @@ public final class FarmingCropsManager {
 	private static volatile Map<Block, CropRule> cropRulesByBlock = Map.of();
 	private static volatile Map<Block, CropRule> cropRulesByGrowthBlock = Map.of();
 	private static volatile Map<Block, CropRule> cropRulesByMatureBlock = Map.of();
+	private static volatile boolean clientSynchronized;
+	private static Settings savedClientSettings;
+	private static Map<String, CropRule> savedClientCropRules = Map.of();
+	private static Map<Item, DataComponentMap> savedClientComponents = Map.of();
 	private static final Map<Block, AgeMetadata> AGE_METADATA_BY_BLOCK = new HashMap<>();
 
 	private static final Map<String, PlotState> plotsByKey = new HashMap<>();
@@ -114,6 +122,12 @@ public final class FarmingCropsManager {
 		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
 		loadStaticConfig();
 		loadCropConfigs();
+		SyncConfigManager.register(
+			"farming",
+			FarmingCropsManager::createClientSyncSnapshot,
+			FarmingCropsManager::applyClientSyncSnapshot,
+			FarmingCropsManager::resetClientSyncState
+		);
 		PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
 			handleBlockBreakBefore(world, pos, state, blockEntity)
 		);
@@ -132,6 +146,10 @@ public final class FarmingCropsManager {
 		serializedCropsByKey.clear();
 		serializedCropFingerprintsByKey.clear();
 		dirty = false;
+		clientSynchronized = false;
+		savedClientSettings = null;
+		savedClientCropRules = Map.of();
+		savedClientComponents = Map.of();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -180,6 +198,56 @@ public final class FarmingCropsManager {
 
 	public static boolean isEnabled() {
 		return settings.enabled;
+	}
+
+	public static String createClientSyncSnapshot() {
+		JsonObject snapshot = JSONFormatManager.object()
+			.put("settings", settings.toConfigJson())
+			.object("crops", crops -> {
+				for (CropRule rule : cropRulesByPlantingItemId.values()) {
+					if (rule != null) crops.put(rule.cropId(), rule.toConfigJson());
+				}
+			})
+			.build();
+		return snapshot.toString();
+	}
+
+	public static void applyClientSyncSnapshot(String snapshot) {
+		JsonElement parsed = JsonParser.parseString(snapshot == null ? "" : snapshot);
+		if (!parsed.isJsonObject()) return;
+		JsonObject root = parsed.getAsJsonObject();
+		// A client may have applied its local metadata before this join snapshot
+		// arrived. Restore that baseline before capturing the synchronized state.
+		restoreClientComponents();
+		captureClientSyncState();
+		settings = Settings.fromJson(readObject(root, "settings"));
+		Map<String, CropRule> synchronizedRules = new LinkedHashMap<>();
+		JsonObject crops = readObject(root, "crops");
+		for (Map.Entry<String, JsonElement> entry : crops.entrySet()) {
+			if (!entry.getValue().isJsonObject()) continue;
+			CropRule rule = CropRule.fromJson(entry.getKey(), entry.getValue().getAsJsonObject());
+			if (rule != null) synchronizedRules.put(rule.plantingItemId(), rule);
+		}
+		// Replace the complete client rule set, including the empty case. Otherwise a
+		// server with no configured crops leaves stale rules from the previous server.
+		installCropRules(synchronizedRules);
+		captureClientComponents(synchronizedRules.values());
+		clientSynchronized = true;
+		applyCropItemMetadata();
+	}
+
+	public static void resetClientSyncState() {
+		if (!clientSynchronized) {
+			savedClientComponents = Map.of();
+			return;
+		}
+		restoreClientComponents();
+		settings = savedClientSettings == null ? Settings.defaults() : savedClientSettings;
+		installCropRules(savedClientCropRules);
+		clientSynchronized = false;
+		savedClientSettings = null;
+		savedClientCropRules = Map.of();
+		savedClientComponents = Map.of();
 	}
 
 	public static boolean applyExternalGrowthPercent(ServerLevel world, BlockPos cropPos, double growthPercent, String source) {
@@ -624,6 +692,9 @@ public final class FarmingCropsManager {
 		if (!MadokuItemsManager.isEnabled() || !settings.enabled) {
 			return;
 		}
+		if (!clientSynchronized && FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
+			captureClientComponents(cropRulesByPlantingItemId.values());
+		}
 
 		Set<String> processedItemIds = new LinkedHashSet<>();
 		for (CropRule rule : cropRulesByPlantingItemId.values()) {
@@ -1052,11 +1123,16 @@ public final class FarmingCropsManager {
 			}
 		}
 
+		installCropRules(plantingRules);
+	}
+
+	private static void installCropRules(Map<String, CropRule> plantingRules) {
+		Map<String, CropRule> safeRules = plantingRules == null ? Map.of() : plantingRules;
 		Map<Item, CropRule> plantingItems = new HashMap<>();
 		Map<Block, CropRule> blocks = new HashMap<>();
 		Map<Block, CropRule> growthBlocks = new HashMap<>();
 		Map<Block, CropRule> matureBlocks = new HashMap<>();
-		for (CropRule rule : plantingRules.values()) {
+		for (CropRule rule : safeRules.values()) {
 			Item item = resolveItemByRegistryId(rule.plantingItemId());
 			if (item != null) {
 				plantingItems.put(item, rule);
@@ -1075,11 +1151,45 @@ public final class FarmingCropsManager {
 			}
 		}
 
-		cropRulesByPlantingItemId = Map.copyOf(plantingRules);
+		cropRulesByPlantingItemId = Map.copyOf(safeRules);
 		cropRulesByPlantingItem = Map.copyOf(plantingItems);
 		cropRulesByBlock = Map.copyOf(blocks);
 		cropRulesByGrowthBlock = Map.copyOf(growthBlocks);
 		cropRulesByMatureBlock = Map.copyOf(matureBlocks);
+	}
+
+	private static void captureClientSyncState() {
+		if (clientSynchronized) return;
+		savedClientSettings = settings;
+		savedClientCropRules = cropRulesByPlantingItemId;
+	}
+
+	private static void captureClientComponents(Iterable<CropRule> rules) {
+		Map<Item, DataComponentMap> captured = new LinkedHashMap<>(savedClientComponents);
+		if (rules != null) {
+			for (CropRule rule : rules) {
+				if (rule == null) continue;
+				Item item = resolveItemByRegistryId(rule.plantingItemId());
+				if (item != null) captured.putIfAbsent(item, item.components());
+			}
+		}
+		Item boneMeal = BuiltInRegistries.ITEM.getValue(Identifier.tryParse("minecraft:bone_meal"));
+		if (boneMeal != null) captured.putIfAbsent(boneMeal, boneMeal.components());
+		savedClientComponents = Map.copyOf(captured);
+	}
+
+	private static void restoreClientComponents() {
+		for (Map.Entry<Item, DataComponentMap> entry : savedClientComponents.entrySet()) {
+			Item item = entry.getKey();
+			if (item == null) continue;
+			((ItemComponentsAccessor) ((ItemBuiltInRegistryHolderAccessor) item).madokuCraft$getBuiltInRegistryHolder())
+				.madokuCraft$bindComponents(entry.getValue());
+		}
+	}
+
+	private static JsonObject readObject(JsonObject source, String key) {
+		JsonElement element = source == null ? null : source.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
 	}
 
 	private static Path resolveJsonFile(Path directory, String fileName) {
@@ -1764,6 +1874,16 @@ public final class FarmingCropsManager {
 			);
 		}
 
+		private JsonObject toConfigJson() {
+			return JSONFormatManager.object()
+				.put(FarmingConfigManager.FIELD_ENABLED, enabled)
+				.put(FarmingConfigManager.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost)
+				.put(FarmingConfigManager.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost)
+				.put(FarmingConfigManager.FIELD_FERTILIZED_YIELD_BOOST, fertilizedYieldBoost)
+				.put(FarmingConfigManager.FIELD_DRY_FARMLAND_PENALTY, dryFarmlandPenalty)
+				.build();
+		}
+
 	}
 
 	public static final class CropRule {
@@ -2048,6 +2168,24 @@ public final class FarmingCropsManager {
 
 		public String displayName() {
 			return displayName;
+		}
+
+		private JsonObject toConfigJson() {
+			GrowingConditions conditions = growingConditions == null
+				? new GrowingConditions(40.0d, 60.0d, 40.0d, 60.0d)
+				: growingConditions;
+			return JSONFormatManager.object()
+				.put(CropsConfigManager.FIELD_CROP_ID, cropId)
+				.put(CropsConfigManager.FIELD_GROWTH_TIME, growthMinecraftDays)
+				.put(CropsConfigManager.FIELD_YIELD_ID, yieldTableId)
+				.object(CropsConfigManager.FIELD_GROWING_CONDITIONS, conditionsRoot -> conditionsRoot
+					.object(CropsConfigManager.FIELD_IDEAL_TEMPERATURE, temperature -> temperature
+						.put(CropsConfigManager.FIELD_MINIMUM_TEMPERATURE, conditions.minimumTemperature())
+						.put(CropsConfigManager.FIELD_MAXIMUM_TEMPERATURE, conditions.maximumTemperature()))
+					.object(CropsConfigManager.FIELD_IDEAL_HUMIDITY, humidity -> humidity
+						.put(CropsConfigManager.FIELD_MINIMUM_HUMIDITY, conditions.minimumHumidity())
+						.put(CropsConfigManager.FIELD_MAXIMUM_HUMIDITY, conditions.maximumHumidity())))
+				.build();
 		}
 	}
 

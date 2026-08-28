@@ -1,6 +1,7 @@
 package madoku.craft.core.enchant;
 
 import madoku.craft.core.MadokuCoreManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -22,24 +23,38 @@ public final class MadokuEnchantManager {
 
 	public static void initialize() {
 		EnchantConfigManager.initialize();
-		EnchantBooksManager.initialize();
+		BooksConfigManager.initialize();
+		SyncConfigManager.register(
+			"enchant",
+			BooksConfigManager::createClientSyncSnapshot,
+			MadokuEnchantManager::applyClientSynchronizedSnapshot,
+			MadokuEnchantManager::resetClientSynchronizedState
+		);
 		EnchantTableManager.initialize();
 	}
 
 	public static void reset() {
 		EnchantTableManager.reset();
-		EnchantBooksManager.reset();
+		BooksConfigManager.reset();
 		EnchantConfigManager.reset();
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
 		EnchantConfigManager.initialize();
-		EnchantBooksManager.onServerStarted(server);
+		BooksConfigManager.onServerStarted(server);
 		EnchantTableManager.onServerStarted(server);
 	}
 
 	public static boolean isEnabled() {
 		return EnchantConfigManager.isEnabled();
+	}
+
+	public static void resetClientSynchronizedState() {
+		BooksConfigManager.resetClientSynchronizedState();
+	}
+
+	public static void applyClientSynchronizedSnapshot(String snapshot) {
+		BooksConfigManager.applyClientSynchronizedSnapshot(snapshot);
 	}
 
 	/** Shared component helper used when an enchant-preserving result is produced by another group. */

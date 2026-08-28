@@ -1,8 +1,8 @@
 ## Overview
 
-Madoku Craft is a interconnected overhaul mod that modifies vanilla Minecraft.
+Madoku Craft is an interconnected overhaul mod that modifies vanilla Minecraft.
 This mod adds seasons, an ecosystem, pets, and a leveling system.
-It also modifies items, attributes, recipes, loot, and mobs.
+It also modifies items, attributes, recipes, loot, smithing, enchanting and mobs.
 All of these systems can be adjusted in the config files.
 
 ## Main Features:
@@ -33,10 +33,10 @@ Pets:
 The pet system allows players to equip pet items in the player's inventory.
 This spawns a tiny mob that helps and follows you without getting in the way.
 
-Seasons:
+Core:
 
-The seasonal system allows the world to change based on the in-game time.
-Based on the season, foliage color, temperature, humidity will change.
+The core system adds seasonal changes, and rarity.
+It also modifies loot tables, recipes, enchanting, and smithing.
 
 ## Disclaimer:
 

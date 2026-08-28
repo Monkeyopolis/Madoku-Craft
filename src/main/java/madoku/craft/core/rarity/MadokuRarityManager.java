@@ -1,5 +1,7 @@
 package madoku.craft.core.rarity;
 
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.attributes.MadokuLuckManager;
 import madoku.craft.core.rarity.RarityTierManager.Tier;
@@ -9,12 +11,20 @@ import net.minecraft.world.item.ItemStack;
 
 /** Orchestrates the Madoku Rarity API subsystem and exposes its shared helpers. */
 public final class MadokuRarityManager {
+	private static volatile Boolean clientSynchronizedEnabled;
+
 	private MadokuRarityManager() {
 	}
 
 	public static void initialize() {
 		RarityConfigManager.initialize();
 		RarityRuntimeManager.initialize();
+		SyncConfigManager.register(
+			"rarity",
+			MadokuRarityManager::createClientSyncSnapshot,
+			MadokuRarityManager::applyClientSyncSnapshot,
+			MadokuRarityManager::resetClientSyncState
+		);
 	}
 
 	public static void reset() {
@@ -23,7 +33,25 @@ public final class MadokuRarityManager {
 	}
 
 	public static boolean isEnabled() {
-		return RarityConfigManager.isEnabled();
+		Boolean synchronizedEnabled = clientSynchronizedEnabled;
+		return synchronizedEnabled == null ? RarityConfigManager.isEnabled() : synchronizedEnabled;
+	}
+
+	public static String createClientSyncSnapshot() {
+		return JSONFormatManager.object().put("enabled", RarityConfigManager.isEnabled()).build().toString();
+	}
+
+	public static void applyClientSyncSnapshot(String snapshot) {
+		try {
+			var root = com.google.gson.JsonParser.parseString(snapshot).getAsJsonObject();
+			clientSynchronizedEnabled = root.has("enabled") && root.get("enabled").getAsBoolean();
+		} catch (RuntimeException exception) {
+			throw new IllegalArgumentException("Invalid rarity configuration snapshot.", exception);
+		}
+	}
+
+	public static void resetClientSyncState() {
+		clientSynchronizedEnabled = null;
 	}
 
 	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource) {

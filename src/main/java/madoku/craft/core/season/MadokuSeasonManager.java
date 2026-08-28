@@ -1,5 +1,11 @@
 package madoku.craft.core.season;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -42,6 +48,12 @@ public final class MadokuSeasonManager {
 		SeasonBiomeClimateManager.initialize();
 		SeasonEnvironmentTransitionManager.initialize();
 		SeasonWeatherManager.initialize();
+		SyncConfigManager.register(
+			"season",
+			MadokuSeasonManager::createClientSyncSnapshot,
+			MadokuSeasonManager::applyClientSyncSnapshot,
+			MadokuSeasonManager::resetClientSyncState
+		);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			SeasonPayloadManager payload = currentSyncPayload(server);
 			if (payload != null) {
@@ -70,6 +82,38 @@ public final class MadokuSeasonManager {
 	}
 
 	public static boolean isEnabled() { return SeasonConfigManager.getSettings().enabled(); }
+
+	public static String createClientSyncSnapshot() {
+		return JSONFormatManager.object()
+			.put("season", SeasonConfigManager.toJson(SeasonConfigManager.getSettings()))
+			.put("biome-climate", BiomeClimateConfigManager.toJson(BiomeClimateConfigManager.getSettings()))
+			.put("environment-transition", EnvironmentTransitionConfigManager.toJson(EnvironmentTransitionConfigManager.getSettings()))
+			.build()
+			.toString();
+	}
+
+	public static void applyClientSyncSnapshot(String snapshot) {
+		JsonElement parsed = JsonParser.parseString(snapshot == null ? "" : snapshot);
+		if (!parsed.isJsonObject()) return;
+		JsonObject root = parsed.getAsJsonObject();
+		SeasonConfigManager.applyClientSynchronizedSettings(
+			SeasonConfigManager.fromJson(root.getAsJsonObject("season"))
+		);
+		BiomeClimateConfigManager.applyClientSynchronizedSettings(
+			BiomeClimateConfigManager.fromJson(root.getAsJsonObject("biome-climate"))
+		);
+		EnvironmentTransitionConfigManager.applyClientSynchronizedSettings(
+			EnvironmentTransitionConfigManager.fromJson(root.getAsJsonObject("environment-transition"))
+		);
+		SeasonEnvironmentTransitionManager.reset();
+	}
+
+	public static void resetClientSyncState() {
+		SeasonConfigManager.resetClientSynchronizedSettings();
+		BiomeClimateConfigManager.resetClientSynchronizedSettings();
+		EnvironmentTransitionConfigManager.resetClientSynchronizedSettings();
+		SeasonEnvironmentTransitionManager.reset();
+	}
 	public static SeasonState getCurrentState() { return currentState(null); }
 	public static SeasonState getCurrentState(ServerLevel level) { return currentState(level); }
 	public static String getCurrentSeasonId() { return getCurrentState().season().id(); }

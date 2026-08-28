@@ -37,6 +37,7 @@ public final class MadokuLuckManager {
 	private static final Identifier EFFECT_LUCK_MODIFIER_ID =
 		Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_luck_effect");
 	private static volatile LuckConfigManager.Settings settings = LuckConfigManager.Settings.defaults();
+	private static volatile Boolean clientSynchronizedEnabled;
 
 	private MadokuLuckManager() {
 	}
@@ -48,7 +49,16 @@ public final class MadokuLuckManager {
 	}
 
 	public static boolean isEnabled() {
-		return settings.enabled;
+		Boolean synchronizedEnabled = clientSynchronizedEnabled;
+		return synchronizedEnabled == null ? settings.enabled : synchronizedEnabled;
+	}
+
+	public static void applyClientSynchronizedEnabled(boolean enabled) {
+		clientSynchronizedEnabled = enabled;
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronizedEnabled = null;
 	}
 
 	public static void handlePlayerEffectsChanged(ServerPlayer player) {

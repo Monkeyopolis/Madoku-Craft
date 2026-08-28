@@ -9,6 +9,7 @@ import madoku.craft.core.data.MadokuChunkDataManager;
 import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.core.rarity.MadokuRarityManager;
 import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.core.time.MadokuTimeManager;
 import madoku.craft.core.time.TimeSleepManager;
 import madoku.craft.mob.MadokuMobManager;
@@ -47,6 +48,7 @@ public class MadokuCraft implements ModInitializer {
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeSleepManager::shouldAllowResettingTime);
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			SyncConfigManager.resetClientSynchronizedState();
 			MadokuSeasonManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();
@@ -87,6 +89,7 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			SyncConfigManager.resetClientSynchronizedState();
 			MadokuSeasonManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();

@@ -132,6 +132,7 @@ public final class PetEntitiesManager {
 	/** Owns the dynamic pet entity JSON definitions under madoku-entities. */
 	public static final class EntitiesConfigManager {
 		private static volatile Map<String, PetRule> rules = Map.of();
+		private static volatile Map<String, JsonObject> sourceFiles = Map.of();
 
 		private EntitiesConfigManager() {
 		}
@@ -170,14 +171,48 @@ public final class PetEntitiesManager {
 					}
 				}
 				rules = Map.copyOf(resolved);
+				sourceFiles = copySourceFiles(normalizedFiles);
 			} catch (IOException | RuntimeException exception) {
 				rules = Map.of();
+				sourceFiles = Map.of();
 				PetConfigManager.logFailure("Failed to load Madoku pet entity definitions; using defaults.", exception);
 			}
 		}
 
 		static Map<String, PetRule> rules() {
 			return rules;
+		}
+
+		static Map<String, JsonObject> snapshotSourceFiles() {
+			return copySourceFiles(sourceFiles);
+		}
+
+		static void applyClientSynchronizedSourceFiles(Map<String, JsonObject> synchronizedSourceFiles) {
+			Map<String, PetRule> resolved = new LinkedHashMap<>();
+			Map<String, JsonObject> abilityDefinitions = PetAbilitiesManager.AbilitiesConfigManager.definitions();
+			if (synchronizedSourceFiles != null) {
+				for (Map.Entry<String, JsonObject> entry : synchronizedSourceFiles.entrySet()) {
+					PetRule rule = PetConfigManager.PetRule.fromJson(entry.getValue(), entry.getKey(), abilityDefinitions);
+					if (rule != null && !rule.itemId.isBlank()) {
+						resolved.put(PetConfigManager.normalizePetId(rule.petId), rule);
+						resolved.put(PetConfigManager.normalizeKey(rule.itemId), rule);
+					}
+				}
+			}
+			rules = Map.copyOf(resolved);
+			sourceFiles = copySourceFiles(synchronizedSourceFiles);
+		}
+
+		private static Map<String, JsonObject> copySourceFiles(Map<String, JsonObject> source) {
+			Map<String, JsonObject> copy = new LinkedHashMap<>();
+			if (source != null) {
+				for (Map.Entry<String, JsonObject> entry : source.entrySet()) {
+					if (entry.getKey() != null && entry.getValue() != null) {
+						copy.put(entry.getKey(), entry.getValue().deepCopy());
+					}
+				}
+			}
+			return Map.copyOf(copy);
 		}
 
 		static PetRule resolve(String itemId) {

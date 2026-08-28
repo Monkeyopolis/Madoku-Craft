@@ -6,9 +6,11 @@ import madoku.craft.core.json.JSONFormatManager;
 import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.core.rarity.RarityTierManager;
 import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.sync.SyncConfigManager;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,14 +37,20 @@ public final class PetConfigManager {
 
 	public static void initialize() {
 		reload();
+		SyncConfigManager.register(
+			"pet",
+			PetConfigManager::createClientSyncSnapshot,
+			PetConfigManager::applyClientSyncSnapshot,
+			PetConfigManager::resetClientSyncState
+		);
 	}
 
 	public static boolean isEnabled() {
-		return settings.enabled;
+		return settings().enabled;
 	}
 
 	public static boolean areEntitiesEnabled() {
-		return settings.entitiesEnabled;
+		return settings().entitiesEnabled;
 	}
 
 	public static boolean isValidPet(ItemStack stack) {
@@ -110,11 +118,15 @@ public final class PetConfigManager {
 	}
 
 	static int maxPetLevel() {
-		return settings.maxLevel;
+		return settings().maxLevel;
 	}
 
 	private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(PetConfigManager.class);
 	private static volatile PetSettings settings = PetSettings.defaults();
+	private static volatile PetSettings clientSynchronizedSettings;
+	private static Map<String, JsonObject> savedClientAbilityDefinitions = Map.of();
+	private static Map<String, JsonObject> savedClientEntityDefinitions = Map.of();
+	private static boolean clientSynchronized;
 	private static final String CONFIG_FILE_NAME = "madoku-pets";
 
 	static void reload() {
@@ -123,8 +135,68 @@ public final class PetConfigManager {
 		PetEntitiesManager.EntitiesConfigManager.reload();
 	}
 
-	static PetSettings settings() { return settings; }
+	static PetSettings settings() {
+		PetSettings synchronizedSettings = clientSynchronizedSettings;
+		return synchronizedSettings == null ? settings : synchronizedSettings;
+	}
 	static Map<String, PetRule> rules() { return PetEntitiesManager.EntitiesConfigManager.rules(); }
+
+	public static String createClientSyncSnapshot() {
+		JsonObject settingsRoot = JSONFormatManager.object()
+			.put("enabled", settings.enabled)
+			.object("pet-entity", entity -> entity
+				.put("enabled", settings.entitiesEnabled)
+				.put("max-level", settings.maxLevel))
+			.build();
+		JsonObject snapshot = JSONFormatManager.object()
+			.put("settings", settingsRoot)
+			.object("abilities", abilities -> PetAbilitiesManager.AbilitiesConfigManager.snapshotDefinitions()
+				.forEach(abilities::put))
+			.object("entities", entities -> PetEntitiesManager.EntitiesConfigManager.snapshotSourceFiles()
+				.forEach(entities::put))
+			.build();
+		return snapshot.toString();
+	}
+
+	public static void applyClientSyncSnapshot(String snapshot) {
+		JsonElement parsed = JsonParser.parseString(snapshot == null ? "" : snapshot);
+		if (!parsed.isJsonObject()) return;
+		JsonObject root = parsed.getAsJsonObject();
+		captureClientSyncState();
+		clientSynchronizedSettings = PetSettings.fromJson(readObject(root, "settings"));
+		PetAbilitiesManager.AbilitiesConfigManager.applyClientSynchronizedDefinitions(readObjectMap(root, "abilities"));
+		PetEntitiesManager.EntitiesConfigManager.applyClientSynchronizedSourceFiles(readObjectMap(root, "entities"));
+		clientSynchronized = true;
+	}
+
+	public static void resetClientSyncState() {
+		if (!clientSynchronized) return;
+		clientSynchronizedSettings = null;
+		PetAbilitiesManager.AbilitiesConfigManager.applyClientSynchronizedDefinitions(savedClientAbilityDefinitions);
+		PetEntitiesManager.EntitiesConfigManager.applyClientSynchronizedSourceFiles(savedClientEntityDefinitions);
+		clientSynchronized = false;
+		savedClientAbilityDefinitions = Map.of();
+		savedClientEntityDefinitions = Map.of();
+	}
+
+	private static void captureClientSyncState() {
+		if (clientSynchronized) return;
+		savedClientAbilityDefinitions = PetAbilitiesManager.AbilitiesConfigManager.snapshotDefinitions();
+		savedClientEntityDefinitions = PetEntitiesManager.EntitiesConfigManager.snapshotSourceFiles();
+	}
+
+	private static JsonObject readObject(JsonObject source, String key) {
+		JsonElement element = source == null ? null : source.get(key);
+		return element != null && element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
+	}
+
+	private static Map<String, JsonObject> readObjectMap(JsonObject source, String key) {
+		Map<String, JsonObject> values = new java.util.LinkedHashMap<>();
+		for (Map.Entry<String, JsonElement> entry : readObject(source, key).entrySet()) {
+			if (entry.getValue().isJsonObject()) values.put(entry.getKey(), entry.getValue().getAsJsonObject());
+		}
+		return values;
+	}
 
 	static PetRule resolvePetRule(ItemStack stack) {
 		if (stack == null || stack.isEmpty()) {

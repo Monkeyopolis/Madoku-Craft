@@ -10,9 +10,8 @@ import madoku.craft.core.json.JSONFormatManager;
 import madoku.craft.core.json.JSONTypeManager;
 import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.sync.SyncPlayerManager;
+import madoku.craft.core.sync.SyncConfigManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentMap;
@@ -132,8 +131,11 @@ public final class ItemsCategoriesManager {
 	public static void initialize() {
 		loadStaticConfig();
 		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, ItemsCategoriesManager::runPlayerTickTask);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-			SyncPlayerManager.send(handler.player, new ItemsPayloadManager(createClientSyncSnapshot()))
+		SyncConfigManager.register(
+			"items",
+			ItemsCategoriesManager::createClientSyncSnapshot,
+			ItemsCategoriesManager::applySynchronizedProfiles,
+			ItemsCategoriesManager::resetClientSynchronizedState
 		);
 	}
 

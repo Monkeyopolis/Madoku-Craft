@@ -335,6 +335,7 @@ public final class PetAbilitiesManager {
 	/** Owns the dynamic ability JSON definitions under madoku-abilities. */
 	public static final class AbilitiesConfigManager {
 		private static final Map<String, JsonObject> definitions = new LinkedHashMap<>();
+		private static volatile Map<String, JsonObject> clientSynchronizedDefinitions;
 
 		private AbilitiesConfigManager() {
 		}
@@ -384,7 +385,32 @@ public final class PetAbilitiesManager {
 		}
 
 		static Map<String, JsonObject> definitions() {
-			return Map.copyOf(definitions);
+			Map<String, JsonObject> synchronizedDefinitions = clientSynchronizedDefinitions;
+			return copyDefinitions(synchronizedDefinitions == null ? definitions : synchronizedDefinitions);
+		}
+
+		static Map<String, JsonObject> snapshotDefinitions() {
+			return copyDefinitions(definitions);
+		}
+
+		static void applyClientSynchronizedDefinitions(Map<String, JsonObject> synchronizedDefinitions) {
+			clientSynchronizedDefinitions = copyDefinitions(synchronizedDefinitions);
+		}
+
+		static void resetClientSynchronizedDefinitions() {
+			clientSynchronizedDefinitions = null;
+		}
+
+		private static Map<String, JsonObject> copyDefinitions(Map<String, JsonObject> source) {
+			Map<String, JsonObject> copy = new LinkedHashMap<>();
+			if (source != null) {
+				for (Map.Entry<String, JsonObject> entry : source.entrySet()) {
+					if (entry.getKey() != null && entry.getValue() != null) {
+						copy.put(entry.getKey(), entry.getValue().deepCopy());
+					}
+				}
+			}
+			return Map.copyOf(copy);
 		}
 	}
 

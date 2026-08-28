@@ -5,7 +5,6 @@ import madoku.craft.core.season.PlayerClimatePayloadManager;
 import madoku.craft.core.season.SeasonPayloadManager;
 import madoku.craft.core.time.TimePayloadManager;
 import madoku.craft.mob.MobPayloadManager;
-import madoku.craft.items.ItemsPayloadManager;
 import madoku.craft.levels.LevelsPayloadManager;
 import madoku.craft.pet.PetPayloadManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -79,13 +78,13 @@ public final class SyncGlobalManager {
 
 	private static void registerPayloadTypes() {
 		registerClientbound(HungerPayloadManager.TYPE, HungerPayloadManager.CODEC);
-		registerClientbound(ItemsPayloadManager.TYPE, ItemsPayloadManager.CODEC);
 		registerClientbound(LevelsPayloadManager.Payload.TYPE, LevelsPayloadManager.Payload.CODEC);
 		registerClientbound(PetPayloadManager.PetAbilityHudPayload.TYPE, PetPayloadManager.PetAbilityHudPayload.CODEC);
 		registerClientbound(MobPayloadManager.TYPE, MobPayloadManager.CODEC);
 		registerClientbound(SeasonPayloadManager.TYPE, SeasonPayloadManager.CODEC);
 		registerClientbound(PlayerClimatePayloadManager.TYPE, PlayerClimatePayloadManager.CODEC);
 		registerClientbound(TimePayloadManager.TYPE, TimePayloadManager.CODEC);
+		registerClientbound(SyncPayloadManager.TYPE, SyncPayloadManager.CODEC);
 		registerServerbound(LevelsPayloadManager.LevelUpPayload.TYPE, LevelsPayloadManager.LevelUpPayload.CODEC);
 		registerServerbound(PetPayloadManager.LeftClickAirPayload.TYPE, PetPayloadManager.LeftClickAirPayload.CODEC);
 	}

@@ -24,6 +24,7 @@ public final class SeasonConfigManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SeasonConfigManager.class);
 	private static volatile Settings settings = defaults();
+	private static volatile Settings clientSynchronizedSettings;
 
 	private SeasonConfigManager() {
 	}
@@ -37,7 +38,16 @@ public final class SeasonConfigManager {
 	}
 
 	public static Settings getSettings() {
-		return settings;
+		Settings synchronizedSettings = clientSynchronizedSettings;
+		return synchronizedSettings == null ? settings : synchronizedSettings;
+	}
+
+	public static void applyClientSynchronizedSettings(Settings synchronizedSettings) {
+		clientSynchronizedSettings = synchronizedSettings;
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronizedSettings = null;
 	}
 
 	public static Settings defaults() {

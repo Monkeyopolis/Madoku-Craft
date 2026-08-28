@@ -36,6 +36,7 @@ public final class EnvironmentTransitionConfigManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EnvironmentTransitionConfigManager.class);
 	private static volatile Settings settings = defaults();
+	private static volatile Settings clientSynchronizedSettings;
 
 	private EnvironmentTransitionConfigManager() { }
 
@@ -44,8 +45,20 @@ public final class EnvironmentTransitionConfigManager {
 	}
 	public static void reset() {
 		settings = defaults();
+		clientSynchronizedSettings = null;
 	}
-	public static Settings getSettings() { return settings; }
+	public static Settings getSettings() {
+		Settings synchronizedSettings = clientSynchronizedSettings;
+		return synchronizedSettings == null ? settings : synchronizedSettings;
+	}
+
+	public static void applyClientSynchronizedSettings(Settings synchronizedSettings) {
+		clientSynchronizedSettings = synchronizedSettings;
+	}
+
+	public static void resetClientSynchronizedSettings() {
+		clientSynchronizedSettings = null;
+	}
 
 	public static Settings defaults() {
 		LinkedHashMap<String, Adjustment> temperature = new LinkedHashMap<>();

@@ -16,6 +16,7 @@ public final class EnchantConfigManager {
 	private static final String TABLE_GROUP = "enchantment-table";
 	private static final String CUSTOM_ENCHANTMENTS_GROUP = "custom-enchantments";
 	private static volatile EnchantSettings settings = EnchantSettings.DEFAULT;
+	private static volatile EnchantSettings clientSynchronizedSettings;
 
 	private EnchantConfigManager() {
 	}
@@ -26,6 +27,7 @@ public final class EnchantConfigManager {
 
 	public static void reset() {
 		settings = EnchantSettings.DEFAULT;
+		clientSynchronizedSettings = null;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -33,15 +35,30 @@ public final class EnchantConfigManager {
 	}
 
 	public static boolean isEnabled() {
-		return settings.enabled;
+		return effectiveSettings().enabled;
 	}
 
 	public static boolean isEnchantmentTableEnabled() {
-		return settings.enabled && settings.enchantmentTableEnabled;
+		EnchantSettings effective = effectiveSettings();
+		return effective.enabled && effective.enchantmentTableEnabled;
 	}
 
 	public static boolean areCustomEnchantmentsEnabled() {
-		return settings.enabled && settings.customEnchantmentsEnabled;
+		EnchantSettings effective = effectiveSettings();
+		return effective.enabled && effective.customEnchantmentsEnabled;
+	}
+
+	static void applyClientSynchronizedSettings(boolean enabled, boolean enchantmentTableEnabled, boolean customEnchantmentsEnabled) {
+		clientSynchronizedSettings = new EnchantSettings(enabled, enchantmentTableEnabled, customEnchantmentsEnabled);
+	}
+
+	static void resetClientSynchronizedState() {
+		clientSynchronizedSettings = null;
+	}
+
+	private static EnchantSettings effectiveSettings() {
+		EnchantSettings synchronizedSettings = clientSynchronizedSettings;
+		return synchronizedSettings == null ? settings : synchronizedSettings;
 	}
 
 	public static Path enchantDirectory() {

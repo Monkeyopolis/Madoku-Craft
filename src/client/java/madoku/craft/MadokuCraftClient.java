@@ -4,7 +4,6 @@ import madoku.craft.entity.MadokuEntitiesClient;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.inventory.PetInventoryClient;
 import madoku.craft.items.ItemsCategoriesManager;
-import madoku.craft.items.ItemsPayloadManager;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.hud.HudAttributesManager;
 import madoku.craft.hud.HudPayloadManager;
@@ -12,7 +11,10 @@ import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.attributes.HungerPayloadManager;
 import madoku.craft.core.season.PlayerClimatePayloadManager;
 import madoku.craft.core.season.SeasonPayloadManager;
+import madoku.craft.core.recipes.RecipesClientSyncManager;
 import madoku.craft.core.sync.MadokuSyncManager;
+import madoku.craft.core.sync.SyncConfigManager;
+import madoku.craft.core.sync.SyncPayloadManager;
 import madoku.craft.core.time.TimePayloadManager;
 import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.pet.PetPayloadManager;
@@ -24,8 +26,11 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MadokuCraftClient implements ClientModInitializer {
+	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuCraftClient.class);
 	private static boolean configuredItemMetadataApplied;
 
 	@Override
@@ -65,14 +70,23 @@ public class MadokuCraftClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(PlayerClimatePayloadManager.TYPE, (payload, context) ->
 			context.client().execute(() -> HudPayloadManager.setServerClimate(payload.temperature(), payload.humidity()))
 		);
-		ClientPlayNetworking.registerGlobalReceiver(ItemsPayloadManager.TYPE, (payload, context) ->
-			context.client().execute(() -> ItemsCategoriesManager.applySynchronizedProfiles(payload.snapshot()))
+		ClientPlayNetworking.registerGlobalReceiver(SyncPayloadManager.TYPE, (payload, context) ->
+			context.client().execute(() -> {
+				try {
+					SyncConfigManager.applyClientSnapshot(payload.configId(), payload.snapshot());
+					if ("recipes".equals(payload.configId())) {
+						RecipesClientSyncManager.refresh();
+					}
+				} catch (RuntimeException exception) {
+					LOGGER.warn("Failed to process synchronized configuration {}.", payload.configId(), exception);
+				}
+			})
 		);
 		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-			ItemsCategoriesManager.resetClientSynchronizedState();
+			SyncConfigManager.resetClientSynchronizedState();
 			configuredItemMetadataApplied = false;
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
