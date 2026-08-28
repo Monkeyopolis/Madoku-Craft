@@ -85,7 +85,7 @@ public final class EquipmentsConfigManager {
 			.add(defaultItem("minecraft:iron-" + piece, 17.0D))
 			.add(defaultItem("minecraft:copper-" + piece, 28.0D))
 			.add(defaultItem("minecraft:leather-" + piece, 39.0D))
-			.add(defaultItem("empty", 900.0D))
+			.add(defaultItem("empty", 1900.0D))
 			.build();
 	}
 

@@ -37,15 +37,19 @@ public final class BooksConfigManager {
 	static final String FEATHER_FALLING_ID = "minecraft:feather_falling";
 	static final String FROST_WALKER_ID = "minecraft:frost_walker";
 	static final String FORTUNE_ID = "minecraft:fortune";
+	static final String LOOTING_ID = "minecraft:looting";
+	static final String LOYALTY_ID = "minecraft:loyalty";
 	static final String FIRE_ASPECT_ID = "minecraft:fire_aspect";
 	static final String FIRE_PROTECTION_ID = "minecraft:fire_protection";
 	static final String FLAME_ID = "minecraft:flame";
+	static final String IMPALING_ID = "minecraft:impaling";
+	static final String INFINITY_ID = "minecraft:infinity";
+	static final String KNOCKBACK_ID = "minecraft:knockback";
 	private static final String FIELD_ENCHANTMENT_ID = "enchantment-id";
 	private static final String FIELD_MAXIMUM_LEVEL = "maximum-level";
 	private static final String FIELD_COMPATIBLE_ITEMS = "compatible-items";
 	private static final String FIELD_CONFLICTING_ENCHANTMENT = "conflicting-enchantment";
 	private static final String FIELD_WEIGHT = "weight";
-	private static final String FIELD_ENCHANTMENT_VALUE = "enchantment-value";
 	private static final String FIELD_AQUA_AFFINITY = "aqua-affinity";
 	private static final String FIELD_BANE_OF_ARTHROPODS = "bane-of-arthropods";
 	private static final String FIELD_EFFECT = "effect";
@@ -56,7 +60,6 @@ public final class BooksConfigManager {
 	private static final String FIELD_BASE_KNOCKBACK_RESISTANCE = "base-knockback-resistance";
 	private static final String FIELD_LEVEL_KNOCKBACK_RESISTANCE = "level-knockback-resistance";
 	private static final String FIELD_LEVEL_ARMOR_PENETRATION = "level-armor-penetration";
-	private static final String FIELD_ENCHANTMENT_DURATION = "enchantment-duration";
 	private static final String FIELD_BLAST_PROTECTION = "blast-protection";
 	private static final String FIELD_EXPLOSIVE_PROTECTION = "explosive-protection";
 	private static final String FIELD_EXPLOSION_KNOCKBACK_RESISTANCE = "explosion-knockback-resistance";
@@ -70,6 +73,7 @@ public final class BooksConfigManager {
 	private static final String FIELD_FEATHER_FALLING = "efficiency";
 	private static final String FIELD_BASE_FALL_DAMAGE_REDUCTION = "base-fall-damage-reduction";
 	private static final String FIELD_FORTUNE = "fortune";
+	private static final String FIELD_LOOTING = "looting";
 	private static final String FIELD_BASE_MULTIPLIER_CHANCE = "base-multiplier-chance";
 	private static final String FIELD_FIRE_ASPECT = "fire-aspect";
 	private static final String FIELD_BASE_FIRE_DURATION = "base-fire-duration";
@@ -77,6 +81,12 @@ public final class BooksConfigManager {
 	private static final String FIELD_BURN_PROTECTION = "burn-protection";
 	private static final String FIELD_BURN_DURATION_REDUCTION = "burn-duration-reduction";
 	private static final String FIELD_FLAME = "flame";
+	private static final String FIELD_IMPALING = "impaling";
+	private static final String FIELD_BASE_ADDED_DAMAGE = "base-added-damage";
+	private static final String FIELD_INFINITY = "infinity";
+	private static final String FIELD_BASE_CHANCE = "base-chance";
+	private static final String FIELD_KNOCKBACK = "knockback";
+	private static final String FIELD_BASE_KNOCKBACK = "base-knockback";
 	private static final String FIELD_BASE_ADJUSTMENT = "base-adjustment";
 	private static final String FIELD_BASE_SUBMERGED_MINING_SPEED = "base-submerged-mining-speed";
 	private static final String FIELD_LEVEL_ADJUSTMENT = "level-adjustment";
@@ -94,9 +104,14 @@ public final class BooksConfigManager {
 	private static final String FEATHER_FALLING_FILE_KEY = "feather-falling";
 	private static final String FROST_WALKER_FILE_KEY = "frost-walker";
 	private static final String FORTUNE_FILE_KEY = "fortune";
+	private static final String LOOTING_FILE_KEY = "looting";
+	private static final String LOYALTY_FILE_KEY = "loyalty";
 	private static final String FIRE_ASPECT_FILE_KEY = "fire-aspect";
 	private static final String FIRE_PROTECTION_FILE_KEY = "fire-protection";
 	private static final String FLAME_FILE_KEY = "flame";
+	private static final String IMPALING_FILE_KEY = "impaling";
+	private static final String INFINITY_FILE_KEY = "infinity";
+	private static final String KNOCKBACK_FILE_KEY = "knockback";
 	private static final Map<String, EnchantmentDefinition> EMPTY_DEFINITIONS = Map.of();
 	private static volatile Map<String, EnchantmentDefinition> definitions = EMPTY_DEFINITIONS;
 	private static volatile Map<String, EnchantmentDefinition> clientSynchronizedDefinitions = EMPTY_DEFINITIONS;
@@ -241,6 +256,27 @@ public final class BooksConfigManager {
 		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
 		if (!isFireAspect(enchantment)) return false;
 		EnchantmentDefinition definition = activeDefinitions().get(FIRE_ASPECT_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideImpaling(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!IMPALING_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(IMPALING_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideInfinity(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!INFINITY_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(INFINITY_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideKnockback(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!KNOCKBACK_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(KNOCKBACK_ID);
 		return definition != null && definition.enabled;
 	}
 
@@ -399,9 +435,14 @@ public final class BooksConfigManager {
 			staticDefaults.put(FEATHER_FALLING_FILE_KEY, buildFeatherFallingDefaults());
 			staticDefaults.put(FROST_WALKER_FILE_KEY, buildFrostWalkerDefaults());
 			staticDefaults.put(FORTUNE_FILE_KEY, buildFortuneDefaults());
+			staticDefaults.put(LOOTING_FILE_KEY, buildLootingDefaults());
+			staticDefaults.put(LOYALTY_FILE_KEY, buildLoyaltyDefaults());
 			staticDefaults.put(FIRE_ASPECT_FILE_KEY, buildFireAspectDefaults());
 			staticDefaults.put(FIRE_PROTECTION_FILE_KEY, buildFireProtectionDefaults());
 			staticDefaults.put(FLAME_FILE_KEY, buildFlameDefaults());
+			staticDefaults.put(IMPALING_FILE_KEY, buildImpalingDefaults());
+			staticDefaults.put(INFINITY_FILE_KEY, buildInfinityDefaults());
+			staticDefaults.put(KNOCKBACK_FILE_KEY, buildKnockbackDefaults());
 			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				EnchantConfigManager.enchantmentsDirectory(),
 				staticDefaults,
@@ -607,13 +648,40 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildLootingDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, LOOTING_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("sword")
+				.add("spear")
+				.add("axe")
+				.add("trident")
+				.add("mace"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_LOOTING, looting -> looting
+				.put(FIELD_BASE_MULTIPLIER_CHANCE, 30)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildLoyaltyDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, LOYALTY_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("trident"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
 	private static JsonObject buildFireAspectDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "minecraft:fire-aspect")
 			.put(FIELD_MAXIMUM_LEVEL, 5)
 			.array(FIELD_COMPATIBLE_ITEMS, values -> values
 				.add("sword")
-				.add("trident")
 				.add("spear")
 				.add("axe")
 				.add("mace"))
@@ -661,6 +729,50 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildImpalingDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, IMPALING_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("trident"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_IMPALING, impaling -> impaling
+				.put(FIELD_BASE_ADDED_DAMAGE, 3)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
+	private static JsonObject buildInfinityDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, INFINITY_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_INFINITY, infinity -> infinity
+				.put(FIELD_BASE_CHANCE, 30)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildKnockbackDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, KNOCKBACK_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("sword")
+				.add("spear")
+				.add("axe"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_KNOCKBACK, knockback -> knockback
+				.put(FIELD_BASE_KNOCKBACK, 3)
+				.put(FIELD_LEVEL_ADJUSTMENT, 2))
+			.build();
+	}
+
 	private static JsonObject buildGenericDefaults(String fileKey) {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "")
@@ -668,12 +780,6 @@ public final class BooksConfigManager {
 			.array(FIELD_COMPATIBLE_ITEMS, ignored -> { })
 			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
 			.put(FIELD_WEIGHT, 1)
-			.object(FIELD_ENCHANTMENT_VALUE, value -> value
-				.put(FIELD_BASE_ADJUSTMENT, 0)
-				.put(FIELD_LEVEL_ADJUSTMENT, 0))
-			.object(FIELD_ENCHANTMENT_DURATION, duration -> duration
-				.put(FIELD_BASE_ADJUSTMENT, 0)
-				.put(FIELD_LEVEL_ADJUSTMENT, 0))
 			.build();
 	}
 
@@ -778,6 +884,16 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
+		} else if (LOOTING_ID.equals(enchantmentId)) {
+			JsonObject looting = object(root, FIELD_LOOTING);
+			baseAdjustment = Math.max(0.0D, readDouble(looting, FIELD_BASE_MULTIPLIER_CHANCE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(looting, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
 		} else if (FIRE_ASPECT_ID.equals(enchantmentId)) {
 			JsonObject fireAspect = object(root, FIELD_FIRE_ASPECT);
 			baseDuration = Math.max(0.0D, readDouble(fireAspect, FIELD_BASE_FIRE_DURATION, 0.0D));
@@ -810,13 +926,41 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
+		} else if (IMPALING_ID.equals(enchantmentId)) {
+			JsonObject impaling = object(root, FIELD_IMPALING);
+			baseAdjustment = Math.max(0.0D, readDouble(impaling, FIELD_BASE_ADDED_DAMAGE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(impaling, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (INFINITY_ID.equals(enchantmentId)) {
+			JsonObject infinity = object(root, FIELD_INFINITY);
+			baseAdjustment = Math.max(0.0D, readDouble(infinity, FIELD_BASE_CHANCE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(infinity, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (KNOCKBACK_ID.equals(enchantmentId)) {
+			JsonObject knockback = object(root, FIELD_KNOCKBACK);
+			baseAdjustment = Math.max(0.0D, readDouble(knockback, FIELD_BASE_KNOCKBACK, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(knockback, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
 		} else {
-			JsonObject enchantmentValue = object(root, FIELD_ENCHANTMENT_VALUE);
-			baseAdjustment = Math.max(0.0D, readDouble(enchantmentValue, FIELD_BASE_ADJUSTMENT, 0.0D));
-			levelAdjustment = Math.max(0.0D, readDouble(enchantmentValue, FIELD_LEVEL_ADJUSTMENT, 0.0D));
-			JsonObject enchantmentDuration = object(root, FIELD_ENCHANTMENT_DURATION);
-			baseDuration = Math.max(0.0D, readDouble(enchantmentDuration, FIELD_BASE_ADJUSTMENT, 0.0D));
-			levelDuration = Math.max(0.0D, readDouble(enchantmentDuration, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseAdjustment = 0.0D;
+			levelAdjustment = 0.0D;
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
 			baseKnockbackResistance = 0.0D;
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;

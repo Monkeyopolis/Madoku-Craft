@@ -61,6 +61,8 @@
     "attributes.LivingEntityLuckLootMixin",
     "attributes.EnchantmentAttributeEffectMixin",
     "attributes.EnchantmentMaximumLevelMixin",
+    "attributes.LivingEntityKnockbackMixin",
+    "attributes.ProjectileWeaponInfinityMixin",
     "mob.LivingEntityMobAggroMixin",
     "pet.LivingEntityPetBehaviorMixin",
     "season.LevelSeasonalPrecipitationMixin",

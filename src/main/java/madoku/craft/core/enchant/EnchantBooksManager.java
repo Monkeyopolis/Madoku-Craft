@@ -5,6 +5,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -15,6 +16,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.item.ArrowItem;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.item.Items;
@@ -37,9 +40,11 @@ import static madoku.craft.core.enchant.BooksConfigManager.DEPTH_STRIDER_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.EFFICIENCY_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FEATHER_FALLING_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FORTUNE_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.LOOTING_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FIRE_ASPECT_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FIRE_PROTECTION_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FLAME_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.INFINITY_ID;
 
 /** Runtime group that owns configured enchantment books and enchantment effects. */
 public final class EnchantBooksManager {
@@ -169,6 +174,122 @@ public final class EnchantBooksManager {
 			vanillaModifier.operation()
 		);
 		return configuredModifier;
+	}
+
+	/** Replaces vanilla Impaling's aquatic-only bonus with the configured water-or-rain bonus. */
+	public static boolean applyConfiguredImpalingDamage(
+		Enchantment enchantment,
+		int level,
+		ItemStack weapon,
+		Entity target,
+		MutableFloat damage
+	) {
+		if (!BooksConfigManager.shouldOverrideImpaling(enchantment)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.IMPALING_ID);
+		boolean definitionEnabled = definition != null && definition.enabled;
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		int resolvedLevel = Math.max(1, level);
+		double configuredBonus = definitionEnabled
+			? BooksConfigManager.resolveAdjustment(definition.baseAdjustment, definition.levelAdjustment, resolvedLevel)
+			: 0.0D;
+		boolean inWaterOrRain = target != null && target.isInWaterOrRain();
+		boolean aquatic = target != null && target.typeHolder().is(EntityTypeTags.AQUATIC);
+		boolean vanillaWouldApply = aquatic;
+		boolean applied = compatible && inWaterOrRain && damage != null;
+		boolean vanillaBonusCancelled = compatible && (vanillaWouldApply || inWaterOrRain);
+		if (applied) damage.add((float) configuredBonus);
+		return vanillaBonusCancelled;
+	}
+
+	/** Replaces vanilla Infinity's unconditional arrow exemption with a configured chance. */
+	public static ItemStack applyConfiguredInfinityAmmo(
+		ItemStack weapon,
+		ItemStack ammo,
+		LivingEntity shooter,
+		boolean multishotProjectile
+	) {
+		if (weapon == null || weapon.isEmpty() || ammo == null || ammo.isEmpty()
+			|| shooter == null || multishotProjectile
+			|| !(ammo.getItem() instanceof ArrowItem)
+			|| !EnchantConfigManager.areCustomEnchantmentsEnabled()) return null;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(INFINITY_ID);
+		int level = resolveLevel(weapon, INFINITY_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		boolean compatible = definitionEnabled && level > 0 && BooksConfigManager.isCompatible(definition, weapon);
+		if (!compatible) return null;
+
+		double configuredChance = Math.min(100.0D, BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			level
+		));
+		float roll = shooter.getRandom().nextFloat() * 100.0F;
+		boolean preserveAmmo = roll < configuredChance;
+		if (!preserveAmmo) return null;
+
+		ItemStack projectile = ammo.copyWithCount(1);
+		projectile.set(DataComponents.INTANGIBLE_PROJECTILE, net.minecraft.util.Unit.INSTANCE);
+		return projectile;
+	}
+
+	/** Returns whether the configured Infinity effect should suppress vanilla ammo-use processing. */
+	public static boolean shouldCancelVanillaInfinity(Enchantment enchantment, int level) {
+		if (!BooksConfigManager.shouldOverrideInfinity(enchantment)
+			|| level <= 0) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(INFINITY_ID);
+		return definition != null && definition.enabled;
+	}
+
+	/** Replaces vanilla Knockback's contribution with configured horizontal strength. */
+	public static boolean applyConfiguredKnockback(
+		Enchantment enchantment,
+		int level,
+		ItemStack weapon,
+		Entity target,
+		DamageSource source,
+		MutableFloat knockback
+	) {
+		if (!BooksConfigManager.shouldOverrideKnockback(enchantment)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.KNOCKBACK_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		if (!compatible || knockback == null) return false;
+
+		int resolvedLevel = Math.max(1, level);
+		double configuredKnockback = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			resolvedLevel
+		);
+		knockback.add((float) configuredKnockback);
+		return true;
+	}
+
+	/** Returns the configured Knockback amount that contributes to attack strength. */
+	public static double resolveConfiguredKnockbackVerticalContribution(DamageSource source) {
+		if (source == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return 0.0D;
+
+		Entity attackerEntity = source.getEntity();
+		if (!(attackerEntity instanceof LivingEntity attacker)
+			|| source.getDirectEntity() != attacker) return 0.0D;
+
+		ItemStack weapon = attacker.getWeaponItem();
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.KNOCKBACK_ID);
+		int level = resolveLevel(weapon, BooksConfigManager.KNOCKBACK_ID);
+		if (definition == null || !definition.enabled || level <= 0
+			|| !BooksConfigManager.isCompatible(definition, weapon)) return 0.0D;
+
+		return BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			level
+		) / 2.0D;
 	}
 
 	/** Removes only configured enchantments that are incompatible with an anvil target. */
@@ -340,6 +461,66 @@ public final class EnchantBooksManager {
 
 		ItemStack resolvedTool = tool == null ? ItemStack.EMPTY : tool;
 		int level = resolveLevel(resolvedTool, FORTUNE_ID);
+		boolean compatible = level > 0 && BooksConfigManager.isCompatible(definition, resolvedTool);
+		int countBefore = stack.getCount();
+		double chance = level > 0
+			? BooksConfigManager.resolveAdjustment(definition.baseAdjustment, definition.levelAdjustment, level)
+			: 0.0D;
+		chance = Math.min(100.0D, chance);
+		float roll = -1.0F;
+		boolean doubled = false;
+		if (compatible && chance > 0.0D) {
+			roll = (random == null ? RandomSource.create() : random).nextFloat() * 100.0F;
+			doubled = roll < chance;
+			if (doubled) stack.setCount(countBefore * 2);
+		}
+
+		return true;
+	}
+
+	/** Replaces vanilla Looting's variable bonus with one configured chance to double each drop stack. */
+	public static boolean applyConfiguredLooting(
+		Holder<Enchantment> enchantment,
+		ItemStack stack,
+		LootContext lootContext
+	) {
+		if (enchantment == null || stack == null || stack.isEmpty()
+			|| !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		boolean looting = enchantment.unwrapKey()
+			.map(key -> LOOTING_ID.equals(key.identifier().toString()))
+			.orElse(false);
+		if (!looting) return false;
+
+		ItemInstance toolInstance = lootContext == null
+			? null
+			: lootContext.getOptionalParameter(LootContextParams.TOOL);
+		ItemStack tool = toolInstance instanceof ItemStack itemStack ? itemStack : ItemStack.EMPTY;
+		RandomSource random = lootContext == null ? null : lootContext.getRandom();
+		return applyConfiguredLootingRoll(tool, stack, random);
+	}
+
+	/** Applies configured Looting to managed mob drops before Madoku Luck scales their quantities. */
+	public static boolean applyConfiguredLooting(
+		ItemStack tool,
+		ItemStack stack,
+		RandomSource random
+	) {
+		return applyConfiguredLootingRoll(tool, stack, random);
+	}
+
+	private static boolean applyConfiguredLootingRoll(
+		ItemStack tool,
+		ItemStack stack,
+		RandomSource random
+	) {
+		if (stack == null || stack.isEmpty() || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(LOOTING_ID);
+		if (definition == null || !definition.enabled) return false;
+
+		ItemStack resolvedTool = tool == null ? ItemStack.EMPTY : tool;
+		int level = resolveLevel(resolvedTool, LOOTING_ID);
 		boolean compatible = level > 0 && BooksConfigManager.isCompatible(definition, resolvedTool);
 		int countBefore = stack.getCount();
 		double chance = level > 0

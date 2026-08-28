@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.core.enchant.EnchantBooksManager;
 import madoku.craft.core.json.JSONFormatManager;
 import madoku.craft.core.json.MadokuJSONManager;
 import madoku.craft.mob.MobEntityManager;
@@ -145,8 +146,12 @@ public final class LootTableEntitiesManager {
 			random = level == null ? RandomSource.create() : level.getRandom();
 		}
 		ServerPlayer player = MadokuLuckManager.resolveLootPlayer(lootContext);
+		List<ItemStack> generated = new ArrayList<>(MadokuLootTableManager.rollSharedTable(
+			managed, random, player, activeSettings.useMadokuLuck
+		));
+		applyConfiguredLooting(player, random, generated);
 		return applySheepDropBehavior(
-			MadokuLootTableManager.rollSharedTable(managed, random, player, activeSettings.useMadokuLuck),
+			generated,
 			thisEntity
 		);
 	}
@@ -165,8 +170,22 @@ public final class LootTableEntitiesManager {
 		ObjectArrayList<ItemStack> generated = new ObjectArrayList<>(
 			MadokuLootTableManager.rollSharedTable(managed, resolvedRandom, player, activeSettings.useMadokuLuck)
 		);
+		applyConfiguredLooting(player, resolvedRandom, generated);
 		MadokuLuckManager.applyManagedMobDrops(player, resolvedRandom, generated);
 		return List.copyOf(generated);
+	}
+
+	private static void applyConfiguredLooting(
+		ServerPlayer player,
+		RandomSource random,
+		List<ItemStack> generated
+	) {
+		if (player == null || generated == null || generated.isEmpty()) return;
+
+		ItemStack weapon = player.getMainHandItem();
+		for (ItemStack stack : generated) {
+			EnchantBooksManager.applyConfiguredLooting(weapon, stack, random);
+		}
 	}
 
 	private static List<ItemStack> applySheepDropBehavior(List<ItemStack> generated, LivingEntity entity) {

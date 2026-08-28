@@ -23,7 +23,8 @@ public abstract class ApplyBonusCountFortuneMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ItemStack> callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredFortune(enchantment, stack, lootContext)) {
+		if (EnchantBooksManager.applyConfiguredFortune(enchantment, stack, lootContext)
+			|| EnchantBooksManager.applyConfiguredLooting(enchantment, stack, lootContext)) {
 			callbackInfo.setReturnValue(stack);
 		}
 	}

@@ -1,6 +1,7 @@
 package madoku.craft.mixin.attributes;
 
 import madoku.craft.core.enchant.BooksConfigManager;
+import madoku.craft.core.enchant.EnchantBooksManager;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -58,6 +59,80 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfo callbackInfo
 	) {
 		if (BooksConfigManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Replaces vanilla Impaling's aquatic-only bonus with the configured water-or-rain rule. */
+	@Inject(
+		method = "modifyDamage(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceImpalingDamage(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat damage,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredImpalingDamage(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			entity,
+			damage
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Prevents configured Infinity from retaining vanilla's unconditional arrow exemption. */
+	@Inject(
+		method = "modifyAmmoCount(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceInfinityAmmoUse(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		MutableFloat amount,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.shouldCancelVanillaInfinity(
+			(Enchantment) (Object) this,
+			level
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Replaces vanilla Knockback's value while retaining horizontal-only behavior. */
+	@Inject(
+		method = "modifyKnockback(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceKnockback(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat knockback,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredKnockback(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			entity,
+			source,
+			knockback
+		)) {
 			callbackInfo.cancel();
 		}
 	}
