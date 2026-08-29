@@ -34,9 +34,14 @@ public final class MadokuEnchantManager {
 	}
 
 	public static void reset() {
+		EnchantBooksManager.reset();
 		EnchantTableManager.reset();
 		BooksConfigManager.reset();
 		EnchantConfigManager.reset();
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		EnchantBooksManager.onServerTick(server);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {

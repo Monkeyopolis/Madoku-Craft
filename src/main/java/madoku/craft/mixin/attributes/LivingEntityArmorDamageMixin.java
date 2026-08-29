@@ -33,6 +33,8 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean shouldOverrideVanillaArmor = MadokuArmorManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
 			float damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, amount);
+			damageAfterArmor = EnchantBooksManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
+			EnchantBooksManager.capturePostArmorDamage(damageAfterArmor);
 			cir.setReturnValue(damageAfterArmor);
 			return;
 		}
@@ -51,6 +53,8 @@ public abstract class LivingEntityArmorDamageMixin {
 		damageAfterArmor = PetAbilitiesManager.applyFallDamage(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, damageAfterArmor);
+		damageAfterArmor = EnchantBooksManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
+		EnchantBooksManager.capturePostArmorDamage(damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
 	}
 

@@ -7,12 +7,15 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.damagesource.CombatRules;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -24,10 +27,13 @@ import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ArrowItem;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemInstance;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantedItemInUse;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.storage.loot.LootContext;
@@ -38,12 +44,12 @@ import net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer
 import net.minecraft.world.level.storage.loot.entries.NestedLootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import org.apache.commons.lang3.mutable.MutableFloat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static madoku.craft.core.enchant.BooksConfigManager.AQUA_AFFINITY_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.BANE_OF_ARTHROPODS_ID;
@@ -60,15 +66,48 @@ import static madoku.craft.core.enchant.BooksConfigManager.FLAME_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.INFINITY_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.PROJECTILE_PROTECTION_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.PROTECTION_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.SOUL_SPEED_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.SWEEPING_EDGE_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.THORNS_ID;
 
 /** Runtime group that owns configured enchantment books and enchantment effects. */
 public final class EnchantBooksManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(EnchantBooksManager.class);
 	private static final ThreadLocal<Float> CONFIGURED_DAMAGE_REDUCTION_PERCENT = new ThreadLocal<>();
 	private static final ThreadLocal<Float> VANILLA_DAMAGE_PROTECTION = new ThreadLocal<>();
 	private static final ThreadLocal<LuckOfTheSeaContext> LUCK_OF_THE_SEA_CONTEXT = new ThreadLocal<>();
+	private static final ThreadLocal<Boolean> SOUL_SPEED_LOCATION_CONTEXT = new ThreadLocal<>();
+	private static final ThreadLocal<Boolean> THORNS_POST_ATTACK_CONTEXT = new ThreadLocal<>();
+	private static final ThreadLocal<Float> INCOMING_DAMAGE_CONTEXT = new ThreadLocal<>();
+	private static final Map<UUID, SmiteVulnerabilityState> SMITE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
+	private static final String UNBREAKING_BASE_MAX_DAMAGE_KEY = "madoku_craft_unbreaking_base_max_damage";
+	private static final String UNBREAKING_BASE_DAMAGE_KEY = "madoku_craft_unbreaking_base_damage";
+	private static final String UNBREAKING_APPLIED_MAX_DAMAGE_KEY = "madoku_craft_unbreaking_applied_max_damage";
+	private static final String UNBREAKING_APPLIED_DAMAGE_KEY = "madoku_craft_unbreaking_applied_damage";
+	private static final String UNBREAKING_APPLIED_LEVEL_KEY = "madoku_craft_unbreaking_applied_level";
 
 	private EnchantBooksManager() {
+	}
+
+	static void reset() {
+		CONFIGURED_DAMAGE_REDUCTION_PERCENT.remove();
+		VANILLA_DAMAGE_PROTECTION.remove();
+		LUCK_OF_THE_SEA_CONTEXT.remove();
+		SOUL_SPEED_LOCATION_CONTEXT.remove();
+		THORNS_POST_ATTACK_CONTEXT.remove();
+		INCOMING_DAMAGE_CONTEXT.remove();
+		SMITE_VULNERABILITY_BY_ENTITY.clear();
+	}
+
+	static void onServerTick(MinecraftServer server) {
+		if (server == null || SMITE_VULNERABILITY_BY_ENTITY.isEmpty()) return;
+
+		SMITE_VULNERABILITY_BY_ENTITY.keySet().removeIf(uuid -> {
+			for (ServerLevel level : server.getAllLevels()) {
+				Entity entity = level.getEntity(uuid);
+				if (entity instanceof LivingEntity livingEntity && livingEntity.hasEffect(MobEffects.GLOWING)) return false;
+			}
+			return true;
+		});
 	}
 
 	/** Creates a new book using only enabled, configured enchantment definitions. */
@@ -196,6 +235,272 @@ public final class EnchantBooksManager {
 		return configuredModifier;
 	}
 
+	/** Replaces vanilla Soul Speed movement speed with the configured percentage. */
+	public static AttributeModifier applyConfiguredSoulSpeedModifier(
+		int level,
+		String slot,
+		AttributeModifier vanillaModifier
+	) {
+		boolean customEnchantmentsEnabled = EnchantConfigManager.areCustomEnchantmentsEnabled();
+		EnchantmentDefinition definition = BooksConfigManager.definition(SOUL_SPEED_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		if (vanillaModifier == null || !customEnchantmentsEnabled || !definitionEnabled) {
+			return vanillaModifier;
+		}
+
+		int resolvedLevel = Math.max(1, level);
+		double configuredSpeedIncrease = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			resolvedLevel
+		);
+		// Movement Speed's vanilla base is 0.1, so 40 percentage points become a 0.04 additive attribute amount.
+		double configuredAmount = configuredSpeedIncrease / 1000.0D;
+		return new AttributeModifier(vanillaModifier.id(), configuredAmount, vanillaModifier.operation());
+	}
+
+	/** Replaces vanilla Sweeping Edge's sweep-damage ratio with the configured percentage. */
+	public static AttributeModifier applyConfiguredSweepingEdgeModifier(
+		int level,
+		AttributeModifier vanillaModifier
+	) {
+		boolean customEnchantmentsEnabled = EnchantConfigManager.areCustomEnchantmentsEnabled();
+		EnchantmentDefinition definition = BooksConfigManager.definition(SWEEPING_EDGE_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		if (vanillaModifier == null || !customEnchantmentsEnabled || !definitionEnabled) {
+			return vanillaModifier;
+		}
+
+		int resolvedLevel = Math.max(1, level);
+		double configuredSweepingDamage = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			resolvedLevel
+		);
+		double configuredAmount = configuredSweepingDamage / 100.0D;
+		return new AttributeModifier(vanillaModifier.id(), configuredAmount, vanillaModifier.operation());
+	}
+
+	/** Marks the active location-change call so only Soul Speed's damage effect can be suppressed. */
+	public static void beginSoulSpeedLocationChangedEffects(Enchantment enchantment) {
+		if (BooksConfigManager.shouldOverrideSoulSpeed(enchantment)) {
+			SOUL_SPEED_LOCATION_CONTEXT.set(Boolean.TRUE);
+		} else {
+			SOUL_SPEED_LOCATION_CONTEXT.remove();
+		}
+	}
+
+	public static void endSoulSpeedLocationChangedEffects() {
+		SOUL_SPEED_LOCATION_CONTEXT.remove();
+	}
+
+	/** Returns whether the current location-change effect is Soul Speed's vanilla durability effect. */
+	public static boolean shouldCancelSoulSpeedDurabilityChange(
+		int level,
+		EnchantedItemInUse itemSource,
+		Entity entity
+	) {
+		boolean cancel = Boolean.TRUE.equals(SOUL_SPEED_LOCATION_CONTEXT.get());
+		return cancel;
+	}
+
+	/** Replaces vanilla Unbreaking with a reversible max/current durability increase. */
+	public static void reconcileConfiguredUnbreaking(ItemStack stack) {
+		if (stack == null || stack.isEmpty()) return;
+
+		CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+		CompoundTag existingData = customData == null ? null : customData.copyTag();
+		boolean tracked = existingData != null
+			&& existingData.contains(UNBREAKING_BASE_MAX_DAMAGE_KEY)
+			&& existingData.contains(UNBREAKING_BASE_DAMAGE_KEY)
+			&& existingData.contains(UNBREAKING_APPLIED_MAX_DAMAGE_KEY)
+			&& existingData.contains(UNBREAKING_APPLIED_DAMAGE_KEY)
+			&& existingData.contains(UNBREAKING_APPLIED_LEVEL_KEY);
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.UNBREAKING_ID);
+		int level = resolveLevel(stack, BooksConfigManager.UNBREAKING_ID);
+		boolean configured = EnchantConfigManager.areCustomEnchantmentsEnabled()
+			&& definition != null
+			&& definition.enabled
+			&& level > 0
+			&& stack.isDamageableItem()
+			&& BooksConfigManager.isCompatible(definition, stack);
+
+		if (!configured) {
+			if (tracked) restoreUnbreakingBaseDurability(stack, existingData);
+			return;
+		}
+
+		int currentMaxDamage = stack.getMaxDamage();
+		int currentDamage = Math.max(0, stack.getDamageValue());
+		int baseMaxDamage = tracked
+			? readStoredInt(existingData, UNBREAKING_BASE_MAX_DAMAGE_KEY, currentMaxDamage)
+			: currentMaxDamage;
+		int baseDamage = tracked
+			? readStoredInt(existingData, UNBREAKING_BASE_DAMAGE_KEY, currentDamage)
+			: currentDamage;
+		int appliedMaxDamage = tracked
+			? readStoredInt(existingData, UNBREAKING_APPLIED_MAX_DAMAGE_KEY, currentMaxDamage)
+			: currentMaxDamage;
+		int appliedDamage = tracked
+			? readStoredInt(existingData, UNBREAKING_APPLIED_DAMAGE_KEY, currentDamage)
+			: currentDamage;
+		int appliedLevel = tracked
+			? readStoredInt(existingData, UNBREAKING_APPLIED_LEVEL_KEY, level)
+			: level;
+
+		if (tracked && appliedLevel == level && currentMaxDamage == appliedMaxDamage) return;
+		if (tracked) {
+			baseDamage = clampDamage(baseDamage + currentDamage - appliedDamage, baseMaxDamage);
+		}
+
+		double increasePercent = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			level
+		);
+		double multiplier = 1.0D + increasePercent / 100.0D;
+		int targetMaxDamage = scaleDurability(baseMaxDamage, multiplier);
+		int targetDamage = Math.min(
+			targetMaxDamage,
+			scaleDurability(baseDamage, multiplier)
+		);
+
+		stack.set(DataComponents.MAX_DAMAGE, targetMaxDamage);
+		stack.setDamageValue(targetDamage);
+		CompoundTag updatedData = existingData == null ? new CompoundTag() : existingData;
+		updatedData.putInt(UNBREAKING_BASE_MAX_DAMAGE_KEY, baseMaxDamage);
+		updatedData.putInt(UNBREAKING_BASE_DAMAGE_KEY, baseDamage);
+		updatedData.putInt(UNBREAKING_APPLIED_MAX_DAMAGE_KEY, targetMaxDamage);
+		updatedData.putInt(UNBREAKING_APPLIED_DAMAGE_KEY, targetDamage);
+		updatedData.putInt(UNBREAKING_APPLIED_LEVEL_KEY, level);
+		stack.set(DataComponents.CUSTOM_DATA, CustomData.of(updatedData));
+	}
+
+	private static void restoreUnbreakingBaseDurability(ItemStack stack, CompoundTag data) {
+		int currentDamage = Math.max(0, stack.getDamageValue());
+		int baseMaxDamage = Math.max(1, readStoredInt(data, UNBREAKING_BASE_MAX_DAMAGE_KEY, stack.getMaxDamage()));
+		int baseDamage = readStoredInt(data, UNBREAKING_BASE_DAMAGE_KEY, currentDamage);
+		int appliedDamage = readStoredInt(data, UNBREAKING_APPLIED_DAMAGE_KEY, currentDamage);
+		int restoredDamage = clampDamage(baseDamage + currentDamage - appliedDamage, baseMaxDamage);
+		stack.set(DataComponents.MAX_DAMAGE, baseMaxDamage);
+		stack.setDamageValue(restoredDamage);
+		data.remove(UNBREAKING_BASE_MAX_DAMAGE_KEY);
+		data.remove(UNBREAKING_BASE_DAMAGE_KEY);
+		data.remove(UNBREAKING_APPLIED_MAX_DAMAGE_KEY);
+		data.remove(UNBREAKING_APPLIED_DAMAGE_KEY);
+		data.remove(UNBREAKING_APPLIED_LEVEL_KEY);
+		if (data.isEmpty()) {
+			stack.remove(DataComponents.CUSTOM_DATA);
+		} else {
+			stack.set(DataComponents.CUSTOM_DATA, CustomData.of(data));
+		}
+	}
+
+	private static int readStoredInt(CompoundTag data, String key, int fallback) {
+		return data == null ? fallback : data.getInt(key).orElse(fallback);
+	}
+
+	private static int scaleDurability(int value, double multiplier) {
+		if (value <= 0 || !Double.isFinite(multiplier)) return Math.max(0, value);
+		long scaled = Math.round(value * multiplier);
+		return (int) Math.max(1L, Math.min(Integer.MAX_VALUE, scaled));
+	}
+
+	private static int clampDamage(int damage, int maxDamage) {
+		return Math.max(0, Math.min(Math.max(0, maxDamage), damage));
+	}
+
+	/** Replaces configured Thorns' vanilla chance and effect as one per-piece post-attack roll. */
+	public static boolean applyConfiguredThornsPostAttack(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		Entity attacker,
+		Enchantment enchantment,
+		DamageSource incomingSource
+	) {
+		if (!BooksConfigManager.shouldOverrideThorns(enchantment)
+			|| serverLevel == null || itemSource == null || itemSource.owner() == null || attacker == null) {
+			return false;
+		}
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(THORNS_ID);
+		int resolvedLevel = Math.max(1, level);
+		double configuredChance = Math.min(100.0D, BooksConfigManager.resolveAdjustment(
+			definition.baseThornsChanceAdjustment,
+			definition.levelThornsChanceAdjustment,
+			resolvedLevel
+		));
+		float roll = serverLevel.getRandom().nextFloat() * 100.0F;
+		boolean triggered = roll < configuredChance;
+
+		THORNS_POST_ATTACK_CONTEXT.set(Boolean.TRUE);
+		try {
+			if (triggered) {
+				Holder<DamageType> thornsDamageType = serverLevel.registryAccess()
+					.lookupOrThrow(Registries.DAMAGE_TYPE)
+					.getOrThrow(DamageTypes.THORNS);
+				applyConfiguredThornsDamage(
+					serverLevel,
+					resolvedLevel,
+					itemSource,
+					attacker,
+					thornsDamageType
+				);
+			}
+		} finally {
+			THORNS_POST_ATTACK_CONTEXT.remove();
+		}
+
+		return true;
+	}
+
+	/** Captures the final damage returned by the custom armor-damage calculation for Thorns. */
+	public static void capturePostArmorDamage(float amount) {
+		if (!Boolean.TRUE.equals(THORNS_POST_ATTACK_CONTEXT.get())) {
+			INCOMING_DAMAGE_CONTEXT.set(amount);
+		}
+	}
+
+	/** Replaces vanilla Thorns' fixed random damage with the configured percentage of the incoming hit. */
+	public static boolean applyConfiguredThornsDamage(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		Entity attacker,
+		Holder<DamageType> damageType
+	) {
+		boolean customEnchantmentsEnabled = EnchantConfigManager.areCustomEnchantmentsEnabled();
+		EnchantmentDefinition definition = BooksConfigManager.definition(THORNS_ID);
+		boolean definitionPresent = definition != null;
+		boolean definitionEnabled = definitionPresent && definition.enabled;
+		Float postArmorDamageValue = currentPostArmorDamage();
+		boolean thornsContext = Boolean.TRUE.equals(THORNS_POST_ATTACK_CONTEXT.get());
+		if (!customEnchantmentsEnabled || !definitionEnabled || !thornsContext || postArmorDamageValue == null
+			|| serverLevel == null || attacker == null || itemSource == null || itemSource.owner() == null) {
+			return false;
+		}
+
+		int resolvedLevel = Math.max(1, level);
+		double configuredDamagePercentage = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			resolvedLevel
+		);
+		float postArmorDamage = Math.max(0.0F, postArmorDamageValue);
+		float configuredDamage = postArmorDamage * (float) (configuredDamagePercentage / 100.0D);
+		DamageSource source = new DamageSource(damageType, itemSource.owner());
+		attacker.hurtServer(serverLevel, source, configuredDamage);
+		return true;
+	}
+
+	private static Float currentPostArmorDamage() {
+		return INCOMING_DAMAGE_CONTEXT.get();
+	}
+
 	/** Replaces vanilla Impaling's aquatic-only bonus with the configured water-or-rain bonus. */
 	public static boolean applyConfiguredImpalingDamage(
 		Enchantment enchantment,
@@ -220,6 +525,100 @@ public final class EnchantBooksManager {
 		boolean vanillaBonusCancelled = compatible && (vanillaWouldApply || inWaterOrRain);
 		if (applied) damage.add((float) configuredBonus);
 		return vanillaBonusCancelled;
+	}
+
+	/** Replaces vanilla Sharpness damage with the configured additive damage. */
+	public static boolean applyConfiguredSharpnessDamage(
+		Enchantment enchantment,
+		int level,
+		ItemStack weapon,
+		Entity target,
+		DamageSource source,
+		MutableFloat damage
+	) {
+		if (!BooksConfigManager.isSharpness(enchantment)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.SHARPNESS_ID);
+		boolean definitionEnabled = BooksConfigManager.shouldOverrideSharpness(enchantment);
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		int resolvedLevel = Math.max(1, level);
+		double configuredBonus = definitionEnabled
+			? BooksConfigManager.resolveAdjustment(definition.baseAdjustment, definition.levelAdjustment, resolvedLevel)
+			: 0.0D;
+
+		if (!compatible || level <= 0) return false;
+		if (damage != null) damage.add((float) configuredBonus);
+		return true;
+	}
+
+	/** Cancels vanilla Smite's undead-only bonus damage for compatible configured weapons. */
+	public static boolean cancelConfiguredSmiteDamage(
+		Enchantment enchantment,
+		int level,
+		ItemStack weapon,
+		Entity target,
+		DamageSource source,
+		MutableFloat damage
+	) {
+		if (!BooksConfigManager.isSmite(enchantment)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.SMITE_ID);
+		boolean definitionEnabled = BooksConfigManager.shouldOverrideSmite(enchantment);
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		return compatible && level > 0;
+	}
+
+	/** Applies configured Smite vulnerability and vanilla Glowing after a successful weapon hit. */
+	public static boolean applyConfiguredSmiteEffects(
+		Enchantment enchantment,
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		Entity target,
+		DamageSource source
+	) {
+		if (!BooksConfigManager.isSmite(enchantment) || !(target instanceof LivingEntity livingTarget)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.SMITE_ID);
+		ItemStack weapon = itemSource == null ? ItemStack.EMPTY : itemSource.itemStack();
+		boolean definitionEnabled = BooksConfigManager.shouldOverrideSmite(enchantment);
+		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		int resolvedLevel = Math.max(1, level);
+		double vulnerabilityPercent = definitionEnabled
+			? BooksConfigManager.resolveAdjustment(definition.baseAdjustment, definition.levelAdjustment, resolvedLevel)
+			: 0.0D;
+		double configuredGlowSeconds = definitionEnabled
+			? BooksConfigManager.resolveAdjustment(definition.baseDuration, definition.levelDuration, resolvedLevel)
+			: 0.0D;
+		int glowDurationTicks = Math.max(0, (int) Math.round(configuredGlowSeconds * 20.0D));
+		if (!compatible || level <= 0) return false;
+		if (glowDurationTicks > 0) {
+			livingTarget.addEffect(
+				new MobEffectInstance(MobEffects.GLOWING, glowDurationTicks, 0, false, false, true),
+				source == null ? null : source.getEntity()
+			);
+		}
+		float vulnerability = (float) Math.max(0.0D, vulnerabilityPercent / 100.0D);
+		if (vulnerability > 0.0F && glowDurationTicks > 0) {
+			SMITE_VULNERABILITY_BY_ENTITY.put(livingTarget.getUUID(), new SmiteVulnerabilityState(vulnerability));
+		} else {
+			SMITE_VULNERABILITY_BY_ENTITY.remove(livingTarget.getUUID());
+		}
+		return true;
+	}
+
+	/** Applies Smite vulnerability only while the target still has vanilla Glowing. */
+	public static float applyConfiguredSmiteVulnerability(LivingEntity entity, DamageSource source, float amount) {
+		if (entity == null || amount <= 0.0F) return amount;
+
+		SmiteVulnerabilityState state = SMITE_VULNERABILITY_BY_ENTITY.get(entity.getUUID());
+		if (state == null) return amount;
+		if (!entity.hasEffect(MobEffects.GLOWING)) {
+			SMITE_VULNERABILITY_BY_ENTITY.remove(entity.getUUID(), state);
+			return amount;
+		}
+
+		return amount * (1.0F + state.vulnerability);
 	}
 
 	/** Replaces vanilla Infinity's unconditional arrow exemption with a configured chance. */
@@ -724,12 +1123,6 @@ public final class EnchantBooksManager {
 			CONFIGURED_DAMAGE_REDUCTION_PERCENT.remove();
 			VANILLA_DAMAGE_PROTECTION.remove();
 			float vanillaProtection = EnchantmentHelper.getDamageProtection(serverLevel, entity, source);
-			LOGGER.debug(
-				"Madoku Enchants disabled; using vanilla enchantment protection: entity={}, source={}, vanillaProtection={}",
-				entity.getType(),
-				source.type().msgId(),
-				vanillaProtection
-			);
 			return vanillaProtection;
 		}
 
@@ -738,15 +1131,6 @@ public final class EnchantBooksManager {
 		boolean projectileDamage = source.is(DamageTypeTags.IS_PROJECTILE);
 		EnchantmentDefinition projectileProtectionDefinition = BooksConfigManager.definition(PROJECTILE_PROTECTION_ID);
 		EnchantmentDefinition protectionDefinition = BooksConfigManager.definition(PROTECTION_ID);
-		LOGGER.debug(
-			"Resolving configured direct damage reduction: entity={}, source={}, fire={}, explosion={}, projectile={}, bypassesInvulnerability={}",
-			entity.getType(),
-			source.type().msgId(),
-			source.is(DamageTypeTags.IS_FIRE),
-			source.is(DamageTypeTags.IS_EXPLOSION),
-			source.is(DamageTypeTags.IS_PROJECTILE),
-			source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)
-		);
 		EnchantmentHelper.runIterationOnEquipment(entity, (holder, level, enchantedItem) -> {
 			String enchantmentId = holder.unwrapKey()
 				.map(key -> key.identifier().toString())
@@ -851,26 +1235,10 @@ public final class EnchantBooksManager {
 				source,
 				vanillaDamageProtection
 			);
-			if (isVanillaProtectionEnchantment(enchantmentId)) {
-				LOGGER.debug(
-					"Using vanilla EPF: enchantment={}, level={}, source={}, vanillaProtectionAfterFallback={}",
-					enchantmentId,
-					level,
-					source.type().msgId(),
-					vanillaDamageProtection.floatValue()
-				);
-			}
 		});
 		float totalReductionPercent = Mth.clamp(damageReductionPercent.floatValue(), 0.0F, 100.0F);
 		CONFIGURED_DAMAGE_REDUCTION_PERCENT.set(totalReductionPercent);
 		VANILLA_DAMAGE_PROTECTION.set(Math.max(0.0F, vanillaDamageProtection.floatValue()));
-		LOGGER.debug(
-			"Protection resolved: entity={}, source={}, configuredReductionPercent={}, vanillaFallbackEpf={}, directFormulaForConfiguredValues=true, helperSentinel=1.0",
-			entity.getType(),
-			source.type().msgId(),
-			totalReductionPercent,
-			vanillaDamageProtection.floatValue()
-		);
 		return 1.0F;
 	}
 
@@ -888,25 +1256,7 @@ public final class EnchantBooksManager {
 		float vanillaProtectionValue = vanillaProtection == null ? 0.0F : vanillaProtection;
 		float damageAfterVanillaFallback = CombatRules.getDamageAfterMagicAbsorb(damage, vanillaProtectionValue);
 		float reduction = Mth.clamp(configuredReductionPercent / 100.0F, 0.0F, 1.0F);
-		float reducedDamage = damageAfterVanillaFallback * (1.0F - reduction);
-		LOGGER.debug(
-			"Protection damage applied: incomingDamage={}, vanillaFallbackEpf={}, damageAfterVanillaFallback={}, configuredReductionPercent={}, finalDamage={}, vanillaProtectionArgumentIgnored={}",
-			damage,
-			vanillaProtectionValue,
-			damageAfterVanillaFallback,
-			configuredReductionPercent,
-			reducedDamage,
-			ignoredVanillaProtection
-		);
-		return reducedDamage;
-	}
-
-	private static boolean isVanillaProtectionEnchantment(String enchantmentId) {
-		return "minecraft:protection".equals(enchantmentId)
-			|| FIRE_PROTECTION_ID.equals(enchantmentId)
-			|| BLAST_PROTECTION_ID.equals(enchantmentId)
-			|| PROJECTILE_PROTECTION_ID.equals(enchantmentId)
-			|| FEATHER_FALLING_ID.equals(enchantmentId);
+		return damageAfterVanillaFallback * (1.0F - reduction);
 	}
 
 	/** Adds configured Blast Protection resistance to vanilla explosion knockback resistance. */
@@ -994,6 +1344,8 @@ public final class EnchantBooksManager {
 		}
 		return null;
 	}
+
+	private record SmiteVulnerabilityState(float vulnerability) { }
 
 	private static int resolveLevel(ItemStack stack, String enchantmentId) {
 		if (stack == null || stack.isEmpty()) return 0;

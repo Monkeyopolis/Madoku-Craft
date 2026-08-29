@@ -3,6 +3,7 @@ package madoku.craft.mixin.attributes;
 import madoku.craft.core.enchant.EnchantBooksManager;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.enchantment.effects.EnchantmentAttributeEffect;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,6 +37,23 @@ public abstract class EnchantmentAttributeEffectMixin {
 				EnchantBooksManager.applyConfiguredFireProtectionModifier(
 					level,
 					slot == null ? "null" : slot.toString(),
+					callbackInfo.getReturnValue()
+				)
+			);
+		} else if ("minecraft:enchantment.soul_speed".equals(effectId)
+			&& effect.attribute().value() == Attributes.MOVEMENT_SPEED.value()) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredSoulSpeedModifier(
+					level,
+					slot == null ? "null" : slot.toString(),
+					callbackInfo.getReturnValue()
+				)
+			);
+		} else if ("minecraft:enchantment.sweeping_edge".equals(effectId)
+			&& effect.attribute().value() == Attributes.SWEEPING_DAMAGE_RATIO.value()) {
+			callbackInfo.setReturnValue(
+				EnchantBooksManager.applyConfiguredSweepingEdgeModifier(
+					level,
 					callbackInfo.getReturnValue()
 				)
 			);

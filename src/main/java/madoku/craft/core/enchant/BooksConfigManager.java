@@ -48,6 +48,15 @@ public final class BooksConfigManager {
 	static final String FIRE_PROTECTION_ID = "minecraft:fire_protection";
 	static final String FLAME_ID = "minecraft:flame";
 	static final String IMPALING_ID = "minecraft:impaling";
+	static final String SOUL_SPEED_ID = "minecraft:soul_speed";
+	static final String SWEEPING_EDGE_ID = "minecraft:sweeping_edge";
+	static final String SWIFT_SNEAK_ID = "minecraft:swift_sneak";
+	static final String WIND_BURST_ID = "minecraft:wind_burst";
+	static final String THORNS_ID = "minecraft:thorns";
+	static final String UNBREAKING_ID = "minecraft:unbreaking";
+	static final String SHARPNESS_ID = "minecraft:sharpness";
+	static final String SILK_TOUCH_ID = "minecraft:silk_touch";
+	static final String SMITE_ID = "minecraft:smite";
 	static final String INFINITY_ID = "minecraft:infinity";
 	static final String KNOCKBACK_ID = "minecraft:knockback";
 	static final String PUNCH_ID = "minecraft:punch";
@@ -99,6 +108,23 @@ public final class BooksConfigManager {
 	private static final String FIELD_BURN_DURATION_REDUCTION = "burn-duration-reduction";
 	private static final String FIELD_FLAME = "flame";
 	private static final String FIELD_IMPALING = "impaling";
+	private static final String FIELD_SOUL_SPEED = "soul-speed";
+	private static final String FIELD_BASE_SPEED_INCREASE = "base-speed-increase";
+	private static final String FIELD_SWEEPING_EDGE = "sweeping-edge";
+	private static final String FIELD_BASE_SWEEPING_DAMAGE = "base-sweeping-damage";
+	private static final String FIELD_SHARPNESS = "sharpness";
+	private static final String FIELD_SMITE = "smite";
+	private static final String FIELD_VULNERABILITY = "vulnerability";
+	private static final String FIELD_BASE_VULNERABILITY = "base-vulnerability";
+	private static final String FIELD_GLOW_EFFECT = "glow-effect";
+	private static final String FIELD_THORNS = "thorns";
+	private static final String FIELD_UNBREAKING = "unbreaking";
+	private static final String FIELD_DAMAGE_REFLECTION = "damage-reflection";
+	private static final String FIELD_DAMAGE_CHANCE = "damage-chance";
+	private static final String FIELD_BASE_DAMAGE_PERCENTAGE = "base-damage-percentage";
+	private static final String FIELD_DURABILITY_BASE_INCREASE = "durability-base-increase";
+	private static final String FIELD_BASE_THORNS_CHANCE = "base-thorns-chance";
+	private static final String FIELD_LEVEL_THORNS_CHANCE = "level-thorns-chance";
 	private static final String FIELD_BASE_ADDED_DAMAGE = "base-added-damage";
 	private static final String FIELD_INFINITY = "infinity";
 	private static final String FIELD_BASE_CHANCE = "base-chance";
@@ -138,6 +164,15 @@ public final class BooksConfigManager {
 	private static final String FIRE_PROTECTION_FILE_KEY = "fire-protection";
 	private static final String FLAME_FILE_KEY = "flame";
 	private static final String IMPALING_FILE_KEY = "impaling";
+	private static final String SOUL_SPEED_FILE_KEY = "soul-speed";
+	private static final String SWEEPING_EDGE_FILE_KEY = "sweeping-edge";
+	private static final String SWIFT_SNEAK_FILE_KEY = "swift-sneak";
+	private static final String WIND_BURST_FILE_KEY = "wind-burst";
+	private static final String THORNS_FILE_KEY = "thorns";
+	private static final String UNBREAKING_FILE_KEY = "unbreaking";
+	private static final String SHARPNESS_FILE_KEY = "sharpness";
+	private static final String SILK_TOUCH_FILE_KEY = "silk-touch";
+	private static final String SMITE_FILE_KEY = "smite";
 	private static final String INFINITY_FILE_KEY = "infinity";
 	private static final String KNOCKBACK_FILE_KEY = "knockback";
 	private static final String PUNCH_FILE_KEY = "punch";
@@ -304,6 +339,48 @@ public final class BooksConfigManager {
 		return definition != null && definition.enabled;
 	}
 
+	static boolean shouldOverrideSoulSpeed(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!SOUL_SPEED_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(SOUL_SPEED_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideSweepingEdge(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!SWEEPING_EDGE_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(SWEEPING_EDGE_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideThorns(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!THORNS_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(THORNS_ID);
+		return definition != null && definition.enabled;
+	}
+
+	public static boolean shouldOverrideUnbreaking(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!UNBREAKING_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(UNBREAKING_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideSharpness(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!SHARPNESS_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(SHARPNESS_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideSmite(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!SMITE_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(SMITE_ID);
+		return definition != null && definition.enabled;
+	}
+
 	static boolean shouldOverrideInfinity(Enchantment enchantment) {
 		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
 		if (!INFINITY_ID.equals(resolveEnchantmentId(enchantment))) return false;
@@ -341,6 +418,14 @@ public final class BooksConfigManager {
 
 	public static boolean isFireAspect(Enchantment enchantment) {
 		return enchantment != null && FIRE_ASPECT_ID.equals(resolveEnchantmentId(enchantment));
+	}
+
+	static boolean isSharpness(Enchantment enchantment) {
+		return enchantment != null && SHARPNESS_ID.equals(resolveEnchantmentId(enchantment));
+	}
+
+	static boolean isSmite(Enchantment enchantment) {
+		return enchantment != null && SMITE_ID.equals(resolveEnchantmentId(enchantment));
 	}
 
 	/** Returns configured Breach penetration, or a negative value when vanilla behavior should remain active. */
@@ -508,6 +593,8 @@ public final class BooksConfigManager {
 			Math.max(0.0D, readDouble(junk, FIELD_LEVEL_ADJUSTMENT, 0.0D)),
 			Math.max(0.0D, readDouble(fish, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D)),
 			Math.max(0.0D, readDouble(fish, FIELD_LEVEL_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(root, FIELD_BASE_THORNS_CHANCE, 0.0D)),
+			Math.max(0.0D, readDouble(root, FIELD_LEVEL_THORNS_CHANCE, 0.0D)),
 			readBoolean(root, FIELD_ENABLED, true)
 		);
 	}
@@ -538,6 +625,15 @@ public final class BooksConfigManager {
 			staticDefaults.put(FIRE_PROTECTION_FILE_KEY, buildFireProtectionDefaults());
 			staticDefaults.put(FLAME_FILE_KEY, buildFlameDefaults());
 			staticDefaults.put(IMPALING_FILE_KEY, buildImpalingDefaults());
+			staticDefaults.put(SOUL_SPEED_FILE_KEY, buildSoulSpeedDefaults());
+			staticDefaults.put(SWEEPING_EDGE_FILE_KEY, buildSweepingEdgeDefaults());
+			staticDefaults.put(SWIFT_SNEAK_FILE_KEY, buildSwiftSneakDefaults());
+			staticDefaults.put(WIND_BURST_FILE_KEY, buildWindBurstDefaults());
+			staticDefaults.put(THORNS_FILE_KEY, buildThornsDefaults());
+			staticDefaults.put(UNBREAKING_FILE_KEY, buildUnbreakingDefaults());
+			staticDefaults.put(SHARPNESS_FILE_KEY, buildSharpnessDefaults());
+			staticDefaults.put(SILK_TOUCH_FILE_KEY, buildSilkTouchDefaults());
+			staticDefaults.put(SMITE_FILE_KEY, buildSmiteDefaults());
 			staticDefaults.put(INFINITY_FILE_KEY, buildInfinityDefaults());
 			staticDefaults.put(KNOCKBACK_FILE_KEY, buildKnockbackDefaults());
 			staticDefaults.put(PUNCH_FILE_KEY, buildPunchDefaults());
@@ -572,7 +668,7 @@ public final class BooksConfigManager {
 	private static JsonObject buildAquaAffinityDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "minecraft:aqua-affinity")
-			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
 			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("helmet"))
 			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
 			.put(FIELD_WEIGHT, 1)
@@ -885,6 +981,161 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildSoulSpeedDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SOUL_SPEED_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_SOUL_SPEED, soulSpeed -> soulSpeed
+				.put(FIELD_BASE_SPEED_INCREASE, 15)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildSweepingEdgeDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SWEEPING_EDGE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("sword"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_SWEEPING_EDGE, sweepingEdge -> sweepingEdge
+				.put(FIELD_BASE_SWEEPING_DAMAGE, 60)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildSwiftSneakDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SWIFT_SNEAK_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("leggings"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildWindBurstDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, WIND_BURST_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("mace"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildThornsDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, THORNS_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_THORNS, thorns -> thorns
+				.object(FIELD_DAMAGE_REFLECTION, reflection -> reflection
+					.put(FIELD_BASE_DAMAGE_PERCENTAGE, 15)
+					.put(FIELD_LEVEL_ADJUSTMENT, 5))
+				.object(FIELD_DAMAGE_CHANCE, chance -> chance
+					.put(FIELD_BASE_CHANCE, 15)
+					.put(FIELD_LEVEL_ADJUSTMENT, 5)))
+			.build();
+	}
+
+	private static JsonObject buildUnbreakingDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, UNBREAKING_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots")
+				.add("sword")
+				.add("axe")
+				.add("spear")
+				.add("mace")
+				.add("trident")
+				.add("pickaxe")
+				.add("shovel")
+				.add("hoe")
+				.add("fishing-rod")
+				.add("bow")
+				.add("crossbow")
+				.add("flint-and-steel")
+				.add("shears")
+				.add("shield")
+				.add("elytra")
+				.add("brush")
+				.add("carrot-on-a-stick")
+				.add("warped-fungus-on-a-stick"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_UNBREAKING, unbreaking -> unbreaking
+				.put(FIELD_DURABILITY_BASE_INCREASE, 20)
+				.put(FIELD_LEVEL_ADJUSTMENT, 20))
+			.build();
+	}
+
+	private static JsonObject buildSharpnessDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SHARPNESS_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("sword")
+				.add("axe")
+				.add("trident")
+				.add("spear"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_SHARPNESS, sharpness -> sharpness
+				.put(FIELD_BASE_ADDED_DAMAGE, 1)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
+	private static JsonObject buildSilkTouchDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SILK_TOUCH_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 1)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("pickaxe")
+				.add("shovel")
+				.add("axe")
+				.add("hoe"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildSmiteDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, SMITE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("sword")
+				.add("axe")
+				.add("trident")
+				.add("spear")
+				.add("mace"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_SMITE, smite -> smite
+				.object(FIELD_VULNERABILITY, vulnerability -> vulnerability
+					.put(FIELD_BASE_VULNERABILITY, 10)
+					.put(FIELD_LEVEL_ADJUSTMENT, 5))
+				.object(FIELD_GLOW_EFFECT, glow -> glow
+					.put(FIELD_BASE_DURATION, 3)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1)))
+			.build();
+	}
+
 	private static JsonObject buildPowerDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, POWER_ID)
@@ -901,9 +1152,7 @@ public final class BooksConfigManager {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, QUICK_CHARGE_ID)
 			.put(FIELD_MAXIMUM_LEVEL, 3)
-			.array(FIELD_COMPATIBLE_ITEMS, values -> values
-				.add("bow")
-				.add("crossbow"))
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("crossbow"))
 			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
 			.put(FIELD_WEIGHT, 1)
 			.build();
@@ -1109,6 +1358,8 @@ public final class BooksConfigManager {
 		double levelJunkChanceAdjustment = 0.0D;
 		double baseFishChanceAdjustment = 0.0D;
 		double levelFishChanceAdjustment = 0.0D;
+		double baseThornsChanceAdjustment = 0.0D;
+		double levelThornsChanceAdjustment = 0.0D;
 		if (AQUA_AFFINITY_ID.equals(enchantmentId)) {
 			JsonObject aquaAffinity = object(root, FIELD_AQUA_AFFINITY);
 			baseAdjustment = Math.max(0.0D, readDouble(aquaAffinity, FIELD_BASE_SUBMERGED_MINING_SPEED, 0.0D));
@@ -1266,6 +1517,72 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
+		} else if (SHARPNESS_ID.equals(enchantmentId)) {
+			JsonObject sharpness = object(root, FIELD_SHARPNESS);
+			baseAdjustment = Math.max(0.0D, readDouble(sharpness, FIELD_BASE_ADDED_DAMAGE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(sharpness, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (SOUL_SPEED_ID.equals(enchantmentId)) {
+			JsonObject soulSpeed = object(root, FIELD_SOUL_SPEED);
+			baseAdjustment = Math.max(0.0D, readDouble(soulSpeed, FIELD_BASE_SPEED_INCREASE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(soulSpeed, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (SWEEPING_EDGE_ID.equals(enchantmentId)) {
+			JsonObject sweepingEdge = object(root, FIELD_SWEEPING_EDGE);
+			baseAdjustment = Math.max(0.0D, readDouble(sweepingEdge, FIELD_BASE_SWEEPING_DAMAGE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(sweepingEdge, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (THORNS_ID.equals(enchantmentId)) {
+			JsonObject thorns = object(root, FIELD_THORNS);
+			JsonObject damageReflection = object(thorns, FIELD_DAMAGE_REFLECTION);
+			baseAdjustment = Math.max(0.0D, readDouble(damageReflection, FIELD_BASE_DAMAGE_PERCENTAGE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(damageReflection, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			JsonObject damageChance = object(thorns, FIELD_DAMAGE_CHANCE);
+			baseThornsChanceAdjustment = Math.max(0.0D, readDouble(damageChance, FIELD_BASE_CHANCE, 0.0D));
+			levelThornsChanceAdjustment = Math.max(0.0D, readDouble(damageChance, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (UNBREAKING_ID.equals(enchantmentId)) {
+			JsonObject unbreaking = object(root, FIELD_UNBREAKING);
+			baseAdjustment = Math.max(0.0D, readDouble(unbreaking, FIELD_DURABILITY_BASE_INCREASE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(unbreaking, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (SMITE_ID.equals(enchantmentId)) {
+			JsonObject smite = object(root, FIELD_SMITE);
+			JsonObject vulnerability = object(smite, FIELD_VULNERABILITY);
+			baseAdjustment = Math.max(0.0D, readDouble(vulnerability, FIELD_BASE_VULNERABILITY, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(vulnerability, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			JsonObject glowEffect = object(smite, FIELD_GLOW_EFFECT);
+			baseDuration = Math.max(0.0D, readDouble(glowEffect, FIELD_BASE_DURATION, 0.0D));
+			levelDuration = Math.max(0.0D, readDouble(glowEffect, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
 		} else if (INFINITY_ID.equals(enchantmentId)) {
 			JsonObject infinity = object(root, FIELD_INFINITY);
 			baseAdjustment = Math.max(0.0D, readDouble(infinity, FIELD_BASE_CHANCE, 0.0D));
@@ -1365,6 +1682,8 @@ public final class BooksConfigManager {
 			levelJunkChanceAdjustment,
 			baseFishChanceAdjustment,
 			levelFishChanceAdjustment,
+			baseThornsChanceAdjustment,
+			levelThornsChanceAdjustment,
 			true
 		);
 	}
@@ -1426,6 +1745,8 @@ public final class BooksConfigManager {
 		final double levelJunkChanceAdjustment;
 		final double baseFishChanceAdjustment;
 		final double levelFishChanceAdjustment;
+		final double baseThornsChanceAdjustment;
+		final double levelThornsChanceAdjustment;
 		final boolean enabled;
 
 		private EnchantmentDefinition(
@@ -1448,6 +1769,8 @@ public final class BooksConfigManager {
 			double levelJunkChanceAdjustment,
 			double baseFishChanceAdjustment,
 			double levelFishChanceAdjustment,
+			double baseThornsChanceAdjustment,
+			double levelThornsChanceAdjustment,
 			boolean enabled
 		) {
 			this.enchantmentId = enchantmentId;
@@ -1469,6 +1792,8 @@ public final class BooksConfigManager {
 			this.levelJunkChanceAdjustment = levelJunkChanceAdjustment;
 			this.baseFishChanceAdjustment = baseFishChanceAdjustment;
 			this.levelFishChanceAdjustment = levelFishChanceAdjustment;
+			this.baseThornsChanceAdjustment = baseThornsChanceAdjustment;
+			this.levelThornsChanceAdjustment = levelThornsChanceAdjustment;
 			this.enabled = enabled;
 		}
 
@@ -1489,6 +1814,8 @@ public final class BooksConfigManager {
 			root.addProperty(FIELD_LEVEL_KNOCKBACK_RESISTANCE, levelKnockbackResistance);
 			root.addProperty(FIELD_BASE_ARMOR_PENETRATION, baseArmorPenetration);
 			root.addProperty(FIELD_LEVEL_ARMOR_PENETRATION, levelArmorPenetration);
+			root.addProperty(FIELD_BASE_THORNS_CHANCE, baseThornsChanceAdjustment);
+			root.addProperty(FIELD_LEVEL_THORNS_CHANCE, levelThornsChanceAdjustment);
 			JsonObject luckOfTheSea = new JsonObject();
 			JsonObject treasure = new JsonObject();
 			treasure.addProperty(FIELD_BASE_CHANCE_ADJUSTMENT, baseTreasureChanceAdjustment);

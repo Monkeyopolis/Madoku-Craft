@@ -78,6 +78,7 @@ public final class MadokuCoreManager {
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
 		MadokuHelperManager.onServerTick(server);
+		MadokuEnchantManager.onServerTick(server);
 		MadokuChunkManager.onServerTick(server);
 		MadokuEcosystemManager.onServerTick(server);
 		if (MadokuTimeManager.isEnabled()) {

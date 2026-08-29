@@ -19,6 +19,35 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Enchantment.class)
 public abstract class EnchantmentMaximumLevelMixin {
+	/** Tracks Soul Speed's location-change effect while its nested effects are executing. */
+	@Inject(
+		method = "runLocationChangedEffects(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/enchantment/EnchantedItemInUse;Lnet/minecraft/world/entity/LivingEntity;)V",
+		at = @At("HEAD")
+	)
+	private void madokuCraft$beginSoulSpeedLocationChangedEffects(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		net.minecraft.world.entity.LivingEntity entity,
+		CallbackInfo callbackInfo
+	) {
+		EnchantBooksManager.beginSoulSpeedLocationChangedEffects((Enchantment) (Object) this);
+	}
+
+	@Inject(
+		method = "runLocationChangedEffects(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/enchantment/EnchantedItemInUse;Lnet/minecraft/world/entity/LivingEntity;)V",
+		at = @At("RETURN")
+	)
+	private void madokuCraft$endSoulSpeedLocationChangedEffects(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		net.minecraft.world.entity.LivingEntity entity,
+		CallbackInfo callbackInfo
+	) {
+		EnchantBooksManager.endSoulSpeedLocationChangedEffects();
+	}
+
 	@Inject(method = "getMaxLevel", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$useConfiguredMaximumLevel(CallbackInfoReturnable<Integer> callbackInfo) {
 		callbackInfo.setReturnValue(
@@ -89,6 +118,87 @@ public abstract class EnchantmentMaximumLevelMixin {
 		}
 	}
 
+	/** Replaces vanilla Sharpness damage with the configured additive damage. */
+	@Inject(
+		method = "modifyDamage(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceSharpnessDamage(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat damage,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredSharpnessDamage(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			entity,
+			source,
+			damage
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Cancels vanilla Smite damage and replaces its undead-only condition with configured effects. */
+	@Inject(
+		method = "modifyDamage(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceSmiteDamage(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat damage,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.cancelConfiguredSmiteDamage(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			entity,
+			source,
+			damage
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Replaces configured Thorns' vanilla chance and effect while retaining one roll per armor piece. */
+	@Inject(
+		method = "doPostAttack(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/enchantment/EnchantedItemInUse;Lnet/minecraft/world/item/enchantment/EnchantmentTarget;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceThornsPostAttack(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		EnchantmentTarget target,
+		Entity entity,
+		DamageSource source,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredThornsPostAttack(
+			serverLevel,
+			level,
+			itemSource,
+			source == null ? null : source.getEntity(),
+			(Enchantment) (Object) this,
+			source
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
 	/** Prevents configured Infinity from retaining vanilla's unconditional arrow exemption. */
 	@Inject(
 		method = "modifyAmmoCount(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
@@ -130,6 +240,24 @@ public abstract class EnchantmentMaximumLevelMixin {
 			durabilityChange,
 			serverLevel
 		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Prevents configured Unbreaking from retaining vanilla durability-loss reduction. */
+	@Inject(
+		method = "modifyDurabilityChange(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceUnbreakingDurabilityChange(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		MutableFloat durabilityChange,
+		CallbackInfo callbackInfo
+	) {
+		if (BooksConfigManager.shouldOverrideUnbreaking((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
 	}
@@ -227,6 +355,33 @@ public abstract class EnchantmentMaximumLevelMixin {
 		if (!BooksConfigManager.isFireAspect(enchantment)) return;
 		boolean override = BooksConfigManager.shouldOverrideFireAspect(enchantment);
 		if (override) callbackInfo.cancel();
+	}
+
+	/** Applies Smite vulnerability and Glowing to every compatible target after a hit. */
+	@Inject(
+		method = "doPostAttack(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/enchantment/EnchantedItemInUse;Lnet/minecraft/world/item/enchantment/EnchantmentTarget;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceSmitePostAttack(
+		ServerLevel serverLevel,
+		int level,
+		EnchantedItemInUse itemSource,
+		EnchantmentTarget target,
+		Entity entity,
+		DamageSource source,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredSmiteEffects(
+			(Enchantment) (Object) this,
+			serverLevel,
+			level,
+			itemSource,
+			entity,
+			source
+		)) {
+			callbackInfo.cancel();
+		}
 	}
 
 	/** Replaces vanilla Breach's armor-effectiveness contribution in the vanilla armor path. */
