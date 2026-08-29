@@ -1,13 +1,19 @@
 package madoku.craft.core.enchant;
 
 import madoku.craft.core.enchant.BooksConfigManager.EnchantmentDefinition;
+import madoku.craft.mixin.attributes.LootPoolSingletonContainerAccessor;
+import madoku.craft.mixin.attributes.NestedLootTableAccessor;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.tags.EntityTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.CombatRules;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -25,8 +31,15 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.storage.loot.LootContext;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer;
+import net.minecraft.world.level.storage.loot.entries.NestedLootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import org.apache.commons.lang3.mutable.MutableFloat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,9 +58,16 @@ import static madoku.craft.core.enchant.BooksConfigManager.FIRE_ASPECT_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FIRE_PROTECTION_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.FLAME_ID;
 import static madoku.craft.core.enchant.BooksConfigManager.INFINITY_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.PROJECTILE_PROTECTION_ID;
+import static madoku.craft.core.enchant.BooksConfigManager.PROTECTION_ID;
 
 /** Runtime group that owns configured enchantment books and enchantment effects. */
 public final class EnchantBooksManager {
+	private static final Logger LOGGER = LoggerFactory.getLogger(EnchantBooksManager.class);
+	private static final ThreadLocal<Float> CONFIGURED_DAMAGE_REDUCTION_PERCENT = new ThreadLocal<>();
+	private static final ThreadLocal<Float> VANILLA_DAMAGE_PROTECTION = new ThreadLocal<>();
+	private static final ThreadLocal<LuckOfTheSeaContext> LUCK_OF_THE_SEA_CONTEXT = new ThreadLocal<>();
+
 	private EnchantBooksManager() {
 	}
 
@@ -244,6 +264,52 @@ public final class EnchantBooksManager {
 		return definition != null && definition.enabled;
 	}
 
+	/** Suppresses the final vanilla Mending XP-repair amount at the helper boundary. */
+	public static boolean applyConfiguredMendingXpRepairOverride(
+		ServerLevel serverLevel,
+		ItemStack stack,
+		int vanillaRepairAmount
+	) {
+		if (stack == null || stack.isEmpty() || vanillaRepairAmount <= 0
+			|| !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.MENDING_ID);
+		int level = resolveLevel(stack, BooksConfigManager.MENDING_ID);
+		boolean configuredMending = definition != null && definition.enabled && level > 0
+			&& BooksConfigManager.isCompatible(definition, stack);
+		if (!configuredMending) return false;
+
+		return true;
+	}
+
+	/** Replaces Mending's XP repair with a configured chance to prevent durability loss. */
+	public static boolean applyConfiguredMendingDurabilityProtection(
+		Enchantment enchantment,
+		int level,
+		ItemStack stack,
+		MutableFloat durabilityChange,
+		ServerLevel serverLevel
+	) {
+		if (level <= 0 || stack == null || stack.isEmpty() || durabilityChange == null
+			|| !BooksConfigManager.shouldOverrideMending(enchantment)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.MENDING_ID);
+		if (definition == null || !definition.enabled || !BooksConfigManager.isCompatible(definition, stack)) return false;
+
+		double configuredChance = Math.min(100.0D, BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			level
+		));
+		float incomingChange = durabilityChange.floatValue();
+		RandomSource random = serverLevel == null ? RandomSource.create() : serverLevel.getRandom();
+		float roll = random.nextFloat() * 100.0F;
+		boolean preventDurabilityLoss = incomingChange > 0.0F && roll < configuredChance;
+		if (preventDurabilityLoss) durabilityChange.setValue(0.0F);
+
+		return true;
+	}
+
 	/** Replaces vanilla Knockback's contribution with configured horizontal strength. */
 	public static boolean applyConfiguredKnockback(
 		Enchantment enchantment,
@@ -259,6 +325,35 @@ public final class EnchantBooksManager {
 		boolean definitionPresent = definition != null;
 		boolean definitionEnabled = definitionPresent && definition.enabled;
 		boolean compatible = definitionEnabled && BooksConfigManager.isCompatible(definition, weapon);
+		if (!compatible || knockback == null) return false;
+
+		int resolvedLevel = Math.max(1, level);
+		double configuredKnockback = BooksConfigManager.resolveAdjustment(
+			definition.baseAdjustment,
+			definition.levelAdjustment,
+			resolvedLevel
+		);
+		knockback.add((float) configuredKnockback);
+		return true;
+	}
+
+	/** Replaces vanilla Punch's arrow-only contribution with the configured knockback amount. */
+	public static boolean applyConfiguredPunch(
+		Enchantment enchantment,
+		int level,
+		ItemStack weapon,
+		Entity target,
+		DamageSource source,
+		MutableFloat knockback
+	) {
+		if (!BooksConfigManager.shouldOverridePunch(enchantment)
+			|| source == null
+			|| source.getDirectEntity() == null
+			|| !source.getDirectEntity().typeHolder().is(EntityTypeTags.ARROWS)) return false;
+
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.PUNCH_ID);
+		boolean compatible = definition != null && definition.enabled
+			&& BooksConfigManager.isCompatible(definition, weapon);
 		if (!compatible || knockback == null) return false;
 
 		int resolvedLevel = Math.max(1, level);
@@ -291,6 +386,82 @@ public final class EnchantBooksManager {
 			level
 		) / 2.0D;
 	}
+
+	/** Captures configured Luck of the Sea while vanilla is selecting a fishing loot table entry. */
+	public static void beginConfiguredLuckOfTheSea(LootParams params) {
+		LUCK_OF_THE_SEA_CONTEXT.remove();
+		if (params == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return;
+
+		ItemInstance toolInstance = params.contextMap().getOptional(LootContextParams.TOOL);
+		ItemStack fishingRod = toolInstance instanceof ItemStack itemStack ? itemStack : ItemStack.EMPTY;
+		EnchantmentDefinition definition = BooksConfigManager.definition(BooksConfigManager.LUCK_OF_THE_SEA_ID);
+		int level = resolveLevel(fishingRod, BooksConfigManager.LUCK_OF_THE_SEA_ID);
+		if (definition == null || !definition.enabled || level <= 0
+			|| !BooksConfigManager.isCompatible(definition, fishingRod)) return;
+
+		LUCK_OF_THE_SEA_CONTEXT.set(new LuckOfTheSeaContext(
+			level,
+			BooksConfigManager.resolveAdjustment(
+				definition.baseTreasureChanceAdjustment,
+				definition.levelTreasureChanceAdjustment,
+				level
+			),
+			BooksConfigManager.resolveAdjustment(
+				definition.baseJunkChanceAdjustment,
+				definition.levelJunkChanceAdjustment,
+				level
+			),
+			BooksConfigManager.resolveAdjustment(
+				definition.baseFishChanceAdjustment,
+				definition.levelFishChanceAdjustment,
+				level
+			)
+		));
+	}
+
+	/** Clears the temporary fishing context after vanilla loot selection completes. */
+	public static void endConfiguredLuckOfTheSea() {
+		LUCK_OF_THE_SEA_CONTEXT.remove();
+	}
+
+	/** Replaces only the Luck of the Sea portion of a fishing entry's vanilla quality calculation. */
+	public static int resolveConfiguredLuckOfTheSeaWeight(
+		LootPoolSingletonContainer entryOwner,
+		float vanillaLuck,
+		int vanillaWeight
+	) {
+		LuckOfTheSeaContext context = LUCK_OF_THE_SEA_CONTEXT.get();
+		if (context == null || !(entryOwner instanceof NestedLootTable nestedLootTable)) return vanillaWeight;
+
+		ResourceKey<LootTable> tableKey = ((NestedLootTableAccessor) (Object) nestedLootTable).madokuCraft$getContents()
+			.left()
+			.orElse(null);
+		if (tableKey == null) return vanillaWeight;
+
+		double configuredAdjustment;
+		if (BuiltInLootTables.FISHING_TREASURE.equals(tableKey)) {
+			configuredAdjustment = context.treasureAdjustment;
+		} else if (BuiltInLootTables.FISHING_JUNK.equals(tableKey)) {
+			configuredAdjustment = -context.junkAdjustment;
+		} else if (BuiltInLootTables.FISHING_FISH.equals(tableKey)) {
+			configuredAdjustment = -context.fishAdjustment;
+		} else {
+			return vanillaWeight;
+		}
+
+		int baseWeight = ((LootPoolSingletonContainerAccessor) (Object) entryOwner).madokuCraft$getWeight();
+		int quality = ((LootPoolSingletonContainerAccessor) (Object) entryOwner).madokuCraft$getQuality();
+		float playerLuck = vanillaLuck - context.enchantmentLevel;
+		int adjustedWeight = Math.max(0, Mth.floor((float) (baseWeight + quality * playerLuck + configuredAdjustment)));
+		return adjustedWeight;
+	}
+
+	private record LuckOfTheSeaContext(
+		int enchantmentLevel,
+		double treasureAdjustment,
+		double junkAdjustment,
+		double fishAdjustment
+	) { }
 
 	/** Removes only configured enchantments that are incompatible with an anvil target. */
 	public static void removeIncompatibleConfiguredEnchantments(ItemStack target, ItemStack result) {
@@ -538,18 +709,68 @@ public final class EnchantBooksManager {
 		return true;
 	}
 
-	/** Resolves vanilla protection points while replacing configured protection enchantment contributions. */
+	/** Resolves configured direct damage reduction while bypassing vanilla's EPF calculation. */
 	public static float resolveDamageProtection(
 		net.minecraft.server.level.ServerLevel serverLevel,
 		LivingEntity entity,
 		DamageSource source
 	) {
-		if (serverLevel == null || entity == null || source == null) return 0.0F;
+		if (serverLevel == null || entity == null || source == null) {
+			CONFIGURED_DAMAGE_REDUCTION_PERCENT.set(0.0F);
+			VANILLA_DAMAGE_PROTECTION.set(0.0F);
+			return 1.0F;
+		}
+		if (!EnchantConfigManager.areCustomEnchantmentsEnabled()) {
+			CONFIGURED_DAMAGE_REDUCTION_PERCENT.remove();
+			VANILLA_DAMAGE_PROTECTION.remove();
+			float vanillaProtection = EnchantmentHelper.getDamageProtection(serverLevel, entity, source);
+			LOGGER.debug(
+				"Madoku Enchants disabled; using vanilla enchantment protection: entity={}, source={}, vanillaProtection={}",
+				entity.getType(),
+				source.type().msgId(),
+				vanillaProtection
+			);
+			return vanillaProtection;
+		}
 
-		MutableFloat protection = new MutableFloat(0.0F);
+		MutableFloat damageReductionPercent = new MutableFloat(0.0F);
+		MutableFloat vanillaDamageProtection = new MutableFloat(0.0F);
+		boolean projectileDamage = source.is(DamageTypeTags.IS_PROJECTILE);
+		EnchantmentDefinition projectileProtectionDefinition = BooksConfigManager.definition(PROJECTILE_PROTECTION_ID);
+		EnchantmentDefinition protectionDefinition = BooksConfigManager.definition(PROTECTION_ID);
+		LOGGER.debug(
+			"Resolving configured direct damage reduction: entity={}, source={}, fire={}, explosion={}, projectile={}, bypassesInvulnerability={}",
+			entity.getType(),
+			source.type().msgId(),
+			source.is(DamageTypeTags.IS_FIRE),
+			source.is(DamageTypeTags.IS_EXPLOSION),
+			source.is(DamageTypeTags.IS_PROJECTILE),
+			source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)
+		);
 		EnchantmentHelper.runIterationOnEquipment(entity, (holder, level, enchantedItem) -> {
+			String enchantmentId = holder.unwrapKey()
+				.map(key -> key.identifier().toString())
+				.orElse("unknown");
+			boolean projectileProtection = PROJECTILE_PROTECTION_ID.equals(enchantmentId);
+			boolean compatibleProjectileProtection = projectileProtectionDefinition != null
+				&& BooksConfigManager.isCompatible(projectileProtectionDefinition, enchantedItem.itemStack());
 			boolean fireDamage = source.is(DamageTypeTags.IS_FIRE);
 			boolean bypassesInvulnerability = source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
+			boolean protection = PROTECTION_ID.equals(enchantmentId);
+			boolean compatibleProtection = protectionDefinition != null
+				&& BooksConfigManager.isCompatible(protectionDefinition, enchantedItem.itemStack());
+			boolean replaceProtection = protection
+				&& !bypassesInvulnerability
+				&& protectionDefinition != null && protectionDefinition.enabled;
+			if (replaceProtection && compatibleProtection) {
+				double configuredPercent = BooksConfigManager.resolveAdjustment(
+					protectionDefinition.baseAdjustment,
+					protectionDefinition.levelAdjustment,
+						level
+				);
+				damageReductionPercent.add((float) configuredPercent);
+				return;
+			}
 			boolean fireProtection = holder.unwrapKey()
 				.map(key -> key.identifier().toString().equals(FIRE_PROTECTION_ID))
 				.orElse(false);
@@ -565,9 +786,22 @@ public final class EnchantBooksManager {
 						fireProtectionDefinition.levelAdjustment,
 						level
 					);
-					protection.add((float) configuredProtection);
+					damageReductionPercent.add((float) configuredProtection);
+					return;
 				}
-				return;
+			}
+
+			if (projectileProtection && projectileDamage
+				&& projectileProtectionDefinition != null && projectileProtectionDefinition.enabled) {
+				boolean compatible = compatibleProjectileProtection;
+				if (compatible) {
+					damageReductionPercent.add((float) BooksConfigManager.resolveAdjustment(
+						projectileProtectionDefinition.baseAdjustment,
+						projectileProtectionDefinition.levelAdjustment,
+						level
+					));
+				}
+				if (compatible) return;
 			}
 
 			boolean featherFalling = holder.unwrapKey()
@@ -582,16 +816,14 @@ public final class EnchantBooksManager {
 				&& featherFallingDefinition != null && featherFallingDefinition.enabled;
 			if (replaceFeatherFalling) {
 				if (compatible) {
-					// CombatRules uses 25 protection points per 100% reduction.
-						double configuredPercent = BooksConfigManager.resolveAdjustment(
+					double configuredPercent = BooksConfigManager.resolveAdjustment(
 						featherFallingDefinition.baseAdjustment,
 						featherFallingDefinition.levelAdjustment,
 						level
 					);
-					double protectionPoints = configuredPercent / 4.0D;
-					protection.add((float) protectionPoints);
+					damageReductionPercent.add((float) configuredPercent);
+					return;
 				}
-				return;
 			}
 
 			boolean blastProtection = holder.unwrapKey()
@@ -601,25 +833,80 @@ public final class EnchantBooksManager {
 			if (blastProtection && source.is(DamageTypeTags.IS_EXPLOSION)
 				&& definition != null && definition.enabled) {
 				if (BooksConfigManager.isCompatible(definition, enchantedItem.itemStack())) {
-					// CombatRules uses 25 protection points per 100% reduction.
-					protection.add((float) (BooksConfigManager.resolveAdjustment(
+					damageReductionPercent.add((float) (BooksConfigManager.resolveAdjustment(
 						definition.baseAdjustment,
 						definition.levelAdjustment,
 						level
-					) / 4.0D));
+					)));
+					return;
 				}
-				return;
 			}
+			// Vanilla EPF remains active for every enchantment that does not take the configured
+			// direct-reduction path above. This includes generic Protection and all fallback cases.
 			holder.value().modifyDamageProtection(
 				serverLevel,
 				level,
 				enchantedItem.itemStack(),
 				entity,
 				source,
-				protection
+				vanillaDamageProtection
 			);
+			if (isVanillaProtectionEnchantment(enchantmentId)) {
+				LOGGER.debug(
+					"Using vanilla EPF: enchantment={}, level={}, source={}, vanillaProtectionAfterFallback={}",
+					enchantmentId,
+					level,
+					source.type().msgId(),
+					vanillaDamageProtection.floatValue()
+				);
+			}
 		});
-		return protection.floatValue();
+		float totalReductionPercent = Mth.clamp(damageReductionPercent.floatValue(), 0.0F, 100.0F);
+		CONFIGURED_DAMAGE_REDUCTION_PERCENT.set(totalReductionPercent);
+		VANILLA_DAMAGE_PROTECTION.set(Math.max(0.0F, vanillaDamageProtection.floatValue()));
+		LOGGER.debug(
+			"Protection resolved: entity={}, source={}, configuredReductionPercent={}, vanillaFallbackEpf={}, directFormulaForConfiguredValues=true, helperSentinel=1.0",
+			entity.getType(),
+			source.type().msgId(),
+			totalReductionPercent,
+			vanillaDamageProtection.floatValue()
+		);
+		return 1.0F;
+	}
+
+	/** Applies configured percentage reduction and ignores the vanilla EPF argument. */
+	public static float applyConfiguredDamageReduction(float damage, float ignoredVanillaProtection) {
+		Float configuredPercent = CONFIGURED_DAMAGE_REDUCTION_PERCENT.get();
+		Float vanillaProtection = VANILLA_DAMAGE_PROTECTION.get();
+		CONFIGURED_DAMAGE_REDUCTION_PERCENT.remove();
+		VANILLA_DAMAGE_PROTECTION.remove();
+		if (configuredPercent == null && vanillaProtection == null) {
+			return CombatRules.getDamageAfterMagicAbsorb(damage, ignoredVanillaProtection);
+		}
+
+		float configuredReductionPercent = configuredPercent == null ? 0.0F : configuredPercent;
+		float vanillaProtectionValue = vanillaProtection == null ? 0.0F : vanillaProtection;
+		float damageAfterVanillaFallback = CombatRules.getDamageAfterMagicAbsorb(damage, vanillaProtectionValue);
+		float reduction = Mth.clamp(configuredReductionPercent / 100.0F, 0.0F, 1.0F);
+		float reducedDamage = damageAfterVanillaFallback * (1.0F - reduction);
+		LOGGER.debug(
+			"Protection damage applied: incomingDamage={}, vanillaFallbackEpf={}, damageAfterVanillaFallback={}, configuredReductionPercent={}, finalDamage={}, vanillaProtectionArgumentIgnored={}",
+			damage,
+			vanillaProtectionValue,
+			damageAfterVanillaFallback,
+			configuredReductionPercent,
+			reducedDamage,
+			ignoredVanillaProtection
+		);
+		return reducedDamage;
+	}
+
+	private static boolean isVanillaProtectionEnchantment(String enchantmentId) {
+		return "minecraft:protection".equals(enchantmentId)
+			|| FIRE_PROTECTION_ID.equals(enchantmentId)
+			|| BLAST_PROTECTION_ID.equals(enchantmentId)
+			|| PROJECTILE_PROTECTION_ID.equals(enchantmentId)
+			|| FEATHER_FALLING_ID.equals(enchantmentId);
 	}
 
 	/** Adds configured Blast Protection resistance to vanilla explosion knockback resistance. */

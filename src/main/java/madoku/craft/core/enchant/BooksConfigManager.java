@@ -14,6 +14,7 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +31,11 @@ public final class BooksConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(BooksConfigManager.class);
 	static final String AQUA_AFFINITY_ID = "minecraft:aqua_affinity";
 	static final String BANE_OF_ARTHROPODS_ID = "minecraft:bane_of_arthropods";
+	static final String PROTECTION_ID = "minecraft:protection";
 	static final String BLAST_PROTECTION_ID = "minecraft:blast_protection";
+	static final String PROJECTILE_PROTECTION_ID = "minecraft:projectile_protection";
+	static final String RESPIRATION_ID = "minecraft:respiration";
+	static final String RIPTIDE_ID = "minecraft:riptide";
 	static final String BREACH_ID = "minecraft:breach";
 	static final String DEPTH_STRIDER_ID = "minecraft:depth_strider";
 	static final String EFFICIENCY_ID = "minecraft:efficiency";
@@ -45,6 +50,15 @@ public final class BooksConfigManager {
 	static final String IMPALING_ID = "minecraft:impaling";
 	static final String INFINITY_ID = "minecraft:infinity";
 	static final String KNOCKBACK_ID = "minecraft:knockback";
+	static final String PUNCH_ID = "minecraft:punch";
+	static final String POWER_ID = "minecraft:power";
+	static final String QUICK_CHARGE_ID = "minecraft:quick_charge";
+	static final String LUCK_OF_THE_SEA_ID = "minecraft:luck_of_the_sea";
+	static final String LUNGE_ID = "minecraft:lunge";
+	static final String LURE_ID = "minecraft:lure";
+	static final String MENDING_ID = "minecraft:mending";
+	static final String PIERCING_ID = "minecraft:piercing";
+	static final String MULTISHOT_ID = "minecraft:multishot";
 	private static final String FIELD_ENCHANTMENT_ID = "enchantment-id";
 	private static final String FIELD_MAXIMUM_LEVEL = "maximum-level";
 	private static final String FIELD_COMPATIBLE_ITEMS = "compatible-items";
@@ -52,6 +66,8 @@ public final class BooksConfigManager {
 	private static final String FIELD_WEIGHT = "weight";
 	private static final String FIELD_AQUA_AFFINITY = "aqua-affinity";
 	private static final String FIELD_BANE_OF_ARTHROPODS = "bane-of-arthropods";
+	private static final String FIELD_PROTECTION = "protection";
+	private static final String FIELD_BASE_DAMAGE_REDUCTION = "base-damage-reduction";
 	private static final String FIELD_EFFECT = "effect";
 	private static final String FIELD_BASE_EFFECT = "base-effect";
 	private static final String FIELD_DURATION = "duration";
@@ -63,6 +79,7 @@ public final class BooksConfigManager {
 	private static final String FIELD_BLAST_PROTECTION = "blast-protection";
 	private static final String FIELD_EXPLOSIVE_PROTECTION = "explosive-protection";
 	private static final String FIELD_EXPLOSION_KNOCKBACK_RESISTANCE = "explosion-knockback-resistance";
+	private static final String FIELD_PROJECTILE_PROTECTION = "projectile-protection";
 	private static final String FIELD_BASE_VALUE = "base-value";
 	private static final String FIELD_BREACH = "breach";
 	private static final String FIELD_BASE_ARMOR_PENETRATION = "base-armor-penetration";
@@ -87,13 +104,24 @@ public final class BooksConfigManager {
 	private static final String FIELD_BASE_CHANCE = "base-chance";
 	private static final String FIELD_KNOCKBACK = "knockback";
 	private static final String FIELD_BASE_KNOCKBACK = "base-knockback";
+	private static final String FIELD_PUNCH = "punch";
+	private static final String FIELD_BASE_ADDED_KNOCKBACK = "base-added-knockback";
+	private static final String FIELD_LUCK_OF_THE_SEA = "luck-of-the-sea";
+	private static final String FIELD_TREASURE = "treasure";
+	private static final String FIELD_JUNK = "junk";
+	private static final String FIELD_FISH = "fish";
+	private static final String FIELD_BASE_CHANCE_ADJUSTMENT = "base-chance-adjustment";
 	private static final String FIELD_BASE_ADJUSTMENT = "base-adjustment";
 	private static final String FIELD_BASE_SUBMERGED_MINING_SPEED = "base-submerged-mining-speed";
 	private static final String FIELD_LEVEL_ADJUSTMENT = "level-adjustment";
 	private static final String FIELD_ENABLED = "enabled";
 	private static final String AQUA_AFFINITY_FILE_KEY = "aqua-affinity";
 	private static final String BANE_OF_ARTHROPODS_FILE_KEY = "bane-of-arthropods";
+	private static final String PROTECTION_FILE_KEY = "protection";
 	private static final String BLAST_PROTECTION_FILE_KEY = "blast-protection";
+	private static final String PROJECTILE_PROTECTION_FILE_KEY = "projectile-protection";
+	private static final String RESPIRATION_FILE_KEY = "respiration";
+	private static final String RIPTIDE_FILE_KEY = "riptide";
 	private static final String BREACH_FILE_KEY = "breach";
 	private static final String CHANNELING_FILE_KEY = "channeling";
 	private static final String CURSE_OF_BINDING_FILE_KEY = "curse-of-binding";
@@ -112,6 +140,16 @@ public final class BooksConfigManager {
 	private static final String IMPALING_FILE_KEY = "impaling";
 	private static final String INFINITY_FILE_KEY = "infinity";
 	private static final String KNOCKBACK_FILE_KEY = "knockback";
+	private static final String PUNCH_FILE_KEY = "punch";
+	private static final String POWER_FILE_KEY = "power";
+	private static final String QUICK_CHARGE_FILE_KEY = "quick-charge";
+	private static final String LUCK_OF_THE_SEA_FILE_KEY = "luck-of-the-sea";
+	private static final String LUNGE_FILE_KEY = "lunge";
+	private static final String LURE_FILE_KEY = "lure";
+	private static final String MENDING_FILE_KEY = "mending";
+	private static final String FIELD_MENDING = "mending";
+	private static final String PIERCING_FILE_KEY = "piercing";
+	private static final String MULTISHOT_FILE_KEY = "multishot";
 	private static final Map<String, EnchantmentDefinition> EMPTY_DEFINITIONS = Map.of();
 	private static volatile Map<String, EnchantmentDefinition> definitions = EMPTY_DEFINITIONS;
 	private static volatile Map<String, EnchantmentDefinition> clientSynchronizedDefinitions = EMPTY_DEFINITIONS;
@@ -273,10 +311,31 @@ public final class BooksConfigManager {
 		return definition != null && definition.enabled;
 	}
 
+	static boolean shouldOverrideMending(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!MENDING_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(MENDING_ID);
+		return definition != null && definition.enabled;
+	}
+
 	static boolean shouldOverrideKnockback(Enchantment enchantment) {
 		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
 		if (!KNOCKBACK_ID.equals(resolveEnchantmentId(enchantment))) return false;
 		EnchantmentDefinition definition = activeDefinitions().get(KNOCKBACK_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverridePunch(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!PUNCH_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(PUNCH_ID);
+		return definition != null && definition.enabled;
+	}
+
+	static boolean shouldOverrideLuckOfTheSea(Enchantment enchantment) {
+		if (enchantment == null || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
+		if (!LUCK_OF_THE_SEA_ID.equals(resolveEnchantmentId(enchantment))) return false;
+		EnchantmentDefinition definition = activeDefinitions().get(LUCK_OF_THE_SEA_ID);
 		return definition != null && definition.enabled;
 	}
 
@@ -333,6 +392,30 @@ public final class BooksConfigManager {
 				}
 				case "trident" -> {
 					if (stack.is(ItemTags.TRIDENT_ENCHANTABLE)) return true;
+				}
+				case "fishing-rod" -> {
+					if (stack.is(ItemTags.FISHING_ENCHANTABLE)) return true;
+				}
+				case "flint-and-steel" -> {
+					if (stack.is(Items.FLINT_AND_STEEL)) return true;
+				}
+				case "shears" -> {
+					if (stack.is(Items.SHEARS)) return true;
+				}
+				case "shield" -> {
+					if (stack.is(Items.SHIELD)) return true;
+				}
+				case "elytra" -> {
+					if (stack.is(Items.ELYTRA)) return true;
+				}
+				case "brush" -> {
+					if (stack.is(Items.BRUSH)) return true;
+				}
+				case "carrot-on-a-stick" -> {
+					if (stack.is(Items.CARROT_ON_A_STICK)) return true;
+				}
+				case "warped-fungus-on-a-stick" -> {
+					if (stack.is(Items.WARPED_FUNGUS_ON_A_STICK)) return true;
 				}
 				case "helmet" -> {
 					if (equipmentSlot == EquipmentSlot.HEAD) return true;
@@ -400,6 +483,10 @@ public final class BooksConfigManager {
 				}
 			}
 		}
+		JsonObject luckOfTheSea = object(root, FIELD_LUCK_OF_THE_SEA);
+		JsonObject treasure = object(luckOfTheSea, FIELD_TREASURE);
+		JsonObject junk = object(luckOfTheSea, FIELD_JUNK);
+		JsonObject fish = object(luckOfTheSea, FIELD_FISH);
 
 		return new EnchantmentDefinition(
 			enchantmentId,
@@ -415,6 +502,12 @@ public final class BooksConfigManager {
 			Math.max(0.0D, readDouble(root, FIELD_LEVEL_KNOCKBACK_RESISTANCE, 0.0D)),
 			Math.max(0.0D, readDouble(root, FIELD_BASE_ARMOR_PENETRATION, 0.0D)),
 			Math.max(0.0D, readDouble(root, FIELD_LEVEL_ARMOR_PENETRATION, 0.0D)),
+			Math.max(0.0D, readDouble(treasure, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(treasure, FIELD_LEVEL_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(junk, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(junk, FIELD_LEVEL_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(fish, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D)),
+			Math.max(0.0D, readDouble(fish, FIELD_LEVEL_ADJUSTMENT, 0.0D)),
 			readBoolean(root, FIELD_ENABLED, true)
 		);
 	}
@@ -424,7 +517,11 @@ public final class BooksConfigManager {
 			Map<String, JsonObject> staticDefaults = new LinkedHashMap<>();
 			staticDefaults.put(AQUA_AFFINITY_FILE_KEY, buildAquaAffinityDefaults());
 			staticDefaults.put(BANE_OF_ARTHROPODS_FILE_KEY, buildBaneOfArthropodsDefaults());
+			staticDefaults.put(PROTECTION_FILE_KEY, buildProtectionDefaults());
 			staticDefaults.put(BLAST_PROTECTION_FILE_KEY, buildBlastProtectionDefaults());
+			staticDefaults.put(PROJECTILE_PROTECTION_FILE_KEY, buildProjectileProtectionDefaults());
+			staticDefaults.put(RESPIRATION_FILE_KEY, buildRespirationDefaults());
+			staticDefaults.put(RIPTIDE_FILE_KEY, buildRiptideDefaults());
 			staticDefaults.put(BREACH_FILE_KEY, buildBreachDefaults());
 			staticDefaults.put(CHANNELING_FILE_KEY, buildChannelingDefaults());
 			staticDefaults.put(CURSE_OF_BINDING_FILE_KEY, buildCurseOfBindingDefaults());
@@ -443,6 +540,15 @@ public final class BooksConfigManager {
 			staticDefaults.put(IMPALING_FILE_KEY, buildImpalingDefaults());
 			staticDefaults.put(INFINITY_FILE_KEY, buildInfinityDefaults());
 			staticDefaults.put(KNOCKBACK_FILE_KEY, buildKnockbackDefaults());
+			staticDefaults.put(PUNCH_FILE_KEY, buildPunchDefaults());
+			staticDefaults.put(POWER_FILE_KEY, buildPowerDefaults());
+			staticDefaults.put(QUICK_CHARGE_FILE_KEY, buildQuickChargeDefaults());
+			staticDefaults.put(LUCK_OF_THE_SEA_FILE_KEY, buildLuckOfTheSeaDefaults());
+			staticDefaults.put(LUNGE_FILE_KEY, buildLungeDefaults());
+			staticDefaults.put(LURE_FILE_KEY, buildLureDefaults());
+			staticDefaults.put(MENDING_FILE_KEY, buildMendingDefaults());
+			staticDefaults.put(PIERCING_FILE_KEY, buildPiercingDefaults());
+			staticDefaults.put(MULTISHOT_FILE_KEY, buildMultishotDefaults());
 			Map<String, JsonObject> files = JSONFormatManager.ensureManagedFolder(
 				EnchantConfigManager.enchantmentsDirectory(),
 				staticDefaults,
@@ -498,6 +604,24 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildProtectionDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_ENCHANTMENT_ID, PROTECTION_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_PROTECTION, protection -> protection
+				.put(FIELD_BASE_DAMAGE_REDUCTION, 3)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
 	private static JsonObject buildBlastProtectionDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENABLED, true)
@@ -515,6 +639,25 @@ public final class BooksConfigManager {
 					.put(FIELD_BASE_VALUE, 6)
 					.put(FIELD_LEVEL_ADJUSTMENT, 1))
 				.object(FIELD_EXPLOSION_KNOCKBACK_RESISTANCE, resistance -> resistance
+					.put(FIELD_BASE_VALUE, 6)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1)))
+			.build();
+	}
+
+	private static JsonObject buildProjectileProtectionDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENABLED, true)
+			.put(FIELD_ENCHANTMENT_ID, PROJECTILE_PROTECTION_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_PROJECTILE_PROTECTION, projectileProtection -> projectileProtection
+				.object(FIELD_PROJECTILE_PROTECTION, protection -> protection
 					.put(FIELD_BASE_VALUE, 6)
 					.put(FIELD_LEVEL_ADJUSTMENT, 1)))
 			.build();
@@ -742,6 +885,50 @@ public final class BooksConfigManager {
 			.build();
 	}
 
+	private static JsonObject buildPowerDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, POWER_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildQuickChargeDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, QUICK_CHARGE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildRespirationDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, RESPIRATION_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("helmet"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildRiptideDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, RIPTIDE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("trident"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, true)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
 	private static JsonObject buildInfinityDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, INFINITY_ID)
@@ -764,12 +951,128 @@ public final class BooksConfigManager {
 			.array(FIELD_COMPATIBLE_ITEMS, values -> values
 				.add("sword")
 				.add("spear")
-				.add("axe"))
+				.add("axe")
+				.add("trident")
+				.add("mace"))
 			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
 			.put(FIELD_WEIGHT, 1)
 			.object(FIELD_KNOCKBACK, knockback -> knockback
 				.put(FIELD_BASE_KNOCKBACK, 3)
 				.put(FIELD_LEVEL_ADJUSTMENT, 2))
+			.build();
+	}
+
+	private static JsonObject buildPunchDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, PUNCH_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_PUNCH, punch -> punch
+				.put(FIELD_BASE_ADDED_KNOCKBACK, 1)
+				.put(FIELD_LEVEL_ADJUSTMENT, 1))
+			.build();
+	}
+
+	private static JsonObject buildLuckOfTheSeaDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, LUCK_OF_THE_SEA_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("fishing-rod"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_LUCK_OF_THE_SEA, luckOfTheSea -> luckOfTheSea
+				.object(FIELD_TREASURE, treasure -> treasure
+					.put(FIELD_BASE_CHANCE_ADJUSTMENT, 6)
+					.put(FIELD_LEVEL_ADJUSTMENT, 2))
+				.object(FIELD_JUNK, junk -> junk
+					.put(FIELD_BASE_CHANCE_ADJUSTMENT, 3)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1))
+				.object(FIELD_FISH, fish -> fish
+					.put(FIELD_BASE_CHANCE_ADJUSTMENT, 3)
+					.put(FIELD_LEVEL_ADJUSTMENT, 1)))
+			.build();
+	}
+
+	private static JsonObject buildLungeDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, LUNGE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("spear"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildLureDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, LURE_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("fishing-rod"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildMendingDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, MENDING_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("helmet")
+				.add("chestplate")
+				.add("leggings")
+				.add("boots")
+				.add("sword")
+				.add("axe")
+				.add("spear")
+				.add("mace")
+				.add("trident")
+				.add("pickaxe")
+				.add("shovel")
+				.add("hoe")
+				.add("fishing-rod")
+				.add("bow")
+				.add("crossbow")
+				.add("flint-and-steel")
+				.add("shears")
+				.add("shield")
+				.add("elytra")
+				.add("brush")
+				.add("carrot-on-a-stick")
+				.add("warped-fungus-on-a-stick"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.object(FIELD_MENDING, mending -> mending
+				.put(FIELD_BASE_CHANCE, 30)
+				.put(FIELD_LEVEL_ADJUSTMENT, 5))
+			.build();
+	}
+
+	private static JsonObject buildPiercingDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, PIERCING_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
+			.build();
+	}
+
+	private static JsonObject buildMultishotDefaults() {
+		return JSONFormatManager.object()
+			.put(FIELD_ENCHANTMENT_ID, MULTISHOT_ID)
+			.put(FIELD_MAXIMUM_LEVEL, 1)
+			.array(FIELD_COMPATIBLE_ITEMS, values -> values
+				.add("bow")
+				.add("crossbow"))
+			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
+			.put(FIELD_WEIGHT, 1)
 			.build();
 	}
 
@@ -800,6 +1103,12 @@ public final class BooksConfigManager {
 		double levelKnockbackResistance;
 		double baseArmorPenetration;
 		double levelArmorPenetration;
+		double baseTreasureChanceAdjustment = 0.0D;
+		double levelTreasureChanceAdjustment = 0.0D;
+		double baseJunkChanceAdjustment = 0.0D;
+		double levelJunkChanceAdjustment = 0.0D;
+		double baseFishChanceAdjustment = 0.0D;
+		double levelFishChanceAdjustment = 0.0D;
 		if (AQUA_AFFINITY_ID.equals(enchantmentId)) {
 			JsonObject aquaAffinity = object(root, FIELD_AQUA_AFFINITY);
 			baseAdjustment = Math.max(0.0D, readDouble(aquaAffinity, FIELD_BASE_SUBMERGED_MINING_SPEED, 0.0D));
@@ -822,6 +1131,16 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
+		} else if (PROTECTION_ID.equals(enchantmentId)) {
+			JsonObject protection = object(root, FIELD_PROTECTION);
+			baseAdjustment = Math.max(0.0D, readDouble(protection, FIELD_BASE_DAMAGE_REDUCTION, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(protection, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
 		} else if (BLAST_PROTECTION_ID.equals(enchantmentId)) {
 			JsonObject blastProtection = object(root, FIELD_BLAST_PROTECTION);
 			JsonObject explosiveProtection = object(blastProtection, FIELD_EXPLOSIVE_PROTECTION);
@@ -832,6 +1151,17 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = Math.max(0.0D, readDouble(knockbackResistance, FIELD_LEVEL_ADJUSTMENT, 0.0D));
 			baseDuration = 0.0D;
 			levelDuration = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (PROJECTILE_PROTECTION_ID.equals(enchantmentId)) {
+			JsonObject projectileProtection = object(root, FIELD_PROJECTILE_PROTECTION);
+			JsonObject protection = object(projectileProtection, FIELD_PROJECTILE_PROTECTION);
+			baseAdjustment = Math.max(0.0D, readDouble(protection, FIELD_BASE_VALUE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(protection, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
 		} else if (BREACH_ID.equals(enchantmentId)) {
@@ -946,10 +1276,49 @@ public final class BooksConfigManager {
 			levelKnockbackResistance = 0.0D;
 			baseArmorPenetration = 0.0D;
 			levelArmorPenetration = 0.0D;
+		} else if (MENDING_ID.equals(enchantmentId)) {
+			JsonObject mending = object(root, FIELD_MENDING);
+			baseAdjustment = Math.max(0.0D, readDouble(mending, FIELD_BASE_CHANCE, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(mending, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
 		} else if (KNOCKBACK_ID.equals(enchantmentId)) {
 			JsonObject knockback = object(root, FIELD_KNOCKBACK);
 			baseAdjustment = Math.max(0.0D, readDouble(knockback, FIELD_BASE_KNOCKBACK, 0.0D));
 			levelAdjustment = Math.max(0.0D, readDouble(knockback, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (PUNCH_ID.equals(enchantmentId)) {
+			JsonObject punch = object(root, FIELD_PUNCH);
+			baseAdjustment = Math.max(0.0D, readDouble(punch, FIELD_BASE_ADDED_KNOCKBACK, 0.0D));
+			levelAdjustment = Math.max(0.0D, readDouble(punch, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseDuration = 0.0D;
+			levelDuration = 0.0D;
+			baseKnockbackResistance = 0.0D;
+			levelKnockbackResistance = 0.0D;
+			baseArmorPenetration = 0.0D;
+			levelArmorPenetration = 0.0D;
+		} else if (LUCK_OF_THE_SEA_ID.equals(enchantmentId)) {
+			JsonObject luckOfTheSea = object(root, FIELD_LUCK_OF_THE_SEA);
+			JsonObject treasure = object(luckOfTheSea, FIELD_TREASURE);
+			baseTreasureChanceAdjustment = Math.max(0.0D, readDouble(treasure, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D));
+			levelTreasureChanceAdjustment = Math.max(0.0D, readDouble(treasure, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			JsonObject junk = object(luckOfTheSea, FIELD_JUNK);
+			baseJunkChanceAdjustment = Math.max(0.0D, readDouble(junk, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D));
+			levelJunkChanceAdjustment = Math.max(0.0D, readDouble(junk, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			JsonObject fish = object(luckOfTheSea, FIELD_FISH);
+			baseFishChanceAdjustment = Math.max(0.0D, readDouble(fish, FIELD_BASE_CHANCE_ADJUSTMENT, 0.0D));
+			levelFishChanceAdjustment = Math.max(0.0D, readDouble(fish, FIELD_LEVEL_ADJUSTMENT, 0.0D));
+			baseAdjustment = 0.0D;
+			levelAdjustment = 0.0D;
 			baseDuration = 0.0D;
 			levelDuration = 0.0D;
 			baseKnockbackResistance = 0.0D;
@@ -990,6 +1359,12 @@ public final class BooksConfigManager {
 			levelKnockbackResistance,
 			baseArmorPenetration,
 			levelArmorPenetration,
+			baseTreasureChanceAdjustment,
+			levelTreasureChanceAdjustment,
+			baseJunkChanceAdjustment,
+			levelJunkChanceAdjustment,
+			baseFishChanceAdjustment,
+			levelFishChanceAdjustment,
 			true
 		);
 	}
@@ -1045,6 +1420,12 @@ public final class BooksConfigManager {
 		final double levelKnockbackResistance;
 		final double baseArmorPenetration;
 		final double levelArmorPenetration;
+		final double baseTreasureChanceAdjustment;
+		final double levelTreasureChanceAdjustment;
+		final double baseJunkChanceAdjustment;
+		final double levelJunkChanceAdjustment;
+		final double baseFishChanceAdjustment;
+		final double levelFishChanceAdjustment;
 		final boolean enabled;
 
 		private EnchantmentDefinition(
@@ -1061,6 +1442,12 @@ public final class BooksConfigManager {
 			double levelKnockbackResistance,
 			double baseArmorPenetration,
 			double levelArmorPenetration,
+			double baseTreasureChanceAdjustment,
+			double levelTreasureChanceAdjustment,
+			double baseJunkChanceAdjustment,
+			double levelJunkChanceAdjustment,
+			double baseFishChanceAdjustment,
+			double levelFishChanceAdjustment,
 			boolean enabled
 		) {
 			this.enchantmentId = enchantmentId;
@@ -1076,6 +1463,12 @@ public final class BooksConfigManager {
 			this.levelKnockbackResistance = levelKnockbackResistance;
 			this.baseArmorPenetration = baseArmorPenetration;
 			this.levelArmorPenetration = levelArmorPenetration;
+			this.baseTreasureChanceAdjustment = baseTreasureChanceAdjustment;
+			this.levelTreasureChanceAdjustment = levelTreasureChanceAdjustment;
+			this.baseJunkChanceAdjustment = baseJunkChanceAdjustment;
+			this.levelJunkChanceAdjustment = levelJunkChanceAdjustment;
+			this.baseFishChanceAdjustment = baseFishChanceAdjustment;
+			this.levelFishChanceAdjustment = levelFishChanceAdjustment;
 			this.enabled = enabled;
 		}
 
@@ -1096,6 +1489,20 @@ public final class BooksConfigManager {
 			root.addProperty(FIELD_LEVEL_KNOCKBACK_RESISTANCE, levelKnockbackResistance);
 			root.addProperty(FIELD_BASE_ARMOR_PENETRATION, baseArmorPenetration);
 			root.addProperty(FIELD_LEVEL_ARMOR_PENETRATION, levelArmorPenetration);
+			JsonObject luckOfTheSea = new JsonObject();
+			JsonObject treasure = new JsonObject();
+			treasure.addProperty(FIELD_BASE_CHANCE_ADJUSTMENT, baseTreasureChanceAdjustment);
+			treasure.addProperty(FIELD_LEVEL_ADJUSTMENT, levelTreasureChanceAdjustment);
+			luckOfTheSea.add(FIELD_TREASURE, treasure);
+			JsonObject junk = new JsonObject();
+			junk.addProperty(FIELD_BASE_CHANCE_ADJUSTMENT, baseJunkChanceAdjustment);
+			junk.addProperty(FIELD_LEVEL_ADJUSTMENT, levelJunkChanceAdjustment);
+			luckOfTheSea.add(FIELD_JUNK, junk);
+			JsonObject fish = new JsonObject();
+			fish.addProperty(FIELD_BASE_CHANCE_ADJUSTMENT, baseFishChanceAdjustment);
+			fish.addProperty(FIELD_LEVEL_ADJUSTMENT, levelFishChanceAdjustment);
+			luckOfTheSea.add(FIELD_FISH, fish);
+			root.add(FIELD_LUCK_OF_THE_SEA, luckOfTheSea);
 			root.addProperty(FIELD_ENABLED, enabled);
 			return root;
 		}

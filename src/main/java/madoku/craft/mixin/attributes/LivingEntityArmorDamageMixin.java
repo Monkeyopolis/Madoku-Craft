@@ -71,6 +71,17 @@ public abstract class LivingEntityArmorDamageMixin {
 
 	@Redirect(
 		method = "getDamageAfterMagicAbsorb",
+		at = @At(
+			value = "INVOKE",
+			target = "Lnet/minecraft/world/damagesource/CombatRules;getDamageAfterMagicAbsorb(FF)F"
+		)
+	)
+	private float madokuCraft$applyConfiguredDamageReduction(float damage, float vanillaProtection) {
+		return EnchantBooksManager.applyConfiguredDamageReduction(damage, vanillaProtection);
+	}
+
+	@Redirect(
+		method = "getDamageAfterMagicAbsorb",
 		at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;hasEffect(Lnet/minecraft/core/Holder;)Z")
 	)
 	private boolean madokuCraft$overrideVanillaResistanceCheck(LivingEntity instance, Holder<MobEffect> effect) {

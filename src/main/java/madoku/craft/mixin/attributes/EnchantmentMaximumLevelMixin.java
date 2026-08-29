@@ -110,6 +110,30 @@ public abstract class EnchantmentMaximumLevelMixin {
 		}
 	}
 
+	/** Replaces configured Mending's XP repair with its chance to prevent durability loss. */
+	@Inject(
+		method = "modifyDurabilityChange(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replaceMendingDurabilityChange(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		MutableFloat durabilityChange,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredMendingDurabilityProtection(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			durabilityChange,
+			serverLevel
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
 	/** Replaces vanilla Knockback's value while retaining horizontal-only behavior. */
 	@Inject(
 		method = "modifyKnockback(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
@@ -126,6 +150,33 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfo callbackInfo
 	) {
 		if (EnchantBooksManager.applyConfiguredKnockback(
+			(Enchantment) (Object) this,
+			level,
+			stack,
+			entity,
+			source,
+			knockback
+		)) {
+			callbackInfo.cancel();
+		}
+	}
+
+	/** Replaces vanilla Punch's arrow knockback value while retaining its arrow-only condition. */
+	@Inject(
+		method = "modifyKnockback(Lnet/minecraft/server/level/ServerLevel;ILnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lorg/apache/commons/lang3/mutable/MutableFloat;)V",
+		at = @At("HEAD"),
+		cancellable = true
+	)
+	private void madokuCraft$replacePunch(
+		ServerLevel serverLevel,
+		int level,
+		ItemStack stack,
+		Entity entity,
+		DamageSource source,
+		MutableFloat knockback,
+		CallbackInfo callbackInfo
+	) {
+		if (EnchantBooksManager.applyConfiguredPunch(
 			(Enchantment) (Object) this,
 			level,
 			stack,

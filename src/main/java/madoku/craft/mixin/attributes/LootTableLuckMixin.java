@@ -2,8 +2,10 @@ package madoku.craft.mixin.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.core.enchant.EnchantBooksManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
+import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,6 +14,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LootTable.class)
 public class LootTableLuckMixin {
+	@Inject(
+		method = "getRandomItems(Lnet/minecraft/world/level/storage/loot/LootParams;)Lit/unimi/dsi/fastutil/objects/ObjectArrayList;",
+		at = @At("HEAD")
+	)
+	private void madokuCraft$beginConfiguredLuckOfTheSea(
+		LootParams lootParams,
+		CallbackInfoReturnable<ObjectArrayList<ItemStack>> callbackInfo
+	) {
+		EnchantBooksManager.beginConfiguredLuckOfTheSea(lootParams);
+	}
+
+	@Inject(
+		method = "getRandomItems(Lnet/minecraft/world/level/storage/loot/LootParams;)Lit/unimi/dsi/fastutil/objects/ObjectArrayList;",
+		at = @At("RETURN")
+	)
+	private void madokuCraft$endConfiguredLuckOfTheSea(
+		LootParams lootParams,
+		CallbackInfoReturnable<ObjectArrayList<ItemStack>> callbackInfo
+	) {
+		EnchantBooksManager.endConfiguredLuckOfTheSea();
+	}
+
 	@Inject(
 		method = "getRandomItems(Lnet/minecraft/world/level/storage/loot/LootContext;)Lit/unimi/dsi/fastutil/objects/ObjectArrayList;",
 		at = @At("RETURN")
