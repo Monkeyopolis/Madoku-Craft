@@ -128,40 +128,58 @@ public final class EnchantBooksManager {
 	static boolean canUpgradeByLevels(ItemStack input, int levels) {
 		if (input == null || input.isEmpty() || levels <= 0 || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return false;
 		ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(input);
+		int availableUpgrades = 0;
 		for (Holder<Enchantment> enchantment : enchantments.keySet()) {
 			EnchantmentDefinition definition = BooksConfigManager.definitionForHolder(enchantment);
 			int current = enchantments.getLevel(enchantment);
-			if (definition != null && definition.enabled && current < definition.maximumLevel
-				&& current + levels <= definition.maximumLevel) {
+			if (definition != null && definition.enabled && current < definition.maximumLevel) {
+				availableUpgrades += definition.maximumLevel - current;
+			}
+			if (availableUpgrades >= levels) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	/** Upgrades configured enchantments by the allocated number of levels. */
-	static ItemStack upgradeEnchantedBook(ItemStack input, int levels) {
+	/** Distributes allocated upgrade levels randomly across configured enchantments. */
+	static ItemStack upgradeEnchantedBook(ItemStack input, int levels, RandomSource random) {
 		if (input == null || input.isEmpty() || levels <= 0 || !EnchantConfigManager.areCustomEnchantmentsEnabled()) return ItemStack.EMPTY;
 
 		ItemEnchantments existing = EnchantmentHelper.getEnchantmentsForCrafting(input);
 		ItemEnchantments.Mutable upgraded = new ItemEnchantments.Mutable(existing);
 		boolean changed = false;
-		for (Holder<Enchantment> enchantment : existing.keySet()) {
-			EnchantmentDefinition definition = BooksConfigManager.definitionForHolder(enchantment);
-			if (definition == null || !definition.enabled) continue;
+		RandomSource resolvedRandom = random == null ? RandomSource.create() : random;
+		for (int upgrade = 0; upgrade < levels; upgrade++) {
+			List<Holder<Enchantment>> eligible = new ArrayList<>();
+			int lowestLevel = Integer.MAX_VALUE;
+			for (Holder<Enchantment> enchantment : existing.keySet()) {
+				EnchantmentDefinition definition = BooksConfigManager.definitionForHolder(enchantment);
+				if (definition == null || !definition.enabled) continue;
 
-			int current = existing.getLevel(enchantment);
-			int target = Math.min(definition.maximumLevel, current + levels);
-			if (target > current) {
-				upgraded.set(enchantment, target);
-				changed = true;
+				int current = upgraded.getLevel(enchantment);
+				if (current >= definition.maximumLevel) continue;
+				if (current < lowestLevel) {
+					lowestLevel = current;
+					eligible.clear();
+				}
+				if (current == lowestLevel) eligible.add(enchantment);
 			}
+			if (eligible.isEmpty()) break;
+
+			Holder<Enchantment> selected = eligible.get(resolvedRandom.nextInt(eligible.size()));
+			upgraded.set(selected, upgraded.getLevel(selected) + 1);
+			changed = true;
 		}
 		if (!changed) return ItemStack.EMPTY;
 
 		ItemStack result = new ItemStack(Items.ENCHANTED_BOOK);
 		EnchantmentHelper.setEnchantments(result, upgraded.toImmutable());
 		return result;
+	}
+
+	static ItemStack upgradeEnchantedBook(ItemStack input, int levels) {
+		return upgradeEnchantedBook(input, levels, RandomSource.create());
 	}
 
 	/** Replaces vanilla Aqua Affinity's attribute amount with the configured percentage. */

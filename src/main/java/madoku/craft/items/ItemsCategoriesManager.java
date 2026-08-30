@@ -63,8 +63,8 @@ public final class ItemsCategoriesManager {
 	private static final String ITEM_LEVEL_SCALING_DATA_KEY = "madoku_item_level_scaling";
 	private static final String RARITY_SCALING_DATA_KEY = "madoku_rarity_scaling";
 	private static final double ATTACK_DAMAGE_SCALING_FACTOR = 0.50D;
-	private static final double ATTACK_SPEED_SCALING_FACTOR = 0.25D;
-	private static final double MINING_SPEED_SCALING_FACTOR = 0.25D;
+	private static final double ATTACK_SPEED_SCALING_FACTOR = 0.50D;
+	private static final double MINING_SPEED_SCALING_FACTOR = 0.50D;
 	private static final double ARMOR_SCALING_FACTOR = 0.50D;
 	private static final double ARMOR_TOUGHNESS_SCALING_FACTOR = 0.50D;
 	private static final Logger LOGGER = LoggerFactory.getLogger(ItemsCategoriesManager.class);

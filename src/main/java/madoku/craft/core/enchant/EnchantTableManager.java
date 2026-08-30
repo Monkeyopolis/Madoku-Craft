@@ -1,6 +1,7 @@
 package madoku.craft.core.enchant;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.EnchantmentMenu;
 import net.minecraft.world.item.ItemStack;
@@ -100,7 +101,7 @@ public final class EnchantTableManager {
 			result = createEnchantedBook(player, cost / LEVELS_PER_ENCHANTMENT);
 			if (result.isEmpty()) return false;
 		} else if (input.is(Items.ENCHANTED_BOOK)) {
-			result = upgradeEnchantedBook(input, cost / LEVELS_PER_ENCHANTMENT);
+			result = upgradeEnchantedBook(input, cost / LEVELS_PER_ENCHANTMENT, player.getRandom());
 			if (result.isEmpty()) return false;
 		} else {
 			return false;
@@ -159,8 +160,8 @@ public final class EnchantTableManager {
 		return EnchantBooksManager.canUpgradeByLevels(input, levels);
 	}
 
-	private static ItemStack upgradeEnchantedBook(ItemStack input, int levels) {
-		return EnchantBooksManager.upgradeEnchantedBook(input, levels);
+	private static ItemStack upgradeEnchantedBook(ItemStack input, int levels, RandomSource random) {
+		return EnchantBooksManager.upgradeEnchantedBook(input, levels, random);
 	}
 
 	private static void clearChoices(EnchantmentMenu menu) {

@@ -668,7 +668,7 @@ public final class BooksConfigManager {
 	private static JsonObject buildAquaAffinityDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "minecraft:aqua-affinity")
-			.put(FIELD_MAXIMUM_LEVEL, 3)
+			.put(FIELD_MAXIMUM_LEVEL, 5)
 			.array(FIELD_COMPATIBLE_ITEMS, values -> values.add("helmet"))
 			.put(FIELD_CONFLICTING_ENCHANTMENT, false)
 			.put(FIELD_WEIGHT, 1)
@@ -956,7 +956,7 @@ public final class BooksConfigManager {
 	private static JsonObject buildFlameDefaults() {
 		return JSONFormatManager.object()
 			.put(FIELD_ENCHANTMENT_ID, "minecraft:flame")
-			.put(FIELD_MAXIMUM_LEVEL, 5)
+			.put(FIELD_MAXIMUM_LEVEL, 3)
 			.array(FIELD_COMPATIBLE_ITEMS, values -> values
 				.add("bow")
 				.add("crossbow"))
