@@ -79,7 +79,7 @@ public final class RecipesConfigManager {
 
 	public static java.nio.file.Path getRootDirectory() {
 		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(
-			MadokuCoreManager.API_FOLDER_NAME + "/" + ROOT_FOLDER_NAME
+			MadokuCoreManager.CORE_FOLDER_NAME + "/" + ROOT_FOLDER_NAME
 		);
 	}
 

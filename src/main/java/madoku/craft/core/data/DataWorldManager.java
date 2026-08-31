@@ -21,7 +21,7 @@ import java.util.Map;
 /** Runtime group for indexed global world JSON data. */
 public final class DataWorldManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataWorldManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.API_FOLDER_NAME + "/madoku-data";
+	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data";
 	private static final String DATA_FILE_NAME = "madoku-data-world.json";
 	private static final String FIELD_VERSION = "version";
 	private static final String FIELD_SYSTEMS = "systems";

@@ -36,8 +36,8 @@ import java.util.Set;
 /** Runtime group for indexed per-dimension NBT world data. */
 public final class DataWorldChunkManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataWorldChunkManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.API_FOLDER_NAME + "/madoku-data";
-	private static final String WORLD_DATA_FOLDER = MadokuCoreManager.API_FOLDER_NAME + "/madoku-data/madoku-data-world";
+	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data";
+	private static final String WORLD_DATA_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data/madoku-data-world";
 	private static final String DATA_CONFIG_FILE = "madoku-data";
 	private static final String FIELD_AUTO_SAVE = "auto-save";
 	private static final String FIELD_VERSION = "version";

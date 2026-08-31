@@ -1,7 +1,6 @@
 package madoku.craft.mixin.core;
 
 import madoku.craft.core.smithing.MadokuSmithingManager;
-import madoku.craft.core.smithing.SmithingConfigManager;
 import madoku.craft.mixin.inventory.SlotAccessor;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.SmithingMenu;
@@ -34,6 +33,10 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 		Level level,
 		CallbackInfo ci
 	) {
+		if (!MadokuSmithingManager.acceptsExtendedItems()) {
+			return;
+		}
+
 		SmithingMenu menu = (SmithingMenu) (Object) this;
 		// Keep vanilla slot positions. Madoku changes which input role each physical slot serves.
 		replaceSlot(menu, SmithingMenu.TEMPLATE_SLOT, SmithingMenu.TEMPLATE_SLOT_X_PLACEMENT, originalSlot(menu, SmithingMenu.TEMPLATE_SLOT));
@@ -53,7 +56,7 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 			@Override
 			public boolean mayPlace(ItemStack stack) {
 				boolean accepted;
-				if (!SmithingConfigManager.isEnabled()) {
+				if (!MadokuSmithingManager.acceptsExtendedItems()) {
 					accepted = original.mayPlace(stack);
 				} else if (slotIndex == SmithingMenu.TEMPLATE_SLOT) {
 					accepted = MadokuSmithingManager.isManagedBase(stack);
@@ -72,7 +75,7 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 
 			@Override
 			public int getMaxStackSize() {
-				return SmithingConfigManager.isEnabled() ? 1 : original.getMaxStackSize();
+				return MadokuSmithingManager.acceptsExtendedItems() ? 1 : original.getMaxStackSize();
 			}
 		};
 		((SlotAccessor) (Object) replacement).madokuCraft$setIndex(original.index);

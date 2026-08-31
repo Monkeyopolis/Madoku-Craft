@@ -11,7 +11,7 @@ import java.nio.file.Path;
 
 /** Owns the static Madoku Smithing configuration. */
 public final class SmithingConfigManager {
-	private static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-smithing";
+	private static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-smithing";
 	private static final String CONFIG_FILE_NAME = "madoku-smithing.json";
 	private static final String FIELD_ENABLED = "enabled";
 	private static volatile boolean enabled = true;

@@ -75,6 +75,10 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			return;
 		}
 
+		if (!MadokuRarityManager.isRarityItem(stack)) {
+			return;
+		}
+
 		Tier rarity = MadokuRarityManager.detectAppliedRarity(stack);
 		if (rarity == null) {
 			return;

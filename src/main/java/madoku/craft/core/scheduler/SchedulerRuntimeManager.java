@@ -41,7 +41,7 @@ final class SchedulerRuntimeManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerRuntimeManager.class);
 	private static final int DEFAULT_EXPIRATION_DAYS = 14;
 	private static final long DEFAULT_INACTIVE_EXPIRATION_MINUTES = 5L;
-	private static final String DATA_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-scheduler";
+	private static final String DATA_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-scheduler";
 	private static final String DATA_FILE_NAME = "madoku-scheduler";
 	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
 	private static final String GROUP_GENERAL = "general";

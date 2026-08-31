@@ -18,7 +18,7 @@ import java.util.Map;
 
 public final class RarityConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RarityConfigManager.class);
-	private static final String RARITY_CONFIG_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-rarity";
+	private static final String RARITY_CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-rarity";
 	private static final String RARITY_CONFIG_FILE_NAME = "madoku-rarity";
 	private static final String FIELD_ENABLED = "enabled";
 	private static final String FIELD_RARITY = "rarity";

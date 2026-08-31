@@ -15,7 +15,7 @@ import java.util.Locale;
 
 /** Root configuration for the Madoku Season runtime subsystem. */
 public final class SeasonConfigManager {
-	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-season";
+	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-season";
 	public static final String CONFIG_FILE_NAME = "season";
 	public static final String FIELD_ENABLED = "enabled";
 	public static final String FIELD_SEASON_LENGTH_DAYS = "season-length-days";

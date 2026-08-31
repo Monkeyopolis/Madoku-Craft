@@ -15,7 +15,7 @@ import java.nio.file.Path;
 
 public final class ChunkConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChunkConfigManager.class);
-	private static final String CHUNK_CONFIG_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-chunk";
+	private static final String CHUNK_CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-chunk";
 	private static final String CHUNK_CONFIG_FILE_NAME = "madoku-chunk";
 	private static final String FIELD_ENABLED = "enabled";
 

@@ -75,6 +75,17 @@ public final class MadokuRarityManager {
 		return RarityRuntimeManager.detectAppliedRarity(stack);
 	}
 
+	/**
+	 * Returns whether the stack has a rarity applied by this subsystem.
+	 *
+	 * This is deliberately separate from the Items category predicate used when
+	 * generating rarity. It is safe for the client overlay and remains valid when
+	 * the Items subsystem is not present in a Core port.
+	 */
+	public static boolean isRarityItem(ItemStack stack) {
+		return detectAppliedRarity(stack) != null;
+	}
+
 	/** Resolves the configured rarity weight for systems that opt into Madoku Rarity and Luck. */
 	public static double resolveWeight(Tier tier, double luckStat, boolean useMadokuLuck) {
 		RarityConfigManager.RaritySettings rarity = RarityConfigManager.settings(tier);

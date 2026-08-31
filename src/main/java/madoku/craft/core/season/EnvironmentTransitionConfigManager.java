@@ -17,7 +17,7 @@ import java.util.Map;
 
 /** Configuration for weather, water, and seasonal climate transitions. */
 public final class EnvironmentTransitionConfigManager {
-	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-season";
+	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-season";
 	public static final String CONFIG_FILE_NAME = "environment-transition";
 	public static final String FIELD_TRANSITION_WEATHER = "transition-weather";
 	public static final String FIELD_TRANSITION_WATER = "transition-water";

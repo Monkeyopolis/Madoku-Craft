@@ -17,7 +17,7 @@ import java.util.Map;
 
 /** Static biome temperature and humidity configuration. */
 public final class BiomeClimateConfigManager {
-	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-season";
+	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-season";
 	public static final String CONFIG_FILE_NAME = "biome-climate";
 	public static final String FIELD_BIOME_TEMPERATURE = "biome-temperature";
 	public static final String FIELD_BIOME_HUMIDITY = "biome-humidity";

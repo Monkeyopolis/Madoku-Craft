@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 /** Runtime group for indexed per-player JSON data. */
 public final class DataPlayerManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataPlayerManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.API_FOLDER_NAME + "/madoku-data/madoku-data-player";
+	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data/madoku-data-player";
 	private static final String FIELD_VERSION = "version";
 	private static final String FIELD_PLAYER_UUID = "player-uuid";
 	private static final String FIELD_SYSTEMS = "systems";

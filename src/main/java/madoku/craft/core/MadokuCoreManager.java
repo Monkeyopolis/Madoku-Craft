@@ -17,7 +17,7 @@ import madoku.craft.ecosystem.MadokuEcosystemManager;
 import java.nio.file.Path;
 
 public final class MadokuCoreManager {
-	public static final String API_FOLDER_NAME = "madoku-craft-api";
+	public static final String CORE_FOLDER_NAME = "madoku-craft-core";
 
 	private MadokuCoreManager() {
 	}
@@ -25,7 +25,7 @@ public final class MadokuCoreManager {
 	public static void initialize() {
 		MadokuHelperManager.initialize();
 		MadokuJSONManager.initialize();
-		getApiRootDirectory();
+		getCoreRootDirectory();
 		MadokuDataManager.initialize();
 		MadokuTimeManager.initialize();
 		MadokuChunkManager.initialize();
@@ -38,8 +38,8 @@ public final class MadokuCoreManager {
 		MadokuSmithingManager.initialize();
 	}
 
-	public static Path getApiRootDirectory() {
-		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(API_FOLDER_NAME);
+	public static Path getCoreRootDirectory() {
+		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(CORE_FOLDER_NAME);
 	}
 
 	public static void reset() {

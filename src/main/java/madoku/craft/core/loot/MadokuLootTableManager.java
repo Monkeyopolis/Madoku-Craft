@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class MadokuLootTableManager {
-	static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-loot-tables";
+	static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-loot-tables";
 
 	private MadokuLootTableManager() {
 	}
@@ -348,4 +348,3 @@ public final class MadokuLootTableManager {
 
 	static record SharedLootEntry(Item item, int weight, int minCount, int maxCount) { }
 }
-

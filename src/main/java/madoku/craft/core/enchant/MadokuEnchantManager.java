@@ -15,7 +15,7 @@ import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 /** Orchestrates the Madoku Enchant API subsystem and exposes its shared lifecycle. */
 public final class MadokuEnchantManager {
-	public static final String ENCHANT_FOLDER_NAME = MadokuCoreManager.API_FOLDER_NAME + "/madoku-enchants";
+	public static final String ENCHANT_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-enchants";
 	public static final String ENCHANTMENTS_FOLDER_NAME = "madoku-enchantments";
 
 	private MadokuEnchantManager() {
