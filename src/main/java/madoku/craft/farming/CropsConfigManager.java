@@ -2,8 +2,8 @@ package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -41,11 +41,11 @@ public final class CropsConfigManager {
 		String yieldTableId
 	) {
 		String normalizedCropId = normalizeRegistryId(cropId);
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
-			.put(FIELD_CROP_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizedCropId))
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object()
+			.put(FIELD_CROP_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(normalizedCropId))
 			.put(FIELD_GROWTH_TIME, Math.max(0.25d, growthMinecraftDays));
 
-		root.put(FIELD_YIELD_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(normalizeRegistryId(yieldTableId)));
+		root.put(FIELD_YIELD_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(normalizeRegistryId(yieldTableId)));
 
 		ConditionDefault safe = conditions == null ? new ConditionDefault(40, 60, 40, 60) : conditions;
 		root.object(FIELD_GROWING_CONDITIONS, growing -> {
@@ -60,8 +60,9 @@ public final class CropsConfigManager {
 	}
 
 	private static String normalizeRegistryId(String value) {
-		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
+		return JSONAPIManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
 	private record ConditionDefault(double minimumTemperature, double maximumTemperature, double minimumHumidity, double maximumHumidity) { }
 }
+

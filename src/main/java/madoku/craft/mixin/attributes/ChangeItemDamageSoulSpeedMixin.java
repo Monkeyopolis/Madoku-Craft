@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.enchantment.EnchantedItemInUse;
@@ -23,6 +23,7 @@ public abstract class ChangeItemDamageSoulSpeedMixin {
 		Vec3 position,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.shouldCancelSoulSpeedDurabilityChange(level, itemSource, entity)) callbackInfo.cancel();
+		if (EnchantBooksAPIManager.shouldCancelSoulSpeedDurabilityChange(level, itemSource, entity)) callbackInfo.cancel();
 	}
 }
+

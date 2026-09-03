@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonAPIManager;
 
 @Mixin(SnowLayerBlock.class)
 public abstract class SnowLayerBlockSeasonalMeltMixin {
@@ -26,11 +26,11 @@ public abstract class SnowLayerBlockSeasonalMeltMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuSeasonManager.isEnabled() || level == null || pos == null) {
+		if (!SeasonAPIManager.isEnabled() || level == null || pos == null) {
 			return;
 		}
 
-		if (!MadokuSeasonManager.shouldSeasonMeltAt(level, pos)) {
+		if (!SeasonAPIManager.shouldSeasonMeltAt(level, pos)) {
 			return;
 		}
 

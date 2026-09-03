@@ -2,9 +2,9 @@ package madoku.craft.items;
 
 import com.mojang.serialization.DataResult;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,13 +91,13 @@ public final class ItemsStacksManager {
 
 	private static void loadStaticConfig() {
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME);
 			Path configFile = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JSONFormatManager.ManagedDocument document = JSONFormatManager.readManagedDocument(configFile);
+			JSONFormatAPIManager.ManagedDocument document = JSONFormatAPIManager.readManagedDocument(configFile);
 			JsonObject root = document.data();
 			boolean changed = configuration.update(root);
 			if (changed || !root.equals(document.data())) {
-				JSONFormatManager.writeManagedDocument(configFile, root, document.settings(), JSONTypeManager.STATIC_CONFIG);
+				JSONFormatAPIManager.writeManagedDocument(configFile, root, document.settings(), JSONTypeAPIManager.STATIC_CONFIG);
 			}
 		} catch (IOException | RuntimeException exception) {
 			configuration.resetToDefaults();
@@ -105,3 +105,4 @@ public final class ItemsStacksManager {
 		}
 	}
 }
+

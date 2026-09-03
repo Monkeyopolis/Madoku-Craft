@@ -4,8 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,11 +37,11 @@ public final class ChunkConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CHUNK_CONFIG_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CHUNK_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, CHUNK_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -92,9 +92,11 @@ public final class ChunkConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(FIELD_ENABLED, enabled)
 				.build();
 		}
 	}
 }
+
+

@@ -2,8 +2,8 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
 
 import java.util.List;
 
@@ -62,7 +62,7 @@ public final class NaturalDecayConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.object(FIELD_LEAF_LITTER, leaf -> leaf
 				.put(FIELD_ENABLED, value.leafLitter.enabled())
 				.object(FIELD_DECAY_TIME, time -> time
@@ -122,7 +122,7 @@ public final class NaturalDecayConfigManager {
 		if (baseRange == null || multiplier == null) {
 			return null;
 		}
-		if (!multiplier.enabled() || !MadokuSeasonManager.isEnabled()) {
+		if (!multiplier.enabled() || !SeasonAPIManager.isEnabled()) {
 			return baseRange;
 		}
 		double speed = multiplier.forSeason(seasonId);
@@ -134,5 +134,6 @@ public final class NaturalDecayConfigManager {
 		return new EcosystemConfigManager.DayRange(adjustedMin, adjustedMax);
 	}
 }
+
 
 

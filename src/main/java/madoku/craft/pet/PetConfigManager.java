@@ -2,11 +2,11 @@ package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.rarity.RarityTierManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
-import madoku.craft.core.sync.SyncConfigManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager.Tier;
+import madoku.craft.core.sync.SyncConfigAPIManager;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -37,7 +37,7 @@ public final class PetConfigManager {
 
 	public static void initialize() {
 		reload();
-		SyncConfigManager.register(
+		SyncConfigAPIManager.register(
 			"pet",
 			PetConfigManager::createClientSyncSnapshot,
 			PetConfigManager::applyClientSyncSnapshot,
@@ -69,7 +69,7 @@ public final class PetConfigManager {
 	}
 
 	static String normalizePetId(String value) {
-		return MadokuJSONManager.normalizeRegistryIdentifierForJson(value);
+		return JSONAPIManager.normalizeRegistryIdentifierForJson(value);
 	}
 
 	static String normalizeAbilityId(String value) {
@@ -142,13 +142,13 @@ public final class PetConfigManager {
 	static Map<String, PetRule> rules() { return PetEntitiesManager.EntitiesConfigManager.rules(); }
 
 	public static String createClientSyncSnapshot() {
-		JsonObject settingsRoot = JSONFormatManager.object()
+		JsonObject settingsRoot = JSONFormatAPIManager.object()
 			.put("enabled", settings.enabled)
 			.object("pet-entity", entity -> entity
 				.put("enabled", settings.entitiesEnabled)
 				.put("max-level", settings.maxLevel))
 			.build();
-		JsonObject snapshot = JSONFormatManager.object()
+		JsonObject snapshot = JSONFormatAPIManager.object()
 			.put("settings", settingsRoot)
 			.object("abilities", abilities -> PetAbilitiesManager.AbilitiesConfigManager.snapshotDefinitions()
 				.forEach(abilities::put))
@@ -222,12 +222,12 @@ public final class PetConfigManager {
 
 	static void loadStaticConfig() {
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
 			Path configFile = resolveJsonFile(rootDirectory, CONFIG_FILE_NAME);
 			JsonObject defaults = PetSettings.defaults().toConfigJson();
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			PetSettings configured = PetSettings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			settings = configured;
 		} catch (IOException exception) {
 			settings = PetSettings.defaults();
@@ -236,7 +236,7 @@ public final class PetConfigManager {
 	}
 
 	static Path petDirectory() throws IOException {
-		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
+		return JSONAPIManager.getOrCreateGlobalSystemDirectory(PET_FOLDER);
 	}
 
 	static void logFailure(String message, Throwable cause) {
@@ -313,7 +313,7 @@ public final class PetConfigManager {
 	}
 
 	static String normalizePetRarity(String rawRarity) {
-		Tier tier = RarityTierManager.fromString(rawRarity);
+		Tier tier = RarityAPIManager.fromString(rawRarity);
 		return tier == null ? Tier.COMMON.id() : tier.id();
 	}
 
@@ -380,7 +380,7 @@ public final class PetConfigManager {
 			}
 
 			JsonObject toConfigJson() {
-				return madoku.craft.core.json.JSONFormatManager.object()
+				return madoku.craft.core.json.JSONFormatAPIManager.object()
 					.object("pet-entity", child -> child
 						.put("enabled", entitiesEnabled)
 						.put("max-level", maxLevel))
@@ -770,7 +770,7 @@ public final class PetConfigManager {
 					}
 				}
 				if (resolvedAbilities.isEmpty()) resolvedAbilities.add(MadokuPetManager.PET_ABILITY_NONE);
-				return madoku.craft.core.json.JSONFormatManager.object()
+				return madoku.craft.core.json.JSONFormatAPIManager.object()
 					.object("pet-id", pet -> {
 						pet.put("id", resolvedPetId)
 							.put("rarity", defaultRarityForItem(resolvedPetId))
@@ -794,7 +794,7 @@ public final class PetConfigManager {
 				boolean usesHealthRegeneration = MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION.equals(resolvedAbilityType);
 				boolean usesMobScan = MadokuPetManager.PET_ABILITY_MOB_SCAN.equals(resolvedAbilityType);
 				boolean usesBeeSwarm = MadokuPetManager.PET_ABILITY_BEE_SWARM.equals(resolvedAbilityType);
-				JsonObject ability = madoku.craft.core.json.JSONFormatManager.object()
+				JsonObject ability = madoku.craft.core.json.JSONFormatAPIManager.object()
 					.put("id", abilityConfigId(resolvedAbilityType))
 					.build();
 				if (usesRangedHomingArrow) {
@@ -872,7 +872,7 @@ public final class PetConfigManager {
 				if (MadokuPetManager.PET_ABILITY_ARMOR_BONUS.equals(resolvedAbilityType)) {
 					ability.addProperty("armor-bonus", 1.5D);
 				}
-				return madoku.craft.core.json.JSONFormatManager.object().put("ability-id", ability).build();
+				return madoku.craft.core.json.JSONFormatAPIManager.object().put("ability-id", ability).build();
 			}
 
 			static PetRule fromJson(JsonObject source, String fileKey, Map<String, JsonObject> abilityDefinitions) {
@@ -1287,7 +1287,7 @@ public final class PetConfigManager {
 		PetAbilityRule ability = ability(requestedAbilityType);
 		String configuredSoundEventId = ability == null ? soundEventId : ability.soundEventId;
 		Identifier identifier = Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(configuredSoundEventId)
+			JSONAPIManager.normalizeRegistryIdentifierForLookup(configuredSoundEventId)
 		);
 		if (identifier == null) return defaultSoundEvent(requestedAbilityType);
 		SoundEvent soundEvent = BuiltInRegistries.SOUND_EVENT.getValue(identifier);
@@ -1394,3 +1394,5 @@ public final class PetConfigManager {
 			}
 	}
 }
+
+

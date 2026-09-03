@@ -6,11 +6,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import madoku.craft.mixin.item.ItemComponentsAccessor;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.sync.SyncConfigManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -130,8 +130,8 @@ public final class ItemsCategoriesManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, ItemsCategoriesManager::runPlayerTickTask);
-		SyncConfigManager.register(
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, ItemsCategoriesManager::runPlayerTickTask);
+		SyncConfigAPIManager.register(
 			"items",
 			ItemsCategoriesManager::createClientSyncSnapshot,
 			ItemsCategoriesManager::applySynchronizedProfiles,
@@ -166,7 +166,7 @@ public final class ItemsCategoriesManager {
 		itemMaximumLevel = 5;
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -186,7 +186,7 @@ public final class ItemsCategoriesManager {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
+		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -195,8 +195,8 @@ public final class ItemsCategoriesManager {
 			return;
 		}
 
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -211,8 +211,8 @@ public final class ItemsCategoriesManager {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -221,19 +221,19 @@ public final class ItemsCategoriesManager {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_ITEM_PLAYER_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static String createClientSyncSnapshot() {
-		JsonObject snapshot = JSONFormatManager.object()
+		JsonObject snapshot = JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, enabled)
 			.put(FIELD_SYNC_STACKS_ENABLED, ItemsStacksManager.isEnabled())
 			.put(FIELD_SYNC_STACK_LIMIT, ItemsStacksManager.getStackLimit())
@@ -728,16 +728,16 @@ public final class ItemsCategoriesManager {
 
 	private static void loadStaticConfig() {
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ITEM_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(ITEM_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, ITEM_CONFIG_SETTINGS_FILE_NAME);
-			JSONFormatManager.ManagedDocument settingsDocument = JSONFormatManager.readManagedDocument(settingsFile);
+			JSONFormatAPIManager.ManagedDocument settingsDocument = JSONFormatAPIManager.readManagedDocument(settingsFile);
 			JsonObject rawSettingsRoot = settingsDocument.data();
 			boolean itemSystemEnabled = readBoolean(settingsDocument.settings(), FIELD_ENABLED,
 				readBoolean(rawSettingsRoot, FIELD_ENABLED, true));
 			JsonObject settingsRoot = normalizeCategoryFeatureSettings(rawSettingsRoot);
 			JsonObject settingsGeneral = settingsDocument.settings();
 			settingsGeneral.addProperty(FIELD_ENABLED, itemSystemEnabled);
-			JSONFormatManager.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral, JSONTypeManager.STATIC_CONFIG);
+			JSONFormatAPIManager.writeManagedDocument(settingsFile, settingsRoot, settingsGeneral, JSONTypeAPIManager.STATIC_CONFIG);
 			JsonObject itemLevels = settingsRoot.getAsJsonObject(ItemsConfigManager.FIELD_ITEM_LEVELS);
 			boolean itemLevelsEnabled = readBoolean(itemLevels, ItemsConfigManager.FIELD_CATEGORY_ENABLED, true);
 			int itemStartingLevel = Math.max(1, readInt(itemLevels, ItemsConfigManager.FIELD_STARTING_LEVEL, 1));
@@ -756,7 +756,7 @@ public final class ItemsCategoriesManager {
 			Path weaponDirectory = itemsDirectory.resolve(WEAPON_ITEMS_FOLDER_NAME);
 			Path armorDirectory = itemsDirectory.resolve(ARMOR_ITEMS_FOLDER_NAME);
 
-			Map<String, JsonObject> normalizedFuel = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFuel = JSONFormatAPIManager.ensureManagedFolder(
 				fuelDirectory,
 				ItemsConfigManager.buildDefaultFuelFileDefaults(),
 				ItemsCategoriesManager::buildDynamicFuelDefaultsForFile,
@@ -764,7 +764,7 @@ public final class ItemsCategoriesManager {
 				null
 			);
 
-			Map<String, JsonObject> normalizedOther = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedOther = JSONFormatAPIManager.ensureManagedFolder(
 				otherDirectory,
 				ItemsConfigManager.buildDefaultOtherFileDefaults(),
 				ItemsCategoriesManager::buildDynamicOtherDefaultsForFile,
@@ -772,7 +772,7 @@ public final class ItemsCategoriesManager {
 				null
 			);
 
-			Map<String, JsonObject> normalizedTool = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedTool = JSONFormatAPIManager.ensureManagedFolder(
 				toolDirectory,
 				ItemsConfigManager.buildDefaultToolsCategoryFileDefaults(),
 				ItemsCategoriesManager::buildDynamicToolDefaultsForFile,
@@ -780,7 +780,7 @@ public final class ItemsCategoriesManager {
 				ItemsCategoriesManager::normalizeToolDynamicEntry
 			);
 
-			Map<String, JsonObject> normalizedWeapon = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedWeapon = JSONFormatAPIManager.ensureManagedFolder(
 				weaponDirectory,
 				ItemsConfigManager.buildDefaultWeaponFileDefaults(),
 				ItemsCategoriesManager::buildDynamicWeaponDefaultsForFile,
@@ -788,7 +788,7 @@ public final class ItemsCategoriesManager {
 				ItemsCategoriesManager::normalizeToolDynamicEntry
 			);
 
-			Map<String, JsonObject> normalizedArmor = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedArmor = JSONFormatAPIManager.ensureManagedFolder(
 				armorDirectory,
 				ItemsConfigManager.buildDefaultArmorFileDefaults(),
 				ItemsCategoriesManager::buildDynamicArmorDefaultsForFile,
@@ -1085,7 +1085,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static Item resolveItem(String itemId) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId));
 		if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
 			return null;
 		}
@@ -1093,7 +1093,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static String normalizeItemId(String rawValue) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(rawValue));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(rawValue));
 		if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
 			return null;
 		}
@@ -1289,7 +1289,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeToolProfilesSnapshot(Map<Item, CategoriesToolManager> profiles) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (profiles == null || profiles.isEmpty()) {
 			return root.build();
 		}
@@ -1315,7 +1315,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeFuelTicksSnapshot(Map<Item, Integer> fuelTicks) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (fuelTicks != null) {
 			for (Map.Entry<Item, Integer> entry : fuelTicks.entrySet()) {
 				Identifier itemId = entry.getKey() == null ? null : BuiltInRegistries.ITEM.getKey(entry.getKey());
@@ -1328,7 +1328,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeStackModesSnapshot(Map<Item, StackMode> stackModes) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (stackModes != null) {
 			for (Map.Entry<Item, StackMode> entry : stackModes.entrySet()) {
 				Identifier itemId = entry.getKey() == null ? null : BuiltInRegistries.ITEM.getKey(entry.getKey());
@@ -1367,7 +1367,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeArmorProfilesSnapshot(Map<Item, CategoriesArmorManager> profiles) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (profiles == null || profiles.isEmpty()) {
 			return root.build();
 		}
@@ -1393,7 +1393,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeToolProfile(CategoriesToolManager profile) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (profile == null) {
 			return root.build();
 		}
@@ -1423,7 +1423,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	private static JsonObject writeArmorProfile(CategoriesArmorManager profile) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (profile == null) {
 			return root.build();
 		}
@@ -1567,7 +1567,7 @@ public final class ItemsCategoriesManager {
 		return element.getAsJsonObject();
 	}
 
-	private static void addOptionalDouble(JSONFormatManager.ObjectBuilder root, String key, Double value) {
+	private static void addOptionalDouble(JSONFormatAPIManager.ObjectBuilder root, String key, Double value) {
 		if (root == null || key == null || key.isBlank() || value == null) {
 			return;
 		}
@@ -2096,4 +2096,5 @@ public final class ItemsCategoriesManager {
 		MULTI
 	}
 }
+
 

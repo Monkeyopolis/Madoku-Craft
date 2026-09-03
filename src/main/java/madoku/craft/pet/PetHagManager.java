@@ -2,9 +2,8 @@ package madoku.craft.pet;
 
 import java.util.List;
 
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.rarity.RarityTierManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager.Tier;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
@@ -36,16 +35,16 @@ public final class PetHagManager {
 	}
 
 	public static int rarityWeight(String rarity) {
-		Tier tier = RarityTierManager.fromString(PetConfigManager.normalizePetRarity(rarity));
+		Tier tier = RarityAPIManager.fromString(PetConfigManager.normalizePetRarity(rarity));
 		Tier resolved = tier == null ? Tier.COMMON : tier;
-		return Math.max(0, (int) Math.round(MadokuRarityManager.resolveWeight(resolved, 0.0D, false)));
+		return Math.max(0, (int) Math.round(RarityAPIManager.resolveWeight(resolved, 0.0D, false)));
 	}
 
 	public static ItemStack tradeStack(Item item, int level) {
 		ItemStack stack = new ItemStack(item);
 		PetEntitiesManager.setPetLevel(stack, level);
-		Tier tier = RarityTierManager.fromString(rarity(stack));
-		MadokuRarityManager.applyConfiguredRarity(stack, tier == null ? Tier.COMMON : tier);
+		Tier tier = RarityAPIManager.fromString(rarity(stack));
+		RarityAPIManager.applyConfiguredRarity(stack, tier == null ? Tier.COMMON : tier);
 		applyLore(stack);
 		return stack;
 	}
@@ -74,3 +73,5 @@ public final class PetHagManager {
 		PetHudManager.applySupportedPetLore(stack);
 	}
 }
+
+

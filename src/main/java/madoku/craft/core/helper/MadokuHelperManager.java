@@ -2,24 +2,13 @@ package madoku.craft.core.helper;
 
 import net.minecraft.server.MinecraftServer;
 
-/** Runtime API subsystem orchestrating shared helper groups. */
+/** Orchestrates shared helper services through their public API contract. */
 public final class MadokuHelperManager {
 	private MadokuHelperManager() {
 	}
 
-	public static void initialize() {
-		HelperProjectileManager.initialize();
-	}
-
-	public static void reset() {
-		HelperProjectileManager.reset();
-	}
-
-	public static void onServerStarted(MinecraftServer server) {
-		HelperProjectileManager.onServerStarted(server);
-	}
-
-	public static void onServerTick(MinecraftServer server) {
-		HelperProjectileManager.tick(server);
-	}
+	public static void initialize() { HelperAPIManager.initialize(); }
+	public static void reset() { HelperAPIManager.reset(); }
+	public static void onServerStarted(MinecraftServer server) { HelperAPIManager.onServerStarted(server); }
+	public static void onServerTick(MinecraftServer server) { HelperAPIManager.onServerTick(server); }
 }

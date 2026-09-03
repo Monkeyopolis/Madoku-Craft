@@ -10,9 +10,9 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
-import madoku.craft.core.season.BiomeClimateConfigManager;
-import madoku.craft.core.season.SeasonBiomeClimateManager;
-import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.core.season.BiomeClimateConfigAPIManager;
+import madoku.craft.core.season.SeasonBiomeClimateAPIManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionAPIManager;
 
 public final class ClientSeasonalPrecipitationState {
 	private static volatile String season = "";
@@ -22,7 +22,7 @@ public final class ClientSeasonalPrecipitationState {
 	private static volatile double humidityOffset;
 	private static volatile String weatherCondition = "";
 	private static volatile ClientLevel level;
-	private static volatile Map<Biome, SeasonBiomeClimateManager.Climate> climates = Map.of();
+	private static volatile Map<Biome, SeasonBiomeClimateAPIManager.Climate> climates = Map.of();
 
 	private ClientSeasonalPrecipitationState() {
 	}
@@ -61,11 +61,11 @@ public final class ClientSeasonalPrecipitationState {
 			return;
 		}
 		Registry<Biome> registry = clientLevel.registryAccess().lookupOrThrow(Registries.BIOME);
-		IdentityHashMap<Biome, SeasonBiomeClimateManager.Climate> configured = new IdentityHashMap<>();
+		IdentityHashMap<Biome, SeasonBiomeClimateAPIManager.Climate> configured = new IdentityHashMap<>();
 		for (Map.Entry<ResourceKey<Biome>, Biome> entry : registry.entrySet()) {
-			BiomeClimateConfigManager.Climate climate = BiomeClimateConfigManager.getBiomeClimate(entry.getKey().identifier().toString());
+			BiomeClimateConfigAPIManager.Climate climate = BiomeClimateConfigAPIManager.getBiomeClimate(entry.getKey().identifier().toString());
 			if (climate != null) {
-				configured.put(entry.getValue(), new SeasonBiomeClimateManager.Climate(climate.temperature(), climate.humidity()));
+				configured.put(entry.getValue(), new SeasonBiomeClimateAPIManager.Climate(climate.temperature(), climate.humidity()));
 			}
 		}
 		climates = Collections.unmodifiableMap(configured);
@@ -76,14 +76,14 @@ public final class ClientSeasonalPrecipitationState {
 		if (biome == null || season.isBlank()) {
 			return Biome.Precipitation.NONE;
 		}
-		if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled()) {
-			return SeasonEnvironmentTransitionManager.resolvePrecipitation(biome, season);
+		if (!SeasonEnvironmentTransitionAPIManager.isWeatherTransitionEnabled()) {
+			return SeasonEnvironmentTransitionAPIManager.resolvePrecipitation(biome, season);
 		}
-		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
+		SeasonBiomeClimateAPIManager.Climate climate = climates.get(biome);
 		if (climate == null) {
-			climate = SeasonBiomeClimateManager.nativeClimate(biome);
+			climate = SeasonBiomeClimateAPIManager.nativeClimate(biome);
 		}
-		return SeasonEnvironmentTransitionManager.resolvePrecipitation(
+		return SeasonEnvironmentTransitionAPIManager.resolvePrecipitation(
 			climate,
 			season,
 			temperatureOffset,
@@ -91,16 +91,16 @@ public final class ClientSeasonalPrecipitationState {
 			currentAbsoluteDayTime());
 	}
 
-	public static SeasonBiomeClimateManager.Climate resolveClimate(Biome biome) {
+	public static SeasonBiomeClimateAPIManager.Climate resolveClimate(Biome biome) {
 		if (biome == null) {
-			return new SeasonBiomeClimateManager.Climate(0.0D, 0.0D);
+			return new SeasonBiomeClimateAPIManager.Climate(0.0D, 0.0D);
 		}
-		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
+		SeasonBiomeClimateAPIManager.Climate climate = climates.get(biome);
 		if (climate == null) {
-			climate = SeasonBiomeClimateManager.nativeClimate(biome);
+			climate = SeasonBiomeClimateAPIManager.nativeClimate(biome);
 		}
-		return new SeasonBiomeClimateManager.Climate(
-			SeasonEnvironmentTransitionManager.adjustTemperatureByTime(
+		return new SeasonBiomeClimateAPIManager.Climate(
+			SeasonEnvironmentTransitionAPIManager.adjustTemperatureByTime(
 				climate.temperature() + temperatureOffset,
 				currentAbsoluteDayTime()),
 			climate.humidity() + humidityOffset);
@@ -110,9 +110,9 @@ public final class ClientSeasonalPrecipitationState {
 		if (biome == null) {
 			return 0.0D;
 		}
-		SeasonBiomeClimateManager.Climate climate = climates.get(biome);
+		SeasonBiomeClimateAPIManager.Climate climate = climates.get(biome);
 		if (climate == null) {
-			climate = SeasonBiomeClimateManager.nativeClimate(biome);
+			climate = SeasonBiomeClimateAPIManager.nativeClimate(biome);
 		}
 		return climate.temperature() + temperatureOffset;
 	}
@@ -162,3 +162,4 @@ public final class ClientSeasonalPrecipitationState {
 		climates = Map.of();
 	}
 }
+

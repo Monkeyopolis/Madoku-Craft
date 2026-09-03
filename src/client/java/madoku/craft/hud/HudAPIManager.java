@@ -1,9 +1,9 @@
 package madoku.craft.hud;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.season.SeasonBiomeClimateManager;
-import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.season.SeasonBiomeClimateAPIManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -47,14 +47,14 @@ public final class HudAPIManager {
 			minute = HudPayloadManager.getServerMinute();
 		} else {
 			long dayTime = level.getOverworldClockTime();
-			day = MadokuTimeManager.getDay(dayTime);
-			int totalMinutes = MadokuTimeManager.getTotalMinutes(dayTime);
+			day = TimeAPIManager.getDay(dayTime);
+			int totalMinutes = TimeAPIManager.getTotalMinutes(dayTime);
 			hour = totalMinutes / 60;
 			minute = totalMinutes % 60;
 		}
 
-		SeasonBiomeClimateManager.Climate climate = HudPayloadManager.hasServerClimate()
-			? new SeasonBiomeClimateManager.Climate(
+		SeasonBiomeClimateAPIManager.Climate climate = HudPayloadManager.hasServerClimate()
+			? new SeasonBiomeClimateAPIManager.Climate(
 				HudPayloadManager.getServerTemperature(),
 				HudPayloadManager.getServerHumidity())
 			: ClientSeasonalPrecipitationState.resolveClimate(level.getBiome(player.blockPosition()).value());
@@ -108,7 +108,7 @@ public final class HudAPIManager {
 		return interpolateColor(
 			currentColor,
 			nextColor,
-			SeasonEnvironmentTransitionManager.resolveSeasonalTransitionProgress(seasonDay, seasonLengthDays));
+			SeasonEnvironmentTransitionAPIManager.resolveSeasonalTransitionProgress(seasonDay, seasonLengthDays));
 	}
 
 	private static int seasonPaletteColor(String season) {
@@ -230,3 +230,4 @@ public final class HudAPIManager {
 	}
 
 }
+

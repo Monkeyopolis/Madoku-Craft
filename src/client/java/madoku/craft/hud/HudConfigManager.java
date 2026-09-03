@@ -3,8 +3,8 @@ package madoku.craft.hud;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,11 +54,11 @@ public final class HudConfigManager {
 	private static void loadConfig() {
 		Settings fallback = Settings.defaults();
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, fallback.toConfigJson());
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, fallback.toConfigJson());
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(file, loaded.toConfigJson(), fallback.toConfigJson());
+			JSONFormatAPIManager.writeManagedFile(file, loaded.toConfigJson(), fallback.toConfigJson());
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -106,7 +106,7 @@ public final class HudConfigManager {
 				fallback.supportsColoredText);
 		}
 
-		private void write(JSONFormatManager.ObjectBuilder builder) {
+		private void write(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put(ENABLED, enabled);
 			if (supportsColoredText) {
 				builder.put(COLORED_TEXT, coloredText);
@@ -151,7 +151,7 @@ public final class HudConfigManager {
 		}
 
 		private JsonObject toConfigJson() {
-			JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+			JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 			root.object(HUD_GROUP, hud -> {
 				for (Map.Entry<String, EntrySettings> entry : entries.entrySet()) {
 					hud.object(entry.getKey(), child -> entry.getValue().write(child));
@@ -161,3 +161,4 @@ public final class HudConfigManager {
 		}
 	}
 }
+

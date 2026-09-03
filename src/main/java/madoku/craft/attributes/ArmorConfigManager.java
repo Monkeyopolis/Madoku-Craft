@@ -3,7 +3,7 @@ package madoku.craft.attributes;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +41,9 @@ public final class ArmorConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(ARMOR_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			return configured.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuArmorManager config; using defaults.", exception);
@@ -92,7 +92,7 @@ public final class ArmorConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put("enabled", enabled)
 				.put("fall-damage-reduction", main.fallDamageReduction)
 				.object("resistance", resistance -> {
@@ -392,3 +392,4 @@ public final class ArmorConfigManager {
 		}
 	}
 }
+

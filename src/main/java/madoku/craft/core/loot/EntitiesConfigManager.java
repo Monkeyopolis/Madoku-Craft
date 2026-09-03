@@ -13,18 +13,18 @@ public final class EntitiesConfigManager {
 	public static void reset() { }
 
 	public static JsonObject buildEntityTableTemplate(String tableId) {
-		return MadokuLootTableManager.buildSharedTable(
+		return LootTableAPIManager.buildSharedTable(
 			tableId,
 			false,
-			MadokuLootTableManager.buildSharedTableEntry(1, 2)
+			LootTableAPIManager.buildSharedTableEntry(1, 2)
 		);
 	}
 
 	public static JsonObject buildEntityTable(String tableId, boolean enabled, int minRolls, int maxRolls) {
-		return MadokuLootTableManager.buildSharedTable(
+		return LootTableAPIManager.buildSharedTable(
 			tableId,
 			enabled,
-			MadokuLootTableManager.buildSharedTableEntry(minRolls, maxRolls)
+			LootTableAPIManager.buildSharedTableEntry(minRolls, maxRolls)
 		);
 	}
 
@@ -76,13 +76,13 @@ public final class EntitiesConfigManager {
 		JsonObject[] entries = new JsonObject[drops == null ? 0 : drops.length];
 		for (int index = 0; index < entries.length; index++) {
 			DropDefinition drop = drops[index];
-			entries[index] = MadokuLootTableManager.buildSharedEntry(
+			entries[index] = LootTableAPIManager.buildSharedEntry(
 				drop.itemId(), drop.weight(), drop.minCount(), drop.maxCount()
 			);
 		}
-		return MadokuLootTableManager.buildSharedTable(
+		return LootTableAPIManager.buildSharedTable(
 			tableId,
-			MadokuLootTableManager.buildSharedTableEntry(minRolls, maxRolls, entries)
+			LootTableAPIManager.buildSharedTableEntry(minRolls, maxRolls, entries)
 		);
 	}
 

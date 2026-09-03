@@ -2,7 +2,7 @@ package madoku.craft.core.recipes;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -24,7 +24,8 @@ public final class FormatStonecuttingManager {
 		return new StonecutterRecipe(new Recipe.CommonInfo(recipe.showNotification()), input, result);
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, StonecutterRecipe recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, StonecutterRecipe recipe) {
 		RecipesFormatManager.writeSingleInputDefaults(root, recipe);
 	}
 }
+

@@ -3,7 +3,7 @@ package madoku.craft.core.recipes;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -35,7 +35,7 @@ public final class FormatCraftingManager {
 			: buildShapedOverride(root, recipe, resultItemId, resultCount);
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, CraftingRecipe recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, CraftingRecipe recipe) {
 		if (recipe instanceof ShapedRecipe shaped) {
 			root.put(RecipesConfigManager.FIELD_CRAFTING_SHAPE, RecipesConfigManager.CRAFTING_SHAPE_SHAPED);
 			writeShapedDefaults(root, shaped);
@@ -76,13 +76,13 @@ public final class FormatCraftingManager {
 		);
 	}
 
-	private static void writeShapedDefaults(JSONFormatManager.ObjectBuilder root, ShapedRecipe recipe) {
+	private static void writeShapedDefaults(JSONFormatAPIManager.ObjectBuilder root, ShapedRecipe recipe) {
 		List<Optional<Ingredient>> ingredients = recipe.getIngredients();
 		int width = Math.max(1, recipe.getWidth());
 		int height = Math.max(1, recipe.getHeight());
 		Map<String, Character> symbolBySignature = new java.util.LinkedHashMap<>();
 		Map<Character, String> firstItemIdBySymbol = new java.util.LinkedHashMap<>();
-		JSONFormatManager.ArrayBuilder pattern = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder pattern = JSONFormatAPIManager.array();
 		int symbolIndex = 0;
 		for (int row = 0; row < height; row++) {
 			StringBuilder rowBuilder = new StringBuilder(width);
@@ -102,16 +102,16 @@ public final class FormatCraftingManager {
 			}
 			pattern.add(rowBuilder.toString());
 		}
-		JSONFormatManager.ObjectBuilder key = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder key = JSONFormatAPIManager.object();
 		for (Map.Entry<Character, String> entry : firstItemIdBySymbol.entrySet()) key.put(String.valueOf(entry.getKey()), entry.getValue());
 		root.put(RecipesConfigManager.FIELD_PATTERN, pattern.build());
 		root.put(RecipesConfigManager.FIELD_KEY, key.build());
 		writeCraftingIngredientsDefaults(root, RecipesFormatManager.readShapedIngredients(recipe));
 	}
 
-	private static void writeCraftingIngredientsDefaults(JSONFormatManager.ObjectBuilder root, List<Ingredient> ingredientList) {
+	private static void writeCraftingIngredientsDefaults(JSONFormatAPIManager.ObjectBuilder root, List<Ingredient> ingredientList) {
 		if (ingredientList == null || ingredientList.isEmpty()) return;
-		JSONFormatManager.ArrayBuilder ingredients = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder ingredients = JSONFormatAPIManager.array();
 		Set<String> uniqueItemIds = new LinkedHashSet<>();
 		for (Ingredient ingredient : ingredientList) {
 			String itemId = RecipesFormatManager.firstItemIdFromIngredient(ingredient);
@@ -135,3 +135,4 @@ public final class FormatCraftingManager {
 		return symbols.charAt(Math.max(0, index) % symbols.length());
 	}
 }
+

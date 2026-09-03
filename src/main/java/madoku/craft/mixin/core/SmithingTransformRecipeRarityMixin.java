@@ -1,8 +1,8 @@
 package madoku.craft.mixin.core;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.recipes.MadokuRecipesManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.recipes.RecipesAPIManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.item.ItemStack;
@@ -21,7 +21,7 @@ public class SmithingTransformRecipeRarityMixin {
 		SmithingRecipeInput input,
 		CallbackInfoReturnable<ItemStack> cir
 	) {
-		ItemStack upgradedResult = MadokuRecipesManager.createSmithingUpgradeResult(input.base(), cir.getReturnValue());
+		ItemStack upgradedResult = RecipesAPIManager.createSmithingUpgradeResult(input.base(), cir.getReturnValue());
 		cir.setReturnValue(upgradedResult);
 	}
 
@@ -33,8 +33,10 @@ public class SmithingTransformRecipeRarityMixin {
 
 		ItemStack source = menu.getSlot(AnvilMenu.INPUT_SLOT).getItem();
 		ItemStack result = menu.getSlot(AnvilMenu.RESULT_SLOT).getItem();
-		EnchantBooksManager.removeIncompatibleConfiguredEnchantments(source, result);
-		MadokuRarityManager.preserveRarityOnRename(source, result);
+		EnchantBooksAPIManager.removeIncompatibleConfiguredEnchantments(source, result);
+		RarityAPIManager.preserveRarityOnRename(source, result);
 		MadokuItemsManager.updateDurabilityLore(result);
 	}
 }
+
+

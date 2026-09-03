@@ -5,13 +5,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.chunk.ChunkAPIManager;
 import madoku.craft.core.data.DataSaveCoordinatorManager;
-import madoku.craft.core.data.DataWorldChunkManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.data.DataWorldChunkAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -49,7 +49,7 @@ final class SchedulerRuntimeManager {
 	private static final String FIELD_LAST_TOUCHED_DAY = "last-touched-day";
 	private static final Map<String, SchedulerEntry> SCHEDULERS = new LinkedHashMap<>();
 	private static final Map<String, String> SCHEDULER_IDS_BY_BINDING = new HashMap<>();
-	private static final Map<String, MadokuSchedulerManager.TaskHandler> TASK_HANDLERS = new HashMap<>();
+	private static final Map<String, SchedulerAPIManager.TaskHandler> TASK_HANDLERS = new HashMap<>();
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
 	private static boolean dirty;
@@ -63,23 +63,23 @@ final class SchedulerRuntimeManager {
 	static long getInactiveExpirationTicks() {
 		try {
 			return Math.multiplyExact(
-				Math.multiplyExact(DEFAULT_INACTIVE_EXPIRATION_MINUTES, MadokuTimeManager.SECONDS_PER_MINUTE),
-				MadokuTimeManager.TICKS_PER_SECOND);
+				Math.multiplyExact(DEFAULT_INACTIVE_EXPIRATION_MINUTES, TimeAPIManager.SECONDS_PER_MINUTE),
+				TimeAPIManager.TICKS_PER_SECOND);
 		} catch (ArithmeticException exception) {
 			return DEFAULT_INACTIVE_EXPIRATION_MINUTES
-				* MadokuTimeManager.SECONDS_PER_MINUTE
-				* MadokuTimeManager.TICKS_PER_SECOND;
+				* TimeAPIManager.SECONDS_PER_MINUTE
+				* TimeAPIManager.TICKS_PER_SECOND;
 		}
 	}
 
 	static void initialize() {
-		SchedulerAdaptiveIntervalManager.clearAll();
+		SchedulerAdaptiveIntervalAPIManager.clearAll();
 	}
 
 	static void reset() {
 		SCHEDULERS.clear();
 		SCHEDULER_IDS_BY_BINDING.clear();
-		SchedulerAdaptiveIntervalManager.clearAll();
+		SchedulerAdaptiveIntervalAPIManager.clearAll();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 	}
@@ -87,52 +87,52 @@ final class SchedulerRuntimeManager {
 	static void loadPersistedData(MinecraftServer server) {
 		if (server == null) return;
 		reset();
-		JsonObject persistedData = MadokuJSONManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
+		JsonObject persistedData = JSONAPIManager.loadWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, createDefaultData());
 		applyPersistedData(server, persistedData);
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	static void savePersistedData(MinecraftServer server) {
 		if (server == null) return;
 		saveSchedulerFiles(server);
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		JSONAPIManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 	}
 
 	static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) return;
-		long currentBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
+		long currentBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
 		if (currentBucket == lastAutosaveBucket) return;
 		if (!dirty) {
 			lastAutosaveBucket = currentBucket;
 			return;
 		}
 		saveSchedulerFiles(server);
-		MadokuJSONManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
+		JSONAPIManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 		lastAutosaveBucket = currentBucket;
 	}
 
 	static void onClockTick(MinecraftServer server) {
-		if (server != null && MadokuTimeManager.isEnabled()) {
+		if (server != null && TimeAPIManager.isEnabled()) {
 			processDue(server);
 		}
 	}
 
 	static void onServerTick(MinecraftServer server) {
-		if (server != null && !MadokuTimeManager.isEnabled()) {
+		if (server != null && !TimeAPIManager.isEnabled()) {
 			processDue(server);
 		}
 	}
 
 	static long resolveAdaptiveDelayTicks(MinecraftServer server, String ownerId, long minimum, long maximum) {
-		return SchedulerAdaptiveIntervalManager.resolve(adaptiveSystemIdForSchedulerOwner(ownerId), server, minimum, maximum);
+		return SchedulerAdaptiveIntervalAPIManager.resolve(adaptiveSystemIdForSchedulerOwner(ownerId), server, minimum, maximum);
 	}
 
 	static void clearAdaptiveDelayState(String ownerId) {
-		SchedulerAdaptiveIntervalManager.clearSystem(adaptiveSystemIdForSchedulerOwner(ownerId));
+		SchedulerAdaptiveIntervalAPIManager.clearSystem(adaptiveSystemIdForSchedulerOwner(ownerId));
 	}
 
 	static void clearQueuedRequests(String schedulerId) {
@@ -155,8 +155,8 @@ final class SchedulerRuntimeManager {
 		return false;
 	}
 
-	static String createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding binding, int expirationDays) {
-		MadokuSchedulerManager.SchedulerBinding normalizedBinding = normalizeBinding(binding);
+	static String createOrGetScheduler(SchedulerAPIManager.SchedulerBinding binding, int expirationDays) {
+		SchedulerAPIManager.SchedulerBinding normalizedBinding = normalizeBinding(binding);
 		int normalizedExpirationDays = normalizeExpirationDays(expirationDays);
 		long currentDay = resolveCurrentSchedulerDay();
 		String bindingKey = bindingKey(normalizedBinding);
@@ -178,23 +178,23 @@ final class SchedulerRuntimeManager {
 		return created.schedulerId;
 	}
 
-	static MadokuSchedulerManager.EnqueueStatus enqueue(
-		String schedulerId, long delayTicks, String taskType, JsonObject payload, MadokuSchedulerManager.TickDomain domain) {
+	static SchedulerAPIManager.EnqueueStatus enqueue(
+		String schedulerId, long delayTicks, String taskType, JsonObject payload, SchedulerAPIManager.TickDomain domain) {
 		SchedulerEntry entry = SCHEDULERS.get(schedulerId);
-		if (entry == null) return MadokuSchedulerManager.EnqueueStatus.SCHEDULER_NOT_FOUND;
+		if (entry == null) return SchedulerAPIManager.EnqueueStatus.SCHEDULER_NOT_FOUND;
 		String normalizedTaskType = normalizeKey(taskType);
-		if (normalizedTaskType.isEmpty()) return MadokuSchedulerManager.EnqueueStatus.INVALID_TASK_TYPE;
-		long nowTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
+		if (normalizedTaskType.isEmpty()) return SchedulerAPIManager.EnqueueStatus.INVALID_TASK_TYPE;
+		long nowTick = Math.max(0L, TimeAPIManager.getGameplayTicks());
 		entry.touch(resolveCurrentSchedulerDay());
 		long dueTick = Math.max(0L, nowTick + Math.max(0L, delayTicks));
 		entry.tasks.add(new ScheduledTask(entry.nextRequestId++, nowTick, dueTick,
-			domain == null ? MadokuSchedulerManager.TickDomain.GAMEPLAY : domain,
+			domain == null ? SchedulerAPIManager.TickDomain.GAMEPLAY : domain,
 			normalizedTaskType, payload));
 		markDirty();
-		return MadokuSchedulerManager.EnqueueStatus.ACCEPTED;
+		return SchedulerAPIManager.EnqueueStatus.ACCEPTED;
 	}
 
-	static void registerTaskHandler(String taskType, MadokuSchedulerManager.TaskHandler handler) {
+	static void registerTaskHandler(String taskType, SchedulerAPIManager.TaskHandler handler) {
 		String normalized = normalizeKey(taskType);
 		if (normalized.isEmpty() || handler == null) {
 			throw new IllegalArgumentException("Task type and handler must not be blank.");
@@ -208,7 +208,7 @@ final class SchedulerRuntimeManager {
 	}
 
 	private static void processDue(MinecraftServer server) {
-		long nowTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
+		long nowTick = Math.max(0L, TimeAPIManager.getGameplayTicks());
 		long currentDay = resolveCurrentSchedulerDay();
 		List<SchedulerEntry> snapshot = new ArrayList<>(SCHEDULERS.values());
 		for (SchedulerEntry entry : snapshot) {
@@ -249,7 +249,7 @@ final class SchedulerRuntimeManager {
 			entry.tasks.poll();
 			changed = true;
 			entry.touch(currentDay);
-			MadokuSchedulerManager.TaskHandler handler = TASK_HANDLERS.get(next.taskType);
+			SchedulerAPIManager.TaskHandler handler = TASK_HANDLERS.get(next.taskType);
 			if (handler == null) {
 				LOGGER.warn("Scheduler task type '{}' has no handler: scheduler={} binding={}", next.taskType, entry.schedulerId, describeBinding(entry.binding));
 				continue;
@@ -257,7 +257,7 @@ final class SchedulerRuntimeManager {
 			try {
 				handler.execute(
 					server,
-					new MadokuSchedulerManager.TaskContext(entry.schedulerId, next.requestId, nowTick, entry.binding, next.domain),
+					new SchedulerAPIManager.TaskContext(entry.schedulerId, next.requestId, nowTick, entry.binding, next.domain),
 					next.payload.deepCopy()
 				);
 			} catch (RuntimeException exception) {
@@ -267,7 +267,7 @@ final class SchedulerRuntimeManager {
 		if (changed) markDirty();
 	}
 
-	private static boolean isRunnable(MinecraftServer server, MadokuSchedulerManager.SchedulerBinding binding) {
+	private static boolean isRunnable(MinecraftServer server, SchedulerAPIManager.SchedulerBinding binding) {
 		if (server == null || binding == null) return false;
 		return switch (binding.getType()) {
 			case GLOBAL -> true;
@@ -276,13 +276,13 @@ final class SchedulerRuntimeManager {
 		};
 	}
 
-	private static boolean isChunkRunnable(MinecraftServer server, MadokuSchedulerManager.SchedulerBinding binding) {
+	private static boolean isChunkRunnable(MinecraftServer server, SchedulerAPIManager.SchedulerBinding binding) {
 		ServerLevel level = resolveLevel(server, binding.getLevelId());
-		return level != null && MadokuChunkManager.isChunkLoaded(level, binding.getChunkX(), binding.getChunkZ())
-			&& MadokuChunkManager.isChunkBlockTicking(level, binding.getChunkX(), binding.getChunkZ());
+		return level != null && ChunkAPIManager.isChunkLoaded(level, binding.getChunkX(), binding.getChunkZ())
+			&& ChunkAPIManager.isChunkBlockTicking(level, binding.getChunkX(), binding.getChunkZ());
 	}
 
-	private static boolean isEventRunnable(MinecraftServer server, MadokuSchedulerManager.SchedulerBinding binding) {
+	private static boolean isEventRunnable(MinecraftServer server, SchedulerAPIManager.SchedulerBinding binding) {
 		if (binding.getEventType() == null || binding.getEventId() == null || binding.getEventId().isBlank()) return false;
 		return switch (binding.getEventType()) {
 			case ENTITY -> findEntity(server, binding.getEntityUuid()) != null;
@@ -291,27 +291,27 @@ final class SchedulerRuntimeManager {
 		};
 	}
 
-	private static boolean isBlockValid(MinecraftServer server, MadokuSchedulerManager.SchedulerBinding binding) {
+	private static boolean isBlockValid(MinecraftServer server, SchedulerAPIManager.SchedulerBinding binding) {
 		ServerLevel level = resolveLevel(server, binding.getLevelId());
 		Long packedPos = binding.getBlockPosLong();
 		if (level == null || packedPos == null) return false;
 		BlockPos blockPos = BlockPos.of(packedPos);
 		int chunkX = blockPos.getX() >> 4;
 		int chunkZ = blockPos.getZ() >> 4;
-		return MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)
-			&& MadokuChunkManager.isChunkBlockTicking(level, chunkX, chunkZ)
+		return ChunkAPIManager.isChunkLoaded(level, chunkX, chunkZ)
+			&& ChunkAPIManager.isChunkBlockTicking(level, chunkX, chunkZ)
 			&& !level.isEmptyBlock(blockPos);
 	}
 
-	private static boolean isBlockEntityValid(MinecraftServer server, MadokuSchedulerManager.SchedulerBinding binding) {
+	private static boolean isBlockEntityValid(MinecraftServer server, SchedulerAPIManager.SchedulerBinding binding) {
 		ServerLevel level = resolveLevel(server, binding.getLevelId());
 		Long packedPos = binding.getBlockPosLong();
 		if (level == null || packedPos == null) return false;
 		BlockPos blockPos = BlockPos.of(packedPos);
 		int chunkX = blockPos.getX() >> 4;
 		int chunkZ = blockPos.getZ() >> 4;
-		return MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)
-			&& MadokuChunkManager.isChunkBlockTicking(level, chunkX, chunkZ)
+		return ChunkAPIManager.isChunkLoaded(level, chunkX, chunkZ)
+			&& ChunkAPIManager.isChunkBlockTicking(level, chunkX, chunkZ)
 			&& level.getBlockEntity(blockPos) != null;
 	}
 
@@ -327,11 +327,11 @@ final class SchedulerRuntimeManager {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object().put("gameplay-ticks", 0L).array("schedulers", ignored -> { }).build();
+		return JSONFormatAPIManager.object().put("gameplay-ticks", 0L).array("schedulers", ignored -> { }).build();
 	}
 
 	private static JsonObject toPersistedData() {
-		return JSONFormatManager.object().put("gameplay-ticks", Math.max(0L, MadokuTimeManager.getGameplayTicks())).array("schedulers", schedulers -> {
+		return JSONFormatAPIManager.object().put("gameplay-ticks", Math.max(0L, TimeAPIManager.getGameplayTicks())).array("schedulers", schedulers -> {
 			for (SchedulerEntry entry : SCHEDULERS.values()) if (entry != null && !entry.tasks.isEmpty()) schedulers.add(entry.schedulerId);
 		}).build();
 	}
@@ -340,7 +340,7 @@ final class SchedulerRuntimeManager {
 		SCHEDULERS.clear();
 		SCHEDULER_IDS_BY_BINDING.clear();
 		if (source == null) return;
-		MadokuTimeManager.setGameplayTicks(Math.max(0L, getLong(source, "gameplay-ticks", 0L)));
+		TimeAPIManager.setGameplayTicks(Math.max(0L, getLong(source, "gameplay-ticks", 0L)));
 		JsonArray schedulers = getArray(source, "schedulers");
 		if (schedulers == null) return;
 		for (JsonElement element : schedulers) {
@@ -353,7 +353,7 @@ final class SchedulerRuntimeManager {
 	}
 
 	private static long getAutoSaveIntervalTicks(MinecraftServer server) {
-		return DataWorldChunkManager.getAutoSaveIntervalTicks();
+		return DataWorldChunkAPIManager.getAutoSaveIntervalTicks();
 	}
 
 	private static SchedulerEntry loadSchedulerEntry(MinecraftServer server, String schedulerId) {
@@ -361,7 +361,7 @@ final class SchedulerRuntimeManager {
 		Path file = resolveSchedulerFile(server, normalizedSchedulerId, false);
 		if (server == null || normalizedSchedulerId.isBlank() || file == null || !Files.isRegularFile(file)) return null;
 		try {
-			return SchedulerEntry.fromJson(JSONFormatManager.readManagedDocument(file).data());
+			return SchedulerEntry.fromJson(JSONFormatAPIManager.readManagedDocument(file).data());
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load scheduler data file {}", file, exception);
 			return null;
@@ -380,7 +380,7 @@ final class SchedulerRuntimeManager {
 			JsonObject general = new JsonObject();
 			general.addProperty("scheduler-id", entry.schedulerId);
 			DataSaveCoordinatorManager.submit("scheduler-" + entry.schedulerId, file,
-				() -> JSONFormatManager.writeManagedDocument(file, data, general, JSONTypeManager.STATIC_DATA));
+				() -> JSONFormatAPIManager.writeManagedDocument(file, data, general, JSONTypeAPIManager.STATIC_DATA));
 		}
 		Path schedulerDirectory = resolveSchedulerDirectory(server, false);
 		Set<String> capturedActiveSchedulerIds = new LinkedHashSet<>(activeSchedulerIds);
@@ -406,7 +406,7 @@ final class SchedulerRuntimeManager {
 
 	private static Path resolveSchedulerDirectory(MinecraftServer server, boolean createDirectories) {
 		if (server == null) return null;
-		Path directory = MadokuJSONManager.getWorldRootDirectory(server).resolve(DATA_FOLDER_NAME).resolve(SCHEDULER_FILES_DIRECTORY);
+		Path directory = JSONAPIManager.getWorldRootDirectory(server).resolve(DATA_FOLDER_NAME).resolve(SCHEDULER_FILES_DIRECTORY);
 		if (!createDirectories) return directory;
 		try { Files.createDirectories(directory); return directory; }
 		catch (IOException exception) { throw new IllegalStateException("Failed to create scheduler directory: " + directory, exception); }
@@ -435,12 +435,12 @@ final class SchedulerRuntimeManager {
 
 	private static void markDirty() { dirty = true; }
 
-	private static MadokuSchedulerManager.SchedulerBinding normalizeBinding(MadokuSchedulerManager.SchedulerBinding binding) {
+	private static SchedulerAPIManager.SchedulerBinding normalizeBinding(SchedulerAPIManager.SchedulerBinding binding) {
 		if (binding == null) throw new IllegalArgumentException("Scheduler binding must not be null.");
 		return binding.normalized();
 	}
 
-	private static String bindingKey(MadokuSchedulerManager.SchedulerBinding binding) {
+	private static String bindingKey(SchedulerAPIManager.SchedulerBinding binding) {
 		if (binding == null) return "";
 		return binding.getType().id() + '\u0000' + binding.getKey() + '\u0000'
 			+ (binding.getLevelId() == null ? "" : binding.getLevelId()) + '\u0000'
@@ -449,7 +449,7 @@ final class SchedulerRuntimeManager {
 			+ (binding.getEventId() == null ? "" : binding.getEventId());
 	}
 
-	private static String describeBinding(MadokuSchedulerManager.SchedulerBinding binding) {
+	private static String describeBinding(SchedulerAPIManager.SchedulerBinding binding) {
 		return binding == null ? "unknown" : binding.getType().id() + ":" + binding.getKey();
 	}
 
@@ -462,7 +462,7 @@ final class SchedulerRuntimeManager {
 	}
 
 	private static long resolveCurrentSchedulerDay() {
-		return Math.max(0L, Math.floorDiv(MadokuTimeManager.getGameplayTicks(), MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE));
+		return Math.max(0L, Math.floorDiv(TimeAPIManager.getGameplayTicks(), TimeAPIManager.MINECRAFT_TICKS_PER_CYCLE));
 	}
 
 	private static JsonArray getArray(JsonObject object, String key) {
@@ -521,7 +521,7 @@ final class SchedulerRuntimeManager {
 
 	private static final class SchedulerEntry {
 		private final String schedulerId;
-		private final MadokuSchedulerManager.SchedulerBinding binding;
+		private final SchedulerAPIManager.SchedulerBinding binding;
 		private final PriorityQueue<ScheduledTask> tasks = new PriorityQueue<>(
 			Comparator.comparingLong((ScheduledTask task) -> task.dueTick).thenComparingLong(task -> task.requestId));
 		private int expirationDays;
@@ -529,12 +529,12 @@ final class SchedulerRuntimeManager {
 		private long lastRunnableGameplayTick;
 		private long nextRequestId = 1L;
 
-		private SchedulerEntry(String schedulerId, MadokuSchedulerManager.SchedulerBinding binding, int expirationDays, long lastTouchedDay) {
+		private SchedulerEntry(String schedulerId, SchedulerAPIManager.SchedulerBinding binding, int expirationDays, long lastTouchedDay) {
 			this.schedulerId = schedulerId;
 			this.binding = binding;
 			this.expirationDays = normalizeExpirationDays(expirationDays);
 			this.lastTouchedDay = Math.max(0L, lastTouchedDay);
-			this.lastRunnableGameplayTick = Math.max(0L, MadokuTimeManager.getGameplayTicks());
+			this.lastRunnableGameplayTick = Math.max(0L, TimeAPIManager.getGameplayTicks());
 		}
 
 		private void setExpirationDays(int value) {
@@ -559,11 +559,11 @@ final class SchedulerRuntimeManager {
 		}
 
 		private JsonObject toJson() {
-			JSONFormatManager.ArrayBuilder tasksArray = JSONFormatManager.array();
+			JSONFormatAPIManager.ArrayBuilder tasksArray = JSONFormatAPIManager.array();
 			List<ScheduledTask> snapshot = new ArrayList<>(tasks);
 			snapshot.sort(Comparator.comparingLong((ScheduledTask task) -> task.dueTick).thenComparingLong(task -> task.requestId));
 			for (ScheduledTask task : snapshot) tasksArray.add(task.toJson());
-			return JSONFormatManager.object().put("scheduler-id", schedulerId)
+			return JSONFormatAPIManager.object().put("scheduler-id", schedulerId)
 				.object(GROUP_GENERAL, general -> general.put(FIELD_EXPIRATION, expirationDays).put(FIELD_LAST_TOUCHED_DAY, Math.max(0L, lastTouchedDay)))
 				.put("binding", binding.toJson()).put("next-request-id", Math.max(1L, nextRequestId))
 				.put("tasks", tasksArray.build()).build();
@@ -573,7 +573,7 @@ final class SchedulerRuntimeManager {
 			if (element == null || !element.isJsonObject()) return null;
 			JsonObject source = element.getAsJsonObject();
 			String schedulerId = getString(source, "scheduler-id", "");
-			MadokuSchedulerManager.SchedulerBinding binding = MadokuSchedulerManager.SchedulerBinding.fromJson(getObject(source, "binding"));
+			SchedulerAPIManager.SchedulerBinding binding = SchedulerAPIManager.SchedulerBinding.fromJson(getObject(source, "binding"));
 			JsonObject general = getObject(source, GROUP_GENERAL);
 			if (schedulerId.isBlank() || binding == null) return null;
 			SchedulerEntry entry = new SchedulerEntry(schedulerId, binding,
@@ -593,11 +593,11 @@ final class SchedulerRuntimeManager {
 		private final long requestId;
 		private final long enqueuedTick;
 		private final long dueTick;
-		private final MadokuSchedulerManager.TickDomain domain;
+		private final SchedulerAPIManager.TickDomain domain;
 		private final String taskType;
 		private final JsonObject payload;
 
-		private ScheduledTask(long requestId, long enqueuedTick, long dueTick, MadokuSchedulerManager.TickDomain domain, String taskType, JsonObject payload) {
+		private ScheduledTask(long requestId, long enqueuedTick, long dueTick, SchedulerAPIManager.TickDomain domain, String taskType, JsonObject payload) {
 			this.requestId = requestId;
 			this.enqueuedTick = enqueuedTick;
 			this.dueTick = dueTick;
@@ -607,7 +607,7 @@ final class SchedulerRuntimeManager {
 		}
 
 		private JsonObject toJson() {
-			return JSONFormatManager.object().put("request-id", requestId).put("enqueued-tick", enqueuedTick)
+			return JSONFormatAPIManager.object().put("request-id", requestId).put("enqueued-tick", enqueuedTick)
 				.put("due-tick", dueTick).put("domain", domain.id()).put("task-type", taskType)
 				.put("payload", payload.deepCopy()).build();
 		}
@@ -615,7 +615,7 @@ final class SchedulerRuntimeManager {
 		private static ScheduledTask fromJson(JsonElement element) {
 			if (element == null || !element.isJsonObject()) return null;
 			JsonObject source = element.getAsJsonObject();
-			MadokuSchedulerManager.TickDomain domain = MadokuSchedulerManager.TickDomain.fromId(getString(source, "domain", ""));
+			SchedulerAPIManager.TickDomain domain = SchedulerAPIManager.TickDomain.fromId(getString(source, "domain", ""));
 			String taskType = normalizeKey(getString(source, "task-type", ""));
 			if (domain == null || taskType.isBlank()) return null;
 			JsonElement payloadElement = source.get("payload");
@@ -625,3 +625,6 @@ final class SchedulerRuntimeManager {
 		}
 	}
 }
+
+
+

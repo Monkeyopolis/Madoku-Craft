@@ -2,8 +2,8 @@ package madoku.craft.ecosystem;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
 
 import java.util.List;
 
@@ -175,7 +175,7 @@ public final class NaturalGrowthConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.object(FIELD_BLOCK_GROWTH, block -> {
 			block.put(FIELD_ENABLED, value.blockGrowth().enabled());
 				block.object("dirt", dirt -> writeDirtGrowth(dirt, value.blockGrowth().dirt()));
@@ -224,7 +224,7 @@ public final class NaturalGrowthConfigManager {
 		);
 	}
 
-	private static void writeFoliageGrowth(JSONFormatManager.ObjectBuilder builder, FoliageGrowthSettings value) {
+	private static void writeFoliageGrowth(JSONFormatAPIManager.ObjectBuilder builder, FoliageGrowthSettings value) {
 		FoliageGrowthSettings safe = value == null ? defaults().foliageGrowth : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.object(FIELD_GROWTH_TIME, time -> time
@@ -249,7 +249,7 @@ public final class NaturalGrowthConfigManager {
 		);
 	}
 
-	private static void writeSpeciesLike(JSONFormatManager.ObjectBuilder builder, SpeciesGrowthSettings value) {
+	private static void writeSpeciesLike(JSONFormatAPIManager.ObjectBuilder builder, SpeciesGrowthSettings value) {
 		SpeciesGrowthSettings safe = value == null ? defaults().vegetationGrowth().wildflowers() : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_ELIGIBLE_BIOMES, EcosystemConfigManager.toStringArray(safe.eligibleBiomes()))
@@ -265,7 +265,7 @@ public final class NaturalGrowthConfigManager {
 		return new FoliageTargetSettings(EcosystemConfigManager.readInt(entryRoot, FIELD_WEIGHT, safeFallback.weight()));
 	}
 
-	private static void writeDirtGrowth(JSONFormatManager.ObjectBuilder builder, DirtGrowthSettings value) {
+	private static void writeDirtGrowth(JSONFormatAPIManager.ObjectBuilder builder, DirtGrowthSettings value) {
 		DirtGrowthSettings safe = value == null ? defaults().blockGrowth().dirt() : value;
 		builder.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_TARGET_BLOCKS, EcosystemConfigManager.toStringArray(safe.targetBlocks()))
@@ -275,7 +275,7 @@ public final class NaturalGrowthConfigManager {
 			.object(FIELD_GROWTH_MULTIPLIER, multiplier -> writeMultiplier(multiplier, safe.growthMultiplier()));
 	}
 
-	private static void writeMultiplier(JSONFormatManager.ObjectBuilder builder, EcosystemConfigManager.SeasonGrowthMultiplier value) {
+	private static void writeMultiplier(JSONFormatAPIManager.ObjectBuilder builder, EcosystemConfigManager.SeasonGrowthMultiplier value) {
 		EcosystemConfigManager.SeasonGrowthMultiplier safe = value == null
 			? new EcosystemConfigManager.SeasonGrowthMultiplier(true, 1.0d, 1.0d, 1.0d, 1.0d)
 			: value;
@@ -554,7 +554,7 @@ public final class NaturalGrowthConfigManager {
 		if (baseRange == null || multiplier == null) {
 			return null;
 		}
-		if (!multiplier.enabled() || !MadokuSeasonManager.isEnabled()) {
+		if (!multiplier.enabled() || !SeasonAPIManager.isEnabled()) {
 			return baseRange;
 		}
 		double speed = multiplier.forSeason(seasonId);
@@ -566,5 +566,6 @@ public final class NaturalGrowthConfigManager {
 		return new EcosystemConfigManager.DayRange(adjustedMin, adjustedMax);
 	}
 }
+
 
 

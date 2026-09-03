@@ -1,6 +1,6 @@
 package madoku.craft.core.time;
 
-import madoku.craft.core.sync.SyncWorldManager;
+import madoku.craft.core.sync.SyncWorldAPIManager;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -25,9 +25,9 @@ public final class MadokuTimeManager {
 		TimeSleepManager.reset();
 		resetSyncState();
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-			TimePayloadManager payload = currentSyncPayload(server);
+			TimePayloadAPIManager payload = currentSyncPayload(server);
 			if (payload != null) {
-				SyncWorldManager.send(handler.player, payload);
+				SyncWorldAPIManager.send(handler.player, payload);
 			}
 		});
 	}
@@ -159,7 +159,7 @@ public final class MadokuTimeManager {
 	}
 
 	private static void broadcastWorldTime(MinecraftServer server, boolean force) {
-		TimePayloadManager payload = currentSyncPayload(server);
+		TimePayloadAPIManager payload = currentSyncPayload(server);
 		if (payload == null || server == null) {
 			return;
 		}
@@ -170,7 +170,7 @@ public final class MadokuTimeManager {
 		}
 
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			SyncWorldManager.send(player, payload);
+			SyncWorldAPIManager.send(player, payload);
 		}
 		lastSyncDay = payload.day();
 		lastSyncTotalMinutes = totalMinutes;
@@ -181,7 +181,7 @@ public final class MadokuTimeManager {
 		lastSyncTotalMinutes = -1L;
 	}
 
-	private static TimePayloadManager currentSyncPayload(MinecraftServer server) {
+	private static TimePayloadAPIManager currentSyncPayload(MinecraftServer server) {
 		if (server == null || server.overworld() == null) {
 			return null;
 		}
@@ -189,6 +189,7 @@ public final class MadokuTimeManager {
 		long dayTime = server.overworld().getOverworldClockTime();
 		long day = getDay(dayTime);
 		int totalMinutes = getTotalMinutes(dayTime);
-		return new TimePayloadManager(day, totalMinutes / 60, totalMinutes % 60);
+		return new TimePayloadAPIManager(day, totalMinutes / 60, totalMinutes % 60);
 	}
 }
+

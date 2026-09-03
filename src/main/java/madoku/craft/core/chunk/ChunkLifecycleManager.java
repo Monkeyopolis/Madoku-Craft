@@ -45,19 +45,19 @@ final class ChunkLifecycleManager {
 		if (level == null || chunk == null || !ChunkConfigManager.isChunkSystemEnabled()) {
 			return;
 		}
-		MadokuChunkManager.putChunkStatus(
-			MadokuChunkManager.levelId(level),
+		ChunkAPIManager.putChunkStatus(
+			ChunkAPIManager.levelId(level),
 			chunk.getPos().pack(),
 			FullChunkStatus.FULL
 		);
-		MadokuChunkManager.enqueueChunkLoaded(level, chunk.getPos().x(), chunk.getPos().z());
+		ChunkAPIManager.enqueueChunkLoaded(level, chunk.getPos().x(), chunk.getPos().z());
 	}
 
 	private static void onChunkUnload(ServerLevel level, LevelChunk chunk) {
 		if (level == null || chunk == null || serverStopping) {
 			return;
 		}
-		MadokuChunkManager.removeChunk(MadokuChunkManager.levelId(level), chunk.getPos().pack());
-		MadokuChunkManager.enqueueChunkUnloaded(level, chunk.getPos().x(), chunk.getPos().z());
+		ChunkAPIManager.removeChunk(ChunkAPIManager.levelId(level), chunk.getPos().pack());
+		ChunkAPIManager.enqueueChunkUnloaded(level, chunk.getPos().x(), chunk.getPos().z());
 	}
 }

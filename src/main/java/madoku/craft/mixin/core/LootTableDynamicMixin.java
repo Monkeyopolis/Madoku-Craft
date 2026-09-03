@@ -2,8 +2,8 @@ package madoku.craft.mixin.core;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.loot.MadokuLootTableManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
+import madoku.craft.core.loot.LootTableAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.util.RandomSource;
@@ -30,7 +30,7 @@ public class LootTableDynamicMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> cir
 	) {
-		List<ItemStack> generated = MadokuLootTableManager.generateManagedLootForContext(lootContext);
+		List<ItemStack> generated = LootTableAPIManager.generateManagedLootForContext(lootContext);
 		if (generated == null) {
 			return;
 		}
@@ -49,7 +49,7 @@ public class LootTableDynamicMixin {
 		Consumer<ItemStack> consumer,
 		CallbackInfo ci
 	) {
-		List<ItemStack> generated = MadokuLootTableManager.generateManagedLootForContext(lootContext);
+		List<ItemStack> generated = LootTableAPIManager.generateManagedLootForContext(lootContext);
 		if (generated == null) {
 			return;
 		}
@@ -71,12 +71,13 @@ public class LootTableDynamicMixin {
 		RandomSource random = lootContext == null ? null : lootContext.getRandom();
 		for (ItemStack stack : stacks) {
 			MadokuItemsManager.applyGeneratedItemLevel(stack, random);
-			MadokuRarityManager.applyGeneratedRarity(stack, random,
+			RarityAPIManager.applyGeneratedRarity(stack, random,
 				MadokuLuckManager.resolveLootPlayer(lootContext));
 			PetHagManager.applyLore(stack);
 		}
 	}
 }
+
 
 
 

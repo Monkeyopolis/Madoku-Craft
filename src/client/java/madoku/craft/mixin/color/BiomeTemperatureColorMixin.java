@@ -1,7 +1,7 @@
 package madoku.craft.mixin.color;
 
 import madoku.craft.color.ClientColorContext;
-import madoku.craft.core.season.EnvironmentTransitionConfigManager;
+import madoku.craft.core.season.EnvironmentTransitionConfigAPIManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BiomeColors;
@@ -46,7 +46,7 @@ public final class BiomeTemperatureColorMixin {
 	}
 
 	private static void applyTemperatureColor(BlockAndTintGetter level, BlockPos pos, CallbackInfoReturnable<Integer> cir) {
-		if (level == null || pos == null || !EnvironmentTransitionConfigManager.getSettings().transitionColorEnabled()) {
+		if (level == null || pos == null || !EnvironmentTransitionConfigAPIManager.getSettings().transitionColorEnabled()) {
 			return;
 		}
 
@@ -321,3 +321,4 @@ public final class BiomeTemperatureColorMixin {
 		return (alpha << 24) | (red << 16) | (green << 8) | blue;
 	}
 }
+

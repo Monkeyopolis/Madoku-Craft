@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -22,19 +22,19 @@ public abstract class EnchantmentAttributeEffectMixin {
 		String effectId = effect.id().toString();
 		if ("minecraft:enchantment.aqua_affinity".equals(effectId)) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredAquaAffinityModifier(level, callbackInfo.getReturnValue())
+				EnchantBooksAPIManager.applyConfiguredAquaAffinityModifier(level, callbackInfo.getReturnValue())
 			);
 		} else if ("minecraft:enchantment.depth_strider".equals(effectId)) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredDepthStriderModifier(level, callbackInfo.getReturnValue())
+				EnchantBooksAPIManager.applyConfiguredDepthStriderModifier(level, callbackInfo.getReturnValue())
 			);
 		} else if ("minecraft:enchantment.efficiency".equals(effectId)) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredEfficiencyModifier(level, callbackInfo.getReturnValue())
+				EnchantBooksAPIManager.applyConfiguredEfficiencyModifier(level, callbackInfo.getReturnValue())
 			);
 		} else if ("minecraft:enchantment.fire_protection".equals(effectId)) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredFireProtectionModifier(
+				EnchantBooksAPIManager.applyConfiguredFireProtectionModifier(
 					level,
 					slot == null ? "null" : slot.toString(),
 					callbackInfo.getReturnValue()
@@ -43,7 +43,7 @@ public abstract class EnchantmentAttributeEffectMixin {
 		} else if ("minecraft:enchantment.soul_speed".equals(effectId)
 			&& effect.attribute().value() == Attributes.MOVEMENT_SPEED.value()) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredSoulSpeedModifier(
+				EnchantBooksAPIManager.applyConfiguredSoulSpeedModifier(
 					level,
 					slot == null ? "null" : slot.toString(),
 					callbackInfo.getReturnValue()
@@ -52,7 +52,7 @@ public abstract class EnchantmentAttributeEffectMixin {
 		} else if ("minecraft:enchantment.sweeping_edge".equals(effectId)
 			&& effect.attribute().value() == Attributes.SWEEPING_DAMAGE_RATIO.value()) {
 			callbackInfo.setReturnValue(
-				EnchantBooksManager.applyConfiguredSweepingEdgeModifier(
+				EnchantBooksAPIManager.applyConfiguredSweepingEdgeModifier(
 					level,
 					callbackInfo.getReturnValue()
 				)
@@ -60,3 +60,4 @@ public abstract class EnchantmentAttributeEffectMixin {
 		}
 	}
 }
+

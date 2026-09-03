@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
 
 @Mixin(BlockItem.class)
 public abstract class BlockItemPlacedBlockTrackingMixin {
@@ -47,7 +47,7 @@ public abstract class BlockItemPlacedBlockTrackingMixin {
 			return;
 		}
 
-		MadokuChunkDataManager.recordPlayerPlacedBlock(serverLevel, placedPos);
+		ChunkDataAPIManager.recordPlayerPlacedBlock(serverLevel, placedPos);
 	}
 
 	private static BlockPos resolvePlacedPos(BlockPlaceContext context) {
@@ -59,4 +59,5 @@ public abstract class BlockItemPlacedBlockTrackingMixin {
 		return placedPos == null ? null : placedPos.immutable();
 	}
 }
+
 

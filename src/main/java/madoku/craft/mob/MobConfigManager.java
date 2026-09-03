@@ -4,10 +4,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.loot.EquipmentsConfigManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.loot.EquipmentsConfigAPIManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -139,59 +139,59 @@ public final class MobConfigManager {
 			return;
 		}
 		try {
-			Path root = MadokuJSONManager.getOrCreateGlobalRootDirectory();
+			Path root = JSONAPIManager.getOrCreateGlobalRootDirectory();
 			Path mobsDirectory = ensureDirectory(root.resolve(MOBS_SYSTEM_FOLDER));
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				mobsDirectory.resolve(MOBS_SETTINGS_FILE + ".json"),
 				buildMobSystemDefaults(),
-				JSONTypeManager.STATIC_CONFIG,
+				JSONTypeAPIManager.STATIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				mobsDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json"),
 				buildEntitySystemDefaults(),
-				JSONTypeManager.STATIC_CONFIG,
+				JSONTypeAPIManager.STATIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				mobsDirectory.resolve(WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
 				buildWorldDifficultyDefaults(),
-				JSONTypeManager.STATIC_CONFIG,
+				JSONTypeAPIManager.STATIC_CONFIG,
 				null
 			);
 			Path regionalDirectory = ensureDirectory(mobsDirectory.resolve(REGIONAL_DIFFICULTY_SYSTEM_FOLDER));
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				mobsDirectory.resolve(REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
 				buildRegionalDifficultyDefaults(),
-				JSONTypeManager.STATIC_CONFIG,
+				JSONTypeAPIManager.STATIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				regionalDirectory.resolve(REGIONAL_STRUCTURES_FILE + ".json"),
 				buildStructuresDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				regionalDirectory.resolve(REGIONAL_TIME_FILE + ".json"),
 				buildTimeDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFile(
+			JSONFormatAPIManager.ensureManagedFile(
 				regionalDirectory.resolve(REGIONAL_BIOMES_FILE + ".json"),
 				buildBiomesDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				null
 			);
-			JSONFormatManager.ensureManagedFolder(
+			JSONFormatAPIManager.ensureManagedFolder(
 				getOrCreateEntityDirectory(),
 				buildNewEntityDefaults(),
 				MobConfigManager::buildNewDynamicEntityDefaults,
 				(fileKey, ignored) -> true,
 				MobConfigManager::normalizeDynamicEntityEntry
 			);
-			JSONFormatManager.ensureManagedFolder(
+			JSONFormatAPIManager.ensureManagedFolder(
 				ensureDirectory(regionalDirectory.resolve(REGIONAL_SCALING_FOLDER)),
 				Map.of(),
 				MobConfigManager::buildNewDynamicScalingDefaults,
@@ -208,14 +208,14 @@ public final class MobConfigManager {
 
 	static Path getOrCreateMobSystemDirectory(String systemFolder) throws IOException {
 		Path mobsDirectory = ensureDirectory(
-			MadokuJSONManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
+			JSONAPIManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
 		);
 		return ensureDirectory(mobsDirectory.resolve(systemFolder));
 	}
 
 	static Path getOrCreateMobRootDirectory() throws IOException {
 		return ensureDirectory(
-			MadokuJSONManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
+			JSONAPIManager.getOrCreateGlobalRootDirectory().resolve(MOBS_SYSTEM_FOLDER)
 		);
 	}
 
@@ -240,10 +240,10 @@ public final class MobConfigManager {
 	private static void loadRuntimeConfig() throws IOException {
 		Path mobsRootDirectory = getOrCreateMobRootDirectory();
 		Path systemSettingsFile = mobsRootDirectory.resolve(MOBS_SETTINGS_FILE + ".json");
-		JsonObject systemSettings = JSONFormatManager.ensureManagedFile(systemSettingsFile, buildMobSystemDefaults());
+		JsonObject systemSettings = JSONFormatAPIManager.ensureManagedFile(systemSettingsFile, buildMobSystemDefaults());
 		boolean systemEnabled = readBoolean(systemSettings, FIELD_ENABLED, true);
 		Path settingsFile = mobsRootDirectory.resolve(ENTITIES_SETTINGS_FILE + ".json");
-		JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(settingsFile, buildEntitySystemDefaults());
+		JsonObject settingsRoot = JSONFormatAPIManager.ensureManagedFile(settingsFile, buildEntitySystemDefaults());
 		boolean entitiesEnabled = readBoolean(settingsRoot, FIELD_ENABLED, true);
 		Path entityDirectory = getOrCreateEntityDirectory();
 		Map<String, JsonObject> files = new LinkedHashMap<>();
@@ -251,14 +251,14 @@ public final class MobConfigManager {
 			try (var stream = Files.list(entityDirectory)) {
 				for (Path file : stream.filter(Files::isRegularFile).filter(path -> path.getFileName().toString().endsWith(".json")).toList()) {
 					String fileKey = file.getFileName().toString().substring(0, file.getFileName().toString().length() - 5).toLowerCase();
-					files.put(fileKey, JSONFormatManager.readManagedDocument(file).data());
+					files.put(fileKey, JSONFormatAPIManager.readManagedDocument(file).data());
 				}
 			}
 		}
 		runtimeConfig = systemEnabled && entitiesEnabled
 			? new RuntimeConfig(true, Map.copyOf(files))
 			: RuntimeConfig.disabled();
-		EquipmentsConfigManager.reloadConfig();
+		EquipmentsConfigAPIManager.reloadConfig();
 	}
 
 	private static Path ensureDirectory(Path path) throws IOException {
@@ -267,15 +267,15 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildEntitySystemDefaults() {
-		return JSONFormatManager.object().put(FIELD_ENABLED, true).build();
+		return JSONFormatAPIManager.object().put(FIELD_ENABLED, true).build();
 	}
 
 	public static JsonObject buildMobSystemDefaults() {
-		return JSONFormatManager.object().put(FIELD_ENABLED, true).build();
+		return JSONFormatAPIManager.object().put(FIELD_ENABLED, true).build();
 	}
 
 	public static JsonObject buildWorldDifficultyDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.object(FIELD_WORLD_DIFFICULTY_SCALING, root -> root
 				.put(FIELD_HEALTH, buildScalingRule(TYPE_PERCENTAGE, 0.25D))
@@ -290,7 +290,7 @@ public final class MobConfigManager {
 	}
 
 	public static JsonObject buildRegionalDifficultyDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.object(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, root -> root
 				.put(FIELD_HEALTH, buildScalingRule(TYPE_PERCENTAGE, 0.20D))
@@ -302,7 +302,7 @@ public final class MobConfigManager {
 	}
 
 	private static JsonObject buildScalingRule(String type, double value) {
-		return JSONFormatManager.object().put(FIELD_TYPE, type).put(FIELD_VALUE, value).build();
+		return JSONFormatAPIManager.object().put(FIELD_TYPE, type).put(FIELD_VALUE, value).build();
 	}
 
 	private static Map<String, JsonObject> buildNewEntityDefaults() {
@@ -320,7 +320,7 @@ public final class MobConfigManager {
 		String mobId = key.contains(":")
 			? key
 			: "hag".equals(key) ? "madoku-craft:hag" : "minecraft:" + key;
-		mobId = MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId);
+		mobId = JSONAPIManager.normalizeRegistryIdentifierForJson(mobId);
 		JsonObject entityVariant = buildEntityVariantDefaults(key);
 		if (List.of(FILE_BOGGED, FILE_DROWNED, FILE_HUSK, FILE_PARCHED, FILE_SKELETON, FILE_STRAY,
 			FILE_WITHER_SKELETON, FILE_ZOMBIE, FILE_ZOMBIE_VILLAGER).contains(key)) {
@@ -331,7 +331,7 @@ public final class MobConfigManager {
 		entityRoot.addProperty(FIELD_WORLD_DIFFICULTY_SCALING, true);
 		entityRoot.addProperty(FIELD_REGIONAL_DIFFICULTY_SCALING_NEW, true);
 		addSiblingVariants(entityRoot, key, entityVariant);
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_OVERRIDE_SPAWN_RULES, true)
 			.put(FIELD_OVERRIDE_COMPONENTS, true)
@@ -596,7 +596,7 @@ public final class MobConfigManager {
 			buildSpawnRules(90.0D, equipmentReference), buildBehavior(false, true, false, false),
 			buildGoals("hurt-by-target", "target-player", "ranged-attack")
 		);
-		String passengerType = MadokuJSONManager.normalizeRegistryIdentifierForJson(
+		String passengerType = JSONAPIManager.normalizeRegistryIdentifierForJson(
 			"minecraft:" + jockeyKey.replace("-jockey", "")
 		);
 		variant.add(jockeyKey, buildVariant(new JsonObject(), buildJockeySpawnRules(10.0D, passengerType, "minecraft:bow", "minecraft:spider"), new JsonObject(), new JsonObject()));
@@ -626,7 +626,7 @@ public final class MobConfigManager {
 		passengers.add(FIELD_JOCKEY_MOBS, passengerMobs);
 		jockey.add(FIELD_JOCKEY_PASSENGERS, passengers);
 		JsonObject mount = new JsonObject();
-		mount.addProperty(FIELD_MOB_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(mountType));
+		mount.addProperty(FIELD_MOB_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(mountType));
 		jockey.add(FIELD_JOCKEY_MOUNT, mount);
 		JsonObject rules = buildSpawnRules(weight);
 		rules.add(FIELD_MOB_JOCKEY, jockey);
@@ -635,10 +635,10 @@ public final class MobConfigManager {
 
 	private static JsonObject buildJockeyMobDefinition(String mobId, String weaponId) {
 		JsonObject definition = new JsonObject();
-		definition.addProperty(FIELD_MOB_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId));
+		definition.addProperty(FIELD_MOB_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(mobId));
 		if (weaponId != null && !weaponId.isBlank()) {
 			JsonObject weapon = new JsonObject();
-			weapon.addProperty(FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(weaponId));
+			weapon.addProperty(FIELD_ITEM, JSONAPIManager.normalizeRegistryIdentifierForJson(weaponId));
 			definition.add(FIELD_MOB_WEAPON, weapon);
 		}
 		return definition;
@@ -769,7 +769,7 @@ public final class MobConfigManager {
 		);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
-		alternative.addProperty(FIELD_MOB, MadokuJSONManager.normalizeRegistryIdentifierForJson("minecraft:cave_spider"));
+		alternative.addProperty(FIELD_MOB, JSONAPIManager.normalizeRegistryIdentifierForJson("minecraft:cave_spider"));
 		JsonObject caveSpiderRules = buildSpawnRules(10.0D);
 		caveSpiderRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
 		variant.add("cave-spider", buildSpawnAlternativeVariant(caveSpiderRules));
@@ -811,7 +811,7 @@ public final class MobConfigManager {
 		variant.add("zombie-jockey", zombieJockey);
 		JsonObject alternative = new JsonObject();
 		alternative.addProperty(FIELD_ENABLED, true);
-		alternative.addProperty(FIELD_MOB, MadokuJSONManager.normalizeRegistryIdentifierForJson("minecraft:zombie_villager"));
+		alternative.addProperty(FIELD_MOB, JSONAPIManager.normalizeRegistryIdentifierForJson("minecraft:zombie_villager"));
 		JsonObject villagerRules = buildSpawnRules(10.0D);
 		villagerRules.add(FIELD_SPAWN_ALTERNATIVE_MOB, alternative);
 		JsonObject zombieVillager = buildSpawnAlternativeVariant(villagerRules);
@@ -910,7 +910,7 @@ public final class MobConfigManager {
 		Double chargeUpTicks,
 		String mobDropsReference
 	) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object();
 		if (hasConfiguredDoubleValue(health)) {
 			root.put(FIELD_HEALTH, health);
 		}
@@ -957,9 +957,9 @@ public final class MobConfigManager {
 	}
 
 	static JsonObject buildMobWeaponDefaults(String itemId) {
-		JSONFormatManager.ObjectBuilder weapon = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder weapon = JSONFormatAPIManager.object();
 		if (itemId != null && !itemId.isBlank()) {
-			weapon.put(FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId));
+			weapon.put(FIELD_ITEM, JSONAPIManager.normalizeRegistryIdentifierForJson(itemId));
 		}
 		return weapon.build();
 	}
@@ -968,7 +968,7 @@ public final class MobConfigManager {
 		if (effectId == null || effectId.isBlank() || durationSeconds <= 0) {
 			return new JsonObject();
 		}
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_EFFECT, effectId)
 			.put(FIELD_DURATION, durationSeconds)
 			.build();
@@ -1020,3 +1020,4 @@ public final class MobConfigManager {
 		}
 	}
 }
+

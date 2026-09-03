@@ -3,8 +3,8 @@ package madoku.craft.levels;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,11 +59,11 @@ public final class LevelsConfigManager {
 	private static void load() {
 		Settings fallback = Settings.defaults();
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, fallback.toJson());
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, fallback.toJson());
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(file, loaded.toJson(), fallback.toJson());
+			JSONFormatAPIManager.writeManagedFile(file, loaded.toJson(), fallback.toJson());
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -129,7 +129,7 @@ public final class LevelsConfigManager {
 			for (LevelStat stat : LevelStat.values()) {
 				statsJson.add(stat.id(), stats.getOrDefault(stat, StatSettings.defaultsFor(stat)).toJson());
 			}
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put("enabled", enabled)
 				.object("levels", levels -> levels.object("player", player -> player
 					.put("max-level", this.player.maxLevel())
@@ -166,7 +166,7 @@ public final class LevelsConfigManager {
 		}
 
 		private JsonObject toJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put("max-level", maxLevel)
 				.object("level-increment", increment -> increment
 					.put("type", type.id())
@@ -202,3 +202,4 @@ public final class LevelsConfigManager {
 		} catch (RuntimeException exception) { return fallback; }
 	}
 }
+

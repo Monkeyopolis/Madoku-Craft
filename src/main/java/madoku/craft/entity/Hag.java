@@ -1,7 +1,7 @@
 package madoku.craft.entity;
 
 import madoku.craft.pet.PetHagManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.pet.PetConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -199,11 +199,11 @@ public class Hag extends Witch implements Merchant {
 	private long currentOfferWeek() {
 		long absoluteDayTime;
 		if (this.level() instanceof ServerLevel serverLevel) {
-			absoluteDayTime = MadokuTimeManager.getCurrentAbsoluteDayTime(serverLevel);
+			absoluteDayTime = TimeAPIManager.getCurrentAbsoluteDayTime(serverLevel);
 		} else {
 			absoluteDayTime = this.level().getOverworldClockTime();
 		}
-		long day = Math.max(0L, MadokuTimeManager.getDay(absoluteDayTime));
+		long day = Math.max(0L, TimeAPIManager.getDay(absoluteDayTime));
 		return Math.floorDiv(day, TRADE_REFRESH_DAYS);
 	}
 

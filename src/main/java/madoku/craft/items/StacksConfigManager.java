@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 public final class StacksConfigManager {
 	public static final int DEFAULT_STACK_LIMIT = 128;
@@ -31,7 +31,7 @@ public final class StacksConfigManager {
 	}
 
 	public static JsonObject buildDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.object("custom-item-stacks", group -> {
 				group.put("enabled", true);
 				group.put("value", DEFAULT_STACK_LIMIT);
@@ -91,4 +91,5 @@ public final class StacksConfigManager {
 	}
 
 }
+
 

@@ -2,8 +2,7 @@ package madoku.craft.mixin.core;
 
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.pet.PetEntitiesManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.rarity.RarityTierManager;
+import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.server.commands.GiveCommand;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,17 +27,19 @@ public class ItemInputRarityMixin {
 	) {
 		if (inventory != null && inventory.player instanceof ServerPlayer serverPlayer) {
 			if (PetEntitiesManager.isPetItem(stack)) {
-				RarityTierManager.Tier rarity = RarityTierManager.fromString(PetHagManager.rarity(stack));
-				MadokuRarityManager.applyConfiguredRarity(
+				RarityAPIManager.Tier rarity = RarityAPIManager.fromString(PetHagManager.rarity(stack));
+				RarityAPIManager.applyConfiguredRarity(
 					stack,
-					rarity == null ? RarityTierManager.Tier.COMMON : rarity
+					rarity == null ? RarityAPIManager.Tier.COMMON : rarity
 				);
 			} else {
 				MadokuItemsManager.applyConfiguredItemLevel(stack, 1);
-				MadokuRarityManager.applyGeneratedRarity(stack, serverPlayer.getRandom(), serverPlayer);
+				RarityAPIManager.applyGeneratedRarity(stack, serverPlayer.getRandom(), serverPlayer);
 			}
 		}
 		PetHagManager.applyLore(stack);
 		return inventory.add(stack);
 	}
 }
+
+

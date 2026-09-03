@@ -3,8 +3,8 @@ package madoku.craft.mob;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -24,10 +24,10 @@ public final class WorldDifficultyConfigManager {
 		enabled = false;
 		try {
 			Path directory = MobConfigManager.getOrCreateMobRootDirectory();
-			JsonObject root = JSONFormatManager.ensureManagedFile(
+			JsonObject root = JSONFormatAPIManager.ensureManagedFile(
 				directory.resolve(MobConfigManager.WORLD_DIFFICULTY_SETTINGS_FILE + ".json"),
 				MobConfigManager.buildWorldDifficultyDefaults(),
-				JSONTypeManager.STATIC_CONFIG,
+				JSONTypeAPIManager.STATIC_CONFIG,
 				null
 			);
 			enabled = MobConfigManager.isEnabled()
@@ -90,3 +90,4 @@ public final class WorldDifficultyConfigManager {
 
 	private record ScalingRule(String type, double value) { }
 }
+

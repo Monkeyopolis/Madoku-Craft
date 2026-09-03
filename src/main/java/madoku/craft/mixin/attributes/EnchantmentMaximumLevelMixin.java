@@ -1,7 +1,7 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.BooksConfigManager;
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.BooksConfigAPIManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -31,7 +31,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		net.minecraft.world.entity.LivingEntity entity,
 		CallbackInfo callbackInfo
 	) {
-		EnchantBooksManager.beginSoulSpeedLocationChangedEffects((Enchantment) (Object) this);
+		EnchantBooksAPIManager.beginSoulSpeedLocationChangedEffects((Enchantment) (Object) this);
 	}
 
 	@Inject(
@@ -45,13 +45,13 @@ public abstract class EnchantmentMaximumLevelMixin {
 		net.minecraft.world.entity.LivingEntity entity,
 		CallbackInfo callbackInfo
 	) {
-		EnchantBooksManager.endSoulSpeedLocationChangedEffects();
+		EnchantBooksAPIManager.endSoulSpeedLocationChangedEffects();
 	}
 
 	@Inject(method = "getMaxLevel", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$useConfiguredMaximumLevel(CallbackInfoReturnable<Integer> callbackInfo) {
 		callbackInfo.setReturnValue(
-			BooksConfigManager.getConfiguredMaximumLevel(
+			BooksConfigAPIManager.getConfiguredMaximumLevel(
 				(Enchantment) (Object) this,
 				callbackInfo.getReturnValue()
 			)
@@ -64,7 +64,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfoReturnable<Boolean> callbackInfo
 	) {
 		callbackInfo.setReturnValue(
-			BooksConfigManager.resolveConfiguredCanEnchant(
+			BooksConfigAPIManager.resolveConfiguredCanEnchant(
 				(Enchantment) (Object) this,
 				stack,
 				callbackInfo.getReturnValue()
@@ -87,7 +87,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat damage,
 		CallbackInfo callbackInfo
 	) {
-		if (BooksConfigManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
+		if (BooksConfigAPIManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
 	}
@@ -107,7 +107,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat damage,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredImpalingDamage(
+		if (EnchantBooksAPIManager.applyConfiguredImpalingDamage(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -133,7 +133,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat damage,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredSharpnessDamage(
+		if (EnchantBooksAPIManager.applyConfiguredSharpnessDamage(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -160,7 +160,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat damage,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.cancelConfiguredSmiteDamage(
+		if (EnchantBooksAPIManager.cancelConfiguredSmiteDamage(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -187,7 +187,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		DamageSource source,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredThornsPostAttack(
+		if (EnchantBooksAPIManager.applyConfiguredThornsPostAttack(
 			serverLevel,
 			level,
 			itemSource,
@@ -212,7 +212,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat amount,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.shouldCancelVanillaInfinity(
+		if (EnchantBooksAPIManager.shouldCancelVanillaInfinity(
 			(Enchantment) (Object) this,
 			level
 		)) {
@@ -233,7 +233,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat durabilityChange,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredMendingDurabilityProtection(
+		if (EnchantBooksAPIManager.applyConfiguredMendingDurabilityProtection(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -257,7 +257,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat durabilityChange,
 		CallbackInfo callbackInfo
 	) {
-		if (BooksConfigManager.shouldOverrideUnbreaking((Enchantment) (Object) this)) {
+		if (BooksConfigAPIManager.shouldOverrideUnbreaking((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
 	}
@@ -277,7 +277,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat knockback,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredKnockback(
+		if (EnchantBooksAPIManager.applyConfiguredKnockback(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -304,7 +304,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat knockback,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredPunch(
+		if (EnchantBooksAPIManager.applyConfiguredPunch(
 			(Enchantment) (Object) this,
 			level,
 			stack,
@@ -331,7 +331,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		DamageSource source,
 		CallbackInfo callbackInfo
 	) {
-		if (BooksConfigManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
+		if (BooksConfigAPIManager.shouldOverrideBaneOfArthropods((Enchantment) (Object) this)) {
 			callbackInfo.cancel();
 		}
 	}
@@ -352,8 +352,8 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfo callbackInfo
 	) {
 		Enchantment enchantment = (Enchantment) (Object) this;
-		if (!BooksConfigManager.isFireAspect(enchantment)) return;
-		boolean override = BooksConfigManager.shouldOverrideFireAspect(enchantment);
+		if (!BooksConfigAPIManager.isFireAspect(enchantment)) return;
+		boolean override = BooksConfigAPIManager.shouldOverrideFireAspect(enchantment);
 		if (override) callbackInfo.cancel();
 	}
 
@@ -372,7 +372,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		DamageSource source,
 		CallbackInfo callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredSmiteEffects(
+		if (EnchantBooksAPIManager.applyConfiguredSmiteEffects(
 			(Enchantment) (Object) this,
 			serverLevel,
 			level,
@@ -399,7 +399,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		MutableFloat armorEffectiveness,
 		CallbackInfo callbackInfo
 	) {
-		double penetration = BooksConfigManager.getConfiguredBreachArmorPenetration(
+		double penetration = BooksConfigAPIManager.getConfiguredBreachArmorPenetration(
 			(Enchantment) (Object) this,
 			stack,
 			level
@@ -417,7 +417,7 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfoReturnable<Boolean> callbackInfo
 	) {
 		callbackInfo.setReturnValue(
-			BooksConfigManager.resolveConfiguredCompatibility(
+			BooksConfigAPIManager.resolveConfiguredCompatibility(
 				first,
 				second,
 				callbackInfo.getReturnValue()
@@ -425,3 +425,4 @@ public abstract class EnchantmentMaximumLevelMixin {
 		);
 	}
 }
+

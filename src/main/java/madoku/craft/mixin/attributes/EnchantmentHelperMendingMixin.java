@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -23,7 +23,7 @@ public abstract class EnchantmentHelperMendingMixin {
 		int repairAmount,
 		CallbackInfoReturnable<Integer> callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredMendingXpRepairOverride(
+		if (EnchantBooksAPIManager.applyConfiguredMendingXpRepairOverride(
 			serverLevel,
 			stack,
 			repairAmount
@@ -32,3 +32,4 @@ public abstract class EnchantmentHelperMendingMixin {
 		}
 	}
 }
+

@@ -3,7 +3,7 @@ package madoku.craft.farming;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -65,7 +65,7 @@ public final class FarmingComposterManager {
 		try {
 			Path rootDirectory = FarmingConfigManager.resolveComposterConfigDirectory();
 			Path settingsFile = resolveJsonFile(rootDirectory, COMPOSTER_CONFIG_SETTINGS_FILE_NAME);
-			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
+			JsonObject settingsRoot = JSONFormatAPIManager.ensureManagedFile(
 				settingsFile,
 				ComposterConfigManager.buildComposterSystemDefaults()
 			);
@@ -104,4 +104,5 @@ public final class FarmingComposterManager {
 		return directory.resolve(normalized);
 	}
 }
+
 

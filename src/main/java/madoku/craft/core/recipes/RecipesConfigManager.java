@@ -4,8 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 public final class RecipesConfigManager {
 	public static final String FIELD_ENABLED = "enabled";
@@ -78,7 +78,7 @@ public final class RecipesConfigManager {
 	public static final String SETTINGS_GROUP = "settings";
 
 	public static java.nio.file.Path getRootDirectory() {
-		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(
+		return JSONAPIManager.getOrCreateGlobalSystemDirectory(
 			MadokuCoreManager.CORE_FOLDER_NAME + "/" + ROOT_FOLDER_NAME
 		);
 	}
@@ -137,7 +137,7 @@ public final class RecipesConfigManager {
 	}
 
 	public static JsonObject buildRecipeSystemDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.build();
 	}
@@ -152,12 +152,12 @@ public final class RecipesConfigManager {
 		String processCategory,
 		boolean enabled
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, enabled)
 			.put(FIELD_RECIPE_ID, recipeId == null ? "" : recipeId)
 			.put(FIELD_RECIPE_GROUP, recipeGroup == null ? "" : recipeGroup)
 			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId == null ? "" : recipeTypeId)
-			.put(FIELD_RESULT_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(resultItemId))
+			.put(FIELD_RESULT_ITEM_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(resultItemId))
 			.put(FIELD_RESULT_COUNT, Math.max(1, resultCount))
 			.put(FIELD_CATEGORIES, buildCategoryArray(outputCategory, processCategory))
 			.put(FIELD_CUSTOM_RECIPE, false)
@@ -165,7 +165,7 @@ public final class RecipesConfigManager {
 	}
 
 	private static JsonArray buildCategoryArray(String outputCategory, String processCategory) {
-		JSONFormatManager.ArrayBuilder categories = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder categories = JSONFormatAPIManager.array();
 		if (outputCategory != null && !outputCategory.isBlank()) {
 			categories.add(outputCategory);
 		}
@@ -175,4 +175,6 @@ public final class RecipesConfigManager {
 		return categories.build();
 	}
 }
+
+
 

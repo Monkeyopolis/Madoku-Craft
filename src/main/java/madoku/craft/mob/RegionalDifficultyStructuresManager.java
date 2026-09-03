@@ -2,7 +2,7 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import java.util.List;
 
@@ -21,11 +21,11 @@ public final class RegionalDifficultyStructuresManager {
 	}
 
 	public static JsonObject buildDefaults() {
-		JSONFormatManager.ObjectBuilder list = JSONFormatManager.object();
+		JSONFormatAPIManager.ObjectBuilder list = JSONFormatAPIManager.object();
 		for (String structure : DEFAULT_STRUCTURES) {
 			list.object(structure, entry -> entry.put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, defaultAdjustment(structure)));
 		}
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(RegionalDifficultyConfigManager.FIELD_ENABLED, true)
 			.put(RegionalDifficultyConfigManager.FIELD_STRUCTURE_LIST, list.build())
 			.build();
@@ -43,3 +43,4 @@ public final class RegionalDifficultyStructuresManager {
 		};
 	}
 }
+

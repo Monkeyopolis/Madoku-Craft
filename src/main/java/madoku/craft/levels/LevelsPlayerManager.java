@@ -6,9 +6,9 @@ import com.google.gson.JsonObject;
 
 import madoku.craft.attributes.MadokuHealthManager;
 import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.core.data.DataPlayerManager;
-import madoku.craft.core.sync.SyncPlayerManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.data.DataPlayerAPIManager;
+import madoku.craft.core.sync.SyncPlayerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
@@ -83,10 +83,10 @@ public final class LevelsPlayerManager {
 	public static void loadPersistedData(MinecraftServer server) {
 		if (server == null) return;
 		LevelsConfigManager.reload();
-		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long interval = DataPlayerManager.getAutoSaveIntervalTicks();
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), Math.max(1L, interval));
+		long interval = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), Math.max(1L, interval));
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			state(player);
 			LevelsAttributesManager.applyPlayerAttributes(player);
@@ -97,8 +97,8 @@ public final class LevelsPlayerManager {
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) return;
-		long interval = Math.max(1L, DataPlayerManager.getAutoSaveIntervalTicks());
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), interval);
+		long interval = Math.max(1L, DataPlayerAPIManager.getAutoSaveIntervalTicks());
+		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), interval);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -106,18 +106,18 @@ public final class LevelsPlayerManager {
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server != null) DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		if (server != null) DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {
-		if (server == null || DIRTY_PLAYERS.isEmpty() || !SyncPlayerManager.shouldFlushDirtySyncs(server)) return;
+		if (server == null || DIRTY_PLAYERS.isEmpty() || !SyncPlayerAPIManager.shouldFlushDirtySyncs(server)) return;
 		Set<UUID> synced = new HashSet<>();
 		for (UUID playerId : DIRTY_PLAYERS) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
 			if (player == null) continue;
 			LevelsPayloadManager.Payload payload = LevelsPayloadManager.createPayload(player);
-			if (!SyncPlayerManager.canSend(player, payload)) continue;
-			SyncPlayerManager.send(player, payload);
+			if (!SyncPlayerAPIManager.canSend(player, payload)) continue;
+			SyncPlayerAPIManager.send(player, payload);
 			synced.add(playerId);
 		}
 		DIRTY_PLAYERS.removeAll(synced);
@@ -242,3 +242,4 @@ public final class LevelsPlayerManager {
 		public int statLevel(LevelStat stat) { return statLevels.getOrDefault(stat, LevelStat.DEFAULT_LEVEL); }
 	}
 }
+

@@ -1,7 +1,7 @@
 package madoku.craft.farming;
 
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.season.SeasonBiomeClimateManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.season.SeasonBiomeClimateAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
@@ -37,7 +37,7 @@ public final class FarmingPlotsManager {
 		if (world == null || soilPos == null || !FarmingCropsManager.isFarmland(world.getBlockState(soilPos))) {
 			return false;
 		}
-		SeasonBiomeClimateManager.Climate climate = MadokuSeasonManager.resolveBiomeClimate(world, soilPos);
+		SeasonBiomeClimateAPIManager.Climate climate = SeasonAPIManager.resolveBiomeClimate(world, soilPos);
 		return climate != null && Double.isFinite(climate.humidity()) && climate.humidity() >= 70.0D;
 	}
 
@@ -60,3 +60,4 @@ public final class FarmingPlotsManager {
 		return false;
 	}
 }
+

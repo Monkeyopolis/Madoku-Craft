@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.recipes.MadokuRecipesManager;
+import madoku.craft.core.recipes.RecipesAPIManager;
 
 @Mixin(Inventory.class)
 public abstract class PlayerInventoryRecipeUnlockMixin {
@@ -15,7 +15,7 @@ public abstract class PlayerInventoryRecipeUnlockMixin {
 	private void madokuCraft$unlockRecipesFromInventoryChange(CallbackInfo ci) {
 		Inventory inventory = (Inventory) (Object) this;
 		if (inventory.player instanceof ServerPlayer player) {
-			MadokuRecipesManager.onPlayerInventoryChanged(player);
+			RecipesAPIManager.onPlayerInventoryChanged(player);
 		}
 	}
 }

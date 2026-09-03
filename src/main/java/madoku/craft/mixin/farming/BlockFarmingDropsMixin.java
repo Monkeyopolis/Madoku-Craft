@@ -2,7 +2,7 @@ package madoku.craft.mixin.farming;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
@@ -102,7 +102,7 @@ public abstract class BlockFarmingDropsMixin {
 	) {
 		// Player-placed crop blocks must retain vanilla block drops. The placed
 		// marker is available regardless of whether Madoku Farming is enabled.
-		if (MadokuChunkDataManager.isPlayerPlacedBlock(level, pos)) {
+		if (ChunkDataAPIManager.isPlayerPlacedBlock(level, pos)) {
 			return;
 		}
 		if (!MadokuFarmingManager.isEnabled() || !MadokuFarmingManager.isManagedHarvestState(level, pos, state)) {
@@ -129,3 +129,4 @@ public abstract class BlockFarmingDropsMixin {
 		ci.cancel();
 	}
 }
+

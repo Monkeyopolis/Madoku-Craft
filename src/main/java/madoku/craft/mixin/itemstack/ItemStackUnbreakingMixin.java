@@ -1,6 +1,6 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.PatchedDataComponentMap;
@@ -26,7 +26,7 @@ public abstract class ItemStackUnbreakingMixin {
 		PatchedDataComponentMap components,
 		CallbackInfo callbackInfo
 	) {
-		EnchantBooksManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
+		EnchantBooksAPIManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
 	}
 
 	@Inject(
@@ -39,7 +39,7 @@ public abstract class ItemStackUnbreakingMixin {
 		CallbackInfoReturnable<T> callbackInfo
 	) {
 		if (componentType == DataComponents.ENCHANTMENTS) {
-			EnchantBooksManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
+			EnchantBooksAPIManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
 		}
 	}
 
@@ -52,7 +52,8 @@ public abstract class ItemStackUnbreakingMixin {
 		CallbackInfoReturnable<T> callbackInfo
 	) {
 		if (componentType == DataComponents.ENCHANTMENTS) {
-			EnchantBooksManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
+			EnchantBooksAPIManager.reconcileConfiguredUnbreaking((ItemStack) (Object) this);
 		}
 	}
 }
+

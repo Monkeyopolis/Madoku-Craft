@@ -1,6 +1,6 @@
 package madoku.craft.mixin.mob;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -24,9 +24,10 @@ public abstract class LivingEntityMobAggroMixin {
 	) {
 		if (cir.getReturnValueZ()) {
 			MobEntityManager.handleMobDamaged((LivingEntity) (Object) this, source);
-			EnchantBooksManager.applyOnHit((LivingEntity) (Object) this, source);
+			EnchantBooksAPIManager.applyOnHit((LivingEntity) (Object) this, source);
 		}
 	}
 }
+
 
 

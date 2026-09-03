@@ -1,6 +1,6 @@
 package madoku.craft.core.helper;
 
-import madoku.craft.core.data.MadokuChunkDataManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,7 +36,7 @@ public final class MadokuBlockDropContextManager {
 	public static boolean isActiveDropPlayerPlacedBlock() {
 		Context context = current();
 		return context != null
-			&& MadokuChunkDataManager.isPlayerPlacedBlock(context.level(), context.pos());
+			&& ChunkDataAPIManager.isPlayerPlacedBlock(context.level(), context.pos());
 	}
 
 	public record Context(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) { }

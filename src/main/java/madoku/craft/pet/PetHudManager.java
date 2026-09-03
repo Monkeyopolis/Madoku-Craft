@@ -1,6 +1,6 @@
 package madoku.craft.pet;
 
-import madoku.craft.core.sync.SyncPlayerManager;
+import madoku.craft.core.sync.SyncPlayerAPIManager;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
@@ -71,8 +71,9 @@ public final class PetHudManager {
 
 	static void sendAbilityCooldowns(ServerPlayer player, int[] remainingTicks) {
 		if (player != null) {
-			SyncPlayerManager.send(player, PetPayloadManager.PetAbilityHudPayload.fromArray(remainingTicks));
+			SyncPlayerAPIManager.send(player, PetPayloadManager.PetAbilityHudPayload.fromArray(remainingTicks));
 		}
 	}
 
 }
+

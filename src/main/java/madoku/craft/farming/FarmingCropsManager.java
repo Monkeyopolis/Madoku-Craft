@@ -4,17 +4,17 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import madoku.craft.core.data.DataSystemsManager;
-import madoku.craft.core.data.DataWorldManager;
-import madoku.craft.core.data.MadokuChunkDataManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.loot.LootTableCropsManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.season.SeasonBiomeClimateManager;
-import madoku.craft.core.sync.SyncConfigManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.data.DataSystemsAPIManager;
+import madoku.craft.core.data.DataWorldAPIManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.loot.LootTableCropsAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.season.SeasonBiomeClimateAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.item.ItemComponentsAccessor;
@@ -119,10 +119,10 @@ public final class FarmingCropsManager {
 	}
 
 	public static void initialize() {
-		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
+		DataSystemsAPIManager.registerSystem(DATA_SYSTEM_ID);
 		loadStaticConfig();
 		loadCropConfigs();
-		SyncConfigManager.register(
+		SyncConfigAPIManager.register(
 			"farming",
 			FarmingCropsManager::createClientSyncSnapshot,
 			FarmingCropsManager::applyClientSyncSnapshot,
@@ -156,7 +156,7 @@ public final class FarmingCropsManager {
 		if (server == null) {
 			return;
 		}
-		DataSystemsManager.registerSystem(DATA_SYSTEM_ID);
+		DataSystemsAPIManager.registerSystem(DATA_SYSTEM_ID);
 		applyCropItemMetadata();
 		for (ServerLevel level : server.getAllLevels()) {
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
@@ -172,7 +172,7 @@ public final class FarmingCropsManager {
 
 		loadStaticConfig();
 		loadCropConfigs();
-		JsonObject data = DataWorldManager.getSystemData(DATA_SYSTEM_ID);
+		JsonObject data = DataWorldAPIManager.getSystemData(DATA_SYSTEM_ID);
 		applyPersistedData(data);
 		dirty = false;
 	}
@@ -192,7 +192,7 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		DataWorldManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
+		DataWorldAPIManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
 		dirty = false;
 	}
 
@@ -201,7 +201,7 @@ public final class FarmingCropsManager {
 	}
 
 	public static String createClientSyncSnapshot() {
-		JsonObject snapshot = JSONFormatManager.object()
+		JsonObject snapshot = JSONFormatAPIManager.object()
 			.put("settings", settings.toConfigJson())
 			.object("crops", crops -> {
 				for (CropRule rule : cropRulesByPlantingItemId.values()) {
@@ -344,7 +344,7 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		long gameplayTick = MadokuTimeManager.getGameplayTicks();
+		long gameplayTick = TimeAPIManager.getGameplayTicks();
 		if (!plot.fertilized) {
 			plot.fertilized = true;
 			plot.fertilizedAtGameplayTick = gameplayTick;
@@ -390,7 +390,7 @@ public final class FarmingCropsManager {
 		boolean changed = false;
 		if (fertilized && !plot.fertilized) {
 			plot.fertilized = true;
-			plot.fertilizedAtGameplayTick = MadokuTimeManager.getGameplayTicks();
+			plot.fertilizedAtGameplayTick = TimeAPIManager.getGameplayTicks();
 			changed = true;
 		}
 
@@ -450,7 +450,7 @@ public final class FarmingCropsManager {
 		// A mature pumpkin/melon placed as a block is not a farming harvest.
 		// Do not let a farmland scan turn it into tracked crop state.
 		if (isCropMatureBlock(cropState, rule)
-			&& MadokuChunkDataManager.isPlayerPlacedBlock(world, cropPos)) {
+			&& ChunkDataAPIManager.isPlayerPlacedBlock(world, cropPos)) {
 			return;
 		}
 
@@ -761,7 +761,7 @@ public final class FarmingCropsManager {
 		}
 
 		RandomSource safeRandom = random == null ? RandomSource.create() : random;
-		List<ItemStack> drops = LootTableCropsManager.generateManagedLootForTable(rule.yieldTableId(), safeRandom);
+		List<ItemStack> drops = LootTableCropsAPIManager.generateManagedLootForTable(rule.yieldTableId(), safeRandom);
 		if (isHarvestFertilized(world, cropPos, rule) && !drops.isEmpty()) {
 			ItemStack first = drops.getFirst();
 			if (first != null && !first.isEmpty()) {
@@ -773,7 +773,7 @@ public final class FarmingCropsManager {
 
 	public static boolean hasCropHarvestLootTable(ServerLevel world, BlockPos cropPos, BlockState state) {
 		CropRule rule = resolveHarvestRule(world, cropPos, state);
-		return rule != null && LootTableCropsManager.hasManagedLootTable(rule.yieldTableId());
+		return rule != null && LootTableCropsAPIManager.hasManagedLootTable(rule.yieldTableId());
 	}
 
 	public static void prepareCropHarvest(ServerLevel world, BlockPos cropPos, BlockState state) {
@@ -844,7 +844,7 @@ public final class FarmingCropsManager {
 				if (!isCropMatureBlock(state, rule) && rule.matureBlock() != null) {
 					// The stem was player-planted, but the mature block is generated
 					// by farming and must use the managed harvest path.
-					MadokuChunkDataManager.removePlayerPlacedBlock(world, cropPos);
+					ChunkDataAPIManager.removePlayerPlacedBlock(world, cropPos);
 					world.setBlockAndUpdate(cropPos, rule.matureBlock().defaultBlockState());
 					dirty = true;
 				}
@@ -877,7 +877,7 @@ public final class FarmingCropsManager {
 		if (world == null) {
 			return "";
 		}
-		return MadokuSchedulerManager.normalizeLevelIdentifier(world.dimension().toString());
+		return SchedulerAPIManager.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
 	private static PlotState findPlot(ServerLevel world, BlockPos soilPos) {
@@ -990,9 +990,9 @@ public final class FarmingCropsManager {
 
 	private static long resolveAbsoluteDayTime(ServerLevel world) {
 		if (world == null) {
-			return MadokuTimeManager.getCurrentAbsoluteDayTime();
+			return TimeAPIManager.getCurrentAbsoluteDayTime();
 		}
-		return MadokuTimeManager.getCurrentAbsoluteDayTime(world);
+		return TimeAPIManager.getCurrentAbsoluteDayTime(world);
 	}
 
 	private static long normalizePreviousAbsoluteTick(long previousAbsoluteTick, long currentAbsoluteTick) {
@@ -1044,7 +1044,7 @@ public final class FarmingCropsManager {
 	}
 
 	private static JsonObject toPersistedData() {
-		JSONFormatManager.ArrayBuilder plots = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder plots = JSONFormatAPIManager.array();
 		for (PlotState plot : plotsByKey.values()) {
 			if (plot != null) {
 				String key = plot.key();
@@ -1060,7 +1060,7 @@ public final class FarmingCropsManager {
 		}
 		serializedPlotsByKey.keySet().retainAll(plotsByKey.keySet());
 		serializedPlotFingerprintsByKey.keySet().retainAll(plotsByKey.keySet());
-		JSONFormatManager.ArrayBuilder crops = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder crops = JSONFormatAPIManager.array();
 		for (CropState crop : cropsByKey.values()) {
 			if (crop != null) {
 				String key = crop.key();
@@ -1076,7 +1076,7 @@ public final class FarmingCropsManager {
 		}
 		serializedCropsByKey.keySet().retainAll(cropsByKey.keySet());
 		serializedCropFingerprintsByKey.keySet().retainAll(cropsByKey.keySet());
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_PLOTS, plots.build())
 			.put(FIELD_CROPS, crops.build())
 			.build();
@@ -1105,7 +1105,7 @@ public final class FarmingCropsManager {
 				String fileKey = entry.getKey();
 				JsonObject defaults = entry.getValue();
 				Path file = resolveJsonFile(directory, fileKey);
-				JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
+				JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, defaults);
 				CropRule rule = CropRule.fromJson(fileKey, normalized);
 				if (rule == null) {
 					rule = CropRule.defaultRule(fileKey);
@@ -1365,7 +1365,7 @@ public final class FarmingCropsManager {
 		if (pending == null) {
 			return null;
 		}
-		long now = MadokuTimeManager.getGameplayTicks();
+		long now = TimeAPIManager.getGameplayTicks();
 		if (pending.expiresAtGameplayTick < now) {
 			pendingHarvestRulesByKey.remove(cropKey(world, cropPos));
 			return null;
@@ -1394,12 +1394,12 @@ public final class FarmingCropsManager {
 		String key = cropKey(world, cropPos);
 		PendingHarvestRule existing = pendingHarvestRulesByKey.get(key);
 		boolean retainedFertilized = fertilized || (existing != null && existing.fertilized());
-		long expiresAtGameplayTick = MadokuTimeManager.getGameplayTicks() + PENDING_HARVEST_TTL_TICKS;
+		long expiresAtGameplayTick = TimeAPIManager.getGameplayTicks() + PENDING_HARVEST_TTL_TICKS;
 		pendingHarvestRulesByKey.put(key, new PendingHarvestRule(rule, expiresAtGameplayTick, retainedFertilized));
 	}
 
 	private static void purgeExpiredPendingHarvestRules() {
-		long now = MadokuTimeManager.getGameplayTicks();
+		long now = TimeAPIManager.getGameplayTicks();
 		Iterator<Map.Entry<String, PendingHarvestRule>> iterator = pendingHarvestRulesByKey.entrySet().iterator();
 		while (iterator.hasNext()) {
 			Map.Entry<String, PendingHarvestRule> entry = iterator.next();
@@ -1450,11 +1450,11 @@ public final class FarmingCropsManager {
 	}
 
 	private static String normalizeRegistryId(String value) {
-		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(value);
+		return JSONAPIManager.normalizeRegistryIdentifierForLookup(value);
 	}
 
 	private static double resolveCropRequiredGrowthTicks(CropRule rule) {
-		return Math.max(1.0d, rule.growthMinecraftDays() * MadokuTimeManager.MINECRAFT_TICKS_PER_CYCLE);
+		return Math.max(1.0d, rule.growthMinecraftDays() * TimeAPIManager.MINECRAFT_TICKS_PER_CYCLE);
 	}
 
 	private static double resolveGrowingConditionsSpeedModifier(CropRule rule, ServerLevel world, BlockPos cropPos) {
@@ -1462,7 +1462,7 @@ public final class FarmingCropsManager {
 			return 0.0d;
 		}
 
-		SeasonBiomeClimateManager.Climate climate = MadokuSeasonManager.resolveBiomeClimate(world, cropPos);
+		SeasonBiomeClimateAPIManager.Climate climate = SeasonAPIManager.resolveBiomeClimate(world, cropPos);
 		GrowingConditions conditions = rule.growingConditions();
 		return resolveConditionSpeedModifier(
 			climate.temperature(),
@@ -1686,7 +1686,7 @@ public final class FarmingCropsManager {
 		}
 
 		private JsonObject toJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_SOIL_POS, soilPos)
 				.put(FIELD_CROP_POS, cropPos)
@@ -1767,7 +1767,7 @@ public final class FarmingCropsManager {
 		}
 
 		private JsonObject toJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(FIELD_LEVEL_ID, levelId)
 				.put(FIELD_CROP_POS, cropPos)
 				.put(FIELD_SOIL_POS, soilPos)
@@ -1875,7 +1875,7 @@ public final class FarmingCropsManager {
 		}
 
 		private JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(FarmingConfigManager.FIELD_ENABLED, enabled)
 				.put(FarmingConfigManager.FIELD_RAIN_GROWTH_BOOST, rainGrowthBoost)
 				.put(FarmingConfigManager.FIELD_FERTILIZED_GROWTH_BOOST, fertilizedGrowthBoost)
@@ -2174,7 +2174,7 @@ public final class FarmingCropsManager {
 			GrowingConditions conditions = growingConditions == null
 				? new GrowingConditions(40.0d, 60.0d, 40.0d, 60.0d)
 				: growingConditions;
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(CropsConfigManager.FIELD_CROP_ID, cropId)
 				.put(CropsConfigManager.FIELD_GROWTH_TIME, growthMinecraftDays)
 				.put(CropsConfigManager.FIELD_YIELD_ID, yieldTableId)
@@ -2197,3 +2197,5 @@ public final class FarmingCropsManager {
 	) { }
 
 }
+
+

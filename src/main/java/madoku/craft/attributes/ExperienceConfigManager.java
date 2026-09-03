@@ -3,7 +3,7 @@ package madoku.craft.attributes;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +28,9 @@ public final class ExperienceConfigManager {
 		JsonObject defaults = fallback.toConfigJson();
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(EXPERIENCE_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			return loaded.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load Madoku Experience config; using defaults.", exception);
@@ -60,7 +60,7 @@ public final class ExperienceConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.object("levels", levels -> this.levels.toConfigJson(levels))
 				.build();
 		}
@@ -94,7 +94,7 @@ public final class ExperienceConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			return builder
 				.put("max-level", maxLevel)
 				.put("xp-required", xpRequired)
@@ -126,3 +126,4 @@ public final class ExperienceConfigManager {
 		}
 	}
 }
+

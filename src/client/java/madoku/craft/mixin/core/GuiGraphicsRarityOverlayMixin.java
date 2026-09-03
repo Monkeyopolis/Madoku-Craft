@@ -1,7 +1,7 @@
 package madoku.craft.mixin.core;
 
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager.Tier;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.pet.PetEntitiesManager;
 import net.minecraft.client.gui.Font;
@@ -65,7 +65,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			drawTopDurabilityBar(context, stack, x, y);
 		}
 
-		if (!MadokuRarityManager.isEnabled()) {
+		if (!RarityAPIManager.isEnabled()) {
 			return;
 		}
 		if (!managedRarityItem) {
@@ -75,11 +75,11 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			return;
 		}
 
-		if (!MadokuRarityManager.isRarityItem(stack)) {
+		if (!RarityAPIManager.isRarityItem(stack)) {
 			return;
 		}
 
-		Tier rarity = MadokuRarityManager.detectAppliedRarity(stack);
+		Tier rarity = RarityAPIManager.detectAppliedRarity(stack);
 		if (rarity == null) {
 			return;
 		}
@@ -108,3 +108,5 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 	}
 
 }
+
+

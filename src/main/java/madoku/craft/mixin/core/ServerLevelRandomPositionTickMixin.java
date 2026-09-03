@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-import madoku.craft.core.chunk.MadokuChunkManager;
+import madoku.craft.core.chunk.ChunkAPIManager;
 
 @Mixin(ServerLevel.class)
 public abstract class ServerLevelRandomPositionTickMixin {
@@ -25,7 +25,7 @@ public abstract class ServerLevelRandomPositionTickMixin {
 	)
 	private BlockPos madokuCraft$observeVanillaRandomPosition(ServerLevel level, int x, int y, int z, int maxY) {
 		BlockPos position = level.getBlockRandomPos(x, y, z, maxY);
-		MadokuChunkManager.dispatchRandomPosition(level, position, level.getRandom());
+		ChunkAPIManager.dispatchRandomPosition(level, position, level.getRandom());
 		return position;
 	}
 }

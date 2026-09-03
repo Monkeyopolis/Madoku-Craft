@@ -4,8 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
@@ -67,7 +67,7 @@ public final class EcosystemConfigManager {
 
 	public static JsonObject toJson(Settings settings) {
 		Settings value = settings == null ? defaults() : settings;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, value.enabled())
 			.build();
 	}
@@ -156,7 +156,7 @@ public final class EcosystemConfigManager {
 	}
 
 	public static JsonArray toStringArray(List<String> values) {
-		JSONFormatManager.ArrayBuilder array = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder array = JSONFormatAPIManager.array();
 		for (String value : normalizeList(values)) {
 			array.add(value);
 		}
@@ -184,7 +184,7 @@ public final class EcosystemConfigManager {
 	}
 
 	public static Block resolveBlock(String blockId) {
-		String normalized = MadokuJSONManager.normalizeRegistryIdentifierForLookup(blockId);
+		String normalized = JSONAPIManager.normalizeRegistryIdentifierForLookup(blockId);
 		if (normalized == null || normalized.isBlank()) {
 			return null;
 		}
@@ -226,7 +226,7 @@ public final class EcosystemConfigManager {
 		DayRange safe = range == null
 			? new DayRange(1, 1)
 			: range;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(minKey, safe.minDays())
 			.put(maxKey, safe.maxDays())
 			.build();
@@ -249,7 +249,7 @@ public final class EcosystemConfigManager {
 		SeasonGrowthMultiplier safe = multiplier == null
 			? new SeasonGrowthMultiplier(true, 1.0d, 1.0d, 1.0d, 1.0d)
 			: multiplier;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_SEASON_SPRING, safe.spring())
 			.put(FIELD_SEASON_SUMMER, safe.summer())
@@ -266,11 +266,11 @@ public final class EcosystemConfigManager {
 		Settings fallback = defaults();
 		JsonObject defaults = buildDefaultsJson();
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = rootDirectory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, defaults);
 			settings = fromJson(normalized);
-			JSONFormatManager.writeManagedFile(file, toJson(settings), defaults);
+			JSONFormatAPIManager.writeManagedFile(file, toJson(settings), defaults);
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
 			LOGGER.error("Failed to load EcosystemConfigManager config; using defaults.", exception);
@@ -303,4 +303,5 @@ public final class EcosystemConfigManager {
 		}
 	}
 }
+
 

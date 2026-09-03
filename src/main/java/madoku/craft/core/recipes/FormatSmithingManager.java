@@ -2,7 +2,7 @@ package madoku.craft.core.recipes;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -46,7 +46,7 @@ public final class FormatSmithingManager {
 		return null;
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, SmithingRecipe recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, SmithingRecipe recipe) {
 		recipe.templateIngredient().ifPresent(ingredient -> {
 			String itemId = RecipesFormatManager.firstItemIdFromIngredient(ingredient);
 			if (!itemId.isBlank()) root.put(RecipesConfigManager.FIELD_TEMPLATE, itemId);
@@ -59,3 +59,4 @@ public final class FormatSmithingManager {
 		});
 	}
 }
+

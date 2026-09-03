@@ -2,8 +2,8 @@ package madoku.craft.core.data;
 
 import com.google.gson.JsonObject;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
-import madoku.craft.core.chunk.MadokuChunkManager;
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.chunk.ChunkAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
@@ -28,7 +28,7 @@ public final class MadokuChunkDataManager {
 	private static volatile boolean dirty;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static volatile boolean eventHandlersRegistered;
-	private static final MadokuChunkManager.ChunkLifecycleListener CHUNK_LISTENER = new MadokuChunkManager.ChunkLifecycleListener() {
+	private static final ChunkAPIManager.ChunkLifecycleListener CHUNK_LISTENER = new ChunkAPIManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
 			// Player-placed data is loaded on first query.
@@ -43,7 +43,7 @@ public final class MadokuChunkDataManager {
 	private MadokuChunkDataManager() { }
 
 	public static void initialize() {
-		MadokuChunkManager.registerChunkLifecycleListener(CHUNK_LISTENER);
+		ChunkAPIManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 		if (!eventHandlersRegistered) {
 			PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
 				if (world instanceof ServerLevel level) {
@@ -71,15 +71,15 @@ public final class MadokuChunkDataManager {
 		PENDING_REMOVALS.clear();
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(
-			madoku.craft.core.time.MadokuTimeManager.getGameplayTicks(),
-			DataWorldChunkManager.getAutoSaveIntervalTicks());
+			madoku.craft.core.time.TimeAPIManager.getGameplayTicks(),
+			DataWorldChunkAPIManager.getAutoSaveIntervalTicks());
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) return;
 		long bucket = Math.floorDiv(
-			madoku.craft.core.time.MadokuTimeManager.getGameplayTicks(),
-			DataWorldChunkManager.getAutoSaveIntervalTicks());
+			madoku.craft.core.time.TimeAPIManager.getGameplayTicks(),
+			DataWorldChunkAPIManager.getAutoSaveIntervalTicks());
 		if (bucket == lastAutosaveBucket) return;
 		lastAutosaveBucket = bucket;
 		if (dirty) savePersistedData(server);
@@ -90,12 +90,12 @@ public final class MadokuChunkDataManager {
 		Set<ChunkRefKey> dirtyChunkKeys = DATA.collectDirtyChunkKeys();
 		for (ChunkRefKey chunkKey : dirtyChunkKeys) {
 			JsonObject chunkData = DATA.createChunkPersistedData(chunkKey);
-			DataWorldChunkManager.ChunkDataKey dataKey = new DataWorldChunkManager.ChunkDataKey(
+			DataWorldChunkAPIManager.ChunkDataKey dataKey = new DataWorldChunkAPIManager.ChunkDataKey(
 				chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 			if (chunkData == null) {
-				DataWorldChunkManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
+				DataWorldChunkAPIManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
 			} else {
-				DataWorldChunkManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
+				DataWorldChunkAPIManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
 			}
 		}
 		DATA.clearDirtyChunkKeys();
@@ -134,7 +134,7 @@ public final class MadokuChunkDataManager {
 		if (level == null || pos == null) return;
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), pos.getX() >> 4, pos.getZ() >> 4);
 		if (!LOADED_CHUNKS.add(chunkKey)) return;
-		JsonObject data = DataWorldChunkManager.getChunkSystemData(
+		JsonObject data = DataWorldChunkAPIManager.getChunkSystemData(
 			level,
 			chunkKey.chunkX(),
 			chunkKey.chunkZ(),
@@ -147,23 +147,23 @@ public final class MadokuChunkDataManager {
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
 		if (DATA.isDirty(chunkKey)) {
 			JsonObject chunkData = DATA.createChunkPersistedData(chunkKey);
-			DataWorldChunkManager.ChunkDataKey dataKey = new DataWorldChunkManager.ChunkDataKey(
+			DataWorldChunkAPIManager.ChunkDataKey dataKey = new DataWorldChunkAPIManager.ChunkDataKey(
 				chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ());
 			if (chunkData == null) {
-				DataWorldChunkManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
+				DataWorldChunkAPIManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
 			} else {
-				DataWorldChunkManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
+				DataWorldChunkAPIManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
 			}
 			DATA.clearDirtyChunkKey(chunkKey);
 			dirty = DATA.hasDirtyChunkKeys();
 		}
 		DATA.evictChunk(chunkKey);
 		LOADED_CHUNKS.remove(chunkKey);
-		DataWorldChunkManager.releaseChunk(level, chunkX, chunkZ);
+		DataWorldChunkAPIManager.releaseChunk(level, chunkX, chunkZ);
 	}
 
 	private static String levelId(ServerLevel level) {
-		return DataWorldChunkManager.dimensionId(level);
+		return DataWorldChunkAPIManager.dimensionId(level);
 	}
 
 	private static int packLocalBlockPos(BlockPos pos) {
@@ -221,7 +221,7 @@ public final class MadokuChunkDataManager {
 		private JsonObject createChunkPersistedData(ChunkRefKey chunkKey) {
 			IntOpenHashSet positions = positionsByChunk.get(chunkKey);
 			if (positions == null || positions.isEmpty()) return null;
-			return JSONFormatManager.object().put(FIELD_PACKED_POSITIONS, encode(positions)).build();
+			return JSONFormatAPIManager.object().put(FIELD_PACKED_POSITIONS, encode(positions)).build();
 		}
 
 		private String encode(IntOpenHashSet positions) {
@@ -263,3 +263,4 @@ public final class MadokuChunkDataManager {
 	private record ChunkRefKey(String levelId, int chunkX, int chunkZ) { }
 	private record PendingRemoval(ServerLevel level, BlockPos pos) { }
 }
+

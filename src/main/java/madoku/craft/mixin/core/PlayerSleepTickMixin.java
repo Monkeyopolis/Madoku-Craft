@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-import madoku.craft.core.time.TimeSleepManager;
+import madoku.craft.core.time.TimeAPIManager;
 
 @Mixin(Player.class)
 public abstract class PlayerSleepTickMixin {
@@ -23,7 +23,7 @@ public abstract class PlayerSleepTickMixin {
 		if (level.isClientSide()) {
 			return bedRule.canSleep(level);
 		}
-		return TimeSleepManager.shouldKeepSleepingWhileForwarding(bedRule, level, (Player) (Object) this);
+		return TimeAPIManager.shouldKeepSleepingWhileForwarding(bedRule, level, (Player) (Object) this);
 	}
 }
 

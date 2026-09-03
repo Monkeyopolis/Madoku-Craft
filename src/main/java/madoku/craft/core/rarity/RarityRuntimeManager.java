@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.rarity.RarityTierAPIManager.Tier;
 
 public final class RarityRuntimeManager {
 	private static volatile boolean initialized;
@@ -147,3 +147,4 @@ public final class RarityRuntimeManager {
 		return 1.0D + Math.max(0.0D, buffPercent) / 100.0D;
 	}
 }
+

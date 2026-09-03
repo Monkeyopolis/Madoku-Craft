@@ -2,7 +2,7 @@ package madoku.craft.mixin.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootContext;
 import net.minecraft.world.level.storage.loot.LootParams;
@@ -22,7 +22,7 @@ public class LootTableLuckMixin {
 		LootParams lootParams,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> callbackInfo
 	) {
-		EnchantBooksManager.beginConfiguredLuckOfTheSea(lootParams);
+		EnchantBooksAPIManager.beginConfiguredLuckOfTheSea(lootParams);
 	}
 
 	@Inject(
@@ -33,7 +33,7 @@ public class LootTableLuckMixin {
 		LootParams lootParams,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> callbackInfo
 	) {
-		EnchantBooksManager.endConfiguredLuckOfTheSea();
+		EnchantBooksAPIManager.endConfiguredLuckOfTheSea();
 	}
 
 	@Inject(
@@ -47,4 +47,5 @@ public class LootTableLuckMixin {
 		MadokuLuckManager.applyGeneratedLoot(lootContext, cir.getReturnValue());
 	}
 }
+
 

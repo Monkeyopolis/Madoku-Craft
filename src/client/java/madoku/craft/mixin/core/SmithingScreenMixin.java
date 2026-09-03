@@ -1,8 +1,8 @@
 package madoku.craft.mixin.core;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.smithing.MadokuSmithingManager;
-import madoku.craft.core.smithing.SmithingConfigManager;
+import madoku.craft.core.smithing.SmithingAPIManager;
+import madoku.craft.core.smithing.SmithingConfigAPIManager;
 import madoku.craft.mixin.inventory.AbstractContainerScreenAccessor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.SmithingScreen;
@@ -43,19 +43,19 @@ public abstract class SmithingScreenMixin {
 
 	@Inject(method = "containerTick()V", at = @At("TAIL"))
 	private void madokuCraft$tickSlotIcons(CallbackInfo ci) {
-		if (SmithingConfigManager.isEnabled()) madokuCraft$slotIconTick++;
+		if (SmithingConfigAPIManager.isEnabled()) madokuCraft$slotIconTick++;
 	}
 
 	@Inject(method = "extractBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V", at = @At("TAIL"))
 	private void madokuCraft$drawSlotIcons(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-		if (!SmithingConfigManager.isEnabled()) return;
+		if (!SmithingConfigAPIManager.isEnabled()) return;
 		SmithingScreen screen = (SmithingScreen) (Object) this;
 		SmithingMenu menu = screen.getMenu();
 		int cycle = madokuCraft$slotIconTick / 40;
 
-		if (MadokuSmithingManager.acceptsExtendedItems()
+		if (SmithingAPIManager.acceptsExtendedItems()
 			&& menu.getSlot(SmithingMenu.TEMPLATE_SLOT).getItem().isEmpty()) {
-			Identifier[] baseIcons = MadokuSmithingManager.acceptsPetItems()
+			Identifier[] baseIcons = SmithingAPIManager.acceptsPetItems()
 				? new Identifier[] {
 					MADOKU_HELMET_SLOT, MADOKU_CHESTPLATE_SLOT, MADOKU_LEGGINGS_SLOT,
 					MADOKU_BOOTS_SLOT, MADOKU_AXE_SLOT, MADOKU_PICKAXE_SLOT,
@@ -68,16 +68,16 @@ public abstract class SmithingScreenMixin {
 				};
 			draw(graphics, baseIcons[cycle % baseIcons.length], SmithingMenu.TEMPLATE_SLOT_X_PLACEMENT);
 		}
-		if (MadokuSmithingManager.acceptsExtendedItems()
+		if (SmithingAPIManager.acceptsExtendedItems()
 			&& menu.getSlot(SmithingMenu.BASE_SLOT).getItem().isEmpty()) {
 			Identifier[] templateIcons = {
 				MADOKU_TRIM_TEMPLATE_SLOT, MADOKU_TEMPLATE_SLOT, MADOKU_BOTTLE_SLOT
 			};
 			draw(graphics, templateIcons[cycle % templateIcons.length], SmithingMenu.BASE_SLOT_X_PLACEMENT);
 		}
-		if (MadokuSmithingManager.acceptsExtendedItems()
+		if (SmithingAPIManager.acceptsExtendedItems()
 			&& menu.getSlot(SmithingMenu.ADDITIONAL_SLOT).getItem().isEmpty()) {
-			Identifier[] additionalIcons = MadokuSmithingManager.acceptsPetItems()
+			Identifier[] additionalIcons = SmithingAPIManager.acceptsPetItems()
 				? new Identifier[] {
 					MADOKU_INGOT_SLOT, MADOKU_HELMET_SLOT, MADOKU_CHESTPLATE_SLOT,
 					MADOKU_LEGGINGS_SLOT, MADOKU_BOOTS_SLOT, MADOKU_AXE_SLOT,
@@ -109,7 +109,7 @@ public abstract class SmithingScreenMixin {
 		int left,
 		int top
 	) {
-		if (MadokuSmithingManager.acceptsExtendedItems()
+		if (SmithingAPIManager.acceptsExtendedItems()
 			&& (background == baseIcon || background == templateIcon || background == additionalIcon)) {
 			return;
 		}
@@ -123,7 +123,7 @@ public abstract class SmithingScreenMixin {
 		int mouseY,
 		CallbackInfo ci
 	) {
-		if (MadokuSmithingManager.acceptsExtendedItems()) ci.cancel();
+		if (SmithingAPIManager.acceptsExtendedItems()) ci.cancel();
 	}
 
 	@Unique
@@ -143,3 +143,4 @@ public abstract class SmithingScreenMixin {
 		);
 	}
 }
+

@@ -3,8 +3,8 @@ package madoku.craft.items;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -54,7 +54,7 @@ public final class ItemsConfigManager {
 	public static void reset() { }
 
 	public static JsonObject buildCategoryFeatureDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.object(FIELD_ITEM_LEVELS, levels -> levels
 				.put(FIELD_CATEGORY_ENABLED, true)
 				.put(FIELD_STARTING_LEVEL, 1)
@@ -134,7 +134,7 @@ public final class ItemsConfigManager {
 	}
 
 	public static JsonObject buildFuelItemDefaults(String itemId, double fuelTicks, String stackValue) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_FUEL))
 			.put(FIELD_FUEL_TICKS, fuelTicks)
 			.build();
@@ -165,7 +165,7 @@ public final class ItemsConfigManager {
 		int materialLevel,
 		String stackValue
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_TOOL))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -189,7 +189,7 @@ public final class ItemsConfigManager {
 		int materialLevel,
 		String stackValue
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_WEAPON))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -222,7 +222,7 @@ public final class ItemsConfigManager {
 		double reachMax,
 		String stackValue
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_WEAPON))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -250,7 +250,7 @@ public final class ItemsConfigManager {
 		double armorToughness,
 		String stackValue
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_ARMOR))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ARMOR, armor)
@@ -259,15 +259,15 @@ public final class ItemsConfigManager {
 	}
 
 	public static JsonObject buildBaseDefaults(String itemId, String stackValue, String... categories) {
-		return JSONFormatManager.object()
-			.put(FIELD_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
+		return JSONFormatAPIManager.object()
+			.put(FIELD_ITEM_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(itemId))
 			.put(FIELD_CATEGORY, buildCategoryArray(categories))
 			.put(FIELD_STACK, normalizeStackValue(stackValue))
 			.build();
 	}
 
 	private static JsonArray buildCategoryArray(String... categories) {
-		JSONFormatManager.ArrayBuilder categoryArray = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder categoryArray = JSONFormatAPIManager.array();
 		if (categories == null || categories.length == 0) {
 			categoryArray.add(CATEGORY_OTHER);
 			return categoryArray.build();
@@ -471,7 +471,7 @@ public final class ItemsConfigManager {
 		int materialLevel,
 		String stackValue
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(buildBaseDefaults(itemId, stackValue, CATEGORY_TOOL, CATEGORY_WEAPON))
 			.put(FIELD_DURABILITY, durability)
 			.put(FIELD_ATTACK_DAMAGE, attackDamage)
@@ -565,4 +565,5 @@ public final class ItemsConfigManager {
 	}
 
 }
+
 

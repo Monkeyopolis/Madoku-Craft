@@ -1,6 +1,6 @@
 package madoku.craft.mixin.mob;
 
-import madoku.craft.core.helper.HelperProjectileManager;
+import madoku.craft.core.helper.HelperProjectileAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -26,19 +26,19 @@ public abstract class AbstractArrowDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedArrowDamage(Entity entity, DamageSource source, float originalDamage) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
-		if (HelperProjectileManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
+		if (HelperProjectileAPIManager.shouldBypassInvulnerability(arrow) && entity instanceof LivingEntity livingEntity) {
 			livingEntity.invulnerableTime = 0;
 			livingEntity.hurtTime = 0;
 		}
-		float resolvedDamage = HelperProjectileManager.resolveProjectileDamageOverride(arrow, originalDamage);
-		if (!HelperProjectileManager.hasProjectileDamageOverride(arrow)) {
+		float resolvedDamage = HelperProjectileAPIManager.resolveProjectileDamageOverride(arrow, originalDamage);
+		if (!HelperProjectileAPIManager.hasProjectileDamageOverride(arrow)) {
 			resolvedDamage = MobEntityManager.resolveMobProjectileDamageOverride(arrow, resolvedDamage);
 		}
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
-		if (hit && HelperProjectileManager.isManagedHomingProjectile(arrow)) {
-			HelperProjectileManager.clearProjectileHoming(arrow);
+		if (hit && HelperProjectileAPIManager.isManagedHomingProjectile(arrow)) {
+			HelperProjectileAPIManager.clearProjectileHoming(arrow);
 		}
-		HelperProjectileManager.clearInvulnerabilityBypass(arrow);
+		HelperProjectileAPIManager.clearInvulnerabilityBypass(arrow);
 		if (hit && entity instanceof LivingEntity livingEntity) {
 			MobEntityManager.applySkeletonArrowHitEffect(livingEntity, arrow.getOwner());
 		}
@@ -53,10 +53,11 @@ public abstract class AbstractArrowDamageMixin {
 		)
 	)
 	private void madokuCraft$skipHomingArrowKnockback(AbstractArrow arrow, LivingEntity target, DamageSource source) {
-		if (!HelperProjectileManager.isManagedHomingProjectile(arrow)) {
+		if (!HelperProjectileAPIManager.isManagedHomingProjectile(arrow)) {
 			this.doKnockback(target, source);
 		}
 	}
 }
+
 
 

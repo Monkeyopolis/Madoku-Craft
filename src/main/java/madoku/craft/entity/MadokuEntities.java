@@ -2,10 +2,10 @@ package madoku.craft.entity;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
@@ -85,7 +85,7 @@ public final class MadokuEntities {
 		CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS).register(output ->
 			output.accept(HAG_SPAWN_EGG)
 		);
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_ENTITY_RUNTIME_TICK, MadokuEntities::runRuntimeTickTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (!(entity instanceof Witch witch) || witch.getType() != madoku.craft.entity.MadokuEntityTypes.WITCH || !(world instanceof ServerLevel serverLevel)) {
 				return;
@@ -115,23 +115,23 @@ public final class MadokuEntities {
 			return;
 		}
 		JsonObject defaults = createDefaultData();
-		JsonObject data = MadokuJSONManager.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
+		JsonObject data = JSONAPIManager.loadWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, defaults);
 		nextWanderingHagSpawnDay = Math.max(-1L, getLong(data, DATA_NEXT_HAG_SPAWN_DAY, -1L));
 		lastProcessedWanderingHagDay = getLong(data, DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE);
 		long currentDay = currentAbsoluteDay(server);
 		if (nextWanderingHagSpawnDay < 0L) {
 			nextWanderingHagSpawnDay = currentDay + randomSpawnIntervalDays(server);
 		}
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = JSONAPIManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
-		long autoSaveIntervalTicks = MadokuJSONManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = JSONAPIManager.getAutoSaveIntervalTicks(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME);
+		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -142,7 +142,7 @@ public final class MadokuEntities {
 		if (server == null) {
 			return;
 		}
-		MadokuJSONManager.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
+		JSONAPIManager.saveWorldData(server, ENTITY_DATA_FOLDER_NAME, ENTITY_DATA_FILE_NAME, toPersistedData());
 	}
 
 	private static void onServerTick(MinecraftServer server) {
@@ -168,7 +168,7 @@ public final class MadokuEntities {
 		}
 	}
 
-	private static void runRuntimeTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runRuntimeTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -185,7 +185,7 @@ public final class MadokuEntities {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ENTITY_RUNTIME_TICK)) {
+		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ENTITY_RUNTIME_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -194,8 +194,8 @@ public final class MadokuEntities {
 			return;
 		}
 
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -208,8 +208,8 @@ public final class MadokuEntities {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(ENTITY_RUNTIME_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -218,15 +218,15 @@ public final class MadokuEntities {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_ENTITY_RUNTIME_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static boolean isSwampHutSpawn(ServerLevel level, Witch witch) {
@@ -407,8 +407,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTimeManager.isEnabled()) {
-			return Math.max(0L, MadokuTimeManager.getDay(MadokuTimeManager.getCurrentAbsoluteDayTime(level)));
+		if (TimeAPIManager.isEnabled()) {
+			return Math.max(0L, TimeAPIManager.getDay(TimeAPIManager.getCurrentAbsoluteDayTime(level)));
 		}
 		return Math.max(0L, Math.floorDiv(level.getOverworldClockTime(), 24000L));
 	}
@@ -417,8 +417,8 @@ public final class MadokuEntities {
 		if (level == null) {
 			return 0L;
 		}
-		if (MadokuTimeManager.isEnabled()) {
-			return Math.max(0L, MadokuTimeManager.getCurrentAbsoluteDayTime(level));
+		if (TimeAPIManager.isEnabled()) {
+			return Math.max(0L, TimeAPIManager.getCurrentAbsoluteDayTime(level));
 		}
 		return Math.max(0L, level.getOverworldClockTime());
 	}
@@ -434,14 +434,14 @@ public final class MadokuEntities {
 	}
 
 	private static JsonObject createDefaultData() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(DATA_NEXT_HAG_SPAWN_DAY, -1L)
 			.put(DATA_LAST_HAG_CHECK_DAY, Long.MIN_VALUE)
 			.build();
 	}
 
 	private static JsonObject toPersistedData() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(DATA_NEXT_HAG_SPAWN_DAY, nextWanderingHagSpawnDay)
 			.put(DATA_LAST_HAG_CHECK_DAY, lastProcessedWanderingHagDay)
 			.build();
@@ -458,4 +458,5 @@ public final class MadokuEntities {
 		}
 	}
 }
+
 

@@ -32,15 +32,15 @@ public final class CropsConfigManager {
 	}
 
 	private static JsonObject table(String tableId, JsonObject... tableEntries) {
-		return MadokuLootTableManager.buildSharedTable(tableId, tableEntries);
+		return LootTableAPIManager.buildSharedTable(tableId, tableEntries);
 	}
 
 	private static JsonObject entryTable(JsonObject... entries) {
-		return MadokuLootTableManager.buildSharedTableEntry(1, 1, entries);
+		return LootTableAPIManager.buildSharedTableEntry(1, 1, entries);
 	}
 
 	private static JsonObject entry(String itemId, int minCount, int maxCount) {
-		return MadokuLootTableManager.buildSharedEntry(itemId, minCount, maxCount);
+		return LootTableAPIManager.buildSharedEntry(itemId, minCount, maxCount);
 	}
 
 	private static void put(Map<String, JsonObject> defaults, String tableId, JsonObject table) {

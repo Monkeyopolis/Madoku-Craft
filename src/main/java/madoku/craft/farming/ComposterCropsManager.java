@@ -3,9 +3,9 @@ package madoku.craft.farming;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
@@ -36,8 +36,8 @@ public final class ComposterCropsManager {
 			Map<String, JsonObject> defaults = ComposterConfigManager.buildDefaultComposterFileDefaults();
 			for (Map.Entry<String, JsonObject> entry : defaults.entrySet()) {
 				Path file = directory.resolve(entry.getKey() + ".json");
-				files.put(entry.getKey(), JSONFormatManager.ensureManagedFile(
-					file, entry.getValue(), JSONTypeManager.STATIC_CONFIG, null));
+				files.put(entry.getKey(), JSONFormatAPIManager.ensureManagedFile(
+					file, entry.getValue(), JSONTypeAPIManager.STATIC_CONFIG, null));
 			}
 			try (var stream = Files.list(directory)) {
 				stream.filter(Files::isRegularFile)
@@ -47,10 +47,10 @@ public final class ComposterCropsManager {
 						String fileKey = fileName.substring(0, fileName.length() - ".json".length());
 						if (files.containsKey(fileKey)) return;
 						try {
-							files.put(fileKey, JSONFormatManager.ensureManagedFile(
+							files.put(fileKey, JSONFormatAPIManager.ensureManagedFile(
 								path,
 								ComposterConfigManager.buildDynamicComposterDefaultsForFile(fileKey),
-								JSONTypeManager.STATIC_CONFIG,
+								JSONTypeAPIManager.STATIC_CONFIG,
 								null));
 						} catch (IOException exception) {
 							throw new RuntimeException(exception);
@@ -89,7 +89,7 @@ public final class ComposterCropsManager {
 	}
 
 	private static Item resolveItem(String itemId) {
-		Identifier identifier = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId));
+		Identifier identifier = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId));
 		return identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)
 			? null : BuiltInRegistries.ITEM.getValue(identifier);
 	}
@@ -112,3 +112,4 @@ public final class ComposterCropsManager {
 			? value.getAsString() : fallback;
 	}
 }
+

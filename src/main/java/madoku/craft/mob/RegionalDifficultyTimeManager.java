@@ -2,7 +2,7 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ public final class RegionalDifficultyTimeManager {
 	}
 
 	public static JsonObject buildDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(RegionalDifficultyConfigManager.FIELD_ENABLED, true)
 			.object(RegionalDifficultyConfigManager.FIELD_DAY_LIST, days -> days
 				.object("difficulty-zero", tier -> tier.put(RegionalDifficultyConfigManager.FIELD_DAY_COUNT, 0).put(RegionalDifficultyConfigManager.FIELD_ADJUSTMENT, 0))
@@ -36,3 +36,4 @@ public final class RegionalDifficultyTimeManager {
 	public record TimeTierDefinition(int minDay, int maxDay, int adjustment) {
 	}
 }
+

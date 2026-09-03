@@ -2,7 +2,7 @@ package madoku.craft.mixin.core;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
+import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.items.MadokuItemsManager;
 import net.minecraft.util.RandomSource;
@@ -66,8 +66,9 @@ public class LootTableRarityMixin {
 		}
 		RandomSource random = lootContext == null ? null : lootContext.getRandom();
 		MadokuItemsManager.applyGeneratedItemLevel(stack, random);
-		MadokuRarityManager.applyGeneratedRarity(stack, random,
+		RarityAPIManager.applyGeneratedRarity(stack, random,
 			MadokuLuckManager.resolveLootPlayer(lootContext));
 		PetHagManager.applyLore(stack);
 	}
 }
+

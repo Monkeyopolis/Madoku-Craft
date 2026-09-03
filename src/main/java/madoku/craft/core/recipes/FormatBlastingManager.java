@@ -2,7 +2,7 @@ package madoku.craft.core.recipes;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -28,7 +28,8 @@ public final class FormatBlastingManager {
 			input, result, recipe.experience(), recipe.cookingTime());
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, BlastingRecipe recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, BlastingRecipe recipe) {
 		RecipesFormatManager.writeSingleInputDefaults(root, recipe);
 	}
 }
+

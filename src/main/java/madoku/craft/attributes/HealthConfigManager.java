@@ -3,7 +3,7 @@ package madoku.craft.attributes;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +37,9 @@ public final class HealthConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(HEALTH_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			return configured.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load MadokuHealthManager config; using defaults.", exception);
@@ -69,7 +69,7 @@ public final class HealthConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.object("health", health -> this.health.toConfigJson(health))
 				.object("absorption", absorption -> this.main.absorption.toConfigJson(absorption))
 				.object("health-boost", healthBoost -> this.main.healthBoost.toConfigJson(healthBoost))
@@ -142,7 +142,7 @@ public final class HealthConfigManager {
 			);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("max-health", maximumHealth)
 				.put("hunger-drain-percentage", hungerDrainPercentage)
@@ -193,7 +193,7 @@ public final class HealthConfigManager {
 			return new HealthPenaltySettings(enabled, hungerPenaltyPercentage, penaltyPercentage);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("hunger-penalty-percentage", hungerPenaltyPercentage)
 				.put("penalty-percentage", penaltyPercentage);
@@ -268,7 +268,7 @@ public final class HealthConfigManager {
 			return new EffectSettings(enabled, type, value);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("type", type.configValue)
 				.put("value", value);
@@ -301,7 +301,7 @@ public final class HealthConfigManager {
 		}
 
 		@Override
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("type", type.configValue)
 				.put("value", value)
@@ -333,14 +333,14 @@ public final class HealthConfigManager {
 			return new PoisonPenaltySettings(enabled, penaltyPercentage);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("penalty-percentage", penaltyPercentage);
 			return builder.build();
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put("enabled", enabled)
 				.put("penalty-percentage", penaltyPercentage)
 				.build();
@@ -439,3 +439,4 @@ public final class HealthConfigManager {
 		return Math.max(min, Math.min(max, value));
 	}
 }
+

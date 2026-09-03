@@ -1,6 +1,6 @@
 package madoku.craft.core.time;
 
-import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.season.SeasonAPIManager;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -73,7 +73,7 @@ public final class TimeClockManager {
 		}
 
 		long currentDayTime = overworld.getOverworldClockTime();
-		String seasonId = MadokuSeasonManager.getCurrentSeasonId();
+		String seasonId = SeasonAPIManager.getCurrentSeasonId();
 		int clockHour = getClockHour(currentDayTime);
 		boolean daytime = isDaytime(clockHour);
 		double segmentMinutes = daytime

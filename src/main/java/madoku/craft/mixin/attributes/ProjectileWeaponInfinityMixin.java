@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
@@ -23,7 +23,7 @@ public abstract class ProjectileWeaponInfinityMixin {
 		boolean multishotProjectile,
 		CallbackInfoReturnable<ItemStack> callbackInfo
 	) {
-		ItemStack preservedAmmo = EnchantBooksManager.applyConfiguredInfinityAmmo(
+		ItemStack preservedAmmo = EnchantBooksAPIManager.applyConfiguredInfinityAmmo(
 			weapon,
 			ammo,
 			shooter,
@@ -32,3 +32,4 @@ public abstract class ProjectileWeaponInfinityMixin {
 		if (preservedAmmo != null) callbackInfo.setReturnValue(preservedAmmo);
 	}
 }
+

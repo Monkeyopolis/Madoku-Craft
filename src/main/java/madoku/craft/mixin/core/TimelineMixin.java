@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.time.TimeAPIManager;
 
 import java.util.function.BiConsumer;
 
@@ -28,7 +28,7 @@ public abstract class TimelineMixin {
 	) {
 		ResourceKey<ClockTimeMarker> markerKey = (ResourceKey<ClockTimeMarker>) key;
 		ClockTimeMarker timeMarker = (ClockTimeMarker) marker;
-		long resolvedTicks = MadokuTimeManager.resolveConfiguredTimeMarkerTicks(markerKey);
+		long resolvedTicks = TimeAPIManager.resolveConfiguredTimeMarkerTicks(markerKey);
 		if (resolvedTicks >= 0L && resolvedTicks != timeMarker.ticks()) {
 			timeMarker = new ClockTimeMarker(
 				timeMarker.clock(),

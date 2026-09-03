@@ -2,8 +2,8 @@ package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -18,7 +18,7 @@ public final class ComposterConfigManager {
 	}
 
 	public static JsonObject buildComposterSystemDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_COMPOSTER_SYSTEM_ENABLED, true)
 			.build();
 	}
@@ -37,8 +37,8 @@ public final class ComposterConfigManager {
 	}
 
 	public static JsonObject buildComposterItemDefaults(String itemId, int adjustment) {
-		return JSONFormatManager.object()
-			.put(FIELD_ITEM_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
+		return JSONFormatAPIManager.object()
+			.put(FIELD_ITEM_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(itemId))
 			.put(FIELD_COMPOSTER_ADJUSTMENT, Math.max(1, adjustment))
 			.build();
 	}
@@ -46,7 +46,7 @@ public final class ComposterConfigManager {
 	public static JsonObject buildDynamicComposterDefaultsForFile(String fileKey) {
 		String normalizedFileKey = normalizeFileKey(fileKey);
 		String itemId = normalizedFileKey.contains(":") ? normalizedFileKey : "minecraft:" + normalizedFileKey;
-		String lookupId = MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId);
+		String lookupId = JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId);
 		int adjustment = buildDefaultComposterItems().getOrDefault(lookupId, 1);
 		return buildComposterItemDefaults(itemId, adjustment);
 	}
@@ -183,4 +183,5 @@ public final class ComposterConfigManager {
 		return fileKey.trim().toLowerCase(Locale.ROOT);
 	}
 }
+
 

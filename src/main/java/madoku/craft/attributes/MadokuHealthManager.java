@@ -7,10 +7,10 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.data.DataPlayerManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.data.DataPlayerAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -64,7 +64,7 @@ public final class MadokuHealthManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealthManager::runPlayerTickTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_HEALTH_PLAYER_TICK, MadokuHealthManager::runPlayerTickTask);
 		ServerLivingEntityEvents.AFTER_DAMAGE.register(MadokuHealthManager::handleAfterPlayerDamage);
 		ServerPlayerEvents.JOIN.register(MadokuHealthManager::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHealthManager::handlePlayerRespawn);
@@ -85,7 +85,7 @@ public final class MadokuHealthManager {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
-		MadokuSchedulerManager.clearAdaptiveDelayState(HEALTH_PLAYER_TICK_SCHEDULER_KEY);
+		SchedulerAPIManager.clearAdaptiveDelayState(HEALTH_PLAYER_TICK_SCHEDULER_KEY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -94,10 +94,10 @@ public final class MadokuHealthManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -105,8 +105,8 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -118,14 +118,14 @@ public final class MadokuHealthManager {
 			return;
 		}
 		syncTrackedPlayerHealth(server);
-		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
 		ensureQueued(server);
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -143,13 +143,13 @@ public final class MadokuHealthManager {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		long delayTicks = MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+		long delayTicks = SchedulerAPIManager.resolveAdaptiveDelayTicks(
 			server,
 			HEALTH_PLAYER_TICK_SCHEDULER_KEY,
 			HEALTH_PLAYER_TICK_MIN_INTERVAL,
 			HEALTH_PLAYER_TICK_MAX_INTERVAL
 		);
-		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
+		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HEALTH_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -158,8 +158,8 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -174,8 +174,8 @@ public final class MadokuHealthManager {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(HEALTH_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -184,15 +184,15 @@ public final class MadokuHealthManager {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_HEALTH_PLAYER_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void onGameplayTick(MinecraftServer server, long gameplayTick) {
@@ -550,7 +550,7 @@ public final class MadokuHealthManager {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(newPlayer.getUUID(), ignored -> new PlayerState());
 		state.savedHealth = quantizeHealth(Math.max(0.0f, newPlayer.getHealth()));
-		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
+		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
 		state.actionProgressTicks = 0L;
 		state.lowHungerActionProgressTicks = 0L;
 		state.poisonProgressTicks = 0L;
@@ -575,7 +575,7 @@ public final class MadokuHealthManager {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
+		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
 
 	}
 
@@ -586,8 +586,8 @@ public final class MadokuHealthManager {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
-		applyImmediateEffectOverrides(player, state, MadokuTimeManager.getGameplayTicks());
+		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
+		applyImmediateEffectOverrides(player, state, TimeAPIManager.getGameplayTicks());
 	}
 
 	public static void handlePlayerEffectsChanged(ServerPlayer player) {
@@ -597,7 +597,7 @@ public final class MadokuHealthManager {
 
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
-		long gameplayTick = MadokuTimeManager.getGameplayTicks();
+		long gameplayTick = TimeAPIManager.getGameplayTicks();
 		state.lastProcessedGameplayTick = gameplayTick;
 		applyImmediateEffectOverrides(player, state, gameplayTick);
 	}
@@ -670,7 +670,7 @@ public final class MadokuHealthManager {
 	}
 
 	private static JsonObject toPersistedData() {
-		JSONFormatManager.ArrayBuilder players = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder players = JSONFormatAPIManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			if (!state.hasPersistableState()) {
@@ -686,7 +686,7 @@ public final class MadokuHealthManager {
 				.put("wither-progress-ticks", Math.max(0L, state.witherProgressTicks))
 				.put("regeneration-progress-ticks", Math.max(0L, state.regenerationProgressTicks)));
 		}
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put("players", players.build())
 			.build();
 	}
@@ -860,3 +860,4 @@ public final class MadokuHealthManager {
 	}
 
 }
+

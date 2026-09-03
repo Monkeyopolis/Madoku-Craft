@@ -1,6 +1,6 @@
 package madoku.craft.mixin.core;
 
-import madoku.craft.core.smithing.MadokuSmithingManager;
+import madoku.craft.core.smithing.SmithingAPIManager;
 import madoku.craft.mixin.inventory.SlotAccessor;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.SmithingMenu;
@@ -33,7 +33,7 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 		Level level,
 		CallbackInfo ci
 	) {
-		if (!MadokuSmithingManager.acceptsExtendedItems()) {
+		if (!SmithingAPIManager.acceptsExtendedItems()) {
 			return;
 		}
 
@@ -47,8 +47,8 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 	@Inject(method = "createResult()V", at = @At("TAIL"))
 	private void madokuCraft$applyEnchantSmithingResult(CallbackInfo ci) {
 		SmithingMenu menu = (SmithingMenu) (Object) this;
-		MadokuSmithingManager.prepareSwappedRecipeResult(menu, level);
-		MadokuSmithingManager.applyCustomResult(menu);
+		SmithingAPIManager.prepareSwappedRecipeResult(menu, level);
+		SmithingAPIManager.applyCustomResult(menu);
 	}
 
 	private void replaceSlot(SmithingMenu menu, int slotIndex, int x, Slot original) {
@@ -56,16 +56,16 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 			@Override
 			public boolean mayPlace(ItemStack stack) {
 				boolean accepted;
-				if (!MadokuSmithingManager.acceptsExtendedItems()) {
+				if (!SmithingAPIManager.acceptsExtendedItems()) {
 					accepted = original.mayPlace(stack);
 				} else if (slotIndex == SmithingMenu.TEMPLATE_SLOT) {
-					accepted = MadokuSmithingManager.isManagedBase(stack);
+					accepted = SmithingAPIManager.isManagedBase(stack);
 				} else if (slotIndex == SmithingMenu.BASE_SLOT) {
-					accepted = MadokuSmithingManager.isTemplateItem(stack) || stack.is(Items.EXPERIENCE_BOTTLE);
+					accepted = SmithingAPIManager.isTemplateItem(stack) || stack.is(Items.EXPERIENCE_BOTTLE);
 				} else if (slotIndex == SmithingMenu.ADDITIONAL_SLOT) {
 					accepted = stack.is(Items.NETHERITE_INGOT)
-						|| MadokuSmithingManager.isAllowedAdditional(menu, stack)
-						|| (MadokuSmithingManager.isTemplateItem(menu.getSlot(SmithingMenu.BASE_SLOT).getItem())
+						|| SmithingAPIManager.isAllowedAdditional(menu, stack)
+						|| (SmithingAPIManager.isTemplateItem(menu.getSlot(SmithingMenu.BASE_SLOT).getItem())
 							&& original.mayPlace(stack));
 				} else {
 					accepted = original.mayPlace(stack);
@@ -75,7 +75,7 @@ public abstract class SmithingMenuMixin extends net.minecraft.world.inventory.It
 
 			@Override
 			public int getMaxStackSize() {
-				return MadokuSmithingManager.acceptsExtendedItems() ? 1 : original.getMaxStackSize();
+				return SmithingAPIManager.acceptsExtendedItems() ? 1 : original.getMaxStackSize();
 			}
 		};
 		((SlotAccessor) (Object) replacement).madokuCraft$setIndex(original.index);

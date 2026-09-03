@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionAPIManager;
 
 @Mixin(IceBlock.class)
 public abstract class IceBlockSeasonalMeltMixin {
@@ -32,14 +32,14 @@ public abstract class IceBlockSeasonalMeltMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuSeasonManager.isEnabled()
-			|| !SeasonEnvironmentTransitionManager.isWaterTransitionEnabled()
+		if (!SeasonAPIManager.isEnabled()
+			|| !SeasonEnvironmentTransitionAPIManager.isWaterTransitionEnabled()
 			|| level == null
 			|| pos == null) {
 			return;
 		}
 
-		if (MadokuSeasonManager.shouldSeasonMeltAt(level, pos)) {
+		if (SeasonAPIManager.shouldSeasonMeltAt(level, pos)) {
 			melt(state, level, pos);
 		}
 
@@ -48,4 +48,5 @@ public abstract class IceBlockSeasonalMeltMixin {
 		ci.cancel();
 	}
 }
+
 

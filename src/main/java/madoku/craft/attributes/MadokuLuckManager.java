@@ -2,9 +2,9 @@ package madoku.craft.attributes;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.data.MadokuChunkDataManager;
-import madoku.craft.core.enchant.EnchantBooksManager;
-import madoku.craft.core.helper.MadokuBlockDropContextManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
+import madoku.craft.core.helper.BlockDropContextAPIManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.core.BlockPos;
@@ -121,12 +121,12 @@ public final class MadokuLuckManager {
 	}
 
 	public static ServerPlayer resolveActiveDropPlayer() {
-		return MadokuBlockDropContextManager.resolvePlayer();
+		return BlockDropContextAPIManager.resolvePlayer();
 	}
 
 	/** Returns whether the block currently producing drops was placed by a player. */
 	public static boolean isActiveDropPlayerPlacedBlock() {
-		return MadokuBlockDropContextManager.isActiveDropPlayerPlacedBlock();
+		return BlockDropContextAPIManager.isActiveDropPlayerPlacedBlock();
 	}
 
 	private static void handlePlayerJoin(ServerPlayer player) {
@@ -197,7 +197,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		MadokuBlockDropContextManager.Context context = MadokuBlockDropContextManager.current();
+		BlockDropContextAPIManager.Context context = BlockDropContextAPIManager.current();
 		if (context != null) {
 			applyGeneratedBlockDrops(lootContext, stacks, context);
 			return;
@@ -219,7 +219,7 @@ public final class MadokuLuckManager {
 			return;
 		}
 
-		MadokuBlockDropContextManager.Context context = MadokuBlockDropContextManager.current();
+		BlockDropContextAPIManager.Context context = BlockDropContextAPIManager.current();
 		if (context == null) {
 			return;
 		}
@@ -231,7 +231,7 @@ public final class MadokuLuckManager {
 		}
 
 		for (ItemStack stack : stacks) {
-			EnchantBooksManager.applyConfiguredFortune(tool, stack, random);
+			EnchantBooksAPIManager.applyConfiguredFortune(tool, stack, random);
 		}
 
 		if (!settings.enabled || !settings.cropDrops.enabled) {
@@ -297,13 +297,13 @@ public final class MadokuLuckManager {
 	private static void applyGeneratedBlockDrops(
 		LootContext lootContext,
 		ObjectArrayList<ItemStack> stacks,
-		MadokuBlockDropContextManager.Context context
+		BlockDropContextAPIManager.Context context
 	) {
 		if (!settings.enabled || !settings.blockDrops.enabled) {
 			return;
 		}
 		boolean creative = context.player().isCreative();
-		boolean playerPlaced = MadokuChunkDataManager.isPlayerPlacedBlock(context.level(), context.pos());
+		boolean playerPlaced = ChunkDataAPIManager.isPlayerPlacedBlock(context.level(), context.pos());
 		boolean managedCrop = MadokuFarmingManager.isManagedCrop(context.level(), context.pos(), context.state())
 			&& MadokuFarmingManager.isCropHarvestReady(context.level(), context.pos(), context.state());
 		if (creative || (playerPlaced && !managedCrop)) {
@@ -508,11 +508,11 @@ public final class MadokuLuckManager {
 	}
 
 	public static void beginBlockDropContext(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
-		MadokuBlockDropContextManager.begin(level, player, pos, state);
+		BlockDropContextAPIManager.begin(level, player, pos, state);
 	}
 
 	public static void endBlockDropContext() {
-		MadokuBlockDropContextManager.end();
+		BlockDropContextAPIManager.end();
 	}
 
 
@@ -600,3 +600,5 @@ public final class MadokuLuckManager {
 	}
 
 }
+
+

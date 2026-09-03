@@ -4,9 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.rarity.RarityTierAPIManager.Tier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +43,11 @@ public final class RarityConfigManager {
 		JsonObject defaults = Settings.defaults().toConfigJson();
 		Settings fallback = Settings.defaults();
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(RARITY_CONFIG_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(RARITY_CONFIG_FOLDER_NAME);
 			Path configFile = directory.resolve(RARITY_CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -117,7 +117,7 @@ public final class RarityConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put(FIELD_ENABLED, enabled)
 				.object(FIELD_RARITY, rarity -> {
 					for (Tier tier : Tier.values()) {
@@ -150,7 +150,7 @@ public final class RarityConfigManager {
 			);
 		}
 
-		void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put(FIELD_ENABLED, enabled)
 				.put(FIELD_WEIGHT, weight)
 				.put(FIELD_WEIGHT_ADJUSTMENT, weightAdjustment);
@@ -202,3 +202,5 @@ public final class RarityConfigManager {
 		return Math.max(min, Math.min(max, value));
 	}
 }
+
+

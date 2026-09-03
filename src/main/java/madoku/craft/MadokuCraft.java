@@ -5,15 +5,14 @@ import madoku.craft.attributes.MadokuHealthManager;
 import madoku.craft.attributes.MadokuHungerManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.data.MadokuChunkDataManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.sync.SyncConfigManager;
-import madoku.craft.core.time.MadokuTimeManager;
-import madoku.craft.core.time.TimeSleepManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.mob.MadokuMobManager;
-import madoku.craft.ecosystem.MadokuEcosystemManager;
+import madoku.craft.ecosystem.EcosystemAPIManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.items.MadokuItemsManager;
@@ -39,22 +38,22 @@ public class MadokuCraft implements ModInitializer {
 		MadokuBlocks.initialize();
 		MadokuItemsManager.initialize();
 		MadokuFarmingManager.initialize();
-		MadokuEcosystemManager.initialize();
+		EcosystemAPIManager.initialize();
 		MadokuAttributesManager.initialize();
-		MadokuRarityManager.initialize();
-		MadokuChunkDataManager.initialize();
+		RarityAPIManager.initialize();
+		ChunkDataAPIManager.initialize();
 		MadokuLevelsManager.initialize();
 		MadokuPetManager.initialize();
-		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeSleepManager::shouldAllowResettingTime);
+		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeAPIManager::shouldAllowResettingTime);
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-			SyncConfigManager.resetClientSynchronizedState();
-			MadokuSeasonManager.reset();
+			SyncConfigAPIManager.resetClientSynchronizedState();
+			SeasonAPIManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();
-			MadokuEcosystemManager.reset();
+			EcosystemAPIManager.reset();
 			MadokuItemsManager.reset();
-			MadokuChunkDataManager.reset();
+			ChunkDataAPIManager.reset();
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
 			MadokuLevelsManager.reset();
@@ -63,11 +62,11 @@ public class MadokuCraft implements ModInitializer {
 			MadokuCoreManager.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarmingManager.loadPersistedData(server);
-			MadokuEcosystemManager.loadPersistedData(server);
-			MadokuChunkDataManager.loadPersistedData(server);
+			EcosystemAPIManager.loadPersistedData(server);
+			ChunkDataAPIManager.loadPersistedData(server);
 			MadokuCoreManager.onServerStarted(server);
 			MadokuFarmingManager.onServerStarted(server);
-			MadokuEcosystemManager.onServerStarted(server);
+			EcosystemAPIManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
 			MadokuHealthManager.loadPersistedData(server);
 			MadokuHungerManager.loadPersistedData(server);
@@ -79,9 +78,9 @@ public class MadokuCraft implements ModInitializer {
 			MadokuEntities.onServerStarted(server);
 			MadokuPetManager.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
-			MadokuTimeManager.broadcastWorldTimeNow(server);
+			TimeAPIManager.broadcastWorldTimeNow(server);
 			MadokuMobManager.broadcastDifficultyNow(server);
-			MadokuSeasonManager.broadcastWorldSeasonNow(server);
+			SeasonAPIManager.broadcastWorldSeasonNow(server);
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
@@ -89,44 +88,46 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			SyncConfigManager.resetClientSynchronizedState();
-			MadokuSeasonManager.reset();
+			SyncConfigAPIManager.resetClientSynchronizedState();
+			SeasonAPIManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();
-			MadokuEcosystemManager.reset();
+			EcosystemAPIManager.reset();
 			MadokuItemsManager.reset();
 			MadokuCoreManager.reset();
-			MadokuChunkDataManager.reset();
+			ChunkDataAPIManager.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuMobManager.onServerStopped();
 			MadokuHealthManager.reset();
 			MadokuHungerManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
-			MadokuJSONManager.clearRuntimeState();
+			JSONAPIManager.clearRuntimeState();
 		});
 
-		ServerTickEvents.START_SERVER_TICK.register(server -> TimeSleepManager.refreshTickIncrement(server));
-		ServerTickEvents.START_SERVER_TICK.register(server -> MadokuSeasonManager.onServerStartTick(server));
+		ServerTickEvents.START_SERVER_TICK.register(server -> TimeAPIManager.refreshSleepTickIncrement(server));
+		ServerTickEvents.START_SERVER_TICK.register(server -> SeasonAPIManager.onServerStartTick(server));
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			long tickIncrement = TimeSleepManager.getCachedTickIncrement();
-			MadokuTimeManager.advance(server, tickIncrement);
-			MadokuTimeManager.update(server);
+			long tickIncrement = TimeAPIManager.getCachedSleepTickIncrement();
+			TimeAPIManager.advance(server, tickIncrement);
+			TimeAPIManager.update(server);
 			MadokuCoreManager.onServerTick(server);
 			MadokuCoreManager.autosavePersistedData(server);
-			MadokuSeasonManager.onServerTick(server);
+			SeasonAPIManager.onServerTick(server);
 			MadokuMobManager.onServerTick(server);
 			MadokuLevelsManager.flushDirtySyncs(server);
 			if (MadokuCoreManager.shouldRunWorldSync(server)) {
-				MadokuTimeManager.broadcastWorldTimeIfChanged(server);
+				TimeAPIManager.broadcastWorldTimeIfChanged(server);
 				MadokuMobManager.broadcastDifficultyIfChanged(server);
-				MadokuSeasonManager.broadcastWorldSeasonIfChanged(server);
-				MadokuSeasonManager.syncPlayerClimateIfChanged(server);
+				SeasonAPIManager.broadcastWorldSeasonIfChanged(server);
+				SeasonAPIManager.syncPlayerClimateIfChanged(server);
 			}
 		});
 	}
 }
+
+
 
 
 

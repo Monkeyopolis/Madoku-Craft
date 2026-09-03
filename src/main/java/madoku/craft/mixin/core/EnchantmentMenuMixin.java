@@ -13,8 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.core.enchant.EnchantConfigManager;
-import madoku.craft.core.enchant.EnchantTableManager;
+import madoku.craft.core.enchant.EnchantConfigAPIManager;
+import madoku.craft.core.enchant.EnchantTableAPIManager;
 
 @Mixin(EnchantmentMenu.class)
 public abstract class EnchantmentMenuMixin extends AbstractContainerMenu {
@@ -33,22 +33,22 @@ public abstract class EnchantmentMenuMixin extends AbstractContainerMenu {
 		this.slots.set(0, new Slot(original.container, 0, 15, 47) {
 			@Override
 			public boolean mayPlace(ItemStack stack) {
-				return !EnchantConfigManager.isEnchantmentTableEnabled() || EnchantTableManager.isAcceptedInput(stack);
+				return !EnchantConfigAPIManager.isEnchantmentTableEnabled() || EnchantTableAPIManager.isAcceptedInput(stack);
 			}
 
 		});
 	}
 	@Inject(method = "slotsChanged(Lnet/minecraft/world/Container;)V", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$updateEnchantChoices(Container container, CallbackInfo ci) {
-		if (!EnchantTableManager.isAcceptedInput(((EnchantmentMenu) (Object) this).getSlot(0).getItem())) {
+		if (!EnchantTableAPIManager.isAcceptedInput(((EnchantmentMenu) (Object) this).getSlot(0).getItem())) {
 			if (madokuCraft$isEnabled()) {
-				EnchantTableManager.updateChoices((EnchantmentMenu) (Object) this);
+				EnchantTableAPIManager.updateChoices((EnchantmentMenu) (Object) this);
 				ci.cancel();
 			}
 			return;
 		}
 		if (madokuCraft$isEnabled()) {
-			EnchantTableManager.updateChoices((EnchantmentMenu) (Object) this);
+			EnchantTableAPIManager.updateChoices((EnchantmentMenu) (Object) this);
 			ci.cancel();
 		}
 	}
@@ -56,7 +56,7 @@ public abstract class EnchantmentMenuMixin extends AbstractContainerMenu {
 	@Inject(method = "clickMenuButton(Lnet/minecraft/world/entity/player/Player;I)Z", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleEnchantButton(Player player, int button, CallbackInfoReturnable<Boolean> cir) {
 		if (!madokuCraft$isEnabled()) return;
-		cir.setReturnValue(EnchantTableManager.handleButton((EnchantmentMenu) (Object) this, player, button));
+		cir.setReturnValue(EnchantTableAPIManager.handleButton((EnchantmentMenu) (Object) this, player, button));
 	}
 
 	@Inject(method = "quickMoveStack(Lnet/minecraft/world/entity/player/Player;I)Lnet/minecraft/world/item/ItemStack;", at = @At("HEAD"), cancellable = true)
@@ -69,7 +69,7 @@ public abstract class EnchantmentMenuMixin extends AbstractContainerMenu {
 
 		Slot sourceSlot = this.slots.get(slotIndex);
 		ItemStack source = sourceSlot.getItem();
-		if (!EnchantTableManager.isAcceptedInput(source)) return;
+		if (!EnchantTableAPIManager.isAcceptedInput(source)) return;
 
 		ItemStack original = source.copy();
 		if (!this.moveItemStackTo(source, 0, 1, false)) {
@@ -92,6 +92,7 @@ public abstract class EnchantmentMenuMixin extends AbstractContainerMenu {
 	}
 
 	private static boolean madokuCraft$isEnabled() {
-		return madoku.craft.core.enchant.EnchantConfigManager.isEnchantmentTableEnabled();
+		return madoku.craft.core.enchant.EnchantConfigAPIManager.isEnchantmentTableEnabled();
 	}
 }
+

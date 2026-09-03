@@ -3,8 +3,8 @@ package madoku.craft.core.loot;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,9 +18,9 @@ public final class StructuresConfigManager {
 	public static void reset() { }
 
 	public static JsonObject buildStructureTableTemplate(String tableId) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, true)
-			.put(LootTableConfigManager.FIELD_TABLE_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(tableId))
+			.put(LootTableConfigManager.FIELD_TABLE_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(tableId))
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
 				.put(LootTableConfigManager.FIELD_MIN, 1)
 				.put(LootTableConfigManager.FIELD_MAX, 3))
@@ -30,9 +30,9 @@ public final class StructuresConfigManager {
 	}
 
 	public static JsonObject buildStructureTable(String tableId, int minRolls, int maxRolls) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(LootTableConfigManager.FIELD_ENABLED, true)
-			.put(LootTableConfigManager.FIELD_TABLE_ID, MadokuJSONManager.normalizeRegistryIdentifierForJson(tableId))
+			.put(LootTableConfigManager.FIELD_TABLE_ID, JSONAPIManager.normalizeRegistryIdentifierForJson(tableId))
 			.object(LootTableConfigManager.FIELD_ROLLS, rolls -> rolls
 				.put(LootTableConfigManager.FIELD_MIN, Math.max(0, minRolls))
 				.put(LootTableConfigManager.FIELD_MAX, Math.max(minRolls, maxRolls)))
@@ -42,19 +42,19 @@ public final class StructuresConfigManager {
 	}
 
 	public static JsonObject group(String rarity, int weight, JsonArray entries) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
-			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatManager.array().build() : entries)
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatAPIManager.array().build() : entries)
 			.build();
 	}
 
 	public static JsonObject group(String rarity, int weight, List<String> tags, JsonArray entries) {
-		JSONFormatManager.ObjectBuilder group = JSONFormatManager.object()
+		JSONFormatAPIManager.ObjectBuilder group = JSONFormatAPIManager.object()
 			.put(LootTableConfigManager.FIELD_RARITY, rarity == null ? "common" : rarity)
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(0, weight))
-			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatManager.array().build() : entries);
-		JSONFormatManager.ArrayBuilder tagArray = JSONFormatManager.array();
+			.put(LootTableConfigManager.FIELD_ENTRIES, entries == null ? JSONFormatAPIManager.array().build() : entries);
+		JSONFormatAPIManager.ArrayBuilder tagArray = JSONFormatAPIManager.array();
 		if (tags != null) {
 			for (String tag : tags) {
 				if (tag == null || tag.isBlank()) {
@@ -71,7 +71,7 @@ public final class StructuresConfigManager {
 	}
 
 	public static JsonArray entries(JsonObject... entries) {
-		JSONFormatManager.ArrayBuilder array = JSONFormatManager.array();
+		JSONFormatAPIManager.ArrayBuilder array = JSONFormatAPIManager.array();
 		if (entries != null) {
 			for (JsonObject entry : entries) {
 				if (entry == null || entry.isEmpty()) {
@@ -84,8 +84,8 @@ public final class StructuresConfigManager {
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount) {
-		return JSONFormatManager.object()
-			.put(LootTableConfigManager.FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
+		return JSONFormatAPIManager.object()
+			.put(LootTableConfigManager.FIELD_ITEM, JSONAPIManager.normalizeRegistryIdentifierForJson(itemId))
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
 			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)
 			.put(LootTableConfigManager.FIELD_MAX_COUNT, Math.max(minCount, maxCount))
@@ -93,8 +93,8 @@ public final class StructuresConfigManager {
 	}
 
 	public static JsonObject item(String itemId, int weight, int minCount, int maxCount, String itemRarity) {
-		JSONFormatManager.ObjectBuilder entry = JSONFormatManager.object()
-			.put(LootTableConfigManager.FIELD_ITEM, MadokuJSONManager.normalizeRegistryIdentifierForJson(itemId))
+		JSONFormatAPIManager.ObjectBuilder entry = JSONFormatAPIManager.object()
+			.put(LootTableConfigManager.FIELD_ITEM, JSONAPIManager.normalizeRegistryIdentifierForJson(itemId))
 			.put(LootTableConfigManager.FIELD_WEIGHT, Math.max(1, weight))
 			.put(LootTableConfigManager.FIELD_MIN_COUNT, minCount)
 			.put(LootTableConfigManager.FIELD_MAX_COUNT, Math.max(minCount, maxCount));
@@ -144,7 +144,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultAbandonedMineshaft() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/abandoned_mineshaft", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -189,7 +189,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultAncientCity() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ancient_city", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -247,7 +247,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultBastionRemnant() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/bastion_remnant", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -305,7 +305,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultBuriedTreasure() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/buried_treasure", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -350,7 +350,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultDesertPyramid() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/desert_pyramid", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -395,7 +395,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultDungeon() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/dungeon", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -440,7 +440,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultEndCity() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/end_city", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -506,7 +506,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultIgloo() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/igloo", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -550,7 +550,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultJungleTemple() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/jungle_temple", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -595,7 +595,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultPillagerOutpost() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/pillager_outpost", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -651,7 +651,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultNetherFortress() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/nether_fortress", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -717,7 +717,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultRuinedPortal() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/ruined_portal", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -772,7 +772,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultShipwreck() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/shipwreck", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -820,7 +820,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultStarterChest() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/starter_chest", 12, 16))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -858,7 +858,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultStronghold() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/stronghold", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -914,7 +914,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultTrialChambers() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/trial_chambers", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -970,7 +970,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultUnderwaterRuin() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/underwater_ruin", 7, 11))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -1018,7 +1018,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultVillage() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/village", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -1041,7 +1041,7 @@ public final class StructuresConfigManager {
 	}
 
 	private static JsonObject buildDefaultWoodlandMansion() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.putAll(StructuresConfigManager.buildStructureTable("minecraft:structure_chests/woodland_mansion", 5, 9))
 			.array(LootTableConfigManager.FIELD_GROUPS, groups -> groups
 				.add(StructuresConfigManager.group("common", 100, StructuresConfigManager.entries(
@@ -1102,3 +1102,4 @@ public final class StructuresConfigManager {
 		defaults.put(LootTableConfigManager.fileKeyFromTableId(tableId, "structure-table"), root);
 	}
 }
+

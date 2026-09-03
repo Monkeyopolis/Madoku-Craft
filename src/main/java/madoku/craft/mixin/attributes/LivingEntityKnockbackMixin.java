@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -29,7 +29,7 @@ public abstract class LivingEntityKnockbackMixin {
 		CallbackInfo callbackInfo
 	) {
 		this.madokuCraft$configuredKnockbackVerticalY = Double.NaN;
-		double configuredContribution = EnchantBooksManager.resolveConfiguredKnockbackVerticalContribution(source);
+		double configuredContribution = EnchantBooksAPIManager.resolveConfiguredKnockbackVerticalContribution(source);
 		if (configuredContribution <= 0.0D) return;
 
 		LivingEntity target = (LivingEntity) (Object) this;
@@ -60,3 +60,4 @@ public abstract class LivingEntityKnockbackMixin {
 		target.setDeltaMovement(movement.x, configuredY, movement.z);
 	}
 }
+

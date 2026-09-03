@@ -2,9 +2,9 @@ package madoku.craft.core.data;
 
 import madoku.craft.attributes.MadokuHealthManager;
 import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.time.MadokuTimeManager;
-import madoku.craft.ecosystem.MadokuEcosystemManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
+import madoku.craft.ecosystem.EcosystemAPIManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.levels.MadokuLevelsManager;
@@ -72,8 +72,8 @@ public final class DataSaveCoordinatorManager {
 
 	public static void autosave(MinecraftServer server) {
 		if (server == null) return;
-		long interval = Math.max(1L, DataWorldChunkManager.getAutoSaveIntervalTicks());
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), interval);
+		long interval = Math.max(1L, DataWorldChunkAPIManager.getAutoSaveIntervalTicks());
+		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), interval);
 		if (bucket == lastAutosaveBucket) return;
 		lastAutosaveBucket = bucket;
 		captureAndQueue(server, false, "autosave");
@@ -121,8 +121,8 @@ public final class DataSaveCoordinatorManager {
 		if (shutdown) {
 			MadokuEntities.savePersistedData(server);
 			MadokuFarmingManager.savePersistedData(server);
-			MadokuEcosystemManager.savePersistedData(server);
-			MadokuSchedulerManager.savePersistedData(server);
+			EcosystemAPIManager.savePersistedData(server);
+			SchedulerAPIManager.savePersistedData(server);
 			MadokuHealthManager.savePersistedData(server);
 			MadokuHungerManager.savePersistedData(server);
 			MadokuLevelsManager.savePersistedData(server);
@@ -130,8 +130,8 @@ public final class DataSaveCoordinatorManager {
 		} else {
 			MadokuEntities.autosavePersistedData(server);
 			MadokuFarmingManager.autosavePersistedData(server);
-			MadokuEcosystemManager.autosavePersistedData(server);
-			MadokuSchedulerManager.autosavePersistedData(server);
+			EcosystemAPIManager.autosavePersistedData(server);
+			SchedulerAPIManager.autosavePersistedData(server);
 			MadokuHealthManager.autosavePersistedData(server);
 			MadokuHungerManager.autosavePersistedData(server);
 			MadokuLevelsManager.autosavePersistedData(server);
@@ -139,10 +139,10 @@ public final class DataSaveCoordinatorManager {
 		}
 		if (shutdown) MadokuChunkDataManager.savePersistedData(server);
 		else MadokuChunkDataManager.autosavePersistedData(server);
-		if (shutdown) DataWorldManager.savePersistedData(server);
-		else DataWorldManager.autosavePersistedData(server);
-		DataWorldChunkManager.savePersistedData(server);
-		DataPlayerManager.savePersistedData(server);
+		if (shutdown) DataWorldAPIManager.savePersistedData(server);
+		else DataWorldAPIManager.autosavePersistedData(server);
+		DataWorldChunkAPIManager.savePersistedData(server);
+		DataPlayerAPIManager.savePersistedData(server);
 		lastMetrics = new SaveMetrics(reason, DIRTY_CHUNKS.get(),
 			Math.max(0L, FILES_WRITTEN.get() - filesBefore),
 			Math.max(0L, BYTES_WRITTEN.get() - bytesBefore),
@@ -210,3 +210,4 @@ public final class DataSaveCoordinatorManager {
 		private static SaveMetrics empty() { return new SaveMetrics("none", 0L, 0L, 0L, 0L, 0L); }
 	}
 }
+

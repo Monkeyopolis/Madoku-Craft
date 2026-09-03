@@ -3,11 +3,11 @@ package madoku.craft.ecosystem;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.chunk.MadokuChunkManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.chunk.ChunkAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -40,13 +40,13 @@ public final class EcosystemNaturalDecayManager {
 
 	private static volatile NaturalDecayConfigManager.Settings settings = NaturalDecayConfigManager.defaults();
 	private static final Predicate<BlockState> NATURAL_LEAF_STATE = state -> state != null && state.is(BlockTags.LEAVES);
-	static final Map<MadokuEcosystemManager.ChunkRefKey, Map<Long, MadokuEcosystemManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
-	private static final Map<MadokuEcosystemManager.ChunkRefKey, Map<Long, Long>> treeDecayTargetOwnersByChunk = new LinkedHashMap<>();
+	static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
+	private static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, Long>> treeDecayTargetOwnersByChunk = new LinkedHashMap<>();
 
-	private static final MadokuChunkManager.ChunkProcessor CHUNK_PROCESSOR = new MadokuChunkManager.ChunkProcessor() {
+	private static final ChunkAPIManager.ChunkProcessor CHUNK_PROCESSOR = new ChunkAPIManager.ChunkProcessor() {
 		@Override
 		public boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
-			return (MadokuEcosystemManager.candidateMaskAt(level, position) & MadokuEcosystemManager.CANDIDATE_DECAY) != 0;
+			return (EcosystemAPIManager.candidateMaskAt(level, position) & EcosystemAPIManager.CANDIDATE_DECAY) != 0;
 		}
 
 		@Override
@@ -60,7 +60,7 @@ public final class EcosystemNaturalDecayManager {
 
 	public static void initialize() {
 		loadConfig();
-		MadokuChunkManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
+		ChunkAPIManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 	}
 
 	public static void reset() {
@@ -72,65 +72,65 @@ public final class EcosystemNaturalDecayManager {
 		treeDecayTargetOwnersByChunk.clear();
 	}
 
-	static void evictTrackedCandidateState(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+	static void evictTrackedCandidateState(EcosystemAPIManager.ChunkRefKey chunkKey) {
 		if (chunkKey == null) {
 			return;
 		}
-		Map<Long, MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.remove(chunkKey);
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.remove(chunkKey);
 		treeDecayTargetOwnersByChunk.remove(chunkKey);
 		if (candidates != null) {
-			for (MadokuEcosystemManager.TreeDecayCandidateState candidate : candidates.values()) {
+			for (EcosystemAPIManager.TreeDecayCandidateState candidate : candidates.values()) {
 				if (candidate != null) {
-					MadokuEcosystemManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+					EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, EcosystemAPIManager.CANDIDATE_DECAY);
 				}
 			}
 		}
-		MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
+		EcosystemAPIManager.syncChunkProcessorTracking(chunkKey);
 	}
 
-	static Set<MadokuEcosystemManager.ChunkRefKey> collectTrackedChunkKeys() {
+	static Set<EcosystemAPIManager.ChunkRefKey> collectTrackedChunkKeys() {
 		return new java.util.LinkedHashSet<>(treeDecayCandidatesByChunk.keySet());
 	}
 
-	static Collection<MadokuEcosystemManager.TreeDecayCandidateState> getTreeDecayCandidates(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+	static Collection<EcosystemAPIManager.TreeDecayCandidateState> getTreeDecayCandidates(EcosystemAPIManager.ChunkRefKey chunkKey) {
 		return chunkKey == null ? List.of() : treeDecayCandidatesByChunk.getOrDefault(chunkKey, Map.of()).values();
 	}
 
-	static void putTreeDecayCandidate(MadokuEcosystemManager.ChunkRefKey chunkKey, MadokuEcosystemManager.TreeDecayCandidateState candidate) {
+	static void putTreeDecayCandidate(EcosystemAPIManager.ChunkRefKey chunkKey, EcosystemAPIManager.TreeDecayCandidateState candidate) {
 		if (chunkKey == null || candidate == null) {
 			return;
 		}
-		Map<Long, MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.computeIfAbsent(chunkKey, ignored -> new LinkedHashMap<>());
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.computeIfAbsent(chunkKey, ignored -> new LinkedHashMap<>());
 		if (candidates.containsKey(candidate.leafPos)) return;
 		Map<Long, Long> targetOwners = treeDecayTargetOwnersByChunk.computeIfAbsent(chunkKey, ignored -> new LinkedHashMap<>());
 		if (targetOwners.containsKey(candidate.targetPos)) return;
 		candidates.put(candidate.leafPos, candidate);
 		targetOwners.put(candidate.targetPos, candidate.leafPos);
-		MadokuEcosystemManager.addCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+		EcosystemAPIManager.addCandidatePositionBit(candidate.levelId, candidate.leafPos, EcosystemAPIManager.CANDIDATE_DECAY);
 		syncChunkProcessorTracking(chunkKey);
 	}
 
-	static void syncChunkProcessorTracking(MadokuEcosystemManager.ChunkRefKey chunkKey) {
-		MadokuEcosystemManager.syncChunkProcessorTracking(chunkKey);
+	static void syncChunkProcessorTracking(EcosystemAPIManager.ChunkRefKey chunkKey) {
+		EcosystemAPIManager.syncChunkProcessorTracking(chunkKey);
 	}
 
-	static JsonObject createChunkPersistedData(MadokuEcosystemManager.ChunkRefKey chunkKey) {
+	static JsonObject createChunkPersistedData(EcosystemAPIManager.ChunkRefKey chunkKey) {
 		if (chunkKey == null) {
 			return null;
 		}
-		Collection<MadokuEcosystemManager.TreeDecayCandidateState> treeDecayCandidateList = getTreeDecayCandidates(chunkKey);
+		Collection<EcosystemAPIManager.TreeDecayCandidateState> treeDecayCandidateList = getTreeDecayCandidates(chunkKey);
 		if (treeDecayCandidateList == null || treeDecayCandidateList.isEmpty()) {
 			return null;
 		}
 
-		JSONFormatManager.ArrayBuilder treeDecayCandidates = JSONFormatManager.array();
-		for (MadokuEcosystemManager.TreeDecayCandidateState candidate : treeDecayCandidateList) {
+		JSONFormatAPIManager.ArrayBuilder treeDecayCandidates = JSONFormatAPIManager.array();
+		for (EcosystemAPIManager.TreeDecayCandidateState candidate : treeDecayCandidateList) {
 			if (candidate != null) {
 				treeDecayCandidates.add(candidate.toJson());
 			}
 		}
 
-		return MadokuEcosystemManager.buildChunkPersistedData(builder -> builder
+		return EcosystemAPIManager.buildChunkPersistedData(builder -> builder
 			.put("tree-decay-candidates", treeDecayCandidates.build()));
 	}
 
@@ -142,11 +142,11 @@ public final class EcosystemNaturalDecayManager {
 		JsonElement treeDecayCandidatesElement = source.get("tree-decay-candidates");
 		if (treeDecayCandidatesElement != null && treeDecayCandidatesElement.isJsonArray()) {
 			for (JsonElement element : treeDecayCandidatesElement.getAsJsonArray()) {
-				MadokuEcosystemManager.TreeDecayCandidateState candidate = MadokuEcosystemManager.TreeDecayCandidateState.fromJson(element);
+				EcosystemAPIManager.TreeDecayCandidateState candidate = EcosystemAPIManager.TreeDecayCandidateState.fromJson(element);
 				if (candidate == null) {
 					continue;
 				}
-				putTreeDecayCandidate(new MadokuEcosystemManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
+				putTreeDecayCandidate(new EcosystemAPIManager.ChunkRefKey(candidate.levelId, candidate.chunkX, candidate.chunkZ), candidate);
 			}
 		}
 	}
@@ -156,7 +156,7 @@ public final class EcosystemNaturalDecayManager {
 			return false;
 		}
 
-		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		Block leafLitter = EcosystemConfigManager.resolveBlock(EcosystemAPIManager.BLOCK_ID_LEAF_LITTER);
 		if (leafLitter == null) {
 			return false;
 		}
@@ -172,7 +172,7 @@ public final class EcosystemNaturalDecayManager {
 				return false;
 			}
 			world.setBlockAndUpdate(targetPos, placed);
-			MadokuEcosystemManager.invalidateCachedGroundPosition();
+			EcosystemAPIManager.invalidateCachedGroundPosition();
 			return true;
 		}
 		if (current.getBlock() != leafLitter) {
@@ -189,7 +189,7 @@ public final class EcosystemNaturalDecayManager {
 			return false;
 		}
 		world.setBlockAndUpdate(targetPos, updated);
-		MadokuEcosystemManager.invalidateCachedGroundPosition();
+		EcosystemAPIManager.invalidateCachedGroundPosition();
 		return true;
 	}
 
@@ -271,11 +271,11 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	public static boolean isEnabled() {
-		return MadokuEcosystemManager.isEnabled() && settings.isEnabled();
+		return EcosystemAPIManager.isEnabled() && settings.isEnabled();
 	}
 
 	public static void syncChunkProcessorActivation() {
-		MadokuChunkManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
+		ChunkAPIManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
 	}
 
 	/** Discovers decay in the same column selected for Growth and Erosion. */
@@ -285,7 +285,7 @@ public final class EcosystemNaturalDecayManager {
 		int chunkX,
 		int chunkZ,
 		int columnIndex,
-		MadokuEcosystemManager.DiscoveryChunkState discoveryState
+		EcosystemAPIManager.DiscoveryChunkState discoveryState
 	) {
 		if (world == null || chunk == null || discoveryState == null || !isEnabled()) {
 			return;
@@ -334,7 +334,7 @@ public final class EcosystemNaturalDecayManager {
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
-		long currentAbsoluteDayTime = MadokuEcosystemManager.resolveCachedAbsoluteDayTime(world);
+		long currentAbsoluteDayTime = EcosystemAPIManager.resolveCachedAbsoluteDayTime(world);
 		processTreeDecayCandidateInChunk(
 			world,
 			position.getX() >> 4,
@@ -347,27 +347,27 @@ public final class EcosystemNaturalDecayManager {
 	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {
 		String normalizedSeasonId = EcosystemConfigManager.normalize(seasonId);
 		if (normalizedSeasonId.isBlank()) {
-			 normalizedSeasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
+			 normalizedSeasonId = EcosystemConfigManager.normalize(SeasonAPIManager.getCurrentSeasonId(world));
 		}
-		EcosystemConfigManager.DayRange range = MadokuEcosystemManager.naturalDecaySettings.treeDecayForSeason(normalizedSeasonId);
+		EcosystemConfigManager.DayRange range = EcosystemAPIManager.naturalDecaySettings.treeDecayForSeason(normalizedSeasonId);
 		return randomDaysToTicks(range);
 	}
 
 	static BlockPos resolveTreeDecayTargetPos(ServerLevel world, BlockPos leafPos, BlockState leafState) {
-		if (world == null || leafPos == null || leafState == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+		if (world == null || leafPos == null || leafState == null || !EcosystemAPIManager.isNaturalDecayEnabled()) {
 			return null;
 		}
-		if (!leafState.is(BlockTags.LEAVES) || !MadokuEcosystemManager.isNaturallyGeneratedLeaf(leafState)) {
+		if (!leafState.is(BlockTags.LEAVES) || !EcosystemAPIManager.isNaturallyGeneratedLeaf(leafState)) {
 			return null;
 		}
 		return resolveLeafLitterTargetPos(world, leafPos);
 	}
 
 	static boolean isValidTreeDecayTargetCandidate(ServerLevel world, BlockPos targetPos) {
-		if (world == null || targetPos == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+		if (world == null || targetPos == null || !EcosystemAPIManager.isNaturalDecayEnabled()) {
 			return false;
 		}
-		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		Block leafLitter = EcosystemConfigManager.resolveBlock(EcosystemAPIManager.BLOCK_ID_LEAF_LITTER);
 		if (leafLitter == null) {
 			return false;
 		}
@@ -378,10 +378,10 @@ public final class EcosystemNaturalDecayManager {
 		}
 		if (state.getBlock() == leafLitter) {
 			return hasLeafLitterSupportBlock(world, targetPos)
-				&& MadokuEcosystemManager.getLeafLitterAmount(state) < MadokuEcosystemManager.getLeafLitterMaxAmount(state);
+				&& EcosystemAPIManager.getLeafLitterAmount(state) < EcosystemAPIManager.getLeafLitterMaxAmount(state);
 		}
 		if (state.isAir()) {
-			BlockState placed = MadokuEcosystemManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
+			BlockState placed = EcosystemAPIManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
 			return hasLeafLitterSupportBlock(world, targetPos)
 				&& placed.canSurvive(world, targetPos);
 		}
@@ -389,12 +389,12 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	static void pickTreeDecayCandidateForPosition(ServerLevel world, int chunkX, int chunkZ, long leafPos, long targetPos) {
-		if (world == null || !MadokuEcosystemManager.isNaturalDecayEnabled()) {
+		if (world == null || !EcosystemAPIManager.isNaturalDecayEnabled()) {
 			return;
 		}
 
-		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
-		Map<Long, MadokuEcosystemManager.TreeDecayCandidateState> existingCandidates = treeDecayCandidatesByChunk.get(chunkKey);
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(EcosystemAPIManager.levelId(world), chunkX, chunkZ);
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> existingCandidates = treeDecayCandidatesByChunk.get(chunkKey);
 		if (leafPos == Long.MIN_VALUE || targetPos == Long.MIN_VALUE || !isValidTreeDecayTargetCandidate(world, BlockPos.of(targetPos))) {
 			return;
 		}
@@ -402,14 +402,14 @@ public final class EcosystemNaturalDecayManager {
 		Map<Long, Long> targetOwners = treeDecayTargetOwnersByChunk.get(chunkKey);
 		if (targetOwners != null && targetOwners.containsKey(targetPos)) return;
 
-		String seasonId = EcosystemConfigManager.normalize(MadokuSeasonManager.getCurrentSeasonId(world));
+		String seasonId = EcosystemConfigManager.normalize(SeasonAPIManager.getCurrentSeasonId(world));
 		double requiredDecayTicks = resolveTreeDecayRequiredTicks(world, seasonId);
 		if (requiredDecayTicks <= 0.0d) {
 			return;
 		}
 
-		putTreeDecayCandidate(chunkKey, new MadokuEcosystemManager.TreeDecayCandidateState(
-				MadokuEcosystemManager.levelId(world),
+		putTreeDecayCandidate(chunkKey, new EcosystemAPIManager.TreeDecayCandidateState(
+				EcosystemAPIManager.levelId(world),
 				chunkX,
 				chunkZ,
 				leafPos,
@@ -417,9 +417,9 @@ public final class EcosystemNaturalDecayManager {
 				seasonId,
 				requiredDecayTicks,
 				0.0d,
-				MadokuTimeManager.getCurrentAbsoluteDayTime(world)
+				TimeAPIManager.getCurrentAbsoluteDayTime(world)
 		));
-		MadokuEcosystemManager.dirty = true;
+		EcosystemAPIManager.dirty = true;
 	}
 
 	private static double randomDaysToTicks(EcosystemConfigManager.DayRange range) {
@@ -434,12 +434,12 @@ public final class EcosystemNaturalDecayManager {
 			return null;
 		}
 
-		Block leafLitter = EcosystemConfigManager.resolveBlock(MadokuEcosystemManager.BLOCK_ID_LEAF_LITTER);
+		Block leafLitter = EcosystemConfigManager.resolveBlock(EcosystemAPIManager.BLOCK_ID_LEAF_LITTER);
 		if (leafLitter == null) {
 			return null;
 		}
-		BlockState singleLitter = MadokuEcosystemManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
-		int minY = Math.max(world.getMinY() + 1, leafPos.getY() - MadokuEcosystemManager.TREE_DECAY_MAX_DROP_DISTANCE);
+		BlockState singleLitter = EcosystemAPIManager.setLeafLitterAmount(leafLitter.defaultBlockState(), 1);
+		int minY = Math.max(world.getMinY() + 1, leafPos.getY() - EcosystemAPIManager.TREE_DECAY_MAX_DROP_DISTANCE);
 
 		for (int y = leafPos.getY() - 1; y >= minY; y--) {
 			BlockPos pos = new BlockPos(leafPos.getX(), y, leafPos.getZ());
@@ -454,7 +454,7 @@ public final class EcosystemNaturalDecayManager {
 
 			if (state.getBlock() == leafLitter) {
 				return hasLeafLitterSupportBlock(world, pos)
-					&& MadokuEcosystemManager.getLeafLitterAmount(state) < MadokuEcosystemManager.getLeafLitterMaxAmount(state)
+					&& EcosystemAPIManager.getLeafLitterAmount(state) < EcosystemAPIManager.getLeafLitterMaxAmount(state)
 					? pos
 					: null;
 			}
@@ -475,7 +475,7 @@ public final class EcosystemNaturalDecayManager {
 			return false;
 		}
 		BlockState belowState = world.getBlockState(litterPos.below());
-		return belowState != null && MadokuEcosystemManager.LEAF_LITTER_SUPPORT_BLOCKS.contains(belowState.getBlock());
+		return belowState != null && EcosystemAPIManager.LEAF_LITTER_SUPPORT_BLOCKS.contains(belowState.getBlock());
 	}
 
 	static void processTreeDecayCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
@@ -487,28 +487,28 @@ public final class EcosystemNaturalDecayManager {
 			return;
 		}
 
-		MadokuEcosystemManager.ChunkRefKey chunkKey = new MadokuEcosystemManager.ChunkRefKey(MadokuEcosystemManager.levelId(world), chunkX, chunkZ);
-		Map<Long, MadokuEcosystemManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.get(chunkKey);
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(EcosystemAPIManager.levelId(world), chunkX, chunkZ);
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.get(chunkKey);
 		if (candidates == null || candidates.isEmpty()) {
 			return;
 		}
 
 		boolean removedAny = false;
 		Map<Long, Long> targetOwners = treeDecayTargetOwnersByChunk.get(chunkKey);
-		Iterator<MadokuEcosystemManager.TreeDecayCandidateState> iterator = candidates.values().iterator();
+		Iterator<EcosystemAPIManager.TreeDecayCandidateState> iterator = candidates.values().iterator();
 		while (iterator.hasNext()) {
-			MadokuEcosystemManager.TreeDecayCandidateState candidate = iterator.next();
+			EcosystemAPIManager.TreeDecayCandidateState candidate = iterator.next();
 			if (candidate == null) {
 				iterator.remove();
 				removedAny = true;
-				MadokuEcosystemManager.markChunkDirty(chunkKey);
+				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
-			if (!candidate.levelId.equals(MadokuEcosystemManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
-				MadokuEcosystemManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+			if (!candidate.levelId.equals(EcosystemAPIManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
+				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, EcosystemAPIManager.CANDIDATE_DECAY);
 				iterator.remove();
 				removedAny = true;
-				MadokuEcosystemManager.markChunkDirty(chunkKey);
+				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
 
@@ -517,7 +517,7 @@ public final class EcosystemNaturalDecayManager {
 				continue;
 			}
 
-			MadokuEcosystemManager.CandidateProgress advanced = MadokuEcosystemManager.advanceCandidateProgress(
+			EcosystemAPIManager.CandidateProgress advanced = EcosystemAPIManager.advanceCandidateProgress(
 				candidate.progressDecayTicks,
 				candidate.lastProcessedAbsoluteDayTime,
 				currentAbsoluteDayTime,
@@ -530,7 +530,7 @@ public final class EcosystemNaturalDecayManager {
 			candidate.lastProcessedAbsoluteDayTime = advanced.lastProcessedAbsoluteDayTime();
 			candidate.startedAbsoluteDayTime = advanced.startedAbsoluteDayTime();
 			if (progressChanged) {
-				MadokuEcosystemManager.markChunkDirty(chunkKey);
+				EcosystemAPIManager.markChunkDirty(chunkKey);
 			}
 			double currentProgress = advanced.progressGrowthTicks();
 			if (currentProgress + 1e-6d < candidate.requiredDecayTicks) {
@@ -538,22 +538,22 @@ public final class EcosystemNaturalDecayManager {
 			}
 
 			if (!isValidTreeDecayTargetCandidate(world, targetPos)) {
-				MadokuEcosystemManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, EcosystemAPIManager.CANDIDATE_DECAY);
 				iterator.remove();
 				if (targetOwners != null) targetOwners.remove(candidate.targetPos);
 				removedAny = true;
-				MadokuEcosystemManager.markChunkDirty(chunkKey);
+				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
 
 			if (currentProgress + 1e-6d >= candidate.requiredDecayTicks) {
 				boolean applied = tryApplyTreeDecayAtTarget(world, targetPos);
 				if (applied) {
-					MadokuEcosystemManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, MadokuEcosystemManager.CANDIDATE_DECAY);
+					EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.leafPos, EcosystemAPIManager.CANDIDATE_DECAY);
 					iterator.remove();
 					if (targetOwners != null) targetOwners.remove(candidate.targetPos);
 					removedAny = true;
-					MadokuEcosystemManager.markChunkDirty(chunkKey);
+					EcosystemAPIManager.markChunkDirty(chunkKey);
 				}
 			}
 		}
@@ -573,11 +573,11 @@ public final class EcosystemNaturalDecayManager {
 		NaturalDecayConfigManager.Settings fallback = NaturalDecayConfigManager.defaults();
 		JsonObject defaults = NaturalDecayConfigManager.buildDefaultsJson();
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = rootDirectory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, defaults);
 			settings = NaturalDecayConfigManager.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(file, NaturalDecayConfigManager.toJson(settings), defaults);
+			JSONFormatAPIManager.writeManagedFile(file, NaturalDecayConfigManager.toJson(settings), defaults);
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
 			LOGGER.error("Failed to load EcosystemNaturalDecayManager config; using defaults.", exception);
@@ -585,3 +585,4 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 }
+

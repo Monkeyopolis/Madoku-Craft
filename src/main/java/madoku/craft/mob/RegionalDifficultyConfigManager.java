@@ -2,8 +2,8 @@ package madoku.craft.mob;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntityType;
 
@@ -56,7 +56,7 @@ public final class RegionalDifficultyConfigManager {
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.object(FIELD_DIFFICULTY_SCALING, scaling -> scaling
 				.put(FIELD_HEALTH, buildScalingValueRule(SCALING_TYPE_PERCENTAGE, DEFAULT_HEALTH_INCREMENT))
@@ -157,7 +157,7 @@ public final class RegionalDifficultyConfigManager {
 		String mobId = "hag".equals(normalized)
 			? "madoku-craft:hag"
 			: "minecraft:" + normalized;
-		mobId = MadokuJSONManager.normalizeRegistryIdentifierForJson(mobId);
+		mobId = JSONAPIManager.normalizeRegistryIdentifierForJson(mobId);
 		Double swimmingSpeed = null;
 		Double flyingSpeed = null;
 		Double scale = null;
@@ -213,7 +213,7 @@ public final class RegionalDifficultyConfigManager {
 		Double attackAccuracy,
 		Double explosionPower
 	) {
-		JSONFormatManager.ObjectBuilder root = JSONFormatManager.object()
+		JSONFormatAPIManager.ObjectBuilder root = JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_MOB_ID, normalizeMobId(mobId));
 		addScalingEntry(root, FIELD_HEALTH, health, SCALING_TYPE_PERCENTAGE);
@@ -236,18 +236,19 @@ public final class RegionalDifficultyConfigManager {
 		if (!SCALING_TYPE_ADD.equals(normalized) && !SCALING_TYPE_PERCENTAGE.equals(normalized)) {
 			normalized = SCALING_TYPE_ADD;
 		}
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_SCALING_TYPE, normalized)
 			.put(FIELD_SCALING_VALUE, value)
 			.build();
 	}
 
-	private static void addScalingEntry(JSONFormatManager.ObjectBuilder root, String field, Double value, String type) {
+	private static void addScalingEntry(JSONFormatAPIManager.ObjectBuilder root, String field, Double value, String type) {
 		if (value != null && Double.isFinite(value)) root.put(field, buildScalingValueRule(type, value));
 	}
 
 	private static String normalizeMobId(String mobId) {
 		String value = mobId == null ? "" : mobId.trim().toLowerCase(Locale.ROOT);
-		return MadokuJSONManager.normalizeRegistryIdentifierForJson(value);
+		return JSONAPIManager.normalizeRegistryIdentifierForJson(value);
 	}
 }
+

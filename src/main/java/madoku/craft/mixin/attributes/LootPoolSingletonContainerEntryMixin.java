@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.world.level.storage.loot.entries.LootPoolSingletonContainer;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,7 +19,7 @@ public abstract class LootPoolSingletonContainerEntryMixin {
 		CallbackInfoReturnable<Integer> callbackInfo
 	) {
 		callbackInfo.setReturnValue(
-			EnchantBooksManager.resolveConfiguredLuckOfTheSeaWeight(
+			EnchantBooksAPIManager.resolveConfiguredLuckOfTheSeaWeight(
 				this$0,
 				luck,
 				callbackInfo.getReturnValue()
@@ -27,3 +27,4 @@ public abstract class LootPoolSingletonContainerEntryMixin {
 		);
 	}
 }
+

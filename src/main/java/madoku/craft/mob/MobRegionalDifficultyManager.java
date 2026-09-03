@@ -3,13 +3,13 @@ package madoku.craft.mob;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.chunk.MadokuChunkManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.sync.SyncWorldManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.chunk.ChunkAPIManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.sync.SyncWorldAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.Holder;
@@ -70,22 +70,22 @@ public final class MobRegionalDifficultyManager {
 
 	public static void initialize() {
 		loadConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MobRegionalDifficultyManager::runTimeTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MobRegionalDifficultyManager::runTimeTask);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
 			syncDifficultyToPlayer(server, handler.player, true)
 		);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		MadokuSchedulerManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
+		SchedulerAPIManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		LAST_SYNC_STATE_BY_PLAYER.clear();
 		refreshCachedTimeAdjustment(server, snapshot);
-		timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
-		MadokuSchedulerManager.clearQueuedRequests(timeSchedulerId);
+		timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+		SchedulerAPIManager.clearQueuedRequests(timeSchedulerId);
 		requestTimeProcessing(server, 1L);
 	}
 
@@ -94,7 +94,7 @@ public final class MobRegionalDifficultyManager {
 	}
 
 	public static void onServerStopped() {
-		MadokuSchedulerManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
+		SchedulerAPIManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
 		timeSchedulerId = "";
 		timeTaskScheduled = false;
 		cachedTimeDayCount = Long.MIN_VALUE;
@@ -137,7 +137,7 @@ public final class MobRegionalDifficultyManager {
 
 		int difficultyLevel = resolveHudDifficultyLevel(player);
 		if (force || previous == null || previous.difficultyLevel() != difficultyLevel) {
-			SyncWorldManager.send(player, new MobPayloadManager(difficultyLevel));
+			SyncWorldAPIManager.send(player, new MobPayloadManager(difficultyLevel));
 		}
 		LAST_SYNC_STATE_BY_PLAYER.put(playerId, currentKey.withDifficultyLevel(difficultyLevel));
 	}
@@ -149,7 +149,7 @@ public final class MobRegionalDifficultyManager {
 		BlockPos pos = player.blockPosition();
 		int chunkX = pos.getX() >> 4;
 		int chunkZ = pos.getZ() >> 4;
-		if (!MadokuChunkManager.isChunkLoaded(level, chunkX, chunkZ)) {
+		if (!ChunkAPIManager.isChunkLoaded(level, chunkX, chunkZ)) {
 			return null;
 		}
 		int timeAdjustment = resolveCurrentTimeAdjustment(level);
@@ -384,26 +384,26 @@ public final class MobRegionalDifficultyManager {
 		try {
 			Path rootDirectory = MobConfigManager.getOrCreateMobSystemDirectory(MobConfigManager.REGIONAL_DIFFICULTY_SYSTEM_FOLDER);
 			Path mobsRootDirectory = MobConfigManager.getOrCreateMobRootDirectory();
-			JsonObject settingsRoot = JSONFormatManager.ensureManagedFile(
+			JsonObject settingsRoot = JSONFormatAPIManager.ensureManagedFile(
 				mobsRootDirectory.resolve(MobConfigManager.REGIONAL_DIFFICULTY_SETTINGS_FILE + ".json"),
 				RegionalDifficultyConfigManager.buildSettingsDefaults()
 			);
-			JsonObject biomes = JSONFormatManager.ensureManagedFile(
+			JsonObject biomes = JSONFormatAPIManager.ensureManagedFile(
 				rootDirectory.resolve(MobConfigManager.REGIONAL_BIOMES_FILE + ".json"),
 				MobConfigManager.buildBiomesDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				(key, value) -> value
 			);
-			JsonObject structures = JSONFormatManager.ensureManagedFile(
+			JsonObject structures = JSONFormatAPIManager.ensureManagedFile(
 				rootDirectory.resolve(MobConfigManager.REGIONAL_STRUCTURES_FILE + ".json"),
 				MobConfigManager.buildStructuresDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				(key, value) -> value
 			);
-			JsonObject time = JSONFormatManager.ensureManagedFile(
+			JsonObject time = JSONFormatAPIManager.ensureManagedFile(
 				rootDirectory.resolve(MobConfigManager.REGIONAL_TIME_FILE + ".json"),
 				MobConfigManager.buildTimeDefaults(),
-				JSONTypeManager.DYNAMIC_CONFIG,
+				JSONTypeAPIManager.DYNAMIC_CONFIG,
 				(key, value) -> value
 			);
 			JsonObject scaling = readObject(settingsRoot, RegionalDifficultyConfigManager.FIELD_DIFFICULTY_SCALING);
@@ -413,7 +413,7 @@ public final class MobRegionalDifficultyManager {
 			double defaultDamageIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_DAMAGE, RegionalDifficultyConfigManager.DEFAULT_DAMAGE_INCREMENT);
 			double defaultKnockbackResistanceIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_KNOCKBACK_RESISTANCE, RegionalDifficultyConfigManager.DEFAULT_KNOCKBACK_RESISTANCE_INCREMENT);
 			double defaultExperienceDropIncrement = readScalingValue(scaling, RegionalDifficultyConfigManager.FIELD_EXPERIENCE_DROP, RegionalDifficultyConfigManager.DEFAULT_EXPERIENCE_DROP_INCREMENT);
-			Map<String, JsonObject> normalizedMobScaling = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedMobScaling = JSONFormatAPIManager.ensureManagedFolder(
 				rootDirectory.resolve(MobConfigManager.REGIONAL_SCALING_FOLDER),
 				RegionalDifficultyConfigManager.buildDefaultMobScalingFileDefaults(defaultHealthIncrement, defaultMovementSpeedIncrement, defaultArmorIncrement, defaultDamageIncrement, defaultKnockbackResistanceIncrement, defaultExperienceDropIncrement),
 				RegionalDifficultyConfigManager::buildDynamicMobScalingDefaults,
@@ -650,8 +650,8 @@ public final class MobRegionalDifficultyManager {
 		if (server == null) {
 			return 0L;
 		}
-		if (MadokuTimeManager.isEnabled()) {
-			return Math.floorDiv(MadokuTimeManager.getCurrentAbsoluteDayTime(), TICKS_PER_DAY);
+		if (TimeAPIManager.isEnabled()) {
+			return Math.floorDiv(TimeAPIManager.getCurrentAbsoluteDayTime(), TICKS_PER_DAY);
 		}
 		ServerLevel overworld = server.overworld();
 		if (overworld != null) {
@@ -660,7 +660,7 @@ public final class MobRegionalDifficultyManager {
 		return 0L;
 	}
 
-	private static void runTimeTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runTimeTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		if (context == null) {
 			return;
 		}
@@ -678,7 +678,7 @@ public final class MobRegionalDifficultyManager {
 	}
 
 	private static long resolveTimeSchedulerInterval(MinecraftServer server) {
-		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+		return SchedulerAPIManager.resolveAdaptiveDelayTicks(
 			server,
 			TIME_SCHEDULER_OWNER_ID,
 			TIME_SCHEDULER_MIN_INTERVAL_TICKS,
@@ -709,7 +709,7 @@ public final class MobRegionalDifficultyManager {
 			return;
 		}
 
-		timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+		timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		if (enqueueTimeTask(timeSchedulerId, delay)) {
 			timeTaskScheduled = true;
 			return;
@@ -719,7 +719,7 @@ public final class MobRegionalDifficultyManager {
 
 	private static String ensureTimeSchedulerExists() {
 		if (timeSchedulerId == null || timeSchedulerId.isBlank()) {
-			timeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
+			timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
 		}
 		return timeSchedulerId;
 	}
@@ -728,15 +728,15 @@ public final class MobRegionalDifficultyManager {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			schedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_TIME_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static StructureContext resolveStructureContext(
@@ -792,7 +792,7 @@ public final class MobRegionalDifficultyManager {
 		}
 		int chunkX = pos.getX() >> 4;
 		int chunkZ = pos.getZ() >> 4;
-		return MadokuChunkManager.isChunkLoaded(world, chunkX, chunkZ);
+		return ChunkAPIManager.isChunkLoaded(world, chunkX, chunkZ);
 	}
 
 	private static boolean isValidStructureStart(StructureStart start) {
@@ -1087,7 +1087,7 @@ public final class MobRegionalDifficultyManager {
 		if (rawValue == null) {
 			return null;
 		}
-		String normalized = MadokuJSONManager.normalizeRegistryIdentifierForLookup(rawValue);
+		String normalized = JSONAPIManager.normalizeRegistryIdentifierForLookup(rawValue);
 		if (normalized.isBlank()) {
 			return null;
 		}
@@ -1414,3 +1414,4 @@ public final class MobRegionalDifficultyManager {
 		}
 	}
 	}
+

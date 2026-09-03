@@ -2,7 +2,7 @@ package madoku.craft.pet;
 
 import com.google.gson.JsonObject;
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.core.BlockPos;
@@ -140,7 +140,7 @@ public final class PetEntitiesManager {
 		static void reload() {
 			try {
 				Path rulesDirectory = PetConfigManager.petDirectory().resolve(PetConfigManager.ENTITY_FOLDER);
-				Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
+				Map<String, JsonObject> normalizedFiles = JSONFormatAPIManager.ensureManagedFolder(
 					rulesDirectory,
 					buildDefaultPetRuleFiles(),
 					EntitiesConfigManager::buildDynamicPetRuleDefaults,
@@ -158,7 +158,7 @@ public final class PetEntitiesManager {
 					List<String> abilityTypes = PetConfigManager.resolveAbilityTypes(sourceRoot);
 					String abilityType = abilityTypes.isEmpty() ? MadokuPetManager.PET_ABILITY_NONE : abilityTypes.get(0);
 					Path file = PetConfigManager.resolveJsonFile(rulesDirectory, fileKey);
-					JsonObject normalized = JSONFormatManager.writeManagedFile(
+					JsonObject normalized = JSONFormatAPIManager.writeManagedFile(
 						file,
 						sourceRoot,
 						PetConfigManager.PetRule.defaultsForEntity(petId, abilityType),
@@ -249,7 +249,7 @@ public final class PetEntitiesManager {
 		private static JsonObject buildDynamicPetRuleDefaults(String fileKey) {
 			String petId = PetConfigManager.resolvePetId(fileKey, null);
 			return petId == null
-				? JSONFormatManager.object().build()
+				? JSONFormatAPIManager.object().build()
 				: PetRule.defaultsForEntity(petId, PetConfigManager.defaultAbilityForItem(petId));
 		}
 
@@ -1030,3 +1030,4 @@ public final class PetEntitiesManager {
 			}
 	}
 }
+

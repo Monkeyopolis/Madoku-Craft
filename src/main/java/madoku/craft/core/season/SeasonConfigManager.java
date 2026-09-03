@@ -3,8 +3,8 @@ package madoku.craft.core.season;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +60,7 @@ public final class SeasonConfigManager {
 
 	public static JsonObject toJson(Settings value) {
 		Settings safe = value == null ? defaults() : value;
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, safe.enabled())
 			.put(FIELD_SEASON_LENGTH_DAYS, safe.seasonLengthDays())
 			.build();
@@ -80,11 +80,11 @@ public final class SeasonConfigManager {
 
 	private static void loadConfig() {
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_FOLDER_NAME);
 			Path file = directory.resolve(CONFIG_FILE_NAME + ".json");
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(file, buildDefaultsJson());
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(file, buildDefaultsJson());
 			settings = fromJson(normalized);
-			JSONFormatManager.writeManagedFile(file, toJson(settings), buildDefaultsJson());
+			JSONFormatAPIManager.writeManagedFile(file, toJson(settings), buildDefaultsJson());
 		} catch (IOException | RuntimeException exception) {
 			settings = defaults();
 			LOGGER.error("Failed to load Madoku Season root configuration; using defaults.", exception);
@@ -116,3 +116,5 @@ public final class SeasonConfigManager {
 		}
 	}
 }
+
+

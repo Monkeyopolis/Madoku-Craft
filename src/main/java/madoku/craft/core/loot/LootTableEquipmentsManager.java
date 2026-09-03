@@ -6,11 +6,12 @@ public final class LootTableEquipmentsManager {
 	}
 
 	public static void initialize() {
-		EquipmentsConfigManager.reloadConfig();
+		EquipmentsConfigAPIManager.reloadConfig();
 	}
 
 	public static void reset() {
-		EquipmentsConfigManager.reset();
+		EquipmentsConfigAPIManager.reset();
 	}
 }
+
 

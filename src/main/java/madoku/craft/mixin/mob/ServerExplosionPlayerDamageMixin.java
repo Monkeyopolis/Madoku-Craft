@@ -1,6 +1,6 @@
 package madoku.craft.mixin.mob;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.mob.EntityBehaviorsManager;
 
 import net.minecraft.core.Holder;
@@ -63,8 +63,9 @@ public abstract class ServerExplosionPlayerDamageMixin {
 	) {
 		double currentResistance = entity.getAttributeValue(attribute);
 		if (attribute == Attributes.EXPLOSION_KNOCKBACK_RESISTANCE) {
-			return EnchantBooksManager.resolveExplosionKnockbackResistance(entity, currentResistance);
+			return EnchantBooksAPIManager.resolveExplosionKnockbackResistance(entity, currentResistance);
 		}
 		return currentResistance;
 	}
 }
+

@@ -2,8 +2,7 @@ package madoku.craft.mixin.core;
 
 import com.mojang.datafixers.util.Either;
 
-import madoku.craft.core.time.TimeConfigManager;
-import madoku.craft.core.time.TimeSleepManager;
+import madoku.craft.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,7 +27,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private boolean madoku$applyConfiguredSleepTime(BedRule bedRule, Level level, BlockPos sleepingPos) {
 		ServerPlayer player = (ServerPlayer) (Object) this;
-		return TimeSleepManager.shouldAllowBedSleepByTime(bedRule, level, player);
+		return TimeAPIManager.shouldAllowBedSleepByTime(bedRule, level, player);
 	}
 
 	@Inject(
@@ -37,7 +36,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 	)
 	private void madoku$recordSleepStart(BlockPos sleepingPos, CallbackInfoReturnable<Either<Player.BedSleepingProblem, Unit>> cir) {
 		if (cir.getReturnValue() != null && cir.getReturnValue().right().isPresent()) {
-		TimeSleepManager.onSleepStarted((ServerPlayer) (Object) this);
+		TimeAPIManager.onSleepStarted((ServerPlayer) (Object) this);
 		}
 	}
 
@@ -51,7 +50,7 @@ public abstract class ServerPlayerSleepTimeMixin {
 		cancellable = true
 	)
 	private void madoku$replaceNightOnlySleepMessage(BlockPos sleepingPos, CallbackInfoReturnable<Either<Player.BedSleepingProblem, Unit>> cir) {
-		if (TimeConfigManager.isThunderstormBypassEnabled()) {
+		if (TimeAPIManager.isThunderstormBypassEnabled()) {
 			return;
 		}
 		cir.setReturnValue(Either.left(new Player.BedSleepingProblem(

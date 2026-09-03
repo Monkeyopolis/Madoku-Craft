@@ -1,7 +1,7 @@
 package madoku.craft.mixin.attributes;
 
 import madoku.craft.attributes.MadokuArmorManager;
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.core.Holder;
@@ -33,8 +33,8 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean shouldOverrideVanillaArmor = MadokuArmorManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
 			float damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, amount);
-			damageAfterArmor = EnchantBooksManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
-			EnchantBooksManager.capturePostArmorDamage(damageAfterArmor);
+			damageAfterArmor = EnchantBooksAPIManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
+			EnchantBooksAPIManager.capturePostArmorDamage(damageAfterArmor);
 			cir.setReturnValue(damageAfterArmor);
 			return;
 		}
@@ -53,8 +53,8 @@ public abstract class LivingEntityArmorDamageMixin {
 		damageAfterArmor = PetAbilitiesManager.applyFallDamage(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
 		damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, damageAfterArmor);
-		damageAfterArmor = EnchantBooksManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
-		EnchantBooksManager.capturePostArmorDamage(damageAfterArmor);
+		damageAfterArmor = EnchantBooksAPIManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
+		EnchantBooksAPIManager.capturePostArmorDamage(damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
 	}
 
@@ -70,7 +70,7 @@ public abstract class LivingEntityArmorDamageMixin {
 		LivingEntity entity,
 		DamageSource source
 	) {
-		return EnchantBooksManager.resolveDamageProtection(serverLevel, entity, source);
+		return EnchantBooksAPIManager.resolveDamageProtection(serverLevel, entity, source);
 	}
 
 	@Redirect(
@@ -81,7 +81,7 @@ public abstract class LivingEntityArmorDamageMixin {
 		)
 	)
 	private float madokuCraft$applyConfiguredDamageReduction(float damage, float vanillaProtection) {
-		return EnchantBooksManager.applyConfiguredDamageReduction(damage, vanillaProtection);
+		return EnchantBooksAPIManager.applyConfiguredDamageReduction(damage, vanillaProtection);
 	}
 
 	@Redirect(
@@ -97,5 +97,6 @@ public abstract class LivingEntityArmorDamageMixin {
 		return instance.getEffect(effect) != null;
 	}
 }
+
 
 

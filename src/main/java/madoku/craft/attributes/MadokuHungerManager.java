@@ -4,10 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.data.DataPlayerManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.sync.SyncPlayerManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.data.DataPlayerAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.sync.SyncPlayerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.levels.MadokuLevelsManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
@@ -56,7 +56,7 @@ public final class MadokuHungerManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHungerManager::runPlayerTickTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHungerManager::runPlayerTickTask);
 		ServerPlayerEvents.JOIN.register(MadokuHungerManager::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHungerManager::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -67,7 +67,7 @@ public final class MadokuHungerManager {
 		lastAutosaveBucket = Long.MIN_VALUE;
 		schedulerId = "";
 		tickQueued = false;
-		MadokuSchedulerManager.clearAdaptiveDelayState(HUNGER_PLAYER_TICK_SCHEDULER_KEY);
+		SchedulerAPIManager.clearAdaptiveDelayState(HUNGER_PLAYER_TICK_SCHEDULER_KEY);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -76,10 +76,10 @@ public final class MadokuHungerManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataPlayerManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
-		lastAutosaveBucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
@@ -87,8 +87,8 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataPlayerManager.getAutoSaveIntervalTicks();
-		long bucket = Math.floorDiv(MadokuTimeManager.getGameplayTicks(), autoSaveIntervalTicks);
+		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
 			savePersistedData(server);
@@ -99,7 +99,7 @@ public final class MadokuHungerManager {
 		if (server == null) {
 			return;
 		}
-		DataPlayerManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -276,7 +276,7 @@ public final class MadokuHungerManager {
 		return drained;
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runPlayerTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		tickQueued = false;
 		if (server == null || context == null) {
 			return;
@@ -294,13 +294,13 @@ public final class MadokuHungerManager {
 		}
 
 		String currentSchedulerId = ensureScheduler();
-		long delayTicks = MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+		long delayTicks = SchedulerAPIManager.resolveAdaptiveDelayTicks(
 			server,
 			HUNGER_PLAYER_TICK_SCHEDULER_KEY,
 			HUNGER_PLAYER_TICK_MIN_INTERVAL,
 			HUNGER_PLAYER_TICK_MAX_INTERVAL
 		);
-		if (MadokuSchedulerManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HUNGER_PLAYER_TICK)) {
+		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HUNGER_PLAYER_TICK)) {
 			tickQueued = true;
 			return;
 		}
@@ -309,8 +309,8 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		if (enqueue(schedulerId, delayTicks)) {
 			tickQueued = true;
@@ -325,8 +325,8 @@ public final class MadokuHungerManager {
 		if (current != null && !current.isBlank()) {
 			return current;
 		}
-		schedulerId = MadokuSchedulerManager.createOrGetScheduler(
-			MadokuSchedulerManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
+		schedulerId = SchedulerAPIManager.createOrGetScheduler(
+			SchedulerAPIManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
 		);
 		return schedulerId;
 	}
@@ -335,15 +335,15 @@ public final class MadokuHungerManager {
 		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			targetSchedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_HUNGER_PLAYER_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void onGameplayTick(MinecraftServer server, long gameplayTick) {
@@ -557,7 +557,7 @@ public final class MadokuHungerManager {
 			player.getFoodData().setFoodLevel(maxHungerPoints);
 		}
 		normalizeFoodLevel(player, maxHungerPoints);
-		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
+		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
 		state.markPosition(player.getX(), player.getZ());
 		state.lastSyncedCurrentHunger = Integer.MIN_VALUE;
 		state.lastSyncedMaxHunger = Integer.MIN_VALUE;
@@ -578,7 +578,7 @@ public final class MadokuHungerManager {
 		state.hungerEffectProgressTicks = 0L;
 		state.saturationEffectProgressTicks = 0L;
 		state.zeroHungerProgressTicks = 0L;
-		state.lastProcessedGameplayTick = MadokuTimeManager.getGameplayTicks();
+		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
 		state.clearPosition();
 		state.markPosition(newPlayer.getX(), newPlayer.getZ());
 		normalizeFoodLevel(newPlayer, maxHungerPoints);
@@ -649,7 +649,7 @@ public final class MadokuHungerManager {
 			&& state.lastSyncedMaxHunger == maxHungerPoints) {
 			return;
 		}
-		if (!SyncPlayerManager.send(player, new HungerPayloadManager(
+		if (!SyncPlayerAPIManager.send(player, new HungerPayloadManager(
 			Math.max(0, displayCurrentHunger),
 			Math.max(1, maxHungerPoints)))) {
 			return;
@@ -722,7 +722,7 @@ public final class MadokuHungerManager {
 	}
 
 	private static JsonObject toPersistedData() {
-		madoku.craft.core.json.JSONFormatManager.ArrayBuilder players = madoku.craft.core.json.JSONFormatManager.array();
+		madoku.craft.core.json.JSONFormatAPIManager.ArrayBuilder players = madoku.craft.core.json.JSONFormatAPIManager.array();
 		for (Map.Entry<UUID, PlayerState> entry : PLAYER_STATES.entrySet()) {
 			PlayerState state = entry.getValue();
 			players.object(player -> player
@@ -734,7 +734,7 @@ public final class MadokuHungerManager {
 				.put("saturation-effect-progress-ticks", Math.max(0L, state.saturationEffectProgressTicks))
 				.put("zero-hunger-progress-ticks", Math.max(0L, state.zeroHungerProgressTicks)));
 		}
-		return madoku.craft.core.json.JSONFormatManager.object()
+		return madoku.craft.core.json.JSONFormatAPIManager.object()
 			.put("players", players.build())
 			.build();
 	}
@@ -891,3 +891,4 @@ public final class MadokuHungerManager {
 		}
 	}
 }
+

@@ -3,7 +3,7 @@ package madoku.craft.attributes;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +27,9 @@ public final class OxygenConfigManager {
 
 		try {
 			Path configFile = AttributesConfigManager.prepareRootConfigFile(OXYGEN_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings configured = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, configured.toConfigJson(), defaults);
 			return configured.withEnabled(systemEnabled);
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load Madoku Oxygen config; using defaults.", exception);
@@ -54,7 +54,7 @@ public final class OxygenConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.object("oxygen", oxygen -> this.oxygen.toConfigJson(oxygen))
 				.build();
 		}
@@ -88,7 +88,7 @@ public final class OxygenConfigManager {
 			return new OxygenSettings(enabled, maxOxygenTicks);
 		}
 
-		JsonObject toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		JsonObject toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			builder.put("enabled", enabled)
 				.put("max-oxygen", maxOxygenTicks);
 			return builder.build();
@@ -144,3 +144,4 @@ public final class OxygenConfigManager {
 		return Math.max(min, Math.min(max, value));
 	}
 }
+

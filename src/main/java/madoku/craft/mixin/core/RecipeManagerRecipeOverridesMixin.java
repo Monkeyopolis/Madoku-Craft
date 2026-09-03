@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.recipes.MadokuRecipesManager;
+import madoku.craft.core.recipes.RecipesAPIManager;
 
 import java.util.List;
 
@@ -37,7 +37,7 @@ public abstract class RecipeManagerRecipeOverridesMixin {
 			return;
 		}
 
-		List<RecipeHolder<?>> resolvedRecipes = MadokuRecipesManager.applyRecipeOverrides(this.recipes.values());
+		List<RecipeHolder<?>> resolvedRecipes = RecipesAPIManager.applyRecipeOverrides(this.recipes.values());
 		this.recipes = RecipeMap.create(resolvedRecipes);
 		this.madokuCraft$rebuildingRecipeCaches = true;
 		try {

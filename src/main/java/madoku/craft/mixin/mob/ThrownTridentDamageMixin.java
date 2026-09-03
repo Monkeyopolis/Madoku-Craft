@@ -1,6 +1,6 @@
 package madoku.craft.mixin.mob;
 
-import madoku.craft.core.helper.HelperProjectileManager;
+import madoku.craft.core.helper.HelperProjectileAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -22,19 +22,20 @@ public abstract class ThrownTridentDamageMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyFixedTridentDamage(Entity entity, DamageSource source, float originalDamage) {
 		ThrownTrident trident = (ThrownTrident) (Object) this;
-		float resolvedDamage = HelperProjectileManager.resolveProjectileDamageOverride(trident, originalDamage);
-		if (!HelperProjectileManager.hasProjectileDamageOverride(trident)) {
+		float resolvedDamage = HelperProjectileAPIManager.resolveProjectileDamageOverride(trident, originalDamage);
+		if (!HelperProjectileAPIManager.hasProjectileDamageOverride(trident)) {
 			resolvedDamage = MobEntityManager.resolveMobProjectileDamageOverride(trident, resolvedDamage);
 		}
 		boolean hit = entity.hurtOrSimulate(source, resolvedDamage);
 		if (hit) {
-			HelperProjectileManager.clearProjectileHoming(trident);
+			HelperProjectileAPIManager.clearProjectileHoming(trident);
 		}
-		HelperProjectileManager.clearInvulnerabilityBypass(trident);
+		HelperProjectileAPIManager.clearInvulnerabilityBypass(trident);
 		if (hit && entity instanceof LivingEntity livingEntity) {
 			MobEntityManager.applyWitherSkeletonArrowHitEffect(livingEntity, trident.getOwner());
 		}
 		return hit;
 	}
 }
+
 

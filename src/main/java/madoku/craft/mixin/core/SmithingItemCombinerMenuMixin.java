@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.core.smithing.MadokuSmithingManager;
+import madoku.craft.core.smithing.SmithingAPIManager;
 
 /** Routes SmithingMenu shift-clicks through Madoku's physical slot roles. */
 @Mixin(ItemCombinerMenu.class)
@@ -29,7 +29,7 @@ public abstract class SmithingItemCombinerMenuMixin extends AbstractContainerMen
 		CallbackInfoReturnable<ItemStack> cir
 	) {
 		if (!((Object) this instanceof SmithingMenu)
-			|| !MadokuSmithingManager.acceptsExtendedItems()
+			|| !SmithingAPIManager.acceptsExtendedItems()
 			|| slotIndex < 0
 			|| slotIndex >= this.slots.size()) return;
 
@@ -41,11 +41,11 @@ public abstract class SmithingItemCombinerMenuMixin extends AbstractContainerMen
 
 		if (slotIndex >= SmithingMenu.RESULT_SLOT + 1) {
 			if (this.slots.get(SmithingMenu.TEMPLATE_SLOT).getItem().isEmpty()
-				&& MadokuSmithingManager.isManagedBase(source)) {
+				&& SmithingAPIManager.isManagedBase(source)) {
 				moved = this.moveItemStackTo(source, SmithingMenu.TEMPLATE_SLOT, SmithingMenu.TEMPLATE_SLOT + 1, false);
 			}
 			if (!moved && this.slots.get(SmithingMenu.BASE_SLOT).getItem().isEmpty()
-				&& (MadokuSmithingManager.isTemplateItem(source) || source.is(Items.EXPERIENCE_BOTTLE))) {
+				&& (SmithingAPIManager.isTemplateItem(source) || source.is(Items.EXPERIENCE_BOTTLE))) {
 				moved = this.moveItemStackTo(source, SmithingMenu.BASE_SLOT, SmithingMenu.BASE_SLOT + 1, false);
 			}
 			if (!moved && this.slots.get(SmithingMenu.ADDITIONAL_SLOT).getItem().isEmpty()

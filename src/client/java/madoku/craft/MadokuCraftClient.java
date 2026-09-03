@@ -9,13 +9,13 @@ import madoku.craft.hud.HudAttributesManager;
 import madoku.craft.hud.HudPayloadManager;
 import madoku.craft.hud.MadokuHudManager;
 import madoku.craft.attributes.HungerPayloadManager;
-import madoku.craft.core.season.PlayerClimatePayloadManager;
-import madoku.craft.core.season.SeasonPayloadManager;
-import madoku.craft.core.recipes.RecipesClientSyncManager;
-import madoku.craft.core.sync.MadokuSyncManager;
-import madoku.craft.core.sync.SyncConfigManager;
-import madoku.craft.core.sync.SyncPayloadManager;
-import madoku.craft.core.time.TimePayloadManager;
+import madoku.craft.core.season.PlayerClimatePayloadAPIManager;
+import madoku.craft.core.season.SeasonPayloadAPIManager;
+import madoku.craft.core.recipes.RecipesClientSyncAPIManager;
+import madoku.craft.core.sync.SyncAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
+import madoku.craft.core.sync.SyncPayloadAPIManager;
+import madoku.craft.core.time.TimePayloadAPIManager;
 import madoku.craft.mob.MobPayloadManager;
 import madoku.craft.pet.PetPayloadManager;
 import madoku.craft.pet.PetHudManagerClient;
@@ -35,7 +35,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-		MadokuSyncManager.initializeClient();
+		SyncAPIManager.initializeClient();
 		MadokuHudManager.initialize();
 		PetHudManagerClient.initialize();
 		MadokuEntitiesClient.initialize();
@@ -52,14 +52,14 @@ public class MadokuCraftClient implements ClientModInitializer {
 			ItemsCategoriesManager.applyConfiguredItemMetadata();
 			MadokuFarmingManager.applyCropItemMetadata();
 		});
-		ClientPlayNetworking.registerGlobalReceiver(TimePayloadManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
+		ClientPlayNetworking.registerGlobalReceiver(TimePayloadAPIManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
 		ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE, (payload, context) ->
 			HudPayloadManager.setServerHunger(payload.current(), payload.max())
 		);
 		ClientPlayNetworking.registerGlobalReceiver(MobPayloadManager.TYPE, (payload, context) ->
 			HudPayloadManager.setServerDifficulty(payload.level())
 		);
-		ClientPlayNetworking.registerGlobalReceiver(SeasonPayloadManager.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(SeasonPayloadAPIManager.TYPE, (payload, context) ->
 			context.client().execute(() -> {
 				ClientSeasonalPrecipitationState.update(payload.season(), payload.temperatureOffset(), payload.humidityOffset(), payload.weatherCondition(), payload.seasonDay(), payload.seasonLengthDays());
 				ClientSeasonalPrecipitationState.refresh(context.client().level);
@@ -67,15 +67,15 @@ public class MadokuCraftClient implements ClientModInitializer {
 				HudPayloadManager.setServerSeasonProgress(payload.seasonDay(), payload.seasonLengthDays());
 			})
 		);
-		ClientPlayNetworking.registerGlobalReceiver(PlayerClimatePayloadManager.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(PlayerClimatePayloadAPIManager.TYPE, (payload, context) ->
 			context.client().execute(() -> HudPayloadManager.setServerClimate(payload.temperature(), payload.humidity()))
 		);
-		ClientPlayNetworking.registerGlobalReceiver(SyncPayloadManager.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(SyncPayloadAPIManager.TYPE, (payload, context) ->
 			context.client().execute(() -> {
 				try {
-					SyncConfigManager.applyClientSnapshot(payload.configId(), payload.snapshot());
+					SyncConfigAPIManager.applyClientSnapshot(payload.configId(), payload.snapshot());
 					if ("recipes".equals(payload.configId())) {
-						RecipesClientSyncManager.refresh();
+						RecipesClientSyncAPIManager.refresh();
 					}
 				} catch (RuntimeException exception) {
 					LOGGER.warn("Failed to process synchronized configuration {}.", payload.configId(), exception);
@@ -86,7 +86,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-			SyncConfigManager.resetClientSynchronizedState();
+			SyncConfigAPIManager.resetClientSynchronizedState();
 			configuredItemMetadataApplied = false;
 			ClientSeasonalPrecipitationState.clear();
 			HudPayloadManager.reset();
@@ -95,3 +95,4 @@ public class MadokuCraftClient implements ClientModInitializer {
 		});
 	}
 }
+

@@ -6,11 +6,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.rarity.MadokuRarityManager;
-import madoku.craft.core.rarity.RarityTierManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.rarity.RarityAPIManager.Tier;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.pet.PetHagManager;
 import madoku.craft.pet.PetConfigManager;
@@ -46,7 +45,7 @@ import java.util.Set;
 public final class LootTableStructuresManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LootTableStructuresManager.class);
 
-	private static final String LOOT_CONFIG_ROOT_FOLDER_NAME = MadokuLootTableManager.CONFIG_ROOT_FOLDER_NAME;
+	private static final String LOOT_CONFIG_ROOT_FOLDER_NAME = LootTableAPIManager.CONFIG_ROOT_FOLDER_NAME;
 	private static final String LOOT_CONFIG_SETTINGS_FILE_NAME = "madoku-loot-tables";
 	private static final String LOOT_CONFIG_TABLES_FOLDER_NAME = "madoku-structures";
 	private static final String STRUCTURE_CHEST_NAMESPACE = "minecraft";
@@ -358,7 +357,7 @@ public final class LootTableStructuresManager {
 		ItemStack stack = new ItemStack(item, stackCount);
 		MadokuItemsManager.applyGeneratedItemLevel(stack, random);
 		if (itemRarity != null) {
-			MadokuRarityManager.applyConfiguredRarity(stack, itemRarity);
+			RarityAPIManager.applyConfiguredRarity(stack, itemRarity);
 		}
 		PetHagManager.applyLore(stack);
 		into.add(stack);
@@ -397,7 +396,7 @@ public final class LootTableStructuresManager {
 		if (rarity == null) {
 			return 0.0d;
 		}
-		return MadokuRarityManager.resolveWeightMultiplier(rarity, luckStat, luckActive);
+		return RarityAPIManager.resolveWeightMultiplier(rarity, luckStat, luckActive);
 	}
 
 	private static boolean isLuckActiveForLoot(ServerPlayer player, Settings activeSettings) {
@@ -586,17 +585,17 @@ public final class LootTableStructuresManager {
 	private static synchronized void reloadNow(net.minecraft.server.MinecraftServer server) {
 		long now = System.currentTimeMillis();
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(LOOT_CONFIG_ROOT_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(LOOT_CONFIG_ROOT_FOLDER_NAME);
 			Path settingsFile = resolveJsonFile(rootDirectory, LOOT_CONFIG_SETTINGS_FILE_NAME);
 			JsonObject defaults = LootTableConfigManager.buildSettingsDefaults();
-			JsonObject normalizedSettings = JSONFormatManager.ensureManagedFile(settingsFile, defaults);
+			JsonObject normalizedSettings = JSONFormatAPIManager.ensureManagedFile(settingsFile, defaults);
 			Settings loadedSettings = Settings.fromJson(normalizedSettings);
-			JSONFormatManager.writeManagedFile(settingsFile, loadedSettings.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(settingsFile, loadedSettings.toConfigJson(), defaults);
 
 			Path tablesDirectory = rootDirectory.resolve(LOOT_CONFIG_TABLES_FOLDER_NAME);
 			Map<String, JsonObject> staticDefaults = buildStructureChestStaticDefaults();
 
-			Map<String, JsonObject> normalizedFiles = JSONFormatManager.ensureManagedFolder(
+			Map<String, JsonObject> normalizedFiles = JSONFormatAPIManager.ensureManagedFolder(
 				tablesDirectory,
 				staticDefaults,
 				ignored -> new JsonObject(),
@@ -618,7 +617,7 @@ public final class LootTableStructuresManager {
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to reload Madoku loot tables; preserving last valid cache.", exception);
 		} finally {
-			nextReloadAtMillis = now + MadokuLootTableManager.resolveReloadIntervalMillis(server);
+			nextReloadAtMillis = now + LootTableAPIManager.resolveReloadIntervalMillis(server);
 		}
 	}
 
@@ -677,7 +676,7 @@ public final class LootTableStructuresManager {
 				continue;
 			}
 
-			Tier parsedRarity = RarityTierManager.fromString(
+			Tier parsedRarity = RarityAPIManager.fromString(
 				readString(groupRoot, LootTableConfigManager.FIELD_RARITY, Tier.COMMON.id())
 			);
 			if (parsedRarity == null) {
@@ -736,7 +735,7 @@ public final class LootTableStructuresManager {
 		return switch (tag) {
 			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
 			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
-			case GROUP_TAG_MADOKU_RARITY -> MadokuRarityManager.isEnabled();
+			case GROUP_TAG_MADOKU_RARITY -> RarityAPIManager.isEnabled();
 			default -> true;
 		};
 	}
@@ -771,7 +770,7 @@ public final class LootTableStructuresManager {
 			int weight = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_WEIGHT, 1));
 			int minCount = Math.max(1, readInt(entryRoot, LootTableConfigManager.FIELD_MIN_COUNT, 1));
 			int maxCount = Math.max(minCount, readInt(entryRoot, LootTableConfigManager.FIELD_MAX_COUNT, minCount));
-			Tier itemRarity = RarityTierManager.fromString(
+			Tier itemRarity = RarityAPIManager.fromString(
 				readString(entryRoot, LootTableConfigManager.FIELD_ITEM_RARITY, Tier.COMMON.id())
 			);
 			if (itemRarity == null) {
@@ -787,7 +786,7 @@ public final class LootTableStructuresManager {
 			return null;
 		}
 		var identifier = net.minecraft.resources.Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+			JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId)
 		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return null;
@@ -811,7 +810,7 @@ public final class LootTableStructuresManager {
 		if (tableId == null || tableId.isBlank()) {
 			return "";
 		}
-		return MadokuJSONManager.normalizeRegistryIdentifierForLookup(tableId);
+		return JSONAPIManager.normalizeRegistryIdentifierForLookup(tableId);
 	}
 
 	private static ManagedLootTable resolveManagedTableByLootId(String rawLootTableId) {
@@ -999,7 +998,7 @@ public final class LootTableStructuresManager {
 		}
 
 		private JsonObject toConfigJson() {
-			return madoku.craft.core.json.JSONFormatManager.object()
+			return madoku.craft.core.json.JSONFormatAPIManager.object()
 				.put(LootTableConfigManager.FIELD_ENABLED, enabled)
 				.put(LootTableConfigManager.FIELD_USE_MADOKU_LUCK, useMadokuLuck)
 				.put(LootTableConfigManager.FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, overrideStructureLootTables)
@@ -1009,6 +1008,5 @@ public final class LootTableStructuresManager {
 
 	}
 }
-
 
 

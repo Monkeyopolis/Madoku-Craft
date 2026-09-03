@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 final class ChunkProcessorManager {
-	private static final Map<String, MadokuChunkManager.ChunkProcessor> PROCESSORS = new LinkedHashMap<>();
+	private static final Map<String, ChunkAPIManager.ChunkProcessor> PROCESSORS = new LinkedHashMap<>();
 	private static final Set<String> ACTIVE_PROCESSOR_IDS = new LinkedHashSet<>();
 	/**
 	 * Published only when registration or activation changes. Random-position dispatches are much
@@ -30,7 +30,7 @@ final class ChunkProcessorManager {
 		rebuildActiveProcessorSnapshot();
 	}
 
-	static void registerChunkProcessor(String processorId, MadokuChunkManager.ChunkProcessor processor) {
+	static void registerChunkProcessor(String processorId, ChunkAPIManager.ChunkProcessor processor) {
 		String normalizedId = normalize(processorId);
 		if (normalizedId.isBlank() || processor == null) {
 			return;
@@ -57,7 +57,7 @@ final class ChunkProcessorManager {
 		if (level == null || position == null || !ChunkConfigManager.isChunkSystemEnabled()) {
 			return;
 		}
-		for (MadokuChunkManager.ChunkProcessor processor : ACTIVE_PROCESSOR_SNAPSHOT.forWorld(level)) {
+		for (ChunkAPIManager.ChunkProcessor processor : ACTIVE_PROCESSOR_SNAPSHOT.forWorld(level)) {
 			if (!processor.acceptsRandomPosition(level, position)) {
 				continue;
 			}
@@ -66,9 +66,9 @@ final class ChunkProcessorManager {
 	}
 
 	private static void rebuildActiveProcessorSnapshot() {
-		List<MadokuChunkManager.ChunkProcessor> snapshot = new ArrayList<>(ACTIVE_PROCESSOR_IDS.size());
+		List<ChunkAPIManager.ChunkProcessor> snapshot = new ArrayList<>(ACTIVE_PROCESSOR_IDS.size());
 		for (String processorId : ACTIVE_PROCESSOR_IDS) {
-			MadokuChunkManager.ChunkProcessor processor = PROCESSORS.get(processorId);
+			ChunkAPIManager.ChunkProcessor processor = PROCESSORS.get(processorId);
 			if (processor != null) {
 				snapshot.add(processor);
 			}
@@ -77,16 +77,16 @@ final class ChunkProcessorManager {
 	}
 
 	private static final class ProcessorSnapshot {
-		private final List<MadokuChunkManager.ChunkProcessor> processors;
-		private final Map<String, List<MadokuChunkManager.ChunkProcessor>> processorsByDimension = new HashMap<>();
+		private final List<ChunkAPIManager.ChunkProcessor> processors;
+		private final Map<String, List<ChunkAPIManager.ChunkProcessor>> processorsByDimension = new HashMap<>();
 
-		private ProcessorSnapshot(List<MadokuChunkManager.ChunkProcessor> processors) {
+		private ProcessorSnapshot(List<ChunkAPIManager.ChunkProcessor> processors) {
 			this.processors = processors;
 		}
 
-		private List<MadokuChunkManager.ChunkProcessor> forWorld(ServerLevel level) {
-			String dimensionId = MadokuChunkManager.levelId(level);
-			List<MadokuChunkManager.ChunkProcessor> applicable = processorsByDimension.get(dimensionId);
+		private List<ChunkAPIManager.ChunkProcessor> forWorld(ServerLevel level) {
+			String dimensionId = ChunkAPIManager.levelId(level);
+			List<ChunkAPIManager.ChunkProcessor> applicable = processorsByDimension.get(dimensionId);
 			if (applicable == null) {
 				applicable = filterForWorld(level);
 				processorsByDimension.put(dimensionId, applicable);
@@ -94,9 +94,9 @@ final class ChunkProcessorManager {
 			return applicable;
 		}
 
-		private List<MadokuChunkManager.ChunkProcessor> filterForWorld(ServerLevel level) {
-			List<MadokuChunkManager.ChunkProcessor> applicable = new ArrayList<>(processors.size());
-			for (MadokuChunkManager.ChunkProcessor processor : processors) {
+		private List<ChunkAPIManager.ChunkProcessor> filterForWorld(ServerLevel level) {
+			List<ChunkAPIManager.ChunkProcessor> applicable = new ArrayList<>(processors.size());
+			for (ChunkAPIManager.ChunkProcessor processor : processors) {
 				if (processor.acceptsWorld(level)) {
 					applicable.add(processor);
 				}

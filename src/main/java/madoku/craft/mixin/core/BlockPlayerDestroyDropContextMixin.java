@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.data.MadokuChunkDataManager;
-import madoku.craft.core.helper.MadokuBlockDropContextManager;
+import madoku.craft.core.data.ChunkDataAPIManager;
+import madoku.craft.core.helper.BlockDropContextAPIManager;
 
 @Mixin(Block.class)
 public abstract class BlockPlayerDestroyDropContextMixin {
@@ -33,9 +33,9 @@ public abstract class BlockPlayerDestroyDropContextMixin {
 		CallbackInfo ci
 	) {
 		if (level instanceof ServerLevel serverLevel && player instanceof ServerPlayer serverPlayer) {
-			MadokuBlockDropContextManager.begin(serverLevel, serverPlayer, pos, state);
+			BlockDropContextAPIManager.begin(serverLevel, serverPlayer, pos, state);
 		} else {
-			MadokuBlockDropContextManager.end();
+			BlockDropContextAPIManager.end();
 		}
 	}
 
@@ -52,9 +52,10 @@ public abstract class BlockPlayerDestroyDropContextMixin {
 		ItemStack tool,
 		CallbackInfo ci
 	) {
-		MadokuBlockDropContextManager.end();
+		BlockDropContextAPIManager.end();
 		if (level instanceof ServerLevel serverLevel && player instanceof ServerPlayer) {
-			MadokuChunkDataManager.removePlayerPlacedBlock(serverLevel, pos);
+			ChunkDataAPIManager.removePlayerPlacedBlock(serverLevel, pos);
 		}
 	}
 }
+

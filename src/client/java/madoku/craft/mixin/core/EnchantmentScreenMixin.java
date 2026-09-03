@@ -1,8 +1,8 @@
 package madoku.craft.mixin.core;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.core.enchant.EnchantConfigManager;
-import madoku.craft.core.enchant.EnchantTableManager;
+import madoku.craft.core.enchant.EnchantConfigAPIManager;
+import madoku.craft.core.enchant.EnchantTableAPIManager;
 import madoku.craft.mixin.inventory.AbstractContainerScreenAccessor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.EnchantmentScreen;
@@ -26,7 +26,7 @@ public abstract class EnchantmentScreenMixin {
 
 	@Inject(method = "containerTick()V", at = @At("TAIL"))
 	private void madokuCraft$tickSlotIcon(CallbackInfo ci) {
-		if (EnchantConfigManager.isEnchantmentTableEnabled()) madokuCraft$slotIconTick++;
+		if (EnchantConfigAPIManager.isEnchantmentTableEnabled()) madokuCraft$slotIconTick++;
 	}
 
 	@Inject(method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z", at = @At("HEAD"), cancellable = true)
@@ -35,7 +35,7 @@ public abstract class EnchantmentScreenMixin {
 		boolean doubleClick,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (!EnchantConfigManager.isEnchantmentTableEnabled() || event.button() != 0 || !event.hasShiftDown()) return;
+		if (!EnchantConfigAPIManager.isEnchantmentTableEnabled() || event.button() != 0 || !event.hasShiftDown()) return;
 
 		EnchantmentScreen screen = (EnchantmentScreen) (Object) this;
 		AbstractContainerScreenAccessor screenAccess = (AbstractContainerScreenAccessor) (Object) this;
@@ -48,7 +48,7 @@ public abstract class EnchantmentScreenMixin {
 			Minecraft client = Minecraft.getInstance();
 			if (client.player == null || client.gameMode == null) return;
 			EnchantmentMenu menu = screen.getMenu();
-			int encodedButton = EnchantTableManager.encodeShiftButton(option);
+			int encodedButton = EnchantTableAPIManager.encodeShiftButton(option);
 			if (menu.clickMenuButton(client.player, encodedButton)) {
 				client.gameMode.handleInventoryButtonClick(menu.containerId, encodedButton);
 				cir.setReturnValue(true);
@@ -59,7 +59,7 @@ public abstract class EnchantmentScreenMixin {
 
 	@Inject(method = "extractBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V", at = @At("TAIL"))
 	private void madokuCraft$drawInputSlotIcon(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
-		if (!EnchantConfigManager.isEnchantmentTableEnabled()) return;
+		if (!EnchantConfigAPIManager.isEnchantmentTableEnabled()) return;
 		EnchantmentScreen screen = (EnchantmentScreen) (Object) this;
 		if (!screen.getMenu().getSlot(0).getItem().isEmpty()) return;
 
@@ -79,3 +79,4 @@ public abstract class EnchantmentScreenMixin {
 		);
 	}
 }
+

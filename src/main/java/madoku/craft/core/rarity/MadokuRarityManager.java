@@ -1,10 +1,10 @@
 package madoku.craft.core.rarity;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.sync.SyncConfigManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.attributes.MadokuAttributesManager;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.rarity.RarityTierManager.Tier;
+import madoku.craft.core.rarity.RarityTierAPIManager.Tier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
@@ -19,7 +19,7 @@ public final class MadokuRarityManager {
 	public static void initialize() {
 		RarityConfigManager.initialize();
 		RarityRuntimeManager.initialize();
-		SyncConfigManager.register(
+		SyncConfigAPIManager.register(
 			"rarity",
 			MadokuRarityManager::createClientSyncSnapshot,
 			MadokuRarityManager::applyClientSyncSnapshot,
@@ -38,7 +38,7 @@ public final class MadokuRarityManager {
 	}
 
 	public static String createClientSyncSnapshot() {
-		return JSONFormatManager.object().put("enabled", RarityConfigManager.isEnabled()).build().toString();
+		return JSONFormatAPIManager.object().put("enabled", RarityConfigManager.isEnabled()).build().toString();
 	}
 
 	public static void applyClientSyncSnapshot(String snapshot) {
@@ -119,3 +119,4 @@ public final class MadokuRarityManager {
 		return resolveWeight(tier, luckStat, useMadokuLuck) / rarity.weight;
 	}
 }
+

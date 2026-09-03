@@ -3,8 +3,8 @@ package madoku.craft.attributes;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.sync.SyncConfigManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.sync.SyncConfigAPIManager;
 
 public final class MadokuAttributesManager {
 	private static volatile AttributesConfigManager.Settings settings = AttributesConfigManager.Settings.defaults();
@@ -21,7 +21,7 @@ public final class MadokuAttributesManager {
 		MadokuHungerManager.initialize();
 		MadokuOxygenManager.initialize();
 		MadokuLuckManager.initialize();
-		SyncConfigManager.register(
+		SyncConfigAPIManager.register(
 			"attributes",
 			MadokuAttributesManager::createClientSyncSnapshot,
 			MadokuAttributesManager::applyClientSyncSnapshot,
@@ -35,7 +35,7 @@ public final class MadokuAttributesManager {
 	}
 
 	public static String createClientSyncSnapshot() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put("enabled", settings.enabled)
 			.object("hunger", hunger -> hunger
 				.put("enabled", MadokuHungerManager.isEnabled())
@@ -93,4 +93,5 @@ public final class MadokuAttributesManager {
 		settings = AttributesConfigManager.loadSettings();
 	}
 }
+
 

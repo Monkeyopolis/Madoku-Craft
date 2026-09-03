@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.time.TimeAPIManager;
 
 @Mixin(ServerClockManager.class)
 public abstract class ServerClockManagerMixin {
@@ -34,6 +34,6 @@ public abstract class ServerClockManagerMixin {
 			.registryAccess()
 			.lookupOrThrow(Registries.WORLD_CLOCK)
 			.getOrThrow(WorldClocks.OVERWORLD);
-		setRate(overworldClock, MadokuTimeManager.resolveWorldClockRate(server));
+		setRate(overworldClock, TimeAPIManager.resolveWorldClockRate(server));
 	}
 }

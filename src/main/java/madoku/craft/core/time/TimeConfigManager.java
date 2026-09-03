@@ -4,9 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.core.MadokuCoreManager;
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.season.MadokuSeasonManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.season.SeasonAPIManager;
 import madoku.craft.core.season.SeasonConfigManager;
 
 import org.slf4j.Logger;
@@ -19,7 +19,7 @@ public final class TimeConfigManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(TimeConfigManager.class);
 	private static final String TIME_CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-time";
 	private static final String TIME_CONFIG_FILE_NAME = "madoku-time";
-	private static final long TICKS_PER_MINUTE = MadokuTimeManager.TICKS_PER_SECOND * MadokuTimeManager.SECONDS_PER_MINUTE;
+	private static final long TICKS_PER_MINUTE = TimeAPIManager.TICKS_PER_SECOND * TimeAPIManager.SECONDS_PER_MINUTE;
 
 	private static final String FIELD_DAY_CYCLE = "day-cycle";
 	private static final String FIELD_SEASONAL_CHANGES = "seasonal-changes";
@@ -90,7 +90,7 @@ public final class TimeConfigManager {
 	}
 
 	public static long getDayCycleTicks() {
-		return getSeasonalCycleTicks(isSeasonalChangesActive() ? MadokuSeasonManager.getCurrentSeasonId() : null);
+		return getSeasonalCycleTicks(isSeasonalChangesActive() ? SeasonAPIManager.getCurrentSeasonId() : null);
 	}
 
 	public static double getSeasonalCycleMinutes(String seasonId) {
@@ -140,11 +140,11 @@ public final class TimeConfigManager {
 		Settings fallback = Settings.defaults();
 
 		try {
-			Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
+			Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(TIME_CONFIG_FOLDER_NAME);
 			Path configFile = resolveJsonFile(rootDirectory, TIME_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			settings = loaded;
 		} catch (IOException | RuntimeException exception) {
 			settings = fallback;
@@ -250,7 +250,7 @@ public final class TimeConfigManager {
 	}
 
 	private static boolean isSeasonalChangesActive() {
-		return isSeasonalChangesEnabled() && MadokuSeasonManager.isEnabled();
+		return isSeasonalChangesEnabled() && SeasonAPIManager.isEnabled();
 	}
 
 	private static TimeAdjustmentSettings resolveSeasonAdjustment(String seasonId) {
@@ -267,7 +267,7 @@ public final class TimeConfigManager {
 			return current;
 		}
 
-		MadokuSeasonManager.SeasonState state = MadokuSeasonManager.getCurrentState();
+		SeasonAPIManager.SeasonState state = SeasonAPIManager.getCurrentState();
 		if (state == null || !normalizeSeasonId(state.season().id()).equals(normalizeSeasonId(seasonId))) {
 			return current;
 		}
@@ -292,7 +292,7 @@ public final class TimeConfigManager {
 		};
 	}
 
-	private static double resolveSeasonBoundaryProgress(MadokuSeasonManager.SeasonState state) {
+	private static double resolveSeasonBoundaryProgress(SeasonAPIManager.SeasonState state) {
 		int seasonLengthDays = Math.max(1, SeasonConfigManager.getSettings().seasonLengthDays());
 		double progress = state.seasonDay() / (double) Math.max(1, seasonLengthDays - 1);
 		return Math.max(0.0D, Math.min(1.0D, progress));
@@ -304,8 +304,8 @@ public final class TimeConfigManager {
 		return start + (end - start) * smoothProgress;
 	}
 
-	private static MadokuSeasonManager.Season nextSeason(MadokuSeasonManager.Season season) {
-		MadokuSeasonManager.Season[] seasons = MadokuSeasonManager.Season.values();
+	private static SeasonAPIManager.Season nextSeason(SeasonAPIManager.Season season) {
+		SeasonAPIManager.Season[] seasons = SeasonAPIManager.Season.values();
 		return seasons[(season.ordinal() + 1) % seasons.length];
 	}
 
@@ -335,7 +335,7 @@ public final class TimeConfigManager {
 		}
 
 		private JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.object(FIELD_DAY_CYCLE, builder -> dayCycle.toConfigJson(builder))
 				.object(FIELD_SLEEP, builder -> sleep.toConfigJson(builder))
 				.build();
@@ -356,7 +356,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -380,7 +380,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -400,7 +400,7 @@ public final class TimeConfigManager {
 			return new TimeDurationSettings(sanitizePositive(getLong(source, FIELD_VALUE, base.valueMinutes), base.valueMinutes));
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -436,7 +436,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -458,7 +458,7 @@ public final class TimeConfigManager {
 			return new SeasonSettings(TimeAdjustmentSettings.fromJson(readObject(source, FIELD_TIME_ADJUSTMENT), base.timeAdjustment));
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -478,7 +478,7 @@ public final class TimeConfigManager {
 			return new TimeAdjustmentSettings(day, night);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -501,7 +501,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -534,7 +534,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -560,7 +560,7 @@ public final class TimeConfigManager {
 			);
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -580,7 +580,7 @@ public final class TimeConfigManager {
 			return new ThunderstormBypassSettings(getBoolean(source, FIELD_ENABLED, base.enabled));
 		}
 
-		private void toConfigJson(JSONFormatManager.ObjectBuilder builder) {
+		private void toConfigJson(JSONFormatAPIManager.ObjectBuilder builder) {
 			if (builder == null) {
 				return;
 			}
@@ -588,3 +588,5 @@ public final class TimeConfigManager {
 		}
 	}
 }
+
+

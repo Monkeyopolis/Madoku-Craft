@@ -4,11 +4,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.JSONTypeManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
-import madoku.craft.core.time.MadokuTimeManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONTypeAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
+import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.mixin.smelting.AbstractFurnaceServerTickInvoker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -77,19 +77,19 @@ public final class MadokuSmeltingManager {
 	}
 
 	public static void initialize() {
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
 
 		try {
-			Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
+			Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(SMELTING_CONFIG_FOLDER_NAME);
 			Path smeltingFile = resolveJsonFile(directory, SMELTING_CONFIG_FILE_NAME);
 
-			JSONFormatManager.ManagedDocument smeltingDocument = JSONFormatManager.readManagedDocument(smeltingFile);
+			JSONFormatAPIManager.ManagedDocument smeltingDocument = JSONFormatAPIManager.readManagedDocument(smeltingFile);
 			boolean smeltingEnabled = readBoolean(smeltingDocument.settings(), FIELD_ENABLED, true);
 			configuration.enableFeature = smeltingEnabled;
 			JsonObject smeltingSettings = smeltingDocument.settings();
 			smeltingSettings.addProperty(FIELD_ENABLED, smeltingEnabled);
-			JSONFormatManager.writeManagedDocument(smeltingFile, new JsonObject(), smeltingSettings, JSONTypeManager.STATIC_CONFIG);
+			JSONFormatAPIManager.writeManagedDocument(smeltingFile, new JsonObject(), smeltingSettings, JSONTypeAPIManager.STATIC_CONFIG);
 
 			FurnaceLoadResult furnaceLoadResult = loadFurnaceRules(directory);
 			rebuildRules(furnaceLoadResult.behaviorByBlockEntityId);
@@ -178,7 +178,7 @@ public final class MadokuSmeltingManager {
 		requestFurnaceProcessing(server, key, 0L);
 	}
 
-	private static void runScheduledFurnaceTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runScheduledFurnaceTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		if (server == null || context == null || !isEnabled()) {
 			return;
 		}
@@ -215,7 +215,7 @@ public final class MadokuSmeltingManager {
 				long extraTicksFromScheduling = Math.max(0L, tickDelta - 1L);
 				// Ignore the normal 1-tick world-time drift; only jump-sized changes
 				// should fast-forward furnaces.
-				long extraTicksFromWorldTimeJump = Math.max(0L, MadokuTimeManager.getWorldTimeDelta() - 1L);
+				long extraTicksFromWorldTimeJump = Math.max(0L, TimeAPIManager.getWorldTimeDelta() - 1L);
 				long extraTicks = extraTicksFromScheduling + extraTicksFromWorldTimeJump;
 				if (extraTicks > 0L) {
 					advanceSingleFurnaceTicks(level, blockPos, extraTicks);
@@ -240,7 +240,7 @@ public final class MadokuSmeltingManager {
 			return;
 		}
 
-		String created = MadokuSchedulerManager.createOrGetScheduler(key.toBinding());
+		String created = SchedulerAPIManager.createOrGetScheduler(key.toBinding());
 		furnaceSchedulerIds.put(key, created);
 		if (enqueueFurnaceTask(created, delay)) {
 			scheduledFurnaces.add(key);
@@ -253,7 +253,7 @@ public final class MadokuSmeltingManager {
 	private static String ensureSchedulerExists(FurnaceKey key) {
 		String schedulerId = furnaceSchedulerIds.get(key);
 		if (schedulerId == null || schedulerId.isBlank()) {
-			schedulerId = MadokuSchedulerManager.createOrGetScheduler(key.toBinding());
+			schedulerId = SchedulerAPIManager.createOrGetScheduler(key.toBinding());
 			furnaceSchedulerIds.put(key, schedulerId);
 		}
 		return schedulerId;
@@ -264,15 +264,15 @@ public final class MadokuSmeltingManager {
 			return false;
 		}
 
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			schedulerId,
 			Math.max(0L, delay),
 			TASK_TYPE_SMELTING_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED
-			|| status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
+			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private static void advanceSingleFurnaceTicks(ServerLevel level, BlockPos blockPos, long extraTicks) {
@@ -306,7 +306,7 @@ public final class MadokuSmeltingManager {
 		}
 		Identifier location = Identifier.tryParse(levelId);
 		if (location == null) {
-			location = Identifier.tryParse(MadokuSchedulerManager.normalizeLevelIdentifier(levelId));
+			location = Identifier.tryParse(SchedulerAPIManager.normalizeLevelIdentifier(levelId));
 		}
 		if (location == null) {
 			return null;
@@ -336,7 +336,7 @@ public final class MadokuSmeltingManager {
 		Path furnacesFolder = smeltingRootDirectory.resolve(FURNACES_DIRECTORY_NAME);
 
 		Map<String, JsonObject> defaultFiles = buildDefaultFurnaceFiles();
-		Map<String, JsonObject> loadedFiles = JSONFormatManager.ensureManagedFolder(
+		Map<String, JsonObject> loadedFiles = JSONFormatAPIManager.ensureManagedFolder(
 			furnacesFolder,
 			defaultFiles,
 			ignored -> buildGenericFurnaceDefaults(),
@@ -371,7 +371,7 @@ public final class MadokuSmeltingManager {
 
 			if (changed) {
 				JsonObject fileDefaults = defaultFiles.getOrDefault(fileKey, buildGenericFurnaceDefaults());
-				JSONFormatManager.writeManagedFile(
+				JSONFormatAPIManager.writeManagedFile(
 					furnacesFolder.resolve(fileKey + ".json"),
 					root,
 					fileDefaults,
@@ -457,7 +457,7 @@ public final class MadokuSmeltingManager {
 		double smeltingSpeed,
 		double fuelEfficiency
 	) {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_BLOCK_ID, blockId)
 			.put(FIELD_BLOCK_ENTITY_ID, blockEntityId)
 			.put(FIELD_RECIPE_TYPE_ID, recipeTypeId)
@@ -519,7 +519,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveBlockId(String value) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.BLOCK.containsKey(id)) {
 			return null;
 		}
@@ -527,7 +527,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveBlockEntityTypeId(String value) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.BLOCK_ENTITY_TYPE.containsKey(id)) {
 			return null;
 		}
@@ -535,7 +535,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	private static String resolveRecipeTypeId(String value) {
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(value));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(value));
 		if (id == null || !BuiltInRegistries.RECIPE_TYPE.containsKey(id)) {
 			return null;
 		}
@@ -580,7 +580,7 @@ public final class MadokuSmeltingManager {
 		if (key == null || key.isBlank()) {
 			return null;
 		}
-		Identifier id = Identifier.tryParse(MadokuJSONManager.normalizeRegistryIdentifierForLookup(key));
+		Identifier id = Identifier.tryParse(JSONAPIManager.normalizeRegistryIdentifierForLookup(key));
 		if (id == null || !BuiltInRegistries.BLOCK_ENTITY_TYPE.containsKey(id)) {
 			return null;
 		}
@@ -684,15 +684,15 @@ public final class MadokuSmeltingManager {
 			if (level == null || blockPos == null) {
 				return null;
 			}
-			String normalizedLevelId = MadokuSchedulerManager.normalizeLevelIdentifier(level.dimension().toString());
+			String normalizedLevelId = SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString());
 			if (normalizedLevelId == null || normalizedLevelId.isBlank()) {
 				return null;
 			}
 			return new FurnaceKey(normalizedLevelId, blockPos.asLong());
 		}
 
-		private static FurnaceKey from(MadokuSchedulerManager.SchedulerBinding binding) {
-			if (binding == null || binding.getEventType() != MadokuSchedulerManager.EventType.BLOCK_ENTITY) {
+		private static FurnaceKey from(SchedulerAPIManager.SchedulerBinding binding) {
+			if (binding == null || binding.getEventType() != SchedulerAPIManager.EventType.BLOCK_ENTITY) {
 				return null;
 			}
 			String levelId = binding.getLevelId();
@@ -706,8 +706,8 @@ public final class MadokuSmeltingManager {
 			return new FurnaceKey(levelId, blockPosLong);
 		}
 
-		private MadokuSchedulerManager.SchedulerBinding toBinding() {
-			return MadokuSchedulerManager.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
+		private SchedulerAPIManager.SchedulerBinding toBinding() {
+			return SchedulerAPIManager.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
 		}
 	}
 
@@ -723,4 +723,5 @@ public final class MadokuSmeltingManager {
 	private record FurnaceBehavior(double smeltingSpeed, double fuelEfficiency) {
 	}
 }
+
 

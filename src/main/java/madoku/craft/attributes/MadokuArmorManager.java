@@ -1,6 +1,6 @@
 package madoku.craft.attributes;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.core.Holder;
 import net.minecraft.world.damagesource.DamageSource;
@@ -58,7 +58,7 @@ public final class MadokuArmorManager {
 			settings.armorToughnessPoints.startingArmorToughness,
 			settings.armorToughnessPoints.maxPoints
 		);
-		double breachEffectiveness = EnchantBooksManager.resolveBreachArmorEffectiveness(entity, source);
+		double breachEffectiveness = EnchantBooksAPIManager.resolveBreachArmorEffectiveness(entity, source);
 		armorPoints *= breachEffectiveness;
 		armorToughnessPoints *= breachEffectiveness;
 
@@ -169,3 +169,4 @@ public final class MadokuArmorManager {
 		return Math.round(value / DAMAGE_ROUND_INCREMENT) * DAMAGE_ROUND_INCREMENT;
 	}
 }
+

@@ -9,9 +9,9 @@ import madoku.craft.mixin.mob.CreeperPoweredAccessor;
 import madoku.craft.pet.PetComponentsManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
 import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.core.json.MadokuJSONManager;
-import madoku.craft.core.loot.EquipmentsConfigManager;
-import madoku.craft.core.scheduler.MadokuSchedulerManager;
+import madoku.craft.core.json.JSONAPIManager;
+import madoku.craft.core.loot.EquipmentsConfigAPIManager;
+import madoku.craft.core.scheduler.SchedulerAPIManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -97,7 +97,7 @@ public final class MobEntityManager {
 	}
 
 	public static void initialize() {
-		MadokuSchedulerManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
+		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (entity instanceof Bee) {
 				TRACKED_BEES.put(entity.getUUID(), entity);
@@ -127,7 +127,7 @@ public final class MobEntityManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		MadokuSchedulerManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
+		SchedulerAPIManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
 		runtimeSchedulerId = "";
 		runtimeTaskScheduled = false;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
@@ -143,8 +143,8 @@ public final class MobEntityManager {
 		EntityBehaviorsManager.StrayBehavior.resetRuntimeState();
 		EntityBehaviorsManager.BoggedBehavior.resetRuntimeState();
 		EntityBehaviorsManager.ParchedBehavior.resetRuntimeState();
-		runtimeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
-		MadokuSchedulerManager.clearQueuedRequests(runtimeSchedulerId);
+		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
+		SchedulerAPIManager.clearQueuedRequests(runtimeSchedulerId);
 		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
 	}
 
@@ -153,7 +153,7 @@ public final class MobEntityManager {
 	}
 
 	public static void onServerStopped() {
-		MadokuSchedulerManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
+		SchedulerAPIManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
 		runtimeSchedulerId = "";
 		runtimeTaskScheduled = false;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
@@ -224,7 +224,7 @@ public final class MobEntityManager {
 	}
 
 	private static void applyConfiguredEquipmentAtVanillaSpawn(Mob mob, RandomSource random) {
-		if (mob == null || random == null || !EquipmentsConfigManager.isEntityEquipmentOverrideEnabled()) {
+		if (mob == null || random == null || !EquipmentsConfigAPIManager.isEntityEquipmentOverrideEnabled()) {
 			return;
 		}
 
@@ -242,12 +242,12 @@ public final class MobEntityManager {
 			}
 			equipmentReference = readString(equipmentSet, MobConfigManager.FIELD_MOB_EQUIPMENT, "");
 		}
-		EquipmentsConfigManager.EquipmentProfile profile = EquipmentsConfigManager.resolveProfile(equipmentReference, mob.getType());
+		EquipmentsConfigAPIManager.EquipmentProfile profile = EquipmentsConfigAPIManager.resolveProfile(equipmentReference, mob.getType());
 		if (profile == null || !profile.enabled()) {
 			return;
 		}
 
-		Map<EquipmentSlot, ItemStack> selected = EquipmentsConfigManager.rollEquipment(profile, random);
+		Map<EquipmentSlot, ItemStack> selected = EquipmentsConfigAPIManager.rollEquipment(profile, random);
 		clearEquipmentSlots(mob);
 		for (Map.Entry<EquipmentSlot, ItemStack> entry : selected.entrySet()) {
 			mob.setItemSlot(entry.getKey(), entry.getValue());
@@ -1422,7 +1422,7 @@ public final class MobEntityManager {
 		CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 	}
 
-	private static void runRuntimeTask(MinecraftServer server, MadokuSchedulerManager.TaskContext context, JsonObject payload) {
+	private static void runRuntimeTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
 		if (context != null) {
 			runtimeSchedulerId = context.getSchedulerId();
 		}
@@ -1475,7 +1475,7 @@ public final class MobEntityManager {
 	}
 
 	private static long resolveRuntimeProcessingInterval(MinecraftServer server) {
-		return MadokuSchedulerManager.resolveAdaptiveDelayTicks(
+		return SchedulerAPIManager.resolveAdaptiveDelayTicks(
 			server,
 			MOB_SCHEDULER_OWNER_ID,
 			1L,
@@ -1492,7 +1492,7 @@ public final class MobEntityManager {
 			runtimeTaskScheduled = true;
 			return;
 		}
-		runtimeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
+		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
 			runtimeTaskScheduled = true;
 		}
@@ -1500,7 +1500,7 @@ public final class MobEntityManager {
 
 	private static String ensureRuntimeSchedulerExists() {
 		if (runtimeSchedulerId == null || runtimeSchedulerId.isBlank()) {
-			runtimeSchedulerId = MadokuSchedulerManager.createOrGetScheduler(MadokuSchedulerManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
+			runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
 		}
 		return runtimeSchedulerId;
 	}
@@ -1509,14 +1509,14 @@ public final class MobEntityManager {
 		if (schedulerId == null || schedulerId.isBlank()) {
 			return false;
 		}
-		MadokuSchedulerManager.EnqueueStatus status = MadokuSchedulerManager.enqueue(
+		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			schedulerId,
 			Math.max(0L, delayTicks),
 			TASK_TYPE_MOB_RUNTIME_TICK,
 			new JsonObject(),
-			MadokuSchedulerManager.TickDomain.GAMEPLAY
+			SchedulerAPIManager.TickDomain.GAMEPLAY
 		);
-		return status == MadokuSchedulerManager.EnqueueStatus.ACCEPTED || status == MadokuSchedulerManager.EnqueueStatus.QUEUE_FULL;
+		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED || status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	private record PendingZombieReplacement(EntityType<?> replacementType, EntitySpawnReason reason) {}
@@ -2501,7 +2501,7 @@ public final class MobEntityManager {
 			return null;
 		}
 		Identifier identifier = Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(entityTypeId)
+			JSONAPIManager.normalizeRegistryIdentifierForLookup(entityTypeId)
 		);
 		if (identifier == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(identifier)) {
 			return null;
@@ -2514,7 +2514,7 @@ public final class MobEntityManager {
 			return ItemStack.EMPTY;
 		}
 		Identifier identifier = Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+			JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId)
 		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return ItemStack.EMPTY;
@@ -2531,12 +2531,13 @@ public final class MobEntityManager {
 			return "empty";
 		}
 		Identifier identifier = BuiltInRegistries.ITEM.getKey(stack.getItem());
-		return identifier == null ? "unknown" : MadokuJSONManager.normalizeRegistryIdentifierForJson(identifier.toString());
+		return identifier == null ? "unknown" : JSONAPIManager.normalizeRegistryIdentifierForJson(identifier.toString());
 	}
 
 	private record WeightedVariant(String key, double weight) {}
 
 }
+
 
 
 

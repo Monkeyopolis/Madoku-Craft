@@ -1,7 +1,7 @@
 package madoku.craft.mixin.color;
 
 import madoku.craft.color.ClientColorContext;
-import madoku.craft.core.season.EnvironmentTransitionConfigManager;
+import madoku.craft.core.season.EnvironmentTransitionConfigAPIManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
@@ -53,7 +53,7 @@ public final class SpruceBirchLeafTintMixin {
 	@Inject(method = "getTintSources", at = @At("RETURN"), cancellable = true)
 	private void madokuCraft$useSeasonalLeafTint(BlockState state, CallbackInfoReturnable<List<BlockTintSource>> cir) {
 		if (state == null
-			|| !EnvironmentTransitionConfigManager.getSettings().transitionColorEnabled()
+			|| !EnvironmentTransitionConfigAPIManager.getSettings().transitionColorEnabled()
 			|| !ClientSeasonalPrecipitationState.isSynchronized()) {
 			return;
 		}
@@ -90,7 +90,8 @@ public final class SpruceBirchLeafTintMixin {
 	}
 
 	private static boolean isSeasonalTintEnabled() {
-		return EnvironmentTransitionConfigManager.getSettings().transitionColorEnabled()
+		return EnvironmentTransitionConfigAPIManager.getSettings().transitionColorEnabled()
 			&& ClientSeasonalPrecipitationState.isSynchronized();
 	}
 }
+

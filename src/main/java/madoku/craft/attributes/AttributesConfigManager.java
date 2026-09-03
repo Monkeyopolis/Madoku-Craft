@@ -2,8 +2,8 @@ package madoku.craft.attributes;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +27,9 @@ public final class AttributesConfigManager {
 
 		try {
 			Path configFile = prepareRootConfigFile(ATTRIBUTES_CONFIG_FILE_NAME);
-			JsonObject normalized = JSONFormatManager.ensureManagedFile(configFile, defaults);
+			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(configFile, defaults);
 			Settings loaded = Settings.fromJson(normalized);
-			JSONFormatManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
+			JSONFormatAPIManager.writeManagedFile(configFile, loaded.toConfigJson(), defaults);
 			return loaded;
 		} catch (IOException | RuntimeException exception) {
 			LOGGER.error("Failed to load Madoku Attributes config; using defaults.", exception);
@@ -43,7 +43,7 @@ public final class AttributesConfigManager {
 	}
 
 	public static Path prepareRootConfigFile(String fileName) {
-		Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
+		Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
 		return resolveJsonFile(rootDirectory, fileName);
 	}
 
@@ -53,7 +53,7 @@ public final class AttributesConfigManager {
 			throw new IllegalArgumentException("Attribute system directory name must not be blank.");
 		}
 
-		Path rootDirectory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
+		Path rootDirectory = JSONAPIManager.getOrCreateGlobalSystemDirectory(ATTRIBUTES_CONFIG_FOLDER_NAME);
 		Path directory = rootDirectory.resolve(normalizedName);
 		try {
 			Files.createDirectories(directory);
@@ -106,10 +106,11 @@ public final class AttributesConfigManager {
 		}
 
 		JsonObject toConfigJson() {
-			return JSONFormatManager.object()
+			return JSONFormatAPIManager.object()
 				.put("enabled", enabled)
 				.build();
 		}
 	}
 }
+
 

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.core.loot.MadokuLootTableManager;
+import madoku.craft.core.loot.LootTableAPIManager;
 
 @Mixin(RandomizableContainer.class)
 public interface RandomizableContainerLootMixin {
@@ -37,7 +37,7 @@ public interface RandomizableContainerLootMixin {
 
 		boolean handled = false;
 		try {
-			handled = MadokuLootTableManager.applyManagedLootTable(
+			handled = LootTableAPIManager.applyManagedLootTable(
 				container,
 				lootTableKey,
 				lootTableSeed,

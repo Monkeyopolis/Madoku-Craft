@@ -2,8 +2,8 @@ package madoku.craft.farming;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 
 import com.google.gson.JsonElement;
 
@@ -39,20 +39,20 @@ public final class FarmingConfigManager {
 	}
 
 	public static JsonObject loadFarmingSettings() throws IOException {
-		Path directory = MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME);
-		return JSONFormatManager.ensureManagedFile(
+		Path directory = JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME);
+		return JSONFormatAPIManager.ensureManagedFile(
 			directory.resolve(CONFIG_FILE_NAME + ".json"),
 			buildFarmingDefaults()
 		);
 	}
 
 	public static Path resolveCropsConfigDirectory() throws IOException {
-		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME)
+		return JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME)
 			.resolve(CROPS_CONFIG_FOLDER_NAME);
 	}
 
 	public static Path resolveComposterConfigDirectory() throws IOException {
-		return MadokuJSONManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME)
+		return JSONAPIManager.getOrCreateGlobalSystemDirectory(CONFIG_ROOT_FOLDER_NAME)
 			.resolve(COMPOSTER_CONFIG_FOLDER_NAME);
 	}
 
@@ -63,7 +63,7 @@ public final class FarmingConfigManager {
 	}
 
 	public static JsonObject buildFarmingDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_RAIN_GROWTH_BOOST, DEFAULT_RAIN_GROWTH_BOOST)
 			.put(FIELD_FERTILIZED_GROWTH_BOOST, DEFAULT_FERTILIZED_GROWTH_BOOST)
@@ -72,4 +72,5 @@ public final class FarmingConfigManager {
 			.build();
 	}
 }
+
 

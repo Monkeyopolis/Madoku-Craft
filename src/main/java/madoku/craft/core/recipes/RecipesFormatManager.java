@@ -5,8 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.core.json.JSONFormatManager;
-import madoku.craft.core.json.MadokuJSONManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
+import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -94,7 +94,7 @@ public final class RecipesFormatManager {
 		return null;
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, Recipe<?> recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, Recipe<?> recipe) {
 		if (recipe instanceof CraftingRecipe crafting) {
 			FormatCraftingManager.writeDefaults(root, crafting);
 		} else if (recipe instanceof SmithingRecipe smithing) {
@@ -229,7 +229,7 @@ public final class RecipesFormatManager {
 		}
 	}
 
-	static void writeSingleInputDefaults(JSONFormatManager.ObjectBuilder root, SingleItemRecipe recipe) {
+	static void writeSingleInputDefaults(JSONFormatAPIManager.ObjectBuilder root, SingleItemRecipe recipe) {
 		String itemId = firstItemIdFromIngredient(recipe.input());
 		if (!itemId.isBlank()) root.put(RecipesConfigManager.FIELD_INPUT, itemId);
 	}
@@ -238,7 +238,7 @@ public final class RecipesFormatManager {
 		Item item = firstItemFromIngredient(ingredient);
 		if (item == null) return "";
 		var id = BuiltInRegistries.ITEM.getKey(item);
-		return id == null ? "" : MadokuJSONManager.normalizeRegistryIdentifierForJson(id.toString());
+		return id == null ? "" : JSONAPIManager.normalizeRegistryIdentifierForJson(id.toString());
 	}
 
 	private static Item firstItemFromIngredient(Ingredient ingredient) {
@@ -286,7 +286,7 @@ public final class RecipesFormatManager {
 	private static Item resolveItem(String itemId) {
 		if (itemId == null || itemId.isBlank()) return null;
 		var identifier = net.minecraft.resources.Identifier.tryParse(
-			MadokuJSONManager.normalizeRegistryIdentifierForLookup(itemId)
+			JSONAPIManager.normalizeRegistryIdentifierForLookup(itemId)
 		);
 		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
 			return null;
@@ -309,3 +309,4 @@ public final class RecipesFormatManager {
 		return primitive.getAsInt();
 	}
 }
+

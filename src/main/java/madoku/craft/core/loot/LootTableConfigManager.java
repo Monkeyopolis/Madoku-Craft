@@ -2,7 +2,7 @@ package madoku.craft.core.loot;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 
 import java.util.Locale;
 
@@ -36,17 +36,17 @@ public final class LootTableConfigManager {
 	public static void initialize() {
 		EntitiesConfigManager.initialize();
 		StructuresConfigManager.initialize();
-		EquipmentsConfigManager.initialize();
+		EquipmentsConfigAPIManager.initialize();
 	}
 
 	public static void reset() {
 		EntitiesConfigManager.reset();
 		StructuresConfigManager.reset();
-		EquipmentsConfigManager.reset();
+		EquipmentsConfigAPIManager.reset();
 	}
 
 	public static JsonObject buildSettingsDefaults() {
-		return JSONFormatManager.object()
+		return JSONFormatAPIManager.object()
 			.put(FIELD_ENABLED, true)
 			.put(FIELD_USE_MADOKU_LUCK, true)
 			.put(FIELD_OVERRIDE_STRUCTURE_LOOT_TABLES, true)
@@ -81,4 +81,5 @@ public final class LootTableConfigManager {
 		return collapsed.isBlank() ? fallback : collapsed;
 	}
 }
+
 

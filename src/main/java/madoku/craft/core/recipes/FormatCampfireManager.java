@@ -2,7 +2,7 @@ package madoku.craft.core.recipes;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.json.JSONFormatManager;
+import madoku.craft.core.json.JSONFormatAPIManager;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.CampfireCookingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -28,7 +28,8 @@ public final class FormatCampfireManager {
 			input, result, recipe.experience(), recipe.cookingTime());
 	}
 
-	static void writeDefaults(JSONFormatManager.ObjectBuilder root, CampfireCookingRecipe recipe) {
+	static void writeDefaults(JSONFormatAPIManager.ObjectBuilder root, CampfireCookingRecipe recipe) {
 		RecipesFormatManager.writeSingleInputDefaults(root, recipe);
 	}
 }
+

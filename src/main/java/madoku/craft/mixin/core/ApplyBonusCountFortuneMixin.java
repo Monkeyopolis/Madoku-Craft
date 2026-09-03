@@ -1,6 +1,6 @@
 package madoku.craft.mixin.core;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.core.Holder;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -23,9 +23,10 @@ public abstract class ApplyBonusCountFortuneMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ItemStack> callbackInfo
 	) {
-		if (EnchantBooksManager.applyConfiguredFortune(enchantment, stack, lootContext)
-			|| EnchantBooksManager.applyConfiguredLooting(enchantment, stack, lootContext)) {
+		if (EnchantBooksAPIManager.applyConfiguredFortune(enchantment, stack, lootContext)
+			|| EnchantBooksAPIManager.applyConfiguredLooting(enchantment, stack, lootContext)) {
 			callbackInfo.setReturnValue(stack);
 		}
 	}
 }
+

@@ -9,9 +9,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.core.season.MadokuSeasonManager;
-import madoku.craft.core.season.SeasonEnvironmentTransitionManager;
-import madoku.craft.core.season.SeasonWeatherManager;
+import madoku.craft.core.season.SeasonAPIManager;
+import madoku.craft.core.season.SeasonEnvironmentTransitionAPIManager;
+import madoku.craft.core.season.SeasonWeatherAPIManager;
 
 @Mixin(Level.class)
 public abstract class LevelSeasonalPrecipitationMixin {
@@ -24,20 +24,21 @@ public abstract class LevelSeasonalPrecipitationMixin {
 		BlockPos pos,
 		CallbackInfoReturnable<Biome.Precipitation> cir
 	) {
-		if (!MadokuSeasonManager.isEnabled()
+		if (!SeasonAPIManager.isEnabled()
 			|| !((Object) this instanceof ServerLevel serverLevel)
 			|| pos == null) {
 			return;
 		}
 
-		if (SeasonWeatherManager.isEnabled()) {
-			if (!SeasonWeatherManager.isPrecipitating(serverLevel)) {
+		if (SeasonWeatherAPIManager.isEnabled()) {
+			if (!SeasonWeatherAPIManager.isPrecipitating(serverLevel)) {
 				cir.setReturnValue(Biome.Precipitation.NONE);
 				return;
 			}
-		} else if (!SeasonEnvironmentTransitionManager.isWeatherTransitionEnabled() || !serverLevel.isRaining()) {
+		} else if (!SeasonEnvironmentTransitionAPIManager.isWeatherTransitionEnabled() || !serverLevel.isRaining()) {
 			return;
 		}
-		cir.setReturnValue(MadokuSeasonManager.resolveSeasonalPrecipitation(serverLevel, pos));
+		cir.setReturnValue(SeasonAPIManager.resolveSeasonalPrecipitation(serverLevel, pos));
 	}
 }
+

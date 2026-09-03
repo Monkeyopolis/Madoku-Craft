@@ -1,6 +1,6 @@
 package madoku.craft.mixin.mob;
 
-import madoku.craft.core.enchant.EnchantBooksManager;
+import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,8 +18,9 @@ public abstract class AbstractArrowFlameMixin {
 	)
 	private void madokuCraft$applyConfiguredFlame(Entity target, float vanillaSeconds) {
 		AbstractArrow arrow = (AbstractArrow) (Object) this;
-		if (!EnchantBooksManager.applyConfiguredFlame(target, arrow.getWeaponItem(), vanillaSeconds)) {
+		if (!EnchantBooksAPIManager.applyConfiguredFlame(target, arrow.getWeaponItem(), vanillaSeconds)) {
 			target.igniteForSeconds(vanillaSeconds);
 		}
 	}
 }
+
