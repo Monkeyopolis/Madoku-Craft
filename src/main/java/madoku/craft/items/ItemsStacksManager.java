@@ -25,7 +25,10 @@ public final class ItemsStacksManager {
 
 	private ItemsStacksManager() { }
 
-	public static void initialize() { loadStaticConfig(); }
+	public static void initialize() {
+		ItemsStacksAPIManager.registerProvider(new MadokuItemsStacksProvider());
+		loadStaticConfig();
+	}
 
 	/**
 	 * Clears per-server runtime state without discarding the static configuration
@@ -105,4 +108,3 @@ public final class ItemsStacksManager {
 		}
 	}
 }
-

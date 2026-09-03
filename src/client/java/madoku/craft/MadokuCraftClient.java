@@ -3,7 +3,7 @@ package madoku.craft;
 import madoku.craft.entity.MadokuEntitiesClient;
 import madoku.craft.farming.FarmingAPIManager;
 import madoku.craft.inventory.PetInventoryClient;
-import madoku.craft.items.ItemsCategoriesManager;
+import madoku.craft.items.ItemsCategoriesAPIManager;
 import madoku.craft.levels.MadokuLevelsClient;
 import madoku.craft.hud.HudAttributesManager;
 import madoku.craft.hud.HudPayloadManager;
@@ -49,7 +49,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 				return;
 			}
 			configuredItemMetadataApplied = true;
-			ItemsCategoriesManager.applyConfiguredItemMetadata();
+			ItemsCategoriesAPIManager.applyConfiguredItemMetadata();
 			FarmingAPIManager.applyCropItemMetadata();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(TimePayloadAPIManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));

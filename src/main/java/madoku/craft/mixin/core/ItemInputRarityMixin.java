@@ -3,7 +3,7 @@ package madoku.craft.mixin.core;
 import madoku.craft.pet.PetHagAPIManager;
 import madoku.craft.pet.PetEntitiesAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import net.minecraft.server.commands.GiveCommand;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -33,7 +33,7 @@ public class ItemInputRarityMixin {
 					rarity == null ? RarityAPIManager.Tier.COMMON : rarity
 				);
 			} else {
-				MadokuItemsManager.applyConfiguredItemLevel(stack, 1);
+				ItemsAPIManager.applyConfiguredItemLevel(stack, 1);
 				RarityAPIManager.applyGeneratedRarity(stack, serverPlayer.getRandom(), serverPlayer);
 			}
 		}
@@ -41,4 +41,3 @@ public class ItemInputRarityMixin {
 		return inventory.add(stack);
 	}
 }
-

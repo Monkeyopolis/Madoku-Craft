@@ -2,7 +2,7 @@ package madoku.craft.mixin.core;
 
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager.Tier;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.pet.PetEntitiesAPIManager;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -36,7 +36,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 		cancellable = true
 	)
 	private void madokuCraft$hideVanillaBottomDurabilityBar(ItemStack stack, int x, int y, CallbackInfo ci) {
-		if (!stack.isEmpty() && MadokuItemsManager.isRarityCategoryItem(stack)) {
+		if (!stack.isEmpty() && ItemsAPIManager.isRarityCategoryItem(stack)) {
 			ci.cancel();
 		}
 	}
@@ -57,7 +57,7 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 			return;
 		}
 
-		boolean managedRarityItem = MadokuItemsManager.isRarityCategoryItem(stack)
+		boolean managedRarityItem = ItemsAPIManager.isRarityCategoryItem(stack)
 			|| PetEntitiesAPIManager.isPetItem(stack);
 		GuiGraphicsExtractor context = (GuiGraphicsExtractor) (Object) this;
 
@@ -108,4 +108,3 @@ public abstract class GuiGraphicsRarityOverlayMixin {
 	}
 
 }
-

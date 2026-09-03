@@ -1,7 +1,7 @@
 package madoku.craft.mixin.core;
 
 import madoku.craft.core.recipes.RecipesAPIManager;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -28,7 +28,7 @@ public abstract class CraftingMenuRarityMixin {
 			return;
 		}
 
-			MadokuItemsManager.applyConfiguredItemLevel(resultSlot.getItem(), 1);
+			ItemsAPIManager.applyConfiguredItemLevel(resultSlot.getItem(), 1);
 			List<ItemStack> extras = RecipesAPIManager.applyCraftedRarity(serverPlayer, resultSlot.getItem());
 			RecipesAPIManager.deliverCraftExtras(serverPlayer, extras);
 	}

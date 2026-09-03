@@ -1,6 +1,6 @@
 package madoku.craft.mixin.smelting;
 
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.smelting.system.SmeltingAPIManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.FuelValues;
@@ -13,11 +13,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class FuelValuesMixin {
 	@Inject(method = "isFuel", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$restrictFuelToConfiguredFuelItems(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
-		if (!SmeltingAPIManager.isEnabled() || !MadokuItemsManager.isEnabled()) {
+		if (!SmeltingAPIManager.isEnabled() || !ItemsAPIManager.isEnabled()) {
 			return;
 		}
 
-		boolean configuredFuel = MadokuItemsManager.isConfiguredFuel(stack);
+		boolean configuredFuel = ItemsAPIManager.isConfiguredFuel(stack);
 		if (configuredFuel) {
 			cir.setReturnValue(true);
 		}

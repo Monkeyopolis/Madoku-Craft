@@ -1,6 +1,6 @@
 package madoku.craft.core.enchant;
 
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -51,7 +51,7 @@ public final class MadokuEnchantManager {
 		copyManagedItemData(source, target);
 		EnchantmentHelper.setEnchantments(target, EnchantmentHelper.getEnchantmentsForCrafting(source));
 		copyManagedItemData(source, target);
-		MadokuItemsManager.updateDurabilityLore(target);
+		ItemsAPIManager.updateDurabilityLore(target);
 	}
 
 	public static void mergeEnchantments(ItemStack primary, ItemStack duplicate, ItemStack target) {
@@ -70,7 +70,7 @@ public final class MadokuEnchantManager {
 		copyManagedItemData(primary, target);
 		EnchantmentHelper.setEnchantments(target, merged.toImmutable());
 		copyManagedItemData(primary, target);
-		MadokuItemsManager.updateDurabilityLore(target);
+		ItemsAPIManager.updateDurabilityLore(target);
 	}
 
 	private static void copyManagedItemData(ItemStack source, ItemStack target) {

@@ -10,6 +10,7 @@ public final class MadokuItemsManager {
 	private MadokuItemsManager() { }
 
 	public static void initialize() {
+		ItemsAPIManager.registerProvider(new MadokuItemsProvider());
 		ItemsConfigManager.initialize();
 		ItemsCategoriesManager.initialize();
 		ItemsStacksManager.initialize();

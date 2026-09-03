@@ -1,6 +1,6 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.items.ItemsStacksManager;
+import madoku.craft.items.ItemsStacksAPIManager;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
@@ -82,7 +82,7 @@ public abstract class GuiGraphicsStackCountMixin {
 		if (count < 1000) {
 			return originalText;
 		}
-		return ItemsStacksManager.formatCompactStackCount(count);
+		return ItemsStacksAPIManager.formatCompactStackCount(count);
 	}
 
 	private static float resolveScale(String text) {

@@ -129,6 +129,7 @@ public final class ItemsCategoriesManager {
 	}
 
 	public static void initialize() {
+		ItemsCategoriesAPIManager.registerProvider(new MadokuItemsCategoriesProvider());
 		loadStaticConfig();
 		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, ItemsCategoriesManager::runPlayerTickTask);
 		SyncConfigAPIManager.register(
@@ -2096,5 +2097,4 @@ public final class ItemsCategoriesManager {
 		MULTI
 	}
 }
-
 

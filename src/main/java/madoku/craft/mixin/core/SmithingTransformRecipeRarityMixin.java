@@ -3,7 +3,7 @@ package madoku.craft.mixin.core;
 import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.recipes.RecipesAPIManager;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.SmithingRecipeInput;
@@ -35,8 +35,7 @@ public class SmithingTransformRecipeRarityMixin {
 		ItemStack result = menu.getSlot(AnvilMenu.RESULT_SLOT).getItem();
 		EnchantBooksAPIManager.removeIncompatibleConfiguredEnchantments(source, result);
 		RarityAPIManager.preserveRarityOnRename(source, result);
-		MadokuItemsManager.updateDurabilityLore(result);
+		ItemsAPIManager.updateDurabilityLore(result);
 	}
 }
-
 

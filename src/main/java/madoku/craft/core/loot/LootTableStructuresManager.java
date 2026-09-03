@@ -10,7 +10,7 @@ import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager.Tier;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.pet.PetHagAPIManager;
 import madoku.craft.pet.PetConfigAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -355,7 +355,7 @@ public final class LootTableStructuresManager {
 		int maxStackSize = Math.max(1, probe.getMaxStackSize());
 		int stackCount = Math.min(maxStackSize, count);
 		ItemStack stack = new ItemStack(item, stackCount);
-		MadokuItemsManager.applyGeneratedItemLevel(stack, random);
+		ItemsAPIManager.applyGeneratedItemLevel(stack, random);
 		if (itemRarity != null) {
 			RarityAPIManager.applyConfiguredRarity(stack, itemRarity);
 		}

@@ -1,6 +1,6 @@
 package madoku.craft.mixin.itemstack;
 
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.pet.PetHudAPIManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -35,7 +35,7 @@ public class ItemStackDurabilityLoreMixin {
 		CallbackInfoReturnable<List<Component>> cir
 	) {
 		ItemStack stack = (ItemStack) (Object) this;
-		if (!MadokuItemsManager.isEnabled() || !MadokuItemsManager.isRarityCategoryItem(stack)) {
+		if (!ItemsAPIManager.isEnabled() || !ItemsAPIManager.isRarityCategoryItem(stack)) {
 			return;
 		}
 
@@ -62,6 +62,6 @@ public class ItemStackDurabilityLoreMixin {
 
 	@Inject(method = "setDamageValue", at = @At("TAIL"))
 	private void madokuCraft$updateDurabilityLore(int damage, CallbackInfo ci) {
-		MadokuItemsManager.updateDurabilityLore((ItemStack) (Object) this);
+		ItemsAPIManager.updateDurabilityLore((ItemStack) (Object) this);
 	}
 }

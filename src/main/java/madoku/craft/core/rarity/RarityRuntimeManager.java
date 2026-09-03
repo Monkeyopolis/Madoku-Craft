@@ -1,6 +1,6 @@
 package madoku.craft.core.rarity;
 
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -27,7 +27,7 @@ public final class RarityRuntimeManager {
 
 	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource, ServerPlayer luckPlayer) {
 		if (!isEnabled() || stack == null || stack.isEmpty()
-			|| !MadokuItemsManager.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
+			|| !ItemsAPIManager.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
 			return;
 		}
 
@@ -106,13 +106,13 @@ public final class RarityRuntimeManager {
 		if (rarity != Tier.COMMON) {
 			double buffPercent = getRarityStatBuffPercent(rarity);
 			if (buffPercent > 0.0D) {
-				MadokuItemsManager.applyRarityScaling(stack, multiplierFromBuffPercent(buffPercent));
+				ItemsAPIManager.applyRarityScaling(stack, multiplierFromBuffPercent(buffPercent));
 			}
 		}
 		MutableComponent coloredName = stack.getItem().getName(stack).copy()
 			.withStyle(style -> style.withColor(rarity.color()).withItalic(false));
 		stack.set(DataComponents.CUSTOM_NAME, coloredName);
-		MadokuItemsManager.updateDurabilityLore(stack);
+		ItemsAPIManager.updateDurabilityLore(stack);
 	}
 
 	public static void preserveRarityOnRename(ItemStack source, ItemStack target) {

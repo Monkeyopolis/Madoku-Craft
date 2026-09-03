@@ -15,7 +15,7 @@ import madoku.craft.core.season.SeasonAPIManager;
 import madoku.craft.core.season.SeasonBiomeClimateAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import madoku.craft.mixin.item.ItemComponentsAccessor;
 import net.fabricmc.api.EnvType;
@@ -689,7 +689,7 @@ public final class FarmingCropsManager {
 	}
 
 	public static void applyCropItemMetadata() {
-		if (!MadokuItemsManager.isEnabled() || !settings.enabled) {
+		if (!ItemsAPIManager.isEnabled() || !settings.enabled) {
 			return;
 		}
 		if (!clientSynchronized && FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
@@ -2197,5 +2197,4 @@ public final class FarmingCropsManager {
 	) { }
 
 }
-
 

@@ -10,7 +10,7 @@ import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager.Tier;
-import madoku.craft.items.MadokuItemsManager;
+import madoku.craft.items.ItemsAPIManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -110,9 +110,9 @@ public final class RecipesAPIManager {
 		}
 
 		boolean rarityWillBeApplied = RarityAPIManager.isEnabled()
-			&& MadokuItemsManager.isRarityCategoryItem(stack)
+			&& ItemsAPIManager.isRarityCategoryItem(stack)
 			&& RarityAPIManager.detectAppliedRarity(stack) == null;
-		MadokuItemsManager.applyConfiguredItemLevel(stack, 1, !rarityWillBeApplied);
+		ItemsAPIManager.applyConfiguredItemLevel(stack, 1, !rarityWillBeApplied);
 		if (!rarityWillBeApplied) {
 			return List.of();
 		}
@@ -152,13 +152,13 @@ public final class RecipesAPIManager {
 	public static ItemStack createSmithingUpgradeResult(ItemStack baseStack, ItemStack vanillaResult) {
 		if (baseStack == null || baseStack.isEmpty()
 			|| vanillaResult == null || vanillaResult.isEmpty()
-			|| !MadokuItemsManager.isRarityCategoryItem(baseStack)
-			|| !MadokuItemsManager.isRarityCategoryItem(vanillaResult)) {
+			|| !ItemsAPIManager.isRarityCategoryItem(baseStack)
+			|| !ItemsAPIManager.isRarityCategoryItem(vanillaResult)) {
 			return vanillaResult;
 		}
 
 		ItemStack rebuiltResult = vanillaResult.copy();
-		MadokuItemsManager.applyConfiguredItemLevel(rebuiltResult, 1);
+		ItemsAPIManager.applyConfiguredItemLevel(rebuiltResult, 1);
 		if (!isInitialized() || !loadSystemEnabled()) {
 			return rebuiltResult;
 		}
@@ -1137,5 +1137,4 @@ public final class RecipesAPIManager {
 	) {
 	}
 }
-
 
