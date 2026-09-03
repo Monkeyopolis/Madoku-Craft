@@ -1,7 +1,7 @@
 package madoku.craft.mixin.farming;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
 import madoku.craft.farming.MadokuFarmingManager;
 import net.minecraft.core.BlockPos;
@@ -119,7 +119,7 @@ public abstract class BlockFarmingDropsMixin {
 			}
 			return;
 		}
-		MadokuLuckManager.applyManagedCropDrops(random, drops, tool);
+		LuckAPIManager.applyManagedCropDrops(random, drops, tool);
 		for (ItemStack drop : drops) {
 			if (drop != null && !drop.isEmpty()) {
 				Block.popResource(level, pos, drop);
@@ -129,4 +129,3 @@ public abstract class BlockFarmingDropsMixin {
 		ci.cancel();
 	}
 }
-

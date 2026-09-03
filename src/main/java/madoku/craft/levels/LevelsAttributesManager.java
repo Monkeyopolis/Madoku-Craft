@@ -1,7 +1,7 @@
 package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.resources.Identifier;
@@ -39,7 +39,7 @@ public final class LevelsAttributesManager {
 	}
 
 	public static int hungerBonusPoints(ServerPlayer player, int level) {
-		if (player == null || !MadokuHungerManager.isEnabled() || !MadokuLevelsManager.isEnabled()) return 0;
+		if (player == null || !HungerAPIManager.isEnabled() || !MadokuLevelsManager.isEnabled()) return 0;
 		return Math.max(0, (int) Math.round(valueAtLevel(player, LevelStat.HUNGER, level)));
 	}
 

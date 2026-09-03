@@ -8,7 +8,7 @@ import madoku.craft.mixin.mob.CreeperAccessor;
 import madoku.craft.mixin.mob.CreeperPoweredAccessor;
 import madoku.craft.pet.PetComponentsManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.loot.EquipmentsConfigAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
@@ -774,7 +774,7 @@ public final class MobEntityManager {
 			0.0D,
 			1.0D
 		);
-		chance = MadokuLuckManager.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
+		chance = LuckAPIManager.reduceCreeperGriefChanceForTarget(creeper.getTarget(), chance);
 		float power = (float) resolveCreeperExplosionPower(creeper, root, variant, vanillaPower);
 		Level.ExplosionInteraction interaction = level.getRandom().nextDouble() < chance
 			? Level.ExplosionInteraction.MOB
@@ -2537,7 +2537,6 @@ public final class MobEntityManager {
 	private record WeightedVariant(String key, double weight) {}
 
 }
-
 
 
 

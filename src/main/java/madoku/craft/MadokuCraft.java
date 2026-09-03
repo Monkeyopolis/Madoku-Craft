@@ -1,8 +1,8 @@
 package madoku.craft;
 
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.attributes.MadokuHealthManager;
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HealthAPIManager;
+import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
@@ -54,8 +54,8 @@ public class MadokuCraft implements ModInitializer {
 			EcosystemAPIManager.reset();
 			MadokuItemsManager.reset();
 			ChunkDataAPIManager.reset();
-			MadokuHealthManager.reset();
-			MadokuHungerManager.reset();
+			HealthAPIManager.reset();
+			HungerAPIManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
 			MadokuCoreManager.reset();
@@ -68,13 +68,13 @@ public class MadokuCraft implements ModInitializer {
 			MadokuFarmingManager.onServerStarted(server);
 			EcosystemAPIManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
-			MadokuHealthManager.loadPersistedData(server);
-			MadokuHungerManager.loadPersistedData(server);
+			HealthAPIManager.loadPersistedData(server);
+			HungerAPIManager.loadPersistedData(server);
 			MadokuLevelsManager.loadPersistedData(server);
 			MadokuPetManager.loadPersistedData(server);
 			MadokuItemsManager.onServerStarted(server);
-			MadokuHungerManager.onServerStarted(server);
-			MadokuHealthManager.onServerStarted(server);
+			HungerAPIManager.onServerStarted(server);
+			HealthAPIManager.onServerStarted(server);
 			MadokuEntities.onServerStarted(server);
 			MadokuPetManager.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
@@ -98,8 +98,8 @@ public class MadokuCraft implements ModInitializer {
 			ChunkDataAPIManager.reset();
 			MadokuSmeltingManager.onServerStopped();
 			MadokuMobManager.onServerStopped();
-			MadokuHealthManager.reset();
-			MadokuHungerManager.reset();
+			HealthAPIManager.reset();
+			HungerAPIManager.reset();
 			MadokuLevelsManager.reset();
 			MadokuPetManager.reset();
 			JSONAPIManager.clearRuntimeState();
@@ -126,7 +126,6 @@ public class MadokuCraft implements ModInitializer {
 		});
 	}
 }
-
 
 
 

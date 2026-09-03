@@ -7,13 +7,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 
 @Mixin(Player.class)
 public abstract class PlayerFoodExhaustionMixin {
 	@Inject(method = "causeFoodExhaustion", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$disableVanillaExhaustionWithMadokuHunger(float exhaustion, CallbackInfo ci) {
-		if ((Object) this instanceof ServerPlayer && MadokuHungerManager.isEnabled()) {
+		if ((Object) this instanceof ServerPlayer && HungerAPIManager.isEnabled()) {
 			ci.cancel();
 		}
 	}

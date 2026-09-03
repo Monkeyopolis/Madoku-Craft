@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.MadokuArmorManager;
+import madoku.craft.attributes.ArmorAPIManager;
 import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import madoku.craft.pet.PetAbilitiesManager;
@@ -30,7 +30,7 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean fallDamage = source != null && source.is(DamageTypeTags.IS_FALL);
 		boolean bypassesArmor = source != null && source.is(DamageTypeTags.BYPASSES_ARMOR) && !fallDamage;
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
-		boolean shouldOverrideVanillaArmor = MadokuArmorManager.shouldOverrideVanillaArmorDamage(source);
+		boolean shouldOverrideVanillaArmor = ArmorAPIManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
 			float damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, amount);
 			damageAfterArmor = EnchantBooksAPIManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
@@ -45,7 +45,7 @@ public abstract class LivingEntityArmorDamageMixin {
 
 		float damageAfterArmor;
 		if (shouldOverrideVanillaArmor && !skeletonIgnoresArmor && !mobIgnoresArmor && !bypassesArmor) {
-			damageAfterArmor = MadokuArmorManager.applyCustomArmorDamage(entity, source, amount);
+			damageAfterArmor = ArmorAPIManager.applyCustomArmorDamage(entity, source, amount);
 		} else {
 			damageAfterArmor = amount;
 		}
@@ -91,12 +91,11 @@ public abstract class LivingEntityArmorDamageMixin {
 	private boolean madokuCraft$overrideVanillaResistanceCheck(LivingEntity instance, Holder<MobEffect> effect) {
 		if (effect != null
 			&& effect.value() == MobEffects.RESISTANCE.value()
-			&& MadokuArmorManager.isResistanceEnabled()) {
+			&& ArmorAPIManager.isResistanceEnabled()) {
 			return false;
 		}
 		return instance.getEffect(effect) != null;
 	}
 }
-
 
 

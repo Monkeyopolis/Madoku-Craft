@@ -8,7 +8,7 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.rarity.RarityTierAPIManager.Tier;
 
 public final class RarityRuntimeManager {
@@ -31,7 +31,7 @@ public final class RarityRuntimeManager {
 			return;
 		}
 
-		ServerPlayer resolvedPlayer = luckPlayer == null ? MadokuLuckManager.resolveActiveDropPlayer() : luckPlayer;
+		ServerPlayer resolvedPlayer = luckPlayer == null ? LuckAPIManager.resolveActiveDropPlayer() : luckPlayer;
 		RandomSource random = randomSource == null ? RandomSource.create() : randomSource;
 		rollAndApplySingle(random, stack, resolvedPlayer, RarityConfigManager.useMadokuLuck());
 	}
@@ -73,7 +73,7 @@ public final class RarityRuntimeManager {
 
 	private static Tier rollRandomRarity(RandomSource random, ServerPlayer luckPlayer, boolean useMadokuLuck) {
 		RandomSource resolvedRandom = random == null ? RandomSource.create() : random;
-		double luckStat = luckPlayer == null ? 0.0D : MadokuLuckManager.resolveLootLuckStat(luckPlayer);
+		double luckStat = luckPlayer == null ? 0.0D : LuckAPIManager.resolveLootLuckStat(luckPlayer);
 		boolean luckActive = luckPlayer != null;
 		double totalWeight = 0.0D;
 		for (Tier tier : Tier.values()) {
@@ -147,4 +147,3 @@ public final class RarityRuntimeManager {
 		return 1.0D + Math.max(0.0D, buffPercent) / 100.0D;
 	}
 }
-

@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.loot.LootTableEntitiesAPIManager;
 import madoku.craft.mob.MobEntityManager;
 import net.minecraft.resources.ResourceKey;
@@ -93,7 +93,7 @@ public abstract class LivingEntityLuckLootMixin {
 			consumer.accept(stack);
 		};
 
-		return MadokuLuckManager.wrapMobDeathLootConsumer(
+		return LuckAPIManager.wrapMobDeathLootConsumer(
 			level,
 			livingEntity,
 			damageSource,
@@ -124,5 +124,4 @@ public abstract class LivingEntityLuckLootMixin {
 		return null;
 	}
 }
-
 

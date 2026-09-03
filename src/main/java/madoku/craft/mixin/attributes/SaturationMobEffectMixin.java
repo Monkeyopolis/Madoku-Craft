@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 
 @Mixin(targets = "net.minecraft.world.effect.SaturationMobEffect")
 public abstract class SaturationMobEffectMixin {
@@ -19,7 +19,7 @@ public abstract class SaturationMobEffectMixin {
 		int amplifier,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (livingEntity instanceof ServerPlayer && MadokuHungerManager.isSaturationEnabled()) {
+		if (livingEntity instanceof ServerPlayer && HungerAPIManager.isSaturationEnabled()) {
 			cir.setReturnValue(true);
 		}
 	}

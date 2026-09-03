@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 
 @Mixin(Item.class)
 public abstract class ItemFoodGateMixin {
@@ -30,7 +30,7 @@ public abstract class ItemFoodGateMixin {
 			return;
 		}
 
-		if (!MadokuHungerManager.canConsumeFood(serverPlayer, false)) {
+		if (!HungerAPIManager.canConsumeFood(serverPlayer, false)) {
 			cir.setReturnValue(InteractionResult.FAIL);
 		}
 	}
@@ -43,7 +43,7 @@ public abstract class ItemFoodGateMixin {
 		if (stack.get(DataComponents.FOOD) == null) {
 			return;
 		}
-		if (!MadokuHungerManager.canConsumeFood(serverPlayer, false)) {
+		if (!HungerAPIManager.canConsumeFood(serverPlayer, false)) {
 			cir.setReturnValue(stack);
 		}
 	}
@@ -59,7 +59,7 @@ public abstract class ItemFoodGateMixin {
 			return;
 		}
 
-		MadokuHungerManager.onFoodConsumed(serverPlayer, Math.max(0, food.nutrition()));
+		HungerAPIManager.onFoodConsumed(serverPlayer, Math.max(0, food.nutrition()));
 	}
 }
 

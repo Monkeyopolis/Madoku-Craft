@@ -115,8 +115,8 @@ public final class MadokuLevelsManager {
 		public static List<LevelStat> visibleStats() {
 			if (!MadokuLevelsManager.useAttributesContainer()) return vanillaVisibleStats();
 			List<LevelStat> visible = new ArrayList<>(attributeVisibleStats());
-			if (!madoku.craft.attributes.MadokuHungerManager.isEnabled()) visible.remove(HUNGER);
-			if (!madoku.craft.attributes.MadokuLuckManager.isEnabled()) visible.remove(LUCK);
+			if (!madoku.craft.attributes.HungerAPIManager.isEnabled()) visible.remove(HUNGER);
+			if (!madoku.craft.attributes.LuckAPIManager.isEnabled()) visible.remove(LUCK);
 			return List.copyOf(visible);
 		}
 
@@ -167,7 +167,7 @@ public final class MadokuLevelsManager {
 
 	public static boolean useAttributesContainer() {
 		return madoku.craft.attributes.MadokuAttributesManager.isEnabled()
-			&& (madoku.craft.attributes.MadokuHungerManager.isEnabled()
-				|| madoku.craft.attributes.MadokuLuckManager.isEnabled());
+			&& (madoku.craft.attributes.HungerAPIManager.isEnabled()
+				|| madoku.craft.attributes.LuckAPIManager.isEnabled());
 	}
 }

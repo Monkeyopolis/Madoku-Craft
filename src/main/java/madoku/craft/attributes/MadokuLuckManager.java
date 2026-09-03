@@ -600,5 +600,3 @@ public final class MadokuLuckManager {
 	}
 
 }
-
-

@@ -424,4 +424,3 @@ public final class HungerConfigManager {
 		return clampDouble(value, 0.0d, 1.0d);
 	}
 }
-

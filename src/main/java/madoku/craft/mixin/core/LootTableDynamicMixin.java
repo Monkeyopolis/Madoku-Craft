@@ -1,7 +1,7 @@
 package madoku.craft.mixin.core;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.loot.LootTableAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.pet.PetHagManager;
@@ -72,12 +72,11 @@ public class LootTableDynamicMixin {
 		for (ItemStack stack : stacks) {
 			MadokuItemsManager.applyGeneratedItemLevel(stack, random);
 			RarityAPIManager.applyGeneratedRarity(stack, random,
-				MadokuLuckManager.resolveLootPlayer(lootContext));
+				LuckAPIManager.resolveLootPlayer(lootContext));
 			PetHagManager.applyLore(stack);
 		}
 	}
 }
-
 
 
 

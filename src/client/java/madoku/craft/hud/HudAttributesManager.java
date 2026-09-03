@@ -2,9 +2,9 @@ package madoku.craft.hud;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.MadokuCraft;
-import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.attributes.MadokuLuckManager;
-import madoku.craft.attributes.MadokuOxygenManager;
+import madoku.craft.attributes.HungerAPIManager;
+import madoku.craft.attributes.LuckAPIManager;
+import madoku.craft.attributes.OxygenAPIManager;
 import madoku.craft.mixin.hud.GuiAccessor;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -107,7 +107,7 @@ public final class HudAttributesManager {
 	}
 
 	static void clearOxygenHudState() {
-		cachedMaxAirSupply = Math.max(1, MadokuOxygenManager.getMaximumOxygenTicksForEntity(null));
+		cachedMaxAirSupply = Math.max(1, OxygenAPIManager.getMaximumOxygenTicksForEntity(null));
 		cachedAirSupply = cachedMaxAirSupply;
 		cachedOxygenPoints = 10;
 		previousDisplayedOxygenSeconds = -1;
@@ -213,7 +213,7 @@ public final class HudAttributesManager {
 		oldElement.extractRenderState(context, tickCounter);
 		context.pose().popMatrix();
 
-		int fallbackMax = Math.max(1, MadokuHungerManager.getConfiguredMaximumHungerPoints());
+		int fallbackMax = Math.max(1, HungerAPIManager.getConfiguredMaximumHungerPoints());
 		int currentHunger;
 		int maxHunger;
 		if (HudPayloadManager.hasServerHunger()) {
@@ -328,7 +328,7 @@ public final class HudAttributesManager {
 			return;
 		}
 		boolean oxygenEnabled = HudConfigManager.isEnabled("oxygen");
-		boolean luckEnabled = HudConfigManager.isEnabled("luck") && MadokuLuckManager.isEnabled();
+		boolean luckEnabled = HudConfigManager.isEnabled("luck") && LuckAPIManager.isEnabled();
 		if (!oxygenEnabled && !luckEnabled) {
 			oldElement.extractRenderState(context, tickCounter);
 			return;

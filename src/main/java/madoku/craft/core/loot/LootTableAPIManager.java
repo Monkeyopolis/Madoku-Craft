@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -170,8 +170,8 @@ public final class LootTableAPIManager {
 		ServerPlayer player,
 		boolean useMadokuLuck
 	) {
-		boolean luckActive = useMadokuLuck && player != null && MadokuLuckManager.isEnabled();
-		double luckStat = luckActive ? MadokuLuckManager.resolveLootLuckStat(player) : 0.0d;
+		boolean luckActive = useMadokuLuck && player != null && LuckAPIManager.isEnabled();
+		double luckStat = luckActive ? LuckAPIManager.resolveLootLuckStat(player) : 0.0d;
 		return rollSharedTable(table, random, luckStat, luckActive);
 	}
 
@@ -348,7 +348,6 @@ public final class LootTableAPIManager {
 
 	static record SharedLootEntry(Item item, int weight, int minCount, int maxCount) { }
 }
-
 
 
 

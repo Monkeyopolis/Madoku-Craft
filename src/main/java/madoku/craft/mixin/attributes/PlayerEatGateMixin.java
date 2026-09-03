@@ -7,14 +7,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 
 @Mixin(Player.class)
 public abstract class PlayerEatGateMixin {
 	@Inject(method = "canEat(Z)Z", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$gateEatByVanillaFoodLevel(boolean ignoreHunger, CallbackInfoReturnable<Boolean> cir) {
-		if ((Object) this instanceof ServerPlayer player && MadokuHungerManager.isEnabled()) {
-			cir.setReturnValue(MadokuHungerManager.canConsumeFood(player, ignoreHunger));
+		if ((Object) this instanceof ServerPlayer player && HungerAPIManager.isEnabled()) {
+			cir.setReturnValue(HungerAPIManager.canConsumeFood(player, ignoreHunger));
 		}
 	}
 }

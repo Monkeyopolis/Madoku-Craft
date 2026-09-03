@@ -169,4 +169,3 @@ public final class MadokuArmorManager {
 		return Math.round(value / DAMAGE_ROUND_INCREMENT) * DAMAGE_ROUND_INCREMENT;
 	}
 }
-

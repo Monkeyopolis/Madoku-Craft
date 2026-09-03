@@ -3,7 +3,7 @@ package madoku.craft.core.rarity;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.attributes.MadokuAttributesManager;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.rarity.RarityTierAPIManager.Tier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -95,7 +95,7 @@ public final class MadokuRarityManager {
 
 		double luckWeight = 0.0D;
 		if (useMadokuLuck && RarityConfigManager.useMadokuLuck()
-			&& MadokuAttributesManager.isEnabled() && MadokuLuckManager.isEnabled()) {
+			&& MadokuAttributesManager.isEnabled() && LuckAPIManager.isEnabled()) {
 			luckWeight = Double.isFinite(luckStat)
 				? Math.max(0.0D, luckStat) * Math.max(0.0D, rarity.weightAdjustment)
 				: 0.0D;
@@ -106,7 +106,7 @@ public final class MadokuRarityManager {
 	public static double resolveWeight(Tier tier, ServerPlayer player, boolean useMadokuLuck) {
 		return resolveWeight(
 			tier,
-			player == null ? 0.0D : MadokuLuckManager.resolveLootLuckStat(player),
+			player == null ? 0.0D : LuckAPIManager.resolveLootLuckStat(player),
 			useMadokuLuck && player != null
 		);
 	}
@@ -119,4 +119,3 @@ public final class MadokuRarityManager {
 		return resolveWeight(tier, luckStat, useMadokuLuck) / rarity.weight;
 	}
 }
-

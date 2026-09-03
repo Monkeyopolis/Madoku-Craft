@@ -439,4 +439,3 @@ public final class HealthConfigManager {
 		return Math.max(min, Math.min(max, value));
 	}
 }
-

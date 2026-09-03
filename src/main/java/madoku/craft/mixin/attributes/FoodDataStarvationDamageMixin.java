@@ -1,7 +1,7 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.MadokuHealthManager;
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HealthAPIManager;
+import madoku.craft.attributes.HungerAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -23,9 +23,9 @@ public abstract class FoodDataStarvationDamageMixin {
 			case PEACEFUL -> Float.MAX_VALUE;
 			default -> 1.0f;
 		};
-		if (!MadokuHungerManager.isEnabled()
+		if (!HungerAPIManager.isEnabled()
 			|| foodData.getFoodLevel() > 0
-			|| !MadokuHungerManager.shouldApplyStarvationDamage(player)
+			|| !HungerAPIManager.shouldApplyStarvationDamage(player)
 			|| player.getHealth() > starvationHealthFloor) {
 			return;
 		}
@@ -41,7 +41,7 @@ public abstract class FoodDataStarvationDamageMixin {
 		)
 	)
 	private void madokuCraft$disableVanillaTickExhaustion(FoodData foodData, float amount) {
-		if (!MadokuHungerManager.isEnabled()) {
+		if (!HungerAPIManager.isEnabled()) {
 			foodData.addExhaustion(amount);
 		}
 	}
@@ -59,9 +59,9 @@ public abstract class FoodDataStarvationDamageMixin {
 		DamageSource source,
 		float amount
 	) {
-		if (MadokuHungerManager.isEnabled()
+		if (HungerAPIManager.isEnabled()
 			&& source.is(DamageTypes.STARVE)
-			&& !MadokuHungerManager.shouldApplyStarvationDamage(player)) {
+			&& !HungerAPIManager.shouldApplyStarvationDamage(player)) {
 			return false;
 		}
 		return player.hurtServer(level, source, amount);
@@ -78,7 +78,7 @@ public abstract class FoodDataStarvationDamageMixin {
 		ServerPlayer player,
 		float amount
 	) {
-		if (MadokuHealthManager.isEnabled()) {
+		if (HealthAPIManager.isEnabled()) {
 			return;
 		}
 		player.heal(amount);

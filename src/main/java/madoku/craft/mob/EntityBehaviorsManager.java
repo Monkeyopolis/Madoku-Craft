@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.helper.HelperProjectileAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.farming.MadokuFarmingManager;
@@ -1322,7 +1322,7 @@ public final class EntityBehaviorsManager {
 		}
 
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
-			accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
+			accuracy = LuckAPIManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 			double dx = target.getX() - skeleton.getX();
 			double dz = target.getZ() - skeleton.getZ();
 			double horizontal = Math.sqrt(dx * dx + dz * dz);
@@ -2087,7 +2087,7 @@ public final class EntityBehaviorsManager {
 			}
 			double accuracy = resolveScaledAttackAccuracy(baseAccuracy, drowned.level().getDifficulty(), isHardcoreWorld(drowned.level()));
 			accuracy = MobRegionalDifficultyManager.resolveMobAttackAccuracyScaling(drowned, accuracy);
-			accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
+			accuracy = LuckAPIManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 			return Mth.clamp(accuracy, 0.0D, 1.0D);
 		}
 
@@ -3050,7 +3050,7 @@ public final class EntityBehaviorsManager {
 		}
 
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
-			accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
+			accuracy = LuckAPIManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 			double dx = target.getX() - skeleton.getX();
 			double dz = target.getZ() - skeleton.getZ();
 			double horizontal = Math.sqrt(dx * dx + dz * dz);
@@ -3657,7 +3657,7 @@ public final class EntityBehaviorsManager {
 		}
 
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
-			accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
+			accuracy = LuckAPIManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 			double dx = target.getX() - skeleton.getX();
 			double dz = target.getZ() - skeleton.getZ();
 			double horizontal = Math.sqrt(dx * dx + dz * dz);
@@ -4459,7 +4459,7 @@ public final class EntityBehaviorsManager {
 		}
 
 		private static ShotVector resolveShotVector(AbstractSkeleton skeleton, AbstractArrow arrow, LivingEntity target, double accuracy) {
-			accuracy = MadokuLuckManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
+			accuracy = LuckAPIManager.reduceHostileRangedAccuracyForTarget(target, accuracy);
 			double dx = target.getX() - skeleton.getX();
 			double dz = target.getZ() - skeleton.getZ();
 			double horizontal = Math.sqrt(dx * dx + dz * dz);
@@ -5427,4 +5427,3 @@ public final class EntityBehaviorsManager {
 
 	}
 }
-

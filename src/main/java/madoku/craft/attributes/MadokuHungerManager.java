@@ -891,4 +891,3 @@ public final class MadokuHungerManager {
 		}
 	}
 }
-

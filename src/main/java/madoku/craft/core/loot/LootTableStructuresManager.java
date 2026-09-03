@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
@@ -403,14 +403,14 @@ public final class LootTableStructuresManager {
 		return player != null
 			&& activeSettings != null
 			&& activeSettings.useMadokuLuck
-			&& MadokuLuckManager.isEnabled();
+			&& LuckAPIManager.isEnabled();
 	}
 
 	private static double resolveLuckStat(ServerPlayer player, Settings activeSettings) {
 		if (!isLuckActiveForLoot(player, activeSettings)) {
 			return 0.0d;
 		}
-		return MadokuLuckManager.resolveLootLuckStat(player);
+		return LuckAPIManager.resolveLootLuckStat(player);
 	}
 
 	private static String resolveQueriedLootTableId(LootContext lootContext) {
@@ -734,7 +734,7 @@ public final class LootTableStructuresManager {
 		}
 		return switch (tag) {
 			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
-			case GROUP_TAG_MADOKU_LUCK -> MadokuLuckManager.isEnabled();
+			case GROUP_TAG_MADOKU_LUCK -> LuckAPIManager.isEnabled();
 			case GROUP_TAG_MADOKU_RARITY -> RarityAPIManager.isEnabled();
 			default -> true;
 		};
@@ -1008,5 +1008,4 @@ public final class LootTableStructuresManager {
 
 	}
 }
-
 

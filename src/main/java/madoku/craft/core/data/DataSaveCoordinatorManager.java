@@ -1,7 +1,7 @@
 package madoku.craft.core.data;
 
-import madoku.craft.attributes.MadokuHealthManager;
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HealthAPIManager;
+import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.ecosystem.EcosystemAPIManager;
@@ -123,8 +123,8 @@ public final class DataSaveCoordinatorManager {
 			MadokuFarmingManager.savePersistedData(server);
 			EcosystemAPIManager.savePersistedData(server);
 			SchedulerAPIManager.savePersistedData(server);
-			MadokuHealthManager.savePersistedData(server);
-			MadokuHungerManager.savePersistedData(server);
+			HealthAPIManager.savePersistedData(server);
+			HungerAPIManager.savePersistedData(server);
 			MadokuLevelsManager.savePersistedData(server);
 			MadokuPetManager.savePersistedData(server);
 		} else {
@@ -132,8 +132,8 @@ public final class DataSaveCoordinatorManager {
 			MadokuFarmingManager.autosavePersistedData(server);
 			EcosystemAPIManager.autosavePersistedData(server);
 			SchedulerAPIManager.autosavePersistedData(server);
-			MadokuHealthManager.autosavePersistedData(server);
-			MadokuHungerManager.autosavePersistedData(server);
+			HealthAPIManager.autosavePersistedData(server);
+			HungerAPIManager.autosavePersistedData(server);
 			MadokuLevelsManager.autosavePersistedData(server);
 			MadokuPetManager.autosavePersistedData(server);
 		}
@@ -210,4 +210,3 @@ public final class DataSaveCoordinatorManager {
 		private static SaveMetrics empty() { return new SaveMetrics("none", 0L, 0L, 0L, 0L, 0L); }
 	}
 }
-

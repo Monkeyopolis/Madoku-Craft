@@ -417,4 +417,3 @@ public final class LuckConfigManager {
 		}
 	}
 }
-

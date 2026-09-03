@@ -491,8 +491,8 @@ public final class MadokuHealthManager {
 		if (amount <= 0) {
 			return 0;
 		}
-		if (MadokuHungerManager.isEnabled()) {
-			return MadokuHungerManager.drainHunger(player, amount);
+		if (HungerAPIManager.isEnabled()) {
+			return HungerAPIManager.drainHunger(player, amount);
 		}
 
 		FoodData foodData = player.getFoodData();
@@ -529,9 +529,9 @@ public final class MadokuHealthManager {
 			return 0.0f;
 		}
 
-		if (MadokuHungerManager.isEnabled()) {
-			int maxHungerPoints = Math.max(1, MadokuHungerManager.getMaximumHungerPoints(player));
-			int hungerPoints = Math.max(0, Math.min(maxHungerPoints, MadokuHungerManager.getEffectiveHungerPoints(player)));
+		if (HungerAPIManager.isEnabled()) {
+			int maxHungerPoints = Math.max(1, HungerAPIManager.getMaximumHungerPoints(player));
+			int hungerPoints = Math.max(0, Math.min(maxHungerPoints, HungerAPIManager.getEffectiveHungerPoints(player)));
 			return (float) hungerPoints / (float) maxHungerPoints;
 		}
 
@@ -860,4 +860,3 @@ public final class MadokuHealthManager {
 	}
 
 }
-

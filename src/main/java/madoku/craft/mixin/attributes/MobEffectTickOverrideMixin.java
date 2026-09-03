@@ -1,8 +1,8 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.attributes.MadokuHealthManager;
-import madoku.craft.attributes.MadokuHungerManager;
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.HealthAPIManager;
+import madoku.craft.attributes.HungerAPIManager;
+import madoku.craft.attributes.LuckAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,9 +26,9 @@ public abstract class MobEffectTickOverrideMixin {
 		int amplifier,
 		CallbackInfoReturnable<Boolean> cir
 	) {
-		if (MadokuHealthManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
-			|| MadokuHungerManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
-			|| MadokuLuckManager.shouldOverrideVanillaLuckEffect(livingEntity, (MobEffect) (Object) this)) {
+		if (HealthAPIManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
+			|| HungerAPIManager.shouldOverrideVanillaEffect(livingEntity, (MobEffect) (Object) this)
+			|| LuckAPIManager.shouldOverrideVanillaLuckEffect(livingEntity, (MobEffect) (Object) this)) {
 			cir.setReturnValue(true);
 		}
 	}

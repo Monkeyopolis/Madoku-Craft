@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HungerAPIManager;
 
 import java.util.Set;
 
@@ -25,7 +25,7 @@ public abstract class ServerPlayerTeleportHungerMixin {
 		CallbackInfoReturnable<ServerPlayer> cir
 	) {
 		if (cir.getReturnValue() != null) {
-			MadokuHungerManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+			HungerAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 		}
 	}
 
@@ -36,7 +36,7 @@ public abstract class ServerPlayerTeleportHungerMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuHungerManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		HungerAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 
 	@Inject(method = "teleportRelative(DDD)V", at = @At("TAIL"))
@@ -46,7 +46,7 @@ public abstract class ServerPlayerTeleportHungerMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuHungerManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		HungerAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 
 	@Inject(
@@ -65,7 +65,7 @@ public abstract class ServerPlayerTeleportHungerMixin {
 		CallbackInfoReturnable<Boolean> cir
 	) {
 		if (cir.getReturnValue()) {
-			MadokuHungerManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+			HungerAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 		}
 	}
 
@@ -76,6 +76,6 @@ public abstract class ServerPlayerTeleportHungerMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuHungerManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		HungerAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 }

@@ -15,12 +15,12 @@ public final class MadokuAttributesManager {
 
 	public static void initialize() {
 		loadStaticConfig();
-		MadokuExperienceManager.initialize();
-		MadokuArmorManager.initialize();
-		MadokuHealthManager.initialize();
-		MadokuHungerManager.initialize();
-		MadokuOxygenManager.initialize();
-		MadokuLuckManager.initialize();
+		ExperienceAPIManager.initialize();
+		ArmorAPIManager.initialize();
+		HealthAPIManager.initialize();
+		HungerAPIManager.initialize();
+		OxygenAPIManager.initialize();
+		LuckAPIManager.initialize();
 		SyncConfigAPIManager.register(
 			"attributes",
 			MadokuAttributesManager::createClientSyncSnapshot,
@@ -38,12 +38,12 @@ public final class MadokuAttributesManager {
 		return JSONFormatAPIManager.object()
 			.put("enabled", settings.enabled)
 			.object("hunger", hunger -> hunger
-				.put("enabled", MadokuHungerManager.isEnabled())
-				.put("max", MadokuHungerManager.getConfiguredMaximumHungerPoints()))
+				.put("enabled", HungerAPIManager.isEnabled())
+				.put("max", HungerAPIManager.getConfiguredMaximumHungerPoints()))
 			.object("oxygen", oxygen -> oxygen
-				.put("enabled", MadokuOxygenManager.isEnabled())
-				.put("max", MadokuOxygenManager.getMaximumOxygenTicksForEntity(null)))
-			.put("luck-enabled", MadokuLuckManager.isEnabled())
+				.put("enabled", OxygenAPIManager.isEnabled())
+				.put("max", OxygenAPIManager.getMaximumOxygenTicksForEntity(null)))
+			.put("luck-enabled", LuckAPIManager.isEnabled())
 			.build()
 			.toString();
 	}
@@ -54,24 +54,24 @@ public final class MadokuAttributesManager {
 		JsonObject hunger = readObject(root, "hunger");
 		JsonObject oxygen = readObject(root, "oxygen");
 		clientSynchronizedEnabled = enabled;
-		MadokuHungerManager.applyClientSynchronizedSettings(
-			readBoolean(hunger, "enabled", MadokuHungerManager.isEnabled()),
-			readInt(hunger, "max", MadokuHungerManager.getConfiguredMaximumHungerPoints())
+		HungerAPIManager.applyClientSynchronizedSettings(
+			readBoolean(hunger, "enabled", HungerAPIManager.isEnabled()),
+			readInt(hunger, "max", HungerAPIManager.getConfiguredMaximumHungerPoints())
 		);
-		MadokuOxygenManager.applyClientSynchronizedSettings(
-			readBoolean(oxygen, "enabled", MadokuOxygenManager.isEnabled()),
-			readInt(oxygen, "max", MadokuOxygenManager.getMaximumOxygenTicksForEntity(null))
+		OxygenAPIManager.applyClientSynchronizedSettings(
+			readBoolean(oxygen, "enabled", OxygenAPIManager.isEnabled()),
+			readInt(oxygen, "max", OxygenAPIManager.getMaximumOxygenTicksForEntity(null))
 		);
-		MadokuLuckManager.applyClientSynchronizedEnabled(
-			readBoolean(root, "luck-enabled", MadokuLuckManager.isEnabled())
+		LuckAPIManager.applyClientSynchronizedEnabled(
+			readBoolean(root, "luck-enabled", LuckAPIManager.isEnabled())
 		);
 	}
 
 	public static void resetClientSyncState() {
 		clientSynchronizedEnabled = null;
-		MadokuHungerManager.resetClientSynchronizedSettings();
-		MadokuOxygenManager.resetClientSynchronizedSettings();
-		MadokuLuckManager.resetClientSynchronizedSettings();
+		HungerAPIManager.resetClientSynchronizedSettings();
+		OxygenAPIManager.resetClientSynchronizedSettings();
+		LuckAPIManager.resetClientSynchronizedSettings();
 	}
 
 	private static JsonObject readObject(JsonObject source, String key) {
@@ -93,5 +93,4 @@ public final class MadokuAttributesManager {
 		settings = AttributesConfigManager.loadSettings();
 	}
 }
-
 

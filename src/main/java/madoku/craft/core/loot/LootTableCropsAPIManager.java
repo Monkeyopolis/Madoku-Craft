@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
@@ -65,7 +65,7 @@ public final class LootTableCropsAPIManager {
 			return null;
 		}
 		ServerLevel level = lootContext.getLevel();
-		if (MadokuLuckManager.isActiveDropPlayerPlacedBlock()
+		if (LuckAPIManager.isActiveDropPlayerPlacedBlock()
 			|| ChunkDataAPIManager.isPlayerPlacedBlock(level, resolveBlockPos(lootContext))) {
 			return null;
 		}
@@ -82,9 +82,9 @@ public final class LootTableCropsAPIManager {
 			return null;
 		}
 		RandomSource random = lootContext.getRandom();
-		ServerPlayer player = MadokuLuckManager.resolveLootPlayer(lootContext);
+		ServerPlayer player = LuckAPIManager.resolveLootPlayer(lootContext);
 		if (player == null) {
-			player = MadokuLuckManager.resolveActiveDropPlayer();
+			player = LuckAPIManager.resolveActiveDropPlayer();
 		}
 		return LootTableAPIManager.rollSharedTable(
 			table,
@@ -101,7 +101,7 @@ public final class LootTableCropsAPIManager {
 			return List.of();
 		}
 		LootTableAPIManager.SharedLootTable table = tablesById.get(resolveTableId(tableId));
-		ServerPlayer player = MadokuLuckManager.resolveActiveDropPlayer();
+		ServerPlayer player = LuckAPIManager.resolveActiveDropPlayer();
 		return table == null
 			? List.of()
 			: LootTableAPIManager.rollSharedTable(

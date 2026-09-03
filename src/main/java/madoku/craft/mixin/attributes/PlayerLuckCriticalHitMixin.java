@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 
 @Mixin(Player.class)
 public abstract class PlayerLuckCriticalHitMixin {
@@ -41,12 +41,12 @@ public abstract class PlayerLuckCriticalHitMixin {
 	@SuppressWarnings("deprecation")
 	private boolean madokuCraft$applyLuckCriticalHit(Entity entity, DamageSource source, float amount) {
 		float resolvedDamage = amount;
-		float vanillaCritMultiplier = MadokuLuckManager.playerCritDamageMultiplier();
+		float vanillaCritMultiplier = LuckAPIManager.playerCritDamageMultiplier();
 		if (this.canCriticalAttack(entity) && vanillaCritMultiplier > 0.0f) {
 			resolvedDamage /= vanillaCritMultiplier;
 		}
 		Player player = (Player) (Object) this;
-		double luckCritMultiplier = MadokuLuckManager.resolvePlayerCriticalDamageMultiplier(player, entity);
+		double luckCritMultiplier = LuckAPIManager.resolvePlayerCriticalDamageMultiplier(player, entity);
 		if (luckCritMultiplier > 0.0d) {
 			resolvedDamage *= (float) luckCritMultiplier;
 			this.madokuCraft$luckCriticalHitActive = true;

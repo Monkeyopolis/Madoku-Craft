@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
-import madoku.craft.attributes.MadokuLuckManager;
+import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
@@ -145,7 +145,7 @@ public final class LootTableEntitiesAPIManager {
 			ServerLevel level = lootContext.getLevel();
 			random = level == null ? RandomSource.create() : level.getRandom();
 		}
-		ServerPlayer player = MadokuLuckManager.resolveLootPlayer(lootContext);
+		ServerPlayer player = LuckAPIManager.resolveLootPlayer(lootContext);
 		List<ItemStack> generated = new ArrayList<>(LootTableAPIManager.rollSharedTable(
 			managed, random, player, activeSettings.useMadokuLuck
 		));
@@ -171,7 +171,7 @@ public final class LootTableEntitiesAPIManager {
 			LootTableAPIManager.rollSharedTable(managed, resolvedRandom, player, activeSettings.useMadokuLuck)
 		);
 		applyConfiguredLooting(player, resolvedRandom, generated);
-		MadokuLuckManager.applyManagedMobDrops(player, resolvedRandom, generated);
+		LuckAPIManager.applyManagedMobDrops(player, resolvedRandom, generated);
 		return List.copyOf(generated);
 	}
 
@@ -639,7 +639,6 @@ public final class LootTableEntitiesAPIManager {
 
 	}
 }
-
 
 
 

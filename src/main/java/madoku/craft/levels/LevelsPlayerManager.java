@@ -4,8 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.attributes.MadokuHealthManager;
-import madoku.craft.attributes.MadokuHungerManager;
+import madoku.craft.attributes.HealthAPIManager;
+import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.core.data.DataPlayerAPIManager;
 import madoku.craft.core.sync.SyncPlayerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
@@ -72,7 +72,7 @@ public final class LevelsPlayerManager {
 		state.statLevels.put(stat, stat.clampLevel(current + 1));
 		state.availablePoints--;
 		LevelsAttributesManager.applyPlayerAttributes(player);
-		MadokuHungerManager.handleMaximumHungerChanged(player);
+		HungerAPIManager.handleMaximumHungerChanged(player);
 		markDirty(player.getUUID());
 	}
 
@@ -90,7 +90,7 @@ public final class LevelsPlayerManager {
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			state(player);
 			LevelsAttributesManager.applyPlayerAttributes(player);
-			MadokuHealthManager.restoreJoinHealth(player);
+			HealthAPIManager.restoreJoinHealth(player);
 			markDirty(player.getUUID());
 		}
 	}
@@ -140,7 +140,7 @@ public final class LevelsPlayerManager {
 		if (player == null) return;
 		state(player);
 		LevelsAttributesManager.applyPlayerAttributes(player);
-		MadokuHealthManager.restoreJoinHealth(player);
+		HealthAPIManager.restoreJoinHealth(player);
 		markDirty(player.getUUID());
 	}
 
@@ -242,4 +242,3 @@ public final class LevelsPlayerManager {
 		public int statLevel(LevelStat stat) { return statLevels.getOrDefault(stat, LevelStat.DEFAULT_LEVEL); }
 	}
 }
-
