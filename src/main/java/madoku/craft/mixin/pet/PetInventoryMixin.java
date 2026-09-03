@@ -1,10 +1,10 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.PetComponentsManager.PetHolder;
-import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetComponentsAPIManager.PetHolder;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.core.json.JSONAPIManager;
-import madoku.craft.pet.PetEntitiesManager;
-import madoku.craft.pet.PetHudManager;
+import madoku.craft.pet.PetEntitiesAPIManager;
+import madoku.craft.pet.PetHudAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -42,7 +42,7 @@ public abstract class PetInventoryMixin implements PetHolder {
 				continue;
 			}
 			output.putString(madokuCraft$slotKey(slot), itemId.toString());
-			output.putInt(madokuCraft$slotLevelKey(slot), PetEntitiesManager.petLevel(stack));
+			output.putInt(madokuCraft$slotLevelKey(slot), PetEntitiesAPIManager.petLevel(stack));
 		}
 	}
 
@@ -66,9 +66,9 @@ public abstract class PetInventoryMixin implements PetHolder {
 				}
 
 				ItemStack stack = new ItemStack(item);
-				if (PetEntitiesManager.isValid(stack)) {
-					PetEntitiesManager.setPetLevel(stack, input.getIntOr(madokuCraft$slotLevelKey(slot), 1));
-					PetHudManager.applySupportedPetLore(stack);
+				if (PetEntitiesAPIManager.isValid(stack)) {
+					PetEntitiesAPIManager.setPetLevel(stack, input.getIntOr(madokuCraft$slotLevelKey(slot), 1));
+					PetHudAPIManager.applySupportedPetLore(stack);
 					madokuCraft$petInventory.setItem(slot, stack);
 				} else {
 					madokuCraft$petInventory.setItem(slot, ItemStack.EMPTY);
@@ -92,7 +92,7 @@ public abstract class PetInventoryMixin implements PetHolder {
 		PetInventory inventory = new PetInventory();
 		inventory.setChangeListener(() -> {
 			if ((Object) this instanceof ServerPlayer serverPlayer) {
-				PetEntitiesManager.onInventoryChanged(serverPlayer);
+				PetEntitiesAPIManager.onInventoryChanged(serverPlayer);
 			}
 		});
 		return inventory;

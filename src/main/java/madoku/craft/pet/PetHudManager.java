@@ -23,6 +23,7 @@ public final class PetHudManager {
 	}
 
 	public static void initialize() {
+		PetHudAPIManager.registerProvider(new MadokuPetHudProvider());
 	}
 
 	static void clear() {
@@ -71,9 +72,8 @@ public final class PetHudManager {
 
 	static void sendAbilityCooldowns(ServerPlayer player, int[] remainingTicks) {
 		if (player != null) {
-			SyncPlayerAPIManager.send(player, PetPayloadManager.PetAbilityHudPayload.fromArray(remainingTicks));
+			SyncPlayerAPIManager.send(player, PetPayloadAPIManager.PetAbilityHudPayload.fromArray(remainingTicks));
 		}
 	}
 
 }
-

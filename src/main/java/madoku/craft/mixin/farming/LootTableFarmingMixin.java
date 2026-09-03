@@ -3,7 +3,7 @@ package madoku.craft.mixin.farming;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
@@ -31,7 +31,7 @@ public abstract class LootTableFarmingMixin {
 		LootContext lootContext,
 		CallbackInfoReturnable<ObjectArrayList<ItemStack>> cir
 	) {
-		if (!MadokuFarmingManager.isEnabled() || lootContext == null) {
+		if (!FarmingAPIManager.isEnabled() || lootContext == null) {
 			return;
 		}
 
@@ -41,22 +41,22 @@ public abstract class LootTableFarmingMixin {
 		if (ChunkDataAPIManager.isPlayerPlacedBlock(level, pos)) {
 			return;
 		}
-		if (!MadokuFarmingManager.isManagedCrop(level, pos, state) || !MadokuFarmingManager.isCropHarvestReady(level, pos, state)) {
+		if (!FarmingAPIManager.isManagedCrop(level, pos, state) || !FarmingAPIManager.isCropHarvestReady(level, pos, state)) {
 			return;
 		}
 
-		MadokuFarmingManager.prepareCropHarvest(level, pos, state);
+		FarmingAPIManager.prepareCropHarvest(level, pos, state);
 		RandomSource random = lootContext.getRandom();
-		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(MadokuFarmingManager.calculateCropHarvestDrops(level, pos, state, random));
+		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(FarmingAPIManager.calculateCropHarvestDrops(level, pos, state, random));
 		if (drops.isEmpty()) {
-			if (MadokuFarmingManager.hasCropHarvestLootTable(level, pos, state)) {
-				MadokuFarmingManager.completeCropHarvest(level, pos, state);
+			if (FarmingAPIManager.hasCropHarvestLootTable(level, pos, state)) {
+				FarmingAPIManager.completeCropHarvest(level, pos, state);
 				cir.setReturnValue(drops);
 			}
 			return;
 		}
 		LuckAPIManager.applyManagedCropDrops(lootContext, drops);
-		MadokuFarmingManager.completeCropHarvest(level, pos, state);
+		FarmingAPIManager.completeCropHarvest(level, pos, state);
 		cir.setReturnValue(drops);
 	}
 

@@ -21,6 +21,7 @@ public final class PetHagManager {
 	}
 
 	public static void initialize() {
+		PetHagAPIManager.registerProvider(new MadokuPetHagProvider());
 	}
 
 	public static List<Item> tradeItems() {
@@ -73,5 +74,4 @@ public final class PetHagManager {
 		PetHudManager.applySupportedPetLore(stack);
 	}
 }
-
 

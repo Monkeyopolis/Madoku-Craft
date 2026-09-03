@@ -1,7 +1,7 @@
 package madoku.craft.mixin.pet;
 
 import madoku.craft.pet.MadokuPetEntity;
-import madoku.craft.pet.MadokuPetManager;
+import madoku.craft.pet.PetAPIManager;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.world.entity.Entity;
 import org.objectweb.asm.Opcodes;
@@ -32,7 +32,7 @@ public abstract class ServerEntityPetUpdateIntervalMixin {
 	)
 	private int madokuCraft$resolvePetUpdateInterval(ServerEntity tracker) {
 		if (entity instanceof MadokuPetEntity pet && pet.level().getServer() != null) {
-			long interval = MadokuPetManager.managedPetSteeringInterval(pet.level().getServer());
+			long interval = PetAPIManager.managedPetSteeringInterval(pet.level().getServer());
 			return (int) Math.max(1L, Math.min(5L, interval));
 		}
 		return updateInterval;

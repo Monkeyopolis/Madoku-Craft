@@ -1,6 +1,6 @@
 package madoku.craft.mixin.farming;
 
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -28,7 +28,7 @@ public abstract class ItemStackFarmingMixin {
 	@Inject(method = "useOn", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$handleFarmingItemUse(UseOnContext context, CallbackInfoReturnable<InteractionResult> cir) {
 		ItemStack stack = (ItemStack) (Object) this;
-		if (!MadokuFarmingManager.isEnabled() || context == null || stack.isEmpty()) {
+		if (!FarmingAPIManager.isEnabled() || context == null || stack.isEmpty()) {
 			return;
 		}
 
@@ -42,20 +42,20 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
-		if (MadokuFarmingManager.isCropPlantItem(stack)) {
+		if (FarmingAPIManager.isCropPlantItem(stack)) {
 			madokuCraft$preUseOnCount = stack.getCount();
 		}
 
 			BlockState state = level.getBlockState(pos);
-			if (stack.is(Items.BONE_MEAL) && MadokuFarmingManager.isManagedCrop(state)) {
+			if (stack.is(Items.BONE_MEAL) && FarmingAPIManager.isManagedCrop(state)) {
 				cir.setReturnValue(InteractionResult.FAIL);
 				return;
 			}
 
 			ServerLevel serverLevel = level instanceof ServerLevel ? (ServerLevel) level : null;
 
-			if (stack.is(Items.BONE_MEAL) && MadokuFarmingManager.isFarmland(state)) {
-				if (serverLevel != null && MadokuFarmingManager.isFertilized(serverLevel, pos)) {
+			if (stack.is(Items.BONE_MEAL) && FarmingAPIManager.isFarmland(state)) {
+				if (serverLevel != null && FarmingAPIManager.isFertilized(serverLevel, pos)) {
 				if (context.getPlayer() != null) {
 						context.getPlayer().sendOverlayMessage(Component.literal("Farmland is already fertilized."));
 				}
@@ -69,8 +69,8 @@ public abstract class ItemStackFarmingMixin {
 			}
 
 			madokuCraft$consumeOneItem(context.getPlayer(), stack);
-			MadokuFarmingManager.fertilizeSoil((ServerLevel) level, pos);
-			MadokuFarmingManager.syncPlotFromSoil((ServerLevel) level, pos, true);
+			FarmingAPIManager.fertilizeSoil((ServerLevel) level, pos);
+			FarmingAPIManager.syncPlotFromSoil((ServerLevel) level, pos, true);
 			level.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 1.0F, 1.0F);
 			cir.setReturnValue(InteractionResult.SUCCESS);
 			return;
@@ -105,7 +105,7 @@ public abstract class ItemStackFarmingMixin {
 	@Inject(method = "useOn", at = @At("RETURN"))
 	private void madokuCraft$trackCropPlanting(UseOnContext context, CallbackInfoReturnable<InteractionResult> cir) {
 		ItemStack stack = (ItemStack) (Object) this;
-		if (!MadokuFarmingManager.isEnabled() || context == null) {
+		if (!FarmingAPIManager.isEnabled() || context == null) {
 			madokuCraft$preUseOnCount = -1;
 			return;
 		}
@@ -128,18 +128,18 @@ public abstract class ItemStackFarmingMixin {
 		}
 
 		BlockPos soilPos = madokuCraft$getCropPlantingSoilPos(context);
-		if (soilPos == null || !MadokuFarmingManager.isFarmland(level.getBlockState(soilPos))) {
+		if (soilPos == null || !FarmingAPIManager.isFarmland(level.getBlockState(soilPos))) {
 			madokuCraft$preUseOnCount = -1;
 			return;
 		}
 
 		BlockState cropState = level.getBlockState(soilPos.above());
-		if (!MadokuFarmingManager.isManagedCrop(cropState)) {
+		if (!FarmingAPIManager.isManagedCrop(cropState)) {
 			madokuCraft$preUseOnCount = -1;
 			return;
 		}
 
-		MadokuFarmingManager.syncPlotFromSoil(serverLevel, soilPos, MadokuFarmingManager.isFertilized(serverLevel, soilPos));
+		FarmingAPIManager.syncPlotFromSoil(serverLevel, soilPos, FarmingAPIManager.isFertilized(serverLevel, soilPos));
 		madokuCraft$preUseOnCount = -1;
 	}
 

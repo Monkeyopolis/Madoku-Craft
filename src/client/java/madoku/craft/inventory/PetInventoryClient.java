@@ -3,7 +3,7 @@ package madoku.craft.inventory;
 import madoku.craft.mixin.inventory.AbstractContainerScreenAccessor;
 import madoku.craft.mixin.inventory.CreativeModeInventoryScreenAccessor;
 import madoku.craft.mixin.inventory.SlotAccessor;
-import madoku.craft.pet.PetEntitiesManager;
+import madoku.craft.pet.PetEntitiesAPIManager;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.client.screen.v1.Screens;
@@ -193,8 +193,8 @@ public final class PetInventoryClient {
 	}
 
 	private static void moveCreativePetSlots(CreativeModeInventoryScreen screen) {
-		for (int slot = 0; slot < PetEntitiesManager.SLOT_COUNT; slot++) {
-			int slotIndex = PetEntitiesManager.FIRST_SLOT_INDEX + slot;
+		for (int slot = 0; slot < PetEntitiesAPIManager.SLOT_COUNT; slot++) {
+			int slotIndex = PetEntitiesAPIManager.FIRST_SLOT_INDEX + slot;
 			if (slotIndex < 0 || slotIndex >= screen.getMenu().slots.size()) {
 				break;
 			}
@@ -244,8 +244,8 @@ public final class PetInventoryClient {
 
 	private static void drawEntityPlaceholders(AbstractContainerScreen<?> screen, Object graphics) {
 		net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics = (net.minecraft.client.gui.GuiGraphicsExtractor) graphics;
-		for (int slotIndex = PetEntitiesManager.FIRST_SLOT_INDEX;
-			slotIndex < PetEntitiesManager.FIRST_SLOT_INDEX + PetEntitiesManager.SLOT_COUNT;
+		for (int slotIndex = PetEntitiesAPIManager.FIRST_SLOT_INDEX;
+			slotIndex < PetEntitiesAPIManager.FIRST_SLOT_INDEX + PetEntitiesAPIManager.SLOT_COUNT;
 			slotIndex++) {
 			if (slotIndex >= screen.getMenu().slots.size()) {
 				break;

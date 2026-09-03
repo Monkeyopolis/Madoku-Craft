@@ -1,8 +1,5 @@
 package madoku.craft.pet;
 
-import net.minecraft.world.Container;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -12,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import madoku.craft.pet.PetComponentsAPIManager.PetHolder;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Owns the managed-pet component boundary and entity checks. */
@@ -21,6 +20,7 @@ public final class PetComponentsManager {
 	}
 
 	public static void initialize() {
+		PetComponentsAPIManager.registerProvider(new MadokuPetComponentsProvider());
 	}
 
 	static void reset() {
@@ -129,64 +129,4 @@ public final class PetComponentsManager {
 		return true;
 	}
 
-	public static final class PetInventory extends SimpleContainer {
-		private Runnable changeListener = () -> {};
-			private int suppressedChangeDepth;
-
-			public PetInventory() {
-				super(PetEntitiesManager.SLOT_COUNT);
-			}
-
-			public void setChangeListener(Runnable changeListener) {
-				this.changeListener = changeListener == null ? () -> {} : changeListener;
-			}
-
-			@Override
-			public void setChanged() {
-				super.setChanged();
-				if (suppressedChangeDepth <= 0) {
-					changeListener.run();
-				}
-			}
-
-			public void runBulkUpdate(Runnable action) {
-				suppressedChangeDepth++;
-				try {
-					if (action != null) {
-						action.run();
-					}
-				} finally {
-					suppressedChangeDepth = Math.max(0, suppressedChangeDepth - 1);
-				}
-				setChanged();
-			}
-
-			public void copyFrom(PetInventory other) {
-				runBulkUpdate(() -> {
-					for (int slot = 0; slot < getContainerSize(); slot++) {
-						setItem(slot, other == null ? ItemStack.EMPTY : other.getItem(slot).copy());
-					}
-				});
-			}
-	}
-
-	public interface PetHolder {
-		PetInventory madokuCraft$getPetInventory();
-	}
-
-	public static final class PetSlot extends Slot {
-		public PetSlot(Container container, int slot, int x, int y) {
-				super(container, slot, x, y);
-			}
-
-			@Override
-			public boolean mayPlace(ItemStack stack) {
-				return PetEntitiesManager.isValid(stack);
-			}
-
-			@Override
-			public int getMaxStackSize() {
-				return 1;
-			}
-	}
 }

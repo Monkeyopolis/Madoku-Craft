@@ -21,7 +21,7 @@ import madoku.craft.core.data.DataPlayerAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 
 public final class MadokuPetManager {
 	public static final int SLOT_COUNT = 4;
@@ -70,6 +70,7 @@ public final class MadokuPetManager {
 	}
 
 	public static void initialize() {
+		PetAPIManager.registerProvider(new MadokuPetProvider());
 		PetEntitiesManager.initialize();
 		PetConfigManager.initialize();
 		PetAbilitiesManager.initialize();
@@ -474,5 +475,4 @@ public final class MadokuPetManager {
 	}
 
 }
-
 

@@ -1,7 +1,7 @@
 package madoku.craft;
 
 import madoku.craft.entity.MadokuEntitiesClient;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import madoku.craft.inventory.PetInventoryClient;
 import madoku.craft.items.ItemsCategoriesManager;
 import madoku.craft.levels.MadokuLevelsClient;
@@ -17,7 +17,7 @@ import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.core.sync.SyncPayloadAPIManager;
 import madoku.craft.core.time.TimePayloadAPIManager;
 import madoku.craft.mob.MobPayloadManager;
-import madoku.craft.pet.PetPayloadManager;
+import madoku.craft.pet.PetPayloadAPIManager;
 import madoku.craft.pet.PetHudManagerClient;
 import madoku.craft.pet.PetRendererManager;
 import madoku.craft.season.ClientSeasonalPrecipitationState;
@@ -50,7 +50,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 			}
 			configuredItemMetadataApplied = true;
 			ItemsCategoriesManager.applyConfiguredItemMetadata();
-			MadokuFarmingManager.applyCropItemMetadata();
+			FarmingAPIManager.applyCropItemMetadata();
 		});
 		ClientPlayNetworking.registerGlobalReceiver(TimePayloadAPIManager.TYPE, (payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
 		ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE, (payload, context) ->
@@ -82,7 +82,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 				}
 			})
 		);
-		ClientPlayNetworking.registerGlobalReceiver(PetPayloadManager.PetAbilityHudPayload.TYPE, (payload, context) ->
+		ClientPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.PetAbilityHudPayload.TYPE, (payload, context) ->
 			PetHudManagerClient.setAbilityCooldowns(payload.asArray())
 		);
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
@@ -95,4 +95,3 @@ public class MadokuCraftClient implements ClientModInitializer {
 		});
 	}
 }
-

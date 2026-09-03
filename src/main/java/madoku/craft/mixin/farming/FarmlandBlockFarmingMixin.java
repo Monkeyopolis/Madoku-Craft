@@ -1,6 +1,6 @@
 package madoku.craft.mixin.farming;
 
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.entity.Entity;
@@ -25,12 +25,12 @@ public abstract class FarmlandBlockFarmingMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuFarmingManager.isEnabled()) {
+		if (!FarmingAPIManager.isEnabled()) {
 			return;
 		}
 
-		MadokuFarmingManager.handleFarmlandRandomTick(level, pos);
-		if (MadokuFarmingManager.applySeasonalMoisture(level, pos, state)) {
+		FarmingAPIManager.handleFarmlandRandomTick(level, pos);
+		if (FarmingAPIManager.applySeasonalMoisture(level, pos, state)) {
 			ci.cancel();
 		}
 	}
@@ -60,28 +60,28 @@ public abstract class FarmlandBlockFarmingMixin {
 	}
 
 	private static boolean shouldHoldManagedFarmland(BlockGetter level, BlockPos pos) {
-		if (!MadokuFarmingManager.isEnabled() || level == null || pos == null) {
+		if (!FarmingAPIManager.isEnabled() || level == null || pos == null) {
 			return false;
 		}
 
-		if (level instanceof ServerLevel serverLevel && MadokuFarmingManager.shouldMaintainSeasonalMoisture(serverLevel, pos)) {
+		if (level instanceof ServerLevel serverLevel && FarmingAPIManager.shouldMaintainSeasonalMoisture(serverLevel, pos)) {
 			return true;
 		}
 
 		BlockPos abovePos = pos.above();
 		BlockState aboveState = level.getBlockState(abovePos);
-		if (MadokuFarmingManager.isManagedCrop(aboveState)) {
-			if (level instanceof ServerLevel serverLevel && !MadokuFarmingManager.isManagedPlot(serverLevel, pos)) {
-				MadokuFarmingManager.syncPlotFromSoil(serverLevel, pos, MadokuFarmingManager.isFertilized(serverLevel, pos));
+		if (FarmingAPIManager.isManagedCrop(aboveState)) {
+			if (level instanceof ServerLevel serverLevel && !FarmingAPIManager.isManagedPlot(serverLevel, pos)) {
+				FarmingAPIManager.syncPlotFromSoil(serverLevel, pos, FarmingAPIManager.isFertilized(serverLevel, pos));
 			}
 			return true;
 		}
 
 		if (level instanceof ServerLevel serverLevel) {
-			if (!MadokuFarmingManager.isManagedPlot(serverLevel, pos) && MadokuFarmingManager.isManagedCrop(serverLevel, abovePos, aboveState)) {
-				MadokuFarmingManager.syncPlotFromSoil(serverLevel, pos, MadokuFarmingManager.isFertilized(serverLevel, pos));
+			if (!FarmingAPIManager.isManagedPlot(serverLevel, pos) && FarmingAPIManager.isManagedCrop(serverLevel, abovePos, aboveState)) {
+				FarmingAPIManager.syncPlotFromSoil(serverLevel, pos, FarmingAPIManager.isFertilized(serverLevel, pos));
 			}
-			return MadokuFarmingManager.isManagedPlot(serverLevel, pos) || MadokuFarmingManager.isManagedCrop(serverLevel, abovePos, aboveState);
+			return FarmingAPIManager.isManagedPlot(serverLevel, pos) || FarmingAPIManager.isManagedCrop(serverLevel, abovePos, aboveState);
 		}
 
 		return false;

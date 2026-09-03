@@ -1,6 +1,6 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.MadokuPetManager;
+import madoku.craft.pet.PetAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Relative;
@@ -24,7 +24,7 @@ public abstract class ServerPlayerTeleportPetMixin {
 		CallbackInfoReturnable<ServerPlayer> cir
 	) {
 		if (cir.getReturnValue() != null) {
-			MadokuPetManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+			PetAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 		}
 	}
 
@@ -35,7 +35,7 @@ public abstract class ServerPlayerTeleportPetMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuPetManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		PetAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 
 	@Inject(method = "teleportRelative(DDD)V", at = @At("TAIL"))
@@ -45,7 +45,7 @@ public abstract class ServerPlayerTeleportPetMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuPetManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		PetAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 
 	@Inject(
@@ -64,7 +64,7 @@ public abstract class ServerPlayerTeleportPetMixin {
 		CallbackInfoReturnable<Boolean> cir
 	) {
 		if (cir.getReturnValue()) {
-			MadokuPetManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+			PetAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 		}
 	}
 
@@ -75,7 +75,7 @@ public abstract class ServerPlayerTeleportPetMixin {
 		double z,
 		CallbackInfo ci
 	) {
-		MadokuPetManager.handlePlayerTeleport((ServerPlayer) (Object) this);
+		PetAPIManager.handlePlayerTeleport((ServerPlayer) (Object) this);
 	}
 }
 

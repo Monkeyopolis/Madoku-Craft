@@ -17,7 +17,7 @@ import madoku.craft.core.helper.HelperProjectileAPIManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.pet.PetConfigManager.PetAbilityRule;
 import madoku.craft.pet.PetConfigManager.PetRule;
 import net.minecraft.resources.Identifier;
@@ -324,7 +324,8 @@ public final class PetAbilitiesManager {
 	}
 
 	public static void initialize() {
-		ServerPlayNetworking.registerGlobalReceiver(PetPayloadManager.LeftClickAirPayload.TYPE, (payload, context) -> {
+		PetAbilitiesAPIManager.registerProvider(new MadokuPetAbilitiesProvider());
+		ServerPlayNetworking.registerGlobalReceiver(PetPayloadAPIManager.LeftClickAirPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
 			if (!isWebStunned(player)) {
 				handlePlayerLeftClick(player);
@@ -3292,4 +3293,3 @@ public final class PetAbilitiesManager {
 			}
 		}
 }
-

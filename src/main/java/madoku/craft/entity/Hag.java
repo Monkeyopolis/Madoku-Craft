@@ -1,8 +1,8 @@
 package madoku.craft.entity;
 
-import madoku.craft.pet.PetHagManager;
+import madoku.craft.pet.PetHagAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.pet.PetConfigManager;
+import madoku.craft.pet.PetConfigAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -188,7 +188,7 @@ public class Hag extends Witch implements Merchant {
 				^ this.getUUID().getLeastSignificantBits()
 				^ week
 		);
-		if (!PetConfigManager.isEnabled()) return offers;
+		if (!PetConfigAPIManager.isEnabled()) return offers;
 		List<Item> petItems = buildPetItems(random);
 		for (Item item : petItems) {
 			offers.add(createPetOffer(item, 1));
@@ -208,7 +208,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private List<Item> buildPetItems(Random random) {
-		List<Item> pool = new ArrayList<>(PetHagManager.tradeItems());
+		List<Item> pool = new ArrayList<>(PetHagAPIManager.tradeItems());
 		List<Item> selected = new ArrayList<>();
 		List<Item> selectionPool = new ArrayList<>(pool);
 		while (selected.size() < AVAILABLE_TRADE_COUNT && !selectionPool.isEmpty()) {
@@ -249,9 +249,9 @@ public class Hag extends Witch implements Merchant {
 
 	private MerchantOffer createPetOffer(Item item, int level) {
 		int emeraldCost = emeraldCost(item);
-		ItemStack resultStack = PetHagManager.tradeStack(item, level);
+		ItemStack resultStack = PetHagAPIManager.tradeStack(item, level);
 		return new MerchantOffer(
-			PetHagManager.tradeIngredient(item, level),
+			PetHagAPIManager.tradeIngredient(item, level),
 			Optional.of(new ItemCost(Items.EMERALD, emeraldCost)),
 			resultStack,
 			TRADE_MAX_USES,
@@ -261,7 +261,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private int rarityWeight(Item item) {
-		return PetHagManager.rarityWeight(petRarity(item));
+		return PetHagAPIManager.rarityWeight(petRarity(item));
 	}
 
 	private int emeraldCost(Item item) {
@@ -276,7 +276,7 @@ public class Hag extends Witch implements Merchant {
 	}
 
 	private String petRarity(Item item) {
-		return PetHagManager.rarity(new ItemStack(item));
+		return PetHagAPIManager.rarity(new ItemStack(item));
 	}
 }
 

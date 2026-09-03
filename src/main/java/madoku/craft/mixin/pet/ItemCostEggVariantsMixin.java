@@ -1,6 +1,6 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.PetEntitiesManager;
+import madoku.craft.pet.PetEntitiesAPIManager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.ItemCost;
@@ -20,9 +20,9 @@ public abstract class ItemCostEggVariantsMixin {
 			cir.setReturnValue(true);
 			return;
 		}
-		if (PetEntitiesManager.isPetItem(stack)
+		if (PetEntitiesAPIManager.isPetItem(stack)
 			&& stack.is(cost.item())
-			&& PetEntitiesManager.petLevel(stack) == PetEntitiesManager.petLevel(cost.itemStack())) {
+			&& PetEntitiesAPIManager.petLevel(stack) == PetEntitiesAPIManager.petLevel(cost.itemStack())) {
 			cir.setReturnValue(true);
 		}
 	}

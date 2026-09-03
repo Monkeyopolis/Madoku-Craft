@@ -1,6 +1,6 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.PetAbilitiesManager;
+import madoku.craft.pet.PetAbilitiesAPIManager;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +13,7 @@ public abstract class MobWebStunMixin {
 	@Inject(method = "serverAiStep", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$disableWebStunnedMobAi(CallbackInfo ci) {
 		Mob mob = (Mob) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(mob)) {
+		if (PetAbilitiesAPIManager.isWebStunned(mob)) {
 			Vec3 movement = mob.getDeltaMovement();
 			double downwardVelocity = movement.y;
 			if (mob.isNoGravity()) {
@@ -31,7 +31,7 @@ public abstract class MobWebStunMixin {
 		net.minecraft.world.entity.Entity target,
 		org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir
 	) {
-		if (PetAbilitiesManager.isWebStunned((Mob) (Object) this)) {
+		if (PetAbilitiesAPIManager.isWebStunned((Mob) (Object) this)) {
 			cir.setReturnValue(false);
 		}
 	}

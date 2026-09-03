@@ -15,6 +15,7 @@ public final class MadokuFarmingManager {
 	}
 
 	public static void initialize() {
+		FarmingAPIManager.registerProvider(new MadokuFarmingProvider());
 		FarmingConfigManager.initialize();
 		FarmingCropsManager.initialize();
 		FarmingComposterManager.initialize();
@@ -48,6 +49,10 @@ public final class MadokuFarmingManager {
 	public static boolean isEnabled() {
 		return FarmingCropsManager.isEnabled();
 	}
+
+	public static boolean isComposterItem(net.minecraft.world.item.Item item) { return FarmingComposterManager.isComposterItem(item); }
+	public static boolean isComposterItem(ItemStack stack) { return FarmingComposterManager.isComposterItem(stack); }
+	public static int getComposterAdjustment(ItemStack stack) { return FarmingComposterManager.getComposterAdjustment(stack); }
 
 	public static boolean applyExternalGrowthPercent(ServerLevel world, BlockPos cropPos, double growthPercent, String source) {
 		return FarmingCropsManager.applyExternalGrowthPercent(world, cropPos, growthPercent, source);

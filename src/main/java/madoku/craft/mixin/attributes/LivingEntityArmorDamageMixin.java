@@ -3,7 +3,7 @@ package madoku.craft.mixin.attributes;
 import madoku.craft.attributes.ArmorAPIManager;
 import madoku.craft.core.enchant.EnchantBooksAPIManager;
 import madoku.craft.mob.MobEntityManager;
-import madoku.craft.pet.PetAbilitiesManager;
+import madoku.craft.pet.PetAbilitiesAPIManager;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -32,7 +32,7 @@ public abstract class LivingEntityArmorDamageMixin {
 		boolean shouldHandlePetAbilities = entity instanceof net.minecraft.server.level.ServerPlayer;
 		boolean shouldOverrideVanillaArmor = ArmorAPIManager.shouldOverrideVanillaArmorDamage(source);
 		if (!shouldOverrideVanillaArmor && !fallDamage && !shouldHandlePetAbilities && !skeletonIgnoresArmor && !mobIgnoresArmor) {
-			float damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, amount);
+			float damageAfterArmor = PetAbilitiesAPIManager.applyDamageVulnerabilities(entity, amount);
 			damageAfterArmor = EnchantBooksAPIManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
 			EnchantBooksAPIManager.capturePostArmorDamage(damageAfterArmor);
 			cir.setReturnValue(damageAfterArmor);
@@ -50,9 +50,9 @@ public abstract class LivingEntityArmorDamageMixin {
 			damageAfterArmor = amount;
 		}
 
-		damageAfterArmor = PetAbilitiesManager.applyFallDamage(entity, source, damageAfterArmor);
-		damageAfterArmor = PetAbilitiesManager.applyDamageBlock(entity, source, damageAfterArmor);
-		damageAfterArmor = PetAbilitiesManager.applyDamageVulnerabilities(entity, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesAPIManager.applyFallDamage(entity, source, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesAPIManager.applyDamageBlock(entity, source, damageAfterArmor);
+		damageAfterArmor = PetAbilitiesAPIManager.applyDamageVulnerabilities(entity, damageAfterArmor);
 		damageAfterArmor = EnchantBooksAPIManager.applyConfiguredSmiteVulnerability(entity, source, damageAfterArmor);
 		EnchantBooksAPIManager.capturePostArmorDamage(damageAfterArmor);
 		cir.setReturnValue(damageAfterArmor);
@@ -97,5 +97,4 @@ public abstract class LivingEntityArmorDamageMixin {
 		return instance.getEffect(effect) != null;
 	}
 }
-
 

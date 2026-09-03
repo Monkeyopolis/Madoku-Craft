@@ -2,8 +2,8 @@ package madoku.craft.pet;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import madoku.craft.MadokuCraft;
-import madoku.craft.pet.PetComponentsManager.PetHolder;
-import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetComponentsAPIManager.PetHolder;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -48,7 +48,7 @@ public final class PetHudManagerClient {
 	private static final float ABILITY_COOLDOWN_TEXT_SCALE = 0.5F;
 	private static final int ABILITY_COOLDOWN_TEXT_COLOR = 0xFFFFFFFF;
 	private static final int ABILITY_COOLDOWN_OVERLAY_COLOR = 0x7FFFFFFF;
-	private static final long[][] abilityCooldownEndTicks = new long[PetEntitiesManager.SLOT_COUNT][MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET];
+	private static final long[][] abilityCooldownEndTicks = new long[PetEntitiesAPIManager.SLOT_COUNT][PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET];
 
 	private PetHudManagerClient() {
 	}
@@ -70,7 +70,7 @@ public final class PetHudManagerClient {
 		long now = client.level == null ? 0L : client.level.getGameTime();
 		for (int slot = 0; slot < abilityCooldownEndTicks.length; slot++) {
 			for (int cooldownIndex = 0; cooldownIndex < abilityCooldownEndTicks[slot].length; cooldownIndex++) {
-				int flatIndex = slot * MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex;
+				int flatIndex = slot * PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET + cooldownIndex;
 				int remaining = remainingTicks != null && flatIndex < remainingTicks.length ? Math.max(0, remainingTicks[flatIndex]) : 0;
 				if (remaining == 0) {
 					abilityCooldownEndTicks[slot][cooldownIndex] = 0L;
@@ -84,7 +84,7 @@ public final class PetHudManagerClient {
 	private static void render(GuiGraphicsExtractor context, DeltaTracker tickCounter) {
 		Minecraft client = Minecraft.getInstance();
 		LocalPlayer player = client.player;
-		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PetConfigManager.isEnabled()) return;
+		if (player == null || client.level == null || client.gui.hud.isHidden() || player.isSpectator() || !PetConfigAPIManager.isEnabled()) return;
 		if (!(player instanceof PetHolder holder)) return;
 		PetInventory inventory = holder.madokuCraft$getPetInventory();
 		if (inventory == null) return;
@@ -107,9 +107,9 @@ public final class PetHudManagerClient {
 
 	private static java.util.List<AbilityHudEntry> visibleAbilities(PetInventory inventory) {
 		java.util.List<AbilityHudEntry> visible = new java.util.ArrayList<>();
-		for (int slot = 0; slot < Math.min(PetEntitiesManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
+		for (int slot = 0; slot < Math.min(PetEntitiesAPIManager.SLOT_COUNT, inventory.getContainerSize()); slot++) {
 			ItemStack stack = inventory.getItem(slot);
-			if (stack == null || stack.isEmpty() || !PetAbilitiesManager.hasAbility(stack)) continue;
+			if (stack == null || stack.isEmpty() || !PetAbilitiesAPIManager.hasAbility(stack)) continue;
 			PetConfigManager.PetRule rule = PetConfigManager.resolvePetRule(stack);
 			if (rule == null) continue;
 
@@ -117,7 +117,7 @@ public final class PetHudManagerClient {
 			for (PetConfigManager.PetAbilityRule ability : rule.abilities) {
 				int abilityCooldownIndex = -1;
 				if (ability.cooldownTicks > 0L) {
-					if (cooldownIndex >= MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
+					if (cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) continue;
 					abilityCooldownIndex = cooldownIndex++;
 				}
 				visible.add(new AbilityHudEntry(slot, ability, abilityCooldownIndex));
@@ -139,7 +139,7 @@ public final class PetHudManagerClient {
 	}
 
 	private static void renderCooldown(GuiGraphicsExtractor context, Minecraft client, int slot, int cooldownIndex, long totalCooldownTicks, int cardX, int cardY) {
-		if (slot < 0 || slot >= PetEntitiesManager.SLOT_COUNT || cooldownIndex < 0 || cooldownIndex >= MadokuPetManager.MAX_ABILITY_COOLDOWNS_PER_PET) return;
+			if (slot < 0 || slot >= PetEntitiesAPIManager.SLOT_COUNT || cooldownIndex < 0 || cooldownIndex >= PetAPIManager.MAX_ABILITY_COOLDOWNS_PER_PET) return;
 		long remainingTicks = Math.max(0L, abilityCooldownEndTicks[slot][cooldownIndex] - client.level.getGameTime());
 		if (remainingTicks <= 0L) return;
 
@@ -164,18 +164,18 @@ public final class PetHudManagerClient {
 
 	private static Identifier abilityIcon(String abilityType) {
 		return switch (PetConfigManager.normalizeAbilityId(abilityType)) {
-			case MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW -> ABILITY_ARROW_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_BEE_SWARM -> ABILITY_BEE_SWARM_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_DAMAGE_BLOCK -> ABILITY_BLOCK_DAMAGE_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_ARMOR_BONUS -> ABILITY_BONUS_ARMOR_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> ABILITY_BONUS_DAMAGE_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_MAX_HEALTH_BONUS -> ABILITY_BONUS_HEALTH_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_EGG_PROJECTILE -> ABILITY_EGG_VOLLEY_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> ABILITY_EXPLOSIVE_PROJECTILE_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_HEALTH_REGENERATION -> ABILITY_HEALTH_REGENERATION_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_MOB_SCAN -> ABILITY_MOB_SCAN_TEXTURE;
-			case MadokuPetManager.PET_ABILITY_WEB_PROJECTILE -> ABILITY_WEB_PROJECTILE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_RANGED_HOMING_ARROW -> ABILITY_ARROW_TEXTURE;
+			case PetAPIManager.PET_ABILITY_BEE_SWARM -> ABILITY_BEE_SWARM_TEXTURE;
+			case PetAPIManager.PET_ABILITY_DAMAGE_BLOCK -> ABILITY_BLOCK_DAMAGE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_ARMOR_BONUS -> ABILITY_BONUS_ARMOR_TEXTURE;
+			case PetAPIManager.PET_ABILITY_PLAYER_DAMAGE_BONUS -> ABILITY_BONUS_DAMAGE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_MAX_HEALTH_BONUS -> ABILITY_BONUS_HEALTH_TEXTURE;
+			case PetAPIManager.PET_ABILITY_EGG_PROJECTILE -> ABILITY_EGG_VOLLEY_TEXTURE;
+			case PetAPIManager.PET_ABILITY_EXPLOSIVE_PROJECTILE -> ABILITY_EXPLOSIVE_PROJECTILE_TEXTURE;
+			case PetAPIManager.PET_ABILITY_FALL_DAMAGE_REDUCTION -> ABILITY_FALL_DAMAGE_REDUCTION_TEXTURE;
+			case PetAPIManager.PET_ABILITY_HEALTH_REGENERATION -> ABILITY_HEALTH_REGENERATION_TEXTURE;
+			case PetAPIManager.PET_ABILITY_MOB_SCAN -> ABILITY_MOB_SCAN_TEXTURE;
+			case PetAPIManager.PET_ABILITY_WEB_PROJECTILE -> ABILITY_WEB_PROJECTILE_TEXTURE;
 			default -> ABILITY_ARROW_TEXTURE;
 		};
 	}

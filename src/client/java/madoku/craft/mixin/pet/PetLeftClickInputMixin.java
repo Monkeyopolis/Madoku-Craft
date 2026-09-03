@@ -1,6 +1,6 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.PetPayloadManager;
+import madoku.craft.pet.PetPayloadAPIManager;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.HitResult;
@@ -19,6 +19,6 @@ public abstract class PetLeftClickInputMixin {
 			|| client.hitResult.getType() != HitResult.Type.MISS) {
 			return;
 		}
-		ClientPlayNetworking.send(new PetPayloadManager.LeftClickAirPayload());
+		ClientPlayNetworking.send(new PetPayloadAPIManager.LeftClickAirPayload());
 	}
 }

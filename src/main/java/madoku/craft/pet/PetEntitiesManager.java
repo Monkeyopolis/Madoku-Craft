@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.nio.file.Path;
 import java.io.IOException;
 import net.minecraft.server.level.ServerLevel;
-import madoku.craft.pet.PetComponentsManager.PetInventory;
+import madoku.craft.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.pet.PetConfigManager.PetRule;
 
 /** Owns the runtime pet-entity lifecycle and equipped pet slots. */
@@ -75,6 +75,7 @@ public final class PetEntitiesManager {
 	}
 
 	public static void initialize() {
+		PetEntitiesAPIManager.registerProvider(new MadokuPetEntitiesProvider());
 		FabricDefaultAttributeRegistry.register(PET_ENTITY, MadokuPetEntity.createAttributes());
 		registerPetItems();
 	}
@@ -1030,4 +1031,3 @@ public final class PetEntitiesManager {
 			}
 	}
 }
-

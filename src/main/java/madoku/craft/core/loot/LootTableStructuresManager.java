@@ -11,8 +11,8 @@ import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager.Tier;
 import madoku.craft.items.MadokuItemsManager;
-import madoku.craft.pet.PetHagManager;
-import madoku.craft.pet.PetConfigManager;
+import madoku.craft.pet.PetHagAPIManager;
+import madoku.craft.pet.PetConfigAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -359,7 +359,7 @@ public final class LootTableStructuresManager {
 		if (itemRarity != null) {
 			RarityAPIManager.applyConfiguredRarity(stack, itemRarity);
 		}
-		PetHagManager.applyLore(stack);
+		PetHagAPIManager.applyLore(stack);
 		into.add(stack);
 	}
 
@@ -733,7 +733,7 @@ public final class LootTableStructuresManager {
 			return true;
 		}
 		return switch (tag) {
-			case GROUP_TAG_MADOKU_PETS -> PetConfigManager.isEnabled();
+			case GROUP_TAG_MADOKU_PETS -> PetConfigAPIManager.isEnabled();
 			case GROUP_TAG_MADOKU_LUCK -> LuckAPIManager.isEnabled();
 			case GROUP_TAG_MADOKU_RARITY -> RarityAPIManager.isEnabled();
 			default -> true;
@@ -1008,4 +1008,3 @@ public final class LootTableStructuresManager {
 
 	}
 }
-

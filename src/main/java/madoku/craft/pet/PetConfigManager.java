@@ -36,6 +36,7 @@ public final class PetConfigManager {
 	}
 
 	public static void initialize() {
+		PetConfigAPIManager.registerProvider(new MadokuPetConfigProvider());
 		reload();
 		SyncConfigAPIManager.register(
 			"pet",
@@ -1394,5 +1395,4 @@ public final class PetConfigManager {
 			}
 	}
 }
-
 

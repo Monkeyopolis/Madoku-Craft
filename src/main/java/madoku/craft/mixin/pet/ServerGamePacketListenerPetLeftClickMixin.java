@@ -1,6 +1,6 @@
 package madoku.craft.mixin.pet;
 
-import madoku.craft.pet.PetAbilitiesManager;
+import madoku.craft.pet.PetAbilitiesAPIManager;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +13,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 	@Inject(method = "handleAnimate", at = @At("HEAD"), cancellable = true)
 	private void madokuCraft$preventWebStunnedPlayerSwing(ServerboundSwingPacket packet, CallbackInfo ci) {
 		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(listener.getPlayer())) {
+		if (PetAbilitiesAPIManager.isWebStunned(listener.getPlayer())) {
 			ci.cancel();
 		}
 	}
@@ -24,11 +24,11 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 		CallbackInfo ci
 	) {
 		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(listener.getPlayer())) {
+		if (PetAbilitiesAPIManager.isWebStunned(listener.getPlayer())) {
 			ci.cancel();
 			return;
 		}
-		PetAbilitiesManager.handlePlayerLeftClick(listener.getPlayer());
+		PetAbilitiesAPIManager.handlePlayerLeftClick(listener.getPlayer());
 	}
 
 	@Inject(method = "handleInteract", at = @At("HEAD"), cancellable = true)
@@ -37,7 +37,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 		CallbackInfo ci
 	) {
 		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(listener.getPlayer())) {
+		if (PetAbilitiesAPIManager.isWebStunned(listener.getPlayer())) {
 			ci.cancel();
 		}
 	}
@@ -48,7 +48,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 		CallbackInfo ci
 	) {
 		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(listener.getPlayer())) {
+		if (PetAbilitiesAPIManager.isWebStunned(listener.getPlayer())) {
 			ci.cancel();
 		}
 	}
@@ -59,7 +59,7 @@ public abstract class ServerGamePacketListenerPetLeftClickMixin {
 		CallbackInfo ci
 	) {
 		ServerGamePacketListenerImpl listener = (ServerGamePacketListenerImpl) (Object) this;
-		if (PetAbilitiesManager.isWebStunned(listener.getPlayer())) {
+		if (PetAbilitiesAPIManager.isWebStunned(listener.getPlayer())) {
 			ci.cancel();
 		}
 	}

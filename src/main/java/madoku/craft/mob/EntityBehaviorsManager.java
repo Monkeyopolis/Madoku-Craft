@@ -11,7 +11,7 @@ import java.util.UUID;
 import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.helper.HelperProjectileAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import madoku.craft.mixin.mob.AbstractSkeletonArrowInvoker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -310,11 +310,11 @@ public final class EntityBehaviorsManager {
 				}
 
 				int chargesToSpend = 1;
-				boolean farmingEnabled = MadokuFarmingManager.isEnabled();
+				boolean farmingEnabled = FarmingAPIManager.isEnabled();
 				boolean appliedGrowth;
 				double percentGrowth = chargesToSpend * growthPercentPerCharge;
 				if (farmingEnabled) {
-					appliedGrowth = MadokuFarmingManager.applyExternalGrowthPercent(level, targetPos, percentGrowth, "bee_nectar");
+					appliedGrowth = FarmingAPIManager.applyExternalGrowthPercent(level, targetPos, percentGrowth, "bee_nectar");
 				} else {
 					appliedGrowth = growCropBySingleStage(level, targetPos, targetState);
 				}

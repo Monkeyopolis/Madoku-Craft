@@ -1,7 +1,7 @@
 package madoku.craft.mixin.itemstack;
 
 import madoku.craft.items.MadokuItemsManager;
-import madoku.craft.pet.PetHudManager;
+import madoku.craft.pet.PetHudAPIManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
@@ -24,7 +24,7 @@ public class ItemStackDurabilityLoreMixin {
 		TooltipFlag flag,
 		CallbackInfoReturnable<List<Component>> cir
 	) {
-		PetHudManager.applySupportedPetLore((ItemStack) (Object) this);
+		PetHudAPIManager.applySupportedPetLore((ItemStack) (Object) this);
 	}
 
 	@Inject(method = "getTooltipLines", at = @At("RETURN"), cancellable = true)

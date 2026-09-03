@@ -3,7 +3,7 @@ package madoku.craft.mixin.farming;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerLevel;
@@ -48,7 +48,7 @@ public abstract class BlockFarmingDropsMixin {
 		CallbackInfoReturnable<BlockState> cir
 	) {
 		if (level instanceof ServerLevel serverLevel) {
-			MadokuFarmingManager.prepareCropHarvest(serverLevel, pos, state);
+			FarmingAPIManager.prepareCropHarvest(serverLevel, pos, state);
 		}
 	}
 
@@ -105,16 +105,16 @@ public abstract class BlockFarmingDropsMixin {
 		if (ChunkDataAPIManager.isPlayerPlacedBlock(level, pos)) {
 			return;
 		}
-		if (!MadokuFarmingManager.isEnabled() || !MadokuFarmingManager.isManagedHarvestState(level, pos, state)) {
+		if (!FarmingAPIManager.isEnabled() || !FarmingAPIManager.isManagedHarvestState(level, pos, state)) {
 			return;
 		}
 
-		MadokuFarmingManager.prepareCropHarvest(level, pos, state);
+		FarmingAPIManager.prepareCropHarvest(level, pos, state);
 		RandomSource random = level == null ? RandomSource.create() : level.getRandom();
-		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(MadokuFarmingManager.calculateCropHarvestDrops(level, pos, state, random));
+		ObjectArrayList<ItemStack> drops = new ObjectArrayList<>(FarmingAPIManager.calculateCropHarvestDrops(level, pos, state, random));
 		if (drops.isEmpty()) {
-			if (MadokuFarmingManager.hasCropHarvestLootTable(level, pos, state)) {
-				MadokuFarmingManager.completeCropHarvest(level, pos, state);
+			if (FarmingAPIManager.hasCropHarvestLootTable(level, pos, state)) {
+				FarmingAPIManager.completeCropHarvest(level, pos, state);
 				ci.cancel();
 			}
 			return;
@@ -125,7 +125,7 @@ public abstract class BlockFarmingDropsMixin {
 				Block.popResource(level, pos, drop);
 			}
 		}
-		MadokuFarmingManager.completeCropHarvest(level, pos, state);
+		FarmingAPIManager.completeCropHarvest(level, pos, state);
 		ci.cancel();
 	}
 }

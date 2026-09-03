@@ -1,6 +1,6 @@
 package madoku.craft.mixin.farming;
 
-import madoku.craft.farming.MadokuFarmingManager;
+import madoku.craft.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -21,11 +21,11 @@ public abstract class CropBlockFarmingMixin {
 		RandomSource random,
 		CallbackInfo ci
 	) {
-		if (!MadokuFarmingManager.isEnabled() || !MadokuFarmingManager.isManagedCrop(state)) {
+		if (!FarmingAPIManager.isEnabled() || !FarmingAPIManager.isManagedCrop(state)) {
 			return;
 		}
 
-		if (MadokuFarmingManager.handleCropRandomTick(level, pos, state, random)) {
+		if (FarmingAPIManager.handleCropRandomTick(level, pos, state, random)) {
 			ci.cancel();
 		}
 	}

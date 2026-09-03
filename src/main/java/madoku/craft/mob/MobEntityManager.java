@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.mixin.mob.CreeperAccessor;
 import madoku.craft.mixin.mob.CreeperPoweredAccessor;
-import madoku.craft.pet.PetComponentsManager;
+import madoku.craft.pet.PetComponentsAPIManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
 import madoku.craft.attributes.LuckAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
@@ -105,7 +105,7 @@ public final class MobEntityManager {
 			if (entity instanceof AgeableMob) {
 				TRACKED_AGEABLE_MOBS.put(entity.getUUID(), entity);
 			}
-			if (entity instanceof LivingEntity livingEntity && !PetComponentsManager.isManaged(livingEntity)) {
+			if (entity instanceof LivingEntity livingEntity && !PetComponentsAPIManager.isManaged(livingEntity)) {
 				boolean reappliedMobOverrides = applyLoadedEntityRules(livingEntity);
 				EntityComponentsManager.applyMobBabyComponent(livingEntity);
 				if (livingEntity instanceof AgeableMob ageableMob
@@ -176,7 +176,7 @@ public final class MobEntityManager {
 	}
 
 	static boolean isDifficultyScalingEligible(LivingEntity entity) {
-		if (!(entity instanceof Mob) || PetComponentsManager.isManaged(entity)) {
+		if (!(entity instanceof Mob) || PetComponentsAPIManager.isManaged(entity)) {
 			return false;
 		}
 		// The regional snapshot supplies a global fallback profile. Per-mob files override
@@ -629,7 +629,7 @@ public final class MobEntityManager {
 	}
 
 	public static boolean applyCustomSkeletonRangedAttack(AbstractSkeleton skeleton, LivingEntity target, float pullProgress) {
-		if (skeleton == null || PetComponentsManager.isManaged(skeleton)) {
+		if (skeleton == null || PetComponentsAPIManager.isManaged(skeleton)) {
 			return false;
 		}
 		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
@@ -648,7 +648,7 @@ public final class MobEntityManager {
 	}
 
 	public static int resolveSkeletonRangedAttackIntervalTicks(AbstractSkeleton skeleton) {
-		if (skeleton == null || PetComponentsManager.isManaged(skeleton)) {
+		if (skeleton == null || PetComponentsAPIManager.isManaged(skeleton)) {
 			return -1;
 		}
 		if (skeleton.getType() == madoku.craft.entity.MadokuEntityTypes.STRAY) {
@@ -870,7 +870,7 @@ public final class MobEntityManager {
 	}
 
 	private static boolean applyConfiguredLoadedEntityRules(LivingEntity entity) {
-		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || PetComponentsManager.isManaged(entity)) {
+		if (entity == null || entity.level().isClientSide() || !MobConfigManager.isEnabled() || PetComponentsAPIManager.isManaged(entity)) {
 			return false;
 		}
 		if (entity instanceof ZombieVillager zombieVillager) {
@@ -922,7 +922,7 @@ public final class MobEntityManager {
 
 	private static void applyDifficultyScalingAfterMobOverrides(LivingEntity entity, ServerLevel level, boolean loadedMobOverridesApplied) {
 		if (!MobConfigManager.isEnabled() || entity == null || !(entity instanceof Mob mob)
-			|| !isDifficultyScalingEligible(mob) || level == null || PetComponentsManager.isManaged(entity)) {
+			|| !isDifficultyScalingEligible(mob) || level == null || PetComponentsAPIManager.isManaged(entity)) {
 			return;
 		}
 		if (MobRegionalDifficultyManager.isEnabled() && isRegionalDifficultyScalingEnabledForMob(entity)) {
@@ -1446,7 +1446,7 @@ public final class MobEntityManager {
 			if (!(entity instanceof AgeableMob ageableMob)
 				|| !(entity instanceof LivingEntity livingEntity)
 				|| !entity.isAlive()
-				|| PetComponentsManager.isManaged(livingEntity)) {
+				|| PetComponentsAPIManager.isManaged(livingEntity)) {
 				continue;
 			}
 			EntityComponentsManager.MobBabySettings settings = EntityComponentsManager.resolveMobBabySettings(livingEntity);
@@ -2537,7 +2537,6 @@ public final class MobEntityManager {
 	private record WeightedVariant(String key, double weight) {}
 
 }
-
 
 
 

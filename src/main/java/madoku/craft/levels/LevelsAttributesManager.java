@@ -2,7 +2,7 @@ package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.HungerAPIManager;
-import madoku.craft.pet.PetAbilitiesManager;
+import madoku.craft.pet.PetAbilitiesAPIManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -27,11 +27,11 @@ public final class LevelsAttributesManager {
 		if (player == null) return;
 		LevelsPlayerManager.PlayerState state = LevelsPlayerManager.state(player);
 		apply(player.getAttribute(Attributes.MAX_HEALTH), HEALTH_MODIFIER, valueAtLevel(player, LevelStat.HEALTH, state.statLevel(LevelStat.HEALTH)));
-		PetAbilitiesManager.applyPlayerMaxHealthAbilityBonus(player);
+		PetAbilitiesAPIManager.applyPlayerMaxHealthAbilityBonus(player);
 		apply(player.getAttribute(Attributes.ATTACK_DAMAGE), STRENGTH_MODIFIER, valueAtLevel(player, LevelStat.STRENGTH, state.statLevel(LevelStat.STRENGTH)));
-		PetAbilitiesManager.applyPlayerDamageAbilityBonus(player);
+		PetAbilitiesAPIManager.applyPlayerDamageAbilityBonus(player);
 		apply(player.getAttribute(Attributes.ARMOR), ARMOR_MODIFIER, valueAtLevel(player, LevelStat.ARMOR, state.statLevel(LevelStat.ARMOR)));
-		PetAbilitiesManager.applyPlayerArmorAbilityBonus(player);
+		PetAbilitiesAPIManager.applyPlayerArmorAbilityBonus(player);
 		apply(player.getAttribute(Attributes.LUCK), LUCK_MODIFIER, valueAtLevel(player, LevelStat.LUCK, state.statLevel(LevelStat.LUCK)));
 		apply(player.getAttribute(Attributes.MOVEMENT_SPEED), MOVEMENT_SPEED_MODIFIER, valueAtLevel(player, LevelStat.MOVEMENT_SPEED, state.statLevel(LevelStat.MOVEMENT_SPEED)));
 		if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());

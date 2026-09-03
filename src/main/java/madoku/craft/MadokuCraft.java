@@ -20,7 +20,8 @@ import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.items.MadokuItemsManager;
 import madoku.craft.levels.MadokuLevelsManager;
 import madoku.craft.smelting.system.MadokuSmeltingManager;
-import madoku.craft.pet.MadokuPetManager;
+import madoku.craft.pet.PetAPIManager;
+import madoku.craft.pet.MadokuPetProvider;
 import madoku.craft.worldgen.MadokuWorldgen;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
@@ -47,7 +48,8 @@ public class MadokuCraft implements ModInitializer {
 		ChunkDataAPIManager.registerProvider(new MadokuChunkDataProvider());
 		ChunkDataAPIManager.initialize();
 		MadokuLevelsManager.initialize();
-		MadokuPetManager.initialize();
+		PetAPIManager.registerProvider(new MadokuPetProvider());
+		PetAPIManager.initialize();
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeAPIManager::shouldAllowResettingTime);
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -61,7 +63,7 @@ public class MadokuCraft implements ModInitializer {
 			HealthAPIManager.reset();
 			HungerAPIManager.reset();
 			MadokuLevelsManager.reset();
-			MadokuPetManager.reset();
+			PetAPIManager.reset();
 			MadokuCoreManager.reset();
 			MadokuCoreManager.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
@@ -75,12 +77,12 @@ public class MadokuCraft implements ModInitializer {
 			HealthAPIManager.loadPersistedData(server);
 			HungerAPIManager.loadPersistedData(server);
 			MadokuLevelsManager.loadPersistedData(server);
-			MadokuPetManager.loadPersistedData(server);
+			PetAPIManager.loadPersistedData(server);
 			MadokuItemsManager.onServerStarted(server);
 			HungerAPIManager.onServerStarted(server);
 			HealthAPIManager.onServerStarted(server);
 			MadokuEntities.onServerStarted(server);
-			MadokuPetManager.onServerStarted(server);
+			PetAPIManager.onServerStarted(server);
 			MadokuMobManager.onServerStarted(server);
 			TimeAPIManager.broadcastWorldTimeNow(server);
 			MadokuMobManager.broadcastDifficultyNow(server);
@@ -105,7 +107,7 @@ public class MadokuCraft implements ModInitializer {
 			HealthAPIManager.reset();
 			HungerAPIManager.reset();
 			MadokuLevelsManager.reset();
-			MadokuPetManager.reset();
+			PetAPIManager.reset();
 			JSONAPIManager.clearRuntimeState();
 		});
 
@@ -130,7 +132,4 @@ public class MadokuCraft implements ModInitializer {
 		});
 	}
 }
-
-
-
 
