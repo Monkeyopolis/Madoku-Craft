@@ -9,7 +9,6 @@ import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.core.data.DataPlayerAPIManager;
 import madoku.craft.core.sync.SyncPlayerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -115,7 +114,7 @@ public final class LevelsPlayerManager {
 		for (UUID playerId : DIRTY_PLAYERS) {
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
 			if (player == null) continue;
-			LevelsPayloadManager.Payload payload = LevelsPayloadManager.createPayload(player);
+			LevelsPayloadAPIManager.Payload payload = LevelsPayloadAPIManager.createPayload(player);
 			if (!SyncPlayerAPIManager.canSend(player, payload)) continue;
 			SyncPlayerAPIManager.send(player, payload);
 			synced.add(playerId);

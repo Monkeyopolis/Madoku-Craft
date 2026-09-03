@@ -3,7 +3,6 @@ package madoku.craft.core.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 
@@ -17,7 +16,7 @@ import java.util.Map;
 
 /** Configuration for weather, water, and seasonal climate transitions. */
 public final class EnvironmentTransitionConfigAPIManager {
-	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-season";
+	public static final String CONFIG_FOLDER_NAME = "madoku-craft-core/madoku-season";
 	public static final String CONFIG_FILE_NAME = "environment-transition";
 	public static final String FIELD_TRANSITION_WEATHER = "transition-weather";
 	public static final String FIELD_TRANSITION_WATER = "transition-water";
@@ -158,5 +157,4 @@ public final class EnvironmentTransitionConfigAPIManager {
 		public Settings { temperatureAdjustments = Map.copyOf(temperatureAdjustments == null ? Map.of() : temperatureAdjustments); humidityAdjustments = Map.copyOf(humidityAdjustments == null ? Map.of() : humidityAdjustments); timeRateDays = Math.max(1, timeRateDays); adjustmentCount = Math.max(0, adjustmentCount); }
 	}
 }
-
 

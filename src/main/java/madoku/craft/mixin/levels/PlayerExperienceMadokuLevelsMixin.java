@@ -1,6 +1,6 @@
 package madoku.craft.mixin.levels;
 
-import madoku.craft.levels.MadokuLevelsManager;
+import madoku.craft.levels.LevelsPlayerAPIManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,7 +16,7 @@ public abstract class PlayerExperienceMadokuLevelsMixin {
 			return;
 		}
 
-		MadokuLevelsManager.addXp(serverPlayer, experience);
+		LevelsPlayerAPIManager.addXp(serverPlayer, experience);
 	}
 }
 

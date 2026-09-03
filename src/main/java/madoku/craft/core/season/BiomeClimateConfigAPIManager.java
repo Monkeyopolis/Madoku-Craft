@@ -3,7 +3,6 @@ package madoku.craft.core.season;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 
@@ -17,7 +16,7 @@ import java.util.Map;
 
 /** Static biome temperature and humidity configuration. */
 public final class BiomeClimateConfigAPIManager {
-	public static final String CONFIG_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-season";
+	public static final String CONFIG_FOLDER_NAME = "madoku-craft-core/madoku-season";
 	public static final String CONFIG_FILE_NAME = "biome-climate";
 	public static final String FIELD_BIOME_TEMPERATURE = "biome-temperature";
 	public static final String FIELD_BIOME_HUMIDITY = "biome-humidity";
@@ -175,5 +174,4 @@ public final class BiomeClimateConfigAPIManager {
 		}
 	}
 }
-
 

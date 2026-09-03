@@ -2,7 +2,6 @@ package madoku.craft.levels;
 
 import madoku.craft.MadokuCraft;
 import madoku.craft.attributes.HungerAPIManager;
-import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import madoku.craft.pet.PetAbilitiesManager;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;

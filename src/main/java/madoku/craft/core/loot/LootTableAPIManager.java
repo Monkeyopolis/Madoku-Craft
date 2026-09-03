@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.attributes.LuckAPIManager;
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONAPIManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -24,18 +23,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class LootTableAPIManager {
-	static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-loot-tables";
+	static final String CONFIG_ROOT_FOLDER_NAME = "madoku-craft-core/madoku-loot-tables";
+	private static final LootTableProvider UNAVAILABLE_PROVIDER = new LootTableProvider() { };
+	private static volatile LootTableProvider provider = UNAVAILABLE_PROVIDER;
 
 	private LootTableAPIManager() {
 	}
 
-	public static void initialize() {
-		LootTableConfigManager.initialize();
-		LootTableStructuresManager.initialize();
-		LootTableEntitiesAPIManager.initialize();
-		LootTableEquipmentsManager.initialize();
-		LootTableCropsAPIManager.initialize();
-	}
+	public static void registerProvider(LootTableProvider candidate) { if (candidate == null) throw new IllegalArgumentException("Loot-table provider must not be null."); provider = candidate; }
+	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
+	public static void initialize() { provider.initialize(); }
 
 	public static boolean applyManagedLootTable(
 		Container container,
@@ -44,28 +41,14 @@ public final class LootTableAPIManager {
 		ServerLevel level,
 		ServerPlayer player
 	) {
-		return LootTableStructuresManager.applyManagedLootTable(container, lootTableKey, lootTableSeed, level, player);
+		return provider.applyManagedLootTable(container, lootTableKey, lootTableSeed, level, player);
 	}
 
 	public static List<ItemStack> generateManagedLootForContext(LootContext lootContext) {
-		List<ItemStack> generated = LootTableStructuresManager.generateManagedLootForContext(lootContext);
-		if (generated != null) {
-			return generated;
-		}
-		generated = LootTableEntitiesAPIManager.generateManagedLootForContext(lootContext);
-		if (generated != null) {
-			return generated;
-		}
-		return LootTableCropsAPIManager.generateManagedLootForContext(lootContext);
+		return provider.generateManagedLootForContext(lootContext);
 	}
 
-	public static void reset() {
-		LootTableEquipmentsManager.reset();
-		LootTableStructuresManager.reset();
-		LootTableEntitiesAPIManager.reset();
-		LootTableConfigManager.reset();
-		LootTableCropsAPIManager.reset();
-	}
+	public static void reset() { provider.reset(); }
 
 	static long resolveReloadIntervalMillis(net.minecraft.server.MinecraftServer server) {
 		long ticks = madoku.craft.core.scheduler.SchedulerAdaptiveIntervalAPIManager.resolve("loot-table-config", server, 30L, 600L);
@@ -348,6 +331,4 @@ public final class LootTableAPIManager {
 
 	static record SharedLootEntry(Item item, int weight, int minCount, int maxCount) { }
 }
-
-
 

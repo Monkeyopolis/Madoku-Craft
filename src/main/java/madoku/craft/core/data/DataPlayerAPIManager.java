@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONTypeAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
@@ -26,7 +25,7 @@ import java.util.stream.Stream;
 /** Runtime group for indexed per-player JSON data. */
 public final class DataPlayerAPIManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataPlayerAPIManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data/madoku-data-player";
+	private static final String DATA_CONFIG_FOLDER = "madoku-craft-core/madoku-data/madoku-data-player";
 	private static final String FIELD_VERSION = "version";
 	private static final String FIELD_PLAYER_UUID = "player-uuid";
 	private static final String FIELD_SYSTEMS = "systems";
@@ -218,5 +217,4 @@ public final class DataPlayerAPIManager {
 	}
 
 }
-
 

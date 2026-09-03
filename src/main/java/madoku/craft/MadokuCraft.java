@@ -6,13 +6,15 @@ import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.block.MadokuBlocks;
 import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.data.ChunkDataAPIManager;
+import madoku.craft.core.data.MadokuChunkDataProvider;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.rarity.RarityAPIManager;
+import madoku.craft.core.rarity.MadokuRarityProvider;
 import madoku.craft.core.season.SeasonAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
 import madoku.craft.mob.MadokuMobManager;
-import madoku.craft.ecosystem.EcosystemAPIManager;
+import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
 import madoku.craft.items.MadokuItemsManager;
@@ -38,9 +40,11 @@ public class MadokuCraft implements ModInitializer {
 		MadokuBlocks.initialize();
 		MadokuItemsManager.initialize();
 		MadokuFarmingManager.initialize();
-		EcosystemAPIManager.initialize();
+		MadokuEcosystemManager.initialize();
 		MadokuAttributesManager.initialize();
+		RarityAPIManager.registerProvider(new MadokuRarityProvider());
 		RarityAPIManager.initialize();
+		ChunkDataAPIManager.registerProvider(new MadokuChunkDataProvider());
 		ChunkDataAPIManager.initialize();
 		MadokuLevelsManager.initialize();
 		MadokuPetManager.initialize();
@@ -51,7 +55,7 @@ public class MadokuCraft implements ModInitializer {
 			SeasonAPIManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();
-			EcosystemAPIManager.reset();
+			MadokuEcosystemManager.reset();
 			MadokuItemsManager.reset();
 			ChunkDataAPIManager.reset();
 			HealthAPIManager.reset();
@@ -62,11 +66,11 @@ public class MadokuCraft implements ModInitializer {
 			MadokuCoreManager.loadPersistedData(server);
 			MadokuEntities.loadPersistedData(server);
 			MadokuFarmingManager.loadPersistedData(server);
-			EcosystemAPIManager.loadPersistedData(server);
+			MadokuEcosystemManager.loadPersistedData(server);
 			ChunkDataAPIManager.loadPersistedData(server);
 			MadokuCoreManager.onServerStarted(server);
 			MadokuFarmingManager.onServerStarted(server);
-			EcosystemAPIManager.onServerStarted(server);
+			MadokuEcosystemManager.onServerStarted(server);
 			MadokuSmeltingManager.onServerStarted();
 			HealthAPIManager.loadPersistedData(server);
 			HungerAPIManager.loadPersistedData(server);
@@ -92,7 +96,7 @@ public class MadokuCraft implements ModInitializer {
 			SeasonAPIManager.reset();
 			MadokuEntities.reset();
 			MadokuFarmingManager.reset();
-			EcosystemAPIManager.reset();
+			MadokuEcosystemManager.reset();
 			MadokuItemsManager.reset();
 			MadokuCoreManager.reset();
 			ChunkDataAPIManager.reset();
@@ -126,9 +130,6 @@ public class MadokuCraft implements ModInitializer {
 		});
 	}
 }
-
-
-
 
 
 

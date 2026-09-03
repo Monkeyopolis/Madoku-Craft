@@ -10,7 +10,6 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.chunk.ChunkAPIManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONTypeAPIManager;
@@ -36,8 +35,8 @@ import java.util.Set;
 /** Runtime group for indexed per-dimension NBT world data. */
 public final class DataWorldChunkAPIManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataWorldChunkAPIManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data";
-	private static final String WORLD_DATA_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data/madoku-data-world";
+	private static final String DATA_CONFIG_FOLDER = "madoku-craft-core/madoku-data";
+	private static final String WORLD_DATA_FOLDER = "madoku-craft-core/madoku-data/madoku-data-world";
 	private static final String DATA_CONFIG_FILE = "madoku-data";
 	private static final String FIELD_AUTO_SAVE = "auto-save";
 	private static final String FIELD_VERSION = "version";
@@ -408,5 +407,4 @@ public final class DataWorldChunkAPIManager {
 		}
 	}
 }
-
 

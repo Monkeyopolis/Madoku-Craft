@@ -1,6 +1,5 @@
 package madoku.craft.levels;
 
-import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -12,7 +11,7 @@ public final class MadokuLevelsClientState {
 	private MadokuLevelsClientState() {
 	}
 
-	public static void applyPayload(LevelsPayloadManager.Payload payload) {
+	public static void applyPayload(LevelsPayloadAPIManager.Payload payload) {
 		if (payload == null) {
 			return;
 		}
@@ -44,7 +43,7 @@ public final class MadokuLevelsClientState {
 		version++;
 	}
 
-	private static List<LevelStat> visibleStatsForPayload(LevelsPayloadManager.Payload payload) {
+	private static List<LevelStat> visibleStatsForPayload(LevelsPayloadAPIManager.Payload payload) {
 		List<LevelStat> decoded = LevelStat.decodeVisibleStats(payload.visibleStats());
 		if (!decoded.isEmpty()) {
 			return List.copyOf(decoded);

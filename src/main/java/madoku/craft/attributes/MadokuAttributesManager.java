@@ -15,6 +15,12 @@ public final class MadokuAttributesManager {
 
 	public static void initialize() {
 		loadStaticConfig();
+		ArmorAPIManager.registerProvider(new MadokuArmorProvider());
+		HealthAPIManager.registerProvider(new MadokuHealthProvider());
+		HungerAPIManager.registerProvider(new MadokuHungerProvider());
+		OxygenAPIManager.registerProvider(new MadokuOxygenProvider());
+		LuckAPIManager.registerProvider(new MadokuLuckProvider());
+		ExperienceAPIManager.registerProvider(new MadokuExperienceProvider());
 		ExperienceAPIManager.initialize();
 		ArmorAPIManager.initialize();
 		HealthAPIManager.initialize();
@@ -93,4 +99,3 @@ public final class MadokuAttributesManager {
 		settings = AttributesConfigManager.loadSettings();
 	}
 }
-

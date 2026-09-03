@@ -4,10 +4,10 @@ import madoku.craft.attributes.HealthAPIManager;
 import madoku.craft.attributes.HungerAPIManager;
 import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.ecosystem.EcosystemAPIManager;
+import madoku.craft.ecosystem.MadokuEcosystemManager;
 import madoku.craft.entity.MadokuEntities;
 import madoku.craft.farming.MadokuFarmingManager;
-import madoku.craft.levels.MadokuLevelsManager;
+import madoku.craft.levels.LevelsPlayerAPIManager;
 import madoku.craft.pet.MadokuPetManager;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
@@ -121,20 +121,20 @@ public final class DataSaveCoordinatorManager {
 		if (shutdown) {
 			MadokuEntities.savePersistedData(server);
 			MadokuFarmingManager.savePersistedData(server);
-			EcosystemAPIManager.savePersistedData(server);
+			MadokuEcosystemManager.savePersistedData(server);
 			SchedulerAPIManager.savePersistedData(server);
 			HealthAPIManager.savePersistedData(server);
 			HungerAPIManager.savePersistedData(server);
-			MadokuLevelsManager.savePersistedData(server);
+			LevelsPlayerAPIManager.savePersistedData(server);
 			MadokuPetManager.savePersistedData(server);
 		} else {
 			MadokuEntities.autosavePersistedData(server);
 			MadokuFarmingManager.autosavePersistedData(server);
-			EcosystemAPIManager.autosavePersistedData(server);
+			MadokuEcosystemManager.autosavePersistedData(server);
 			SchedulerAPIManager.autosavePersistedData(server);
 			HealthAPIManager.autosavePersistedData(server);
 			HungerAPIManager.autosavePersistedData(server);
-			MadokuLevelsManager.autosavePersistedData(server);
+			LevelsPlayerAPIManager.autosavePersistedData(server);
 			MadokuPetManager.autosavePersistedData(server);
 		}
 		if (shutdown) MadokuChunkDataManager.savePersistedData(server);

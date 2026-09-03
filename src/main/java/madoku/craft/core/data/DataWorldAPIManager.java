@@ -3,7 +3,6 @@ package madoku.craft.core.data;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONTypeAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
@@ -21,7 +20,7 @@ import java.util.Map;
 /** Runtime group for indexed global world JSON data. */
 public final class DataWorldAPIManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataWorldAPIManager.class);
-	private static final String DATA_CONFIG_FOLDER = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-data";
+	private static final String DATA_CONFIG_FOLDER = "madoku-craft-core/madoku-data";
 	private static final String DATA_FILE_NAME = "madoku-data-world.json";
 	private static final String FIELD_VERSION = "version";
 	private static final String FIELD_SYSTEMS = "systems";
@@ -147,5 +146,4 @@ public final class DataWorldAPIManager {
 	}
 
 }
-
 

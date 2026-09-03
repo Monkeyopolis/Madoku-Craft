@@ -10,35 +10,45 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class SchedulerAPIManager {
+	private static final SchedulerProvider UNAVAILABLE_PROVIDER = new SchedulerProvider() { };
+	private static volatile SchedulerProvider provider = UNAVAILABLE_PROVIDER;
+
 	private SchedulerAPIManager() {
 	}
 
+	public static void registerProvider(SchedulerProvider candidate) {
+		if (candidate == null) throw new IllegalArgumentException("Scheduler provider must not be null.");
+		provider = candidate;
+	}
+
+	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
+
 	public static void initialize() {
-		SchedulerRuntimeManager.initialize();
+		provider.initialize();
 	}
 
 	public static void reset() {
-		SchedulerRuntimeManager.reset();
+		provider.reset();
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
-		SchedulerRuntimeManager.loadPersistedData(server);
+		provider.loadPersistedData(server);
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		SchedulerRuntimeManager.savePersistedData(server);
+		provider.savePersistedData(server);
 	}
 
 	public static void autosavePersistedData(MinecraftServer server) {
-		SchedulerRuntimeManager.autosavePersistedData(server);
+		provider.autosavePersistedData(server);
 	}
 
 	public static void onClockTick(MinecraftServer server) {
-		SchedulerRuntimeManager.onClockTick(server);
+		provider.onClockTick(server);
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		SchedulerRuntimeManager.onServerTick(server);
+		provider.onServerTick(server);
 	}
 
 	public static long resolveAdaptiveDelayTicks(
@@ -47,27 +57,27 @@ public final class SchedulerAPIManager {
 		long minimumIntervalTicks,
 		long maximumIntervalTicks
 	) {
-		return SchedulerRuntimeManager.resolveAdaptiveDelayTicks(server, schedulerOwnerId, minimumIntervalTicks, maximumIntervalTicks);
+		return provider.resolveAdaptiveDelayTicks(server, schedulerOwnerId, minimumIntervalTicks, maximumIntervalTicks);
 	}
 
 	public static void clearAdaptiveDelayState(String schedulerOwnerId) {
-		SchedulerRuntimeManager.clearAdaptiveDelayState(schedulerOwnerId);
+		provider.clearAdaptiveDelayState(schedulerOwnerId);
 	}
 
 	public static void clearQueuedRequests(String schedulerId) {
-		SchedulerRuntimeManager.clearQueuedRequests(schedulerId);
+		provider.clearQueuedRequests(schedulerId);
 	}
 
 	public static boolean hasQueuedTask(String schedulerId, String taskType) {
-		return SchedulerRuntimeManager.hasQueuedTask(schedulerId, taskType);
+		return provider.hasQueuedTask(schedulerId, taskType);
 	}
 
 	public static String createOrGetScheduler(SchedulerBinding binding) {
-		return createOrGetScheduler(binding, SchedulerRuntimeManager.defaultExpirationDays());
+		return createOrGetScheduler(binding, provider.defaultExpirationDays());
 	}
 
 	public static String createOrGetScheduler(SchedulerBinding binding, int expirationDays) {
-		return SchedulerRuntimeManager.createOrGetScheduler(binding, expirationDays);
+		return provider.createOrGetScheduler(binding, expirationDays);
 	}
 
 	public static EnqueueStatus enqueue(
@@ -77,19 +87,19 @@ public final class SchedulerAPIManager {
 		JsonObject payload,
 		TickDomain domain
 	) {
-		return SchedulerRuntimeManager.enqueue(schedulerId, delayTicks, taskType, payload, domain);
+		return provider.enqueue(schedulerId, delayTicks, taskType, payload, domain);
 	}
 
 	public static void registerTaskHandler(String taskType, TaskHandler handler) {
-		SchedulerRuntimeManager.registerTaskHandler(taskType, handler);
+		provider.registerTaskHandler(taskType, handler);
 	}
 
 	public static void unregisterTaskHandler(String taskType) {
-		SchedulerRuntimeManager.unregisterTaskHandler(taskType);
+		provider.unregisterTaskHandler(taskType);
 	}
 
 	public static String normalizeLevelIdentifier(String levelId) {
-		return normalizeLevelId(levelId);
+		return provider.normalizeLevelIdentifier(levelId);
 	}
 
 	private static int getInt(JsonObject object, String key, int fallback) {
@@ -474,8 +484,6 @@ public final class SchedulerAPIManager {
 	}
 
 }
-
-
 
 
 

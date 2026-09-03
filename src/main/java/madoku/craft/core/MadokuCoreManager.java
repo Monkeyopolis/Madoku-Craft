@@ -2,8 +2,15 @@ package madoku.craft.core;
 
 import madoku.craft.core.chunk.ChunkAPIManager;
 import madoku.craft.core.data.DataAPIManager;
+import madoku.craft.core.data.MadokuDataProvider;
 import madoku.craft.core.enchant.EnchantAPIManager;
+import madoku.craft.core.enchant.MadokuEnchantProvider;
+import madoku.craft.core.loot.MadokuLootTableProvider;
+import madoku.craft.core.smithing.MadokuSmithingProvider;
 import madoku.craft.core.helper.HelperAPIManager;
+import madoku.craft.core.helper.BlockDropContextAPIManager;
+import madoku.craft.core.helper.MadokuBlockDropContextProvider;
+import madoku.craft.core.helper.MadokuHelperProvider;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.loot.LootTableAPIManager;
 import madoku.craft.core.recipes.RecipesAPIManager;
@@ -11,8 +18,11 @@ import madoku.craft.core.scheduler.SchedulerAPIManager;
 import madoku.craft.core.season.SeasonAPIManager;
 import madoku.craft.core.smithing.SmithingAPIManager;
 import madoku.craft.core.sync.SyncAPIManager;
+import madoku.craft.core.sync.MadokuSyncProvider;
+import madoku.craft.core.scheduler.MadokuSchedulerProvider;
 import madoku.craft.core.time.TimeAPIManager;
-import madoku.craft.ecosystem.EcosystemAPIManager;
+import madoku.craft.core.time.MadokuTimeProvider;
+import madoku.craft.ecosystem.MadokuEcosystemManager;
 
 import java.nio.file.Path;
 
@@ -27,18 +37,27 @@ public final class MadokuCoreManager {
 
 	/** Initializes the shared core services and all core subsystems. */
 	public static void initialize() {
+		BlockDropContextAPIManager.registerProvider(new MadokuBlockDropContextProvider());
+		HelperAPIManager.registerProvider(new MadokuHelperProvider());
 		HelperAPIManager.initialize();
 		JSONAPIManager.initialize();
 		getCoreRootDirectory();
+		DataAPIManager.registerProvider(new MadokuDataProvider());
 		DataAPIManager.initialize();
+		TimeAPIManager.registerProvider(new MadokuTimeProvider());
 		TimeAPIManager.initialize();
 		ChunkAPIManager.initialize();
 		SeasonAPIManager.initialize();
+		SchedulerAPIManager.registerProvider(new MadokuSchedulerProvider());
 		SchedulerAPIManager.initialize();
+		SyncAPIManager.registerProvider(new MadokuSyncProvider());
 		SyncAPIManager.initialize();
 		RecipesAPIManager.initialize();
+		LootTableAPIManager.registerProvider(new MadokuLootTableProvider());
 		LootTableAPIManager.initialize();
+		EnchantAPIManager.registerProvider(new MadokuEnchantProvider());
 		EnchantAPIManager.initialize();
+		SmithingAPIManager.registerProvider(new MadokuSmithingProvider());
 		SmithingAPIManager.initialize();
 	}
 
@@ -86,7 +105,7 @@ public final class MadokuCoreManager {
 		HelperAPIManager.onServerTick(server);
 		EnchantAPIManager.onServerTick(server);
 		ChunkAPIManager.onServerTick(server);
-		EcosystemAPIManager.onServerTick(server);
+		MadokuEcosystemManager.onServerTick(server);
 		if (TimeAPIManager.isEnabled()) {
 			SchedulerAPIManager.onClockTick(server);
 		} else {

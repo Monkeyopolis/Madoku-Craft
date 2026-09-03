@@ -1,6 +1,6 @@
 package madoku.craft.mixin.smelting;
 
-import madoku.craft.smelting.system.MadokuSmeltingManager;
+import madoku.craft.smelting.system.SmeltingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
@@ -20,15 +20,15 @@ public abstract class AbstractFurnaceServerTickMixin {
 		AbstractFurnaceBlockEntity furnace,
 		CallbackInfo ci
 	) {
-		if (MadokuSmeltingManager.isEnabled() && furnace != null) {
+		if (SmeltingAPIManager.isEnabled() && furnace != null) {
 			int currentTotal = ((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$getCookingTotalTime();
-			int desiredTotal = MadokuSmeltingManager.getCookTimeTicks(furnace, currentTotal);
+			int desiredTotal = SmeltingAPIManager.getCookTimeTicks(furnace, currentTotal);
 			if (currentTotal > 0 && desiredTotal > 0 && currentTotal != desiredTotal) {
 				((AbstractFurnaceCookTimeAccessor) furnace).madokuCraft$setCookingTotalTime(desiredTotal);
 				furnace.setChanged();
 			}
 		}
-		MadokuSmeltingManager.onFurnaceServerTick(level, blockPos, blockState, furnace);
+		SmeltingAPIManager.onFurnaceServerTick(level, blockPos, blockState, furnace);
 	}
 }
 

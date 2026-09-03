@@ -36,7 +36,8 @@ public final class HudAPIManager {
 		Minecraft client = Minecraft.getInstance();
 		ClientLevel level = client.level;
 		LocalPlayer player = client.player;
-		if (!MadokuHudManager.hasRenderablePlayer(client)) return;
+		if (client == null || client.level == null || client.player == null
+			|| client.gui.hud.isHidden() || client.player.isSpectator()) return;
 
 		long day;
 		int hour;
@@ -230,4 +231,3 @@ public final class HudAPIManager {
 	}
 
 }
-

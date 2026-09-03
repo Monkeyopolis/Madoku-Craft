@@ -1,7 +1,7 @@
 package madoku.craft.mixin.smelting;
 
 import madoku.craft.items.ItemsCategoriesManager;
-import madoku.craft.smelting.system.MadokuSmeltingManager;
+import madoku.craft.smelting.system.SmeltingAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.FuelValues;
@@ -19,12 +19,12 @@ public abstract class FurnaceCookTimeMixin {
 		AbstractFurnaceBlockEntity furnace,
 		CallbackInfoReturnable<Integer> cir
 	) {
-		if (!MadokuSmeltingManager.isEnabled() || furnace == null) {
+		if (!SmeltingAPIManager.isEnabled() || furnace == null) {
 			return;
 		}
 
 		int original = cir.getReturnValue();
-		int configured = MadokuSmeltingManager.getCookTimeTicks(furnace, original);
+		int configured = SmeltingAPIManager.getCookTimeTicks(furnace, original);
 		if (configured > 0 && configured != original) {
 			cir.setReturnValue(configured);
 		}
@@ -36,14 +36,14 @@ public abstract class FurnaceCookTimeMixin {
 		ItemStack stack,
 		CallbackInfoReturnable<Integer> cir
 	) {
-		if (!MadokuSmeltingManager.isEnabled() || stack == null || stack.isEmpty()) {
+		if (!SmeltingAPIManager.isEnabled() || stack == null || stack.isEmpty()) {
 			return;
 		}
 
 		int original = cir.getReturnValue();
 		int itemConfigured = ItemsCategoriesManager.adjustFuelTicks(stack, original);
 		AbstractFurnaceBlockEntity furnace = (AbstractFurnaceBlockEntity) (Object) this;
-		int adjusted = MadokuSmeltingManager.getAdjustedFuelTicks(furnace, stack, itemConfigured);
+		int adjusted = SmeltingAPIManager.getAdjustedFuelTicks(furnace, stack, itemConfigured);
 		if (adjusted > 0 && adjusted != original) {
 			cir.setReturnValue(adjusted);
 		}

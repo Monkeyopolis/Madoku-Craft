@@ -77,6 +77,7 @@ public final class MadokuSmeltingManager {
 	}
 
 	public static void initialize() {
+		SmeltingAPIManager.registerProvider(new MadokuSmeltingProvider());
 		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
 
@@ -723,5 +724,4 @@ public final class MadokuSmeltingManager {
 	private record FurnaceBehavior(double smeltingSpeed, double fuelEfficiency) {
 	}
 }
-
 

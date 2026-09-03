@@ -1,6 +1,5 @@
 package madoku.craft.core.smithing;
 
-import madoku.craft.core.MadokuCoreManager;
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
 import madoku.craft.core.sync.SyncConfigAPIManager;
@@ -11,7 +10,7 @@ import java.nio.file.Path;
 
 /** Owns the static Madoku Smithing configuration. */
 public final class SmithingConfigAPIManager {
-	private static final String CONFIG_ROOT_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-smithing";
+	private static final String CONFIG_ROOT_FOLDER_NAME = "madoku-craft-core/madoku-smithing";
 	private static final String CONFIG_FILE_NAME = "madoku-smithing.json";
 	private static final String FIELD_ENABLED = "enabled";
 	private static volatile boolean enabled = true;
@@ -89,6 +88,5 @@ public final class SmithingConfigAPIManager {
 		}
 	}
 }
-
 
 

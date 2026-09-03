@@ -181,6 +181,20 @@ public final class MadokuTimeManager {
 		lastSyncTotalMinutes = -1L;
 	}
 
+	public static boolean isSleepEnabled() { return TimeSleepManager.isEnabled(); }
+	public static boolean shouldAllowResettingTime(net.minecraft.world.entity.player.Player player) { return TimeSleepManager.shouldAllowResettingTime(player); }
+	public static long refreshSleepTickIncrement(MinecraftServer server) { return TimeSleepManager.refreshTickIncrement(server); }
+	public static long refreshTickIncrement(MinecraftServer server) { return TimeSleepManager.refreshTickIncrement(server); }
+	public static long getSleepTickIncrement(MinecraftServer server) { return TimeSleepManager.getTickIncrement(server); }
+	public static long getTickIncrement(MinecraftServer server) { return TimeSleepManager.getTickIncrement(server); }
+	public static long getCachedSleepTickIncrement() { return TimeSleepManager.getCachedTickIncrement(); }
+	public static long getCachedTickIncrement() { return TimeSleepManager.getCachedTickIncrement(); }
+	public static boolean canStartSleeping(net.minecraft.world.entity.player.Player player) { return TimeSleepManager.canStartSleeping(player); }
+	public static boolean shouldAllowBedSleepByTime(net.minecraft.world.attribute.BedRule bedRule, net.minecraft.world.level.Level level, net.minecraft.world.entity.player.Player player) { return TimeSleepManager.shouldAllowBedSleepByTime(bedRule, level, player); }
+	public static boolean shouldKeepSleepingWhileForwarding(net.minecraft.world.attribute.BedRule bedRule, net.minecraft.world.level.Level level, net.minecraft.world.entity.player.Player player) { return TimeSleepManager.shouldKeepSleepingWhileForwarding(bedRule, level, player); }
+	public static void onSleepStarted(ServerPlayer player) { TimeSleepManager.onSleepStarted(player); }
+	public static boolean isThunderstormBypassEnabled() { return TimeConfigManager.isThunderstormBypassEnabled(); }
+
 	private static TimePayloadAPIManager currentSyncPayload(MinecraftServer server) {
 		if (server == null || server.overworld() == null) {
 			return null;
@@ -192,4 +206,3 @@ public final class MadokuTimeManager {
 		return new TimePayloadAPIManager(day, totalMinutes / 60, totalMinutes % 60);
 	}
 }
-

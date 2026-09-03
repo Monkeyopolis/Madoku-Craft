@@ -7,8 +7,10 @@ import net.minecraft.world.item.ItemStack;
 
 /** Public contract for the rarity subsystem. */
 public final class RarityAPIManager {
-	private RarityAPIManager() {
-	}
+	private static final RarityProvider UNAVAILABLE_PROVIDER = new RarityProvider() { };
+	private static volatile RarityProvider provider = UNAVAILABLE_PROVIDER;
+
+	private RarityAPIManager() { }
 
 	public enum Tier {
 		COMMON("common", ChatFormatting.WHITE, "*"),
@@ -32,28 +34,25 @@ public final class RarityAPIManager {
 		public String inventoryIndicator() { return inventoryIndicator; }
 	}
 
-	private static RarityTierAPIManager.Tier toInternal(Tier tier) {
-		return tier == null ? null : RarityTierAPIManager.Tier.valueOf(tier.name());
+	public static void registerProvider(RarityProvider candidate) {
+		if (candidate == null) throw new IllegalArgumentException("Rarity provider must not be null.");
+		provider = candidate;
 	}
-
-	private static Tier fromInternal(RarityTierAPIManager.Tier tier) {
-		return tier == null ? null : Tier.valueOf(tier.name());
-	}
-
-	public static void initialize() { MadokuRarityManager.initialize(); }
-	public static void reset() { MadokuRarityManager.reset(); }
-	public static boolean isEnabled() { return MadokuRarityManager.isEnabled(); }
-	public static String createClientSyncSnapshot() { return MadokuRarityManager.createClientSyncSnapshot(); }
-	public static void applyClientSyncSnapshot(String snapshot) { MadokuRarityManager.applyClientSyncSnapshot(snapshot); }
-	public static void resetClientSyncState() { MadokuRarityManager.resetClientSyncState(); }
-	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource) { MadokuRarityManager.applyGeneratedRarity(stack, randomSource); }
-	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource, ServerPlayer luckPlayer) { MadokuRarityManager.applyGeneratedRarity(stack, randomSource, luckPlayer); }
-	public static void applyConfiguredRarity(ItemStack stack, Tier rarity) { MadokuRarityManager.applyConfiguredRarity(stack, toInternal(rarity)); }
-	public static void preserveRarityOnRename(ItemStack source, ItemStack target) { MadokuRarityManager.preserveRarityOnRename(source, target); }
-	public static Tier detectAppliedRarity(ItemStack stack) { return fromInternal(MadokuRarityManager.detectAppliedRarity(stack)); }
-	public static Tier fromString(String value) { return fromInternal(RarityTierAPIManager.fromString(value)); }
-	public static boolean isRarityItem(ItemStack stack) { return MadokuRarityManager.isRarityItem(stack); }
-	public static double resolveWeight(Tier tier, double luckStat, boolean useMadokuLuck) { return MadokuRarityManager.resolveWeight(toInternal(tier), luckStat, useMadokuLuck); }
-	public static double resolveWeight(Tier tier, ServerPlayer player, boolean useMadokuLuck) { return MadokuRarityManager.resolveWeight(toInternal(tier), player, useMadokuLuck); }
-	public static double resolveWeightMultiplier(Tier tier, double luckStat, boolean useMadokuLuck) { return MadokuRarityManager.resolveWeightMultiplier(toInternal(tier), luckStat, useMadokuLuck); }
+	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
+	public static void initialize() { provider.initialize(); }
+	public static void reset() { provider.reset(); }
+	public static boolean isEnabled() { return provider.isEnabled(); }
+	public static String createClientSyncSnapshot() { return provider.createClientSyncSnapshot(); }
+	public static void applyClientSyncSnapshot(String snapshot) { provider.applyClientSyncSnapshot(snapshot); }
+	public static void resetClientSyncState() { provider.resetClientSyncState(); }
+	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource) { provider.applyGeneratedRarity(stack, randomSource); }
+	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource, ServerPlayer luckPlayer) { provider.applyGeneratedRarity(stack, randomSource, luckPlayer); }
+	public static void applyConfiguredRarity(ItemStack stack, Tier rarity) { provider.applyConfiguredRarity(stack, rarity); }
+	public static void preserveRarityOnRename(ItemStack source, ItemStack target) { provider.preserveRarityOnRename(source, target); }
+	public static Tier detectAppliedRarity(ItemStack stack) { return provider.detectAppliedRarity(stack); }
+	public static Tier fromString(String value) { return provider.fromString(value); }
+	public static boolean isRarityItem(ItemStack stack) { return provider.isRarityItem(stack); }
+	public static double resolveWeight(Tier tier, double luckStat, boolean useMadokuLuck) { return provider.resolveWeight(tier, luckStat, useMadokuLuck); }
+	public static double resolveWeight(Tier tier, ServerPlayer player, boolean useMadokuLuck) { return provider.resolveWeight(tier, player, useMadokuLuck); }
+	public static double resolveWeightMultiplier(Tier tier, double luckStat, boolean useMadokuLuck) { return provider.resolveWeightMultiplier(tier, luckStat, useMadokuLuck); }
 }

@@ -25,7 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public final class EcosystemAPIManager {
+/** Internal shared runtime used by the ecosystem subsystem contracts. */
+final class EcosystemAPIManager {
 	private static final String DATA_SYSTEM_ID = "ecosystem";
 	private static final String FIELD_GROUND_BLOCKS = "ground-blocks";
 	private static final String FIELD_LEVEL_ID = "level-id";
@@ -164,18 +165,15 @@ public final class EcosystemAPIManager {
 
 	public static void initialize() {
 		EcosystemConfigManager.initialize();
-		EcosystemNaturalGrowthManager.initialize();
-		EcosystemNaturalErosionManager.initialize();
-		EcosystemNaturalDecayManager.initialize();
-		loadConfig();
 		ChunkAPIManager.registerChunkLifecycleListener(CHUNK_LISTENER);
+	}
+
+	static void refreshSettings() {
+		loadConfig();
 	}
 
 	public static void reset() {
 		EcosystemConfigManager.reset();
-		EcosystemNaturalGrowthManager.reset();
-		EcosystemNaturalErosionManager.reset();
-		EcosystemNaturalDecayManager.reset();
 		dirtBlocksByKey.clear();
 		dirtKeysByChunk.clear();
 		dirtKeysByColumn.clear();
@@ -468,15 +466,15 @@ public final class EcosystemAPIManager {
 	}
 
 	private static void syncChunkProcessorActivation() {
-		EcosystemNaturalGrowthManager.syncChunkProcessorActivation();
-		EcosystemNaturalErosionManager.syncChunkProcessorActivation();
-		EcosystemNaturalDecayManager.syncChunkProcessorActivation();
+		NaturalGrowthAPIManager.syncChunkProcessorActivation();
+		NaturalErosionAPIManager.syncChunkProcessorActivation();
+		NaturalDecayAPIManager.syncChunkProcessorActivation();
 	}
 
 	private static void loadConfig() {
-		naturalGrowthSettings = EcosystemNaturalGrowthManager.getSettings();
-		naturalErosionSettings = EcosystemNaturalErosionManager.getSettings();
-		naturalDecaySettings = EcosystemNaturalDecayManager.getSettings();
+		naturalGrowthSettings = NaturalGrowthAPIManager.getSettings();
+		naturalErosionSettings = NaturalErosionAPIManager.getSettings();
+		naturalDecaySettings = NaturalDecayAPIManager.getSettings();
 		ecosystemEnabled = EcosystemConfigManager.getSettings().enabled();
 		refreshErosionRuleCache();
 	}
@@ -1918,6 +1916,3 @@ public final class EcosystemAPIManager {
 		}
 	}
 }
-
-
-

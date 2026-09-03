@@ -7,39 +7,47 @@ import net.minecraft.world.entity.LivingEntity;
 
 /** Public contract for the hunger attribute subsystem. */
 public final class HungerAPIManager {
+	private static final HungerProvider UNAVAILABLE_PROVIDER = new HungerProvider() { };
+	private static volatile HungerProvider provider = UNAVAILABLE_PROVIDER;
+
 	private HungerAPIManager() {
 	}
 
-	public static void initialize() { MadokuHungerManager.initialize(); }
-	public static void reset() { MadokuHungerManager.reset(); }
-	public static void loadPersistedData(MinecraftServer server) { MadokuHungerManager.loadPersistedData(server); }
-	public static void autosavePersistedData(MinecraftServer server) { MadokuHungerManager.autosavePersistedData(server); }
-	public static void savePersistedData(MinecraftServer server) { MadokuHungerManager.savePersistedData(server); }
-	public static void onServerStarted(MinecraftServer server) { MadokuHungerManager.onServerStarted(server); }
-	public static void handlePlayerTeleport(ServerPlayer player) { MadokuHungerManager.handlePlayerTeleport(player); }
-	public static boolean isEnabled() { return MadokuHungerManager.isEnabled(); }
-	public static boolean isSaturationEnabled() { return MadokuHungerManager.isSaturationEnabled(); }
-	public static boolean isHungerEffectEnabled() { return MadokuHungerManager.isHungerEffectEnabled(); }
-	public static int getCurrentHungerPoints(ServerPlayer player) { return MadokuHungerManager.getCurrentHungerPoints(player); }
-	public static int getEffectiveHungerPoints(ServerPlayer player) { return MadokuHungerManager.getEffectiveHungerPoints(player); }
-	public static int getMaximumHungerPoints(ServerPlayer player) { return MadokuHungerManager.getMaximumHungerPoints(player); }
-	public static int getConfiguredMaximumHungerPoints() { return MadokuHungerManager.getConfiguredMaximumHungerPoints(); }
-	public static void applyClientSynchronizedSettings(boolean enabled, int maximum) {
-		MadokuHungerManager.applyClientSynchronizedSettings(enabled, maximum);
+	public static void registerProvider(HungerProvider candidate) {
+		if (candidate == null) throw new IllegalArgumentException("Hunger provider must not be null.");
+		provider = candidate;
 	}
-	public static void resetClientSynchronizedSettings() { MadokuHungerManager.resetClientSynchronizedSettings(); }
-	public static boolean shouldApplyStarvationDamage(ServerPlayer player) { return MadokuHungerManager.shouldApplyStarvationDamage(player); }
-	public static void handleMaximumHungerChanged(ServerPlayer player) { MadokuHungerManager.handleMaximumHungerChanged(player); }
+	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
+	public static void initialize() { provider.initialize(); }
+	public static void reset() { provider.reset(); }
+	public static void loadPersistedData(MinecraftServer server) { provider.loadPersistedData(server); }
+	public static void autosavePersistedData(MinecraftServer server) { provider.autosavePersistedData(server); }
+	public static void savePersistedData(MinecraftServer server) { provider.savePersistedData(server); }
+	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
+	public static void handlePlayerTeleport(ServerPlayer player) { provider.handlePlayerTeleport(player); }
+	public static boolean isEnabled() { return provider.isEnabled(); }
+	public static boolean isSaturationEnabled() { return provider.isSaturationEnabled(); }
+	public static boolean isHungerEffectEnabled() { return provider.isHungerEffectEnabled(); }
+	public static int getCurrentHungerPoints(ServerPlayer player) { return provider.getCurrentHungerPoints(player); }
+	public static int getEffectiveHungerPoints(ServerPlayer player) { return provider.getEffectiveHungerPoints(player); }
+	public static int getMaximumHungerPoints(ServerPlayer player) { return provider.getMaximumHungerPoints(player); }
+	public static int getConfiguredMaximumHungerPoints() { return provider.getConfiguredMaximumHungerPoints(); }
+	public static void applyClientSynchronizedSettings(boolean enabled, int maximum) {
+		provider.applyClientSynchronizedSettings(enabled, maximum);
+	}
+	public static void resetClientSynchronizedSettings() { provider.resetClientSynchronizedSettings(); }
+	public static boolean shouldApplyStarvationDamage(ServerPlayer player) { return provider.shouldApplyStarvationDamage(player); }
+	public static void handleMaximumHungerChanged(ServerPlayer player) { provider.handleMaximumHungerChanged(player); }
 	public static boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) {
-		return MadokuHungerManager.shouldOverrideVanillaEffect(entity, effect);
+		return provider.shouldOverrideVanillaEffect(entity, effect);
 	}
 	public static boolean canConsumeFood(ServerPlayer player, boolean ignoreHunger) {
-		return MadokuHungerManager.canConsumeFood(player, ignoreHunger);
+		return provider.canConsumeFood(player, ignoreHunger);
 	}
 	public static void onFoodConsumed(ServerPlayer player, int nutrition) {
-		MadokuHungerManager.onFoodConsumed(player, nutrition);
+		provider.onFoodConsumed(player, nutrition);
 	}
 	public static int drainHunger(ServerPlayer player, int amount) {
-		return MadokuHungerManager.drainHunger(player, amount);
+		return provider.drainHunger(player, amount);
 	}
 }

@@ -5,7 +5,6 @@ import com.google.gson.JsonObject;
 
 import madoku.craft.core.json.JSONFormatAPIManager;
 import madoku.craft.core.json.JSONAPIManager;
-import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +95,7 @@ public final class LevelsConfigManager {
 	}
 
 	public record Settings(boolean enabled, PlayerSettings player, EnumMap<LevelStat, StatSettings> stats) {
-		private static Settings defaults() {
+		public static Settings defaults() {
 			EnumMap<LevelStat, StatSettings> stats = new EnumMap<>(LevelStat.class);
 			for (LevelStat stat : LevelStat.values()) {
 				stats.put(stat, StatSettings.defaultsFor(stat));
@@ -202,4 +201,3 @@ public final class LevelsConfigManager {
 		} catch (RuntimeException exception) { return fallback; }
 	}
 }
-

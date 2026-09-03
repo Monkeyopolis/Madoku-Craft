@@ -1,6 +1,5 @@
 package madoku.craft.levels;
 
-import madoku.craft.levels.MadokuLevelsManager.LevelStat;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
