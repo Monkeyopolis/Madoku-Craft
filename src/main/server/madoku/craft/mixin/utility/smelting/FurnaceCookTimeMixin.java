@@ -1,7 +1,7 @@
-package madoku.craft.mixin.smelting;
+package madoku.craft.mixin.utility.smelting;
 
 import madoku.craft.java.items.ItemsCategoriesAPIManager;
-import madoku.craft.java.smelting.system.SmeltingAPIManager;
+import madoku.craft.java.utility.smelting.SmeltingAPIManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.FuelValues;

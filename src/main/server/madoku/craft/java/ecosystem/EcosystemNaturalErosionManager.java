@@ -32,7 +32,7 @@ public final class EcosystemNaturalErosionManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalErosionManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
-	private static final String CONFIG_FILE_NAME = "natural-erosion";
+	private static final String CONFIG_FILE_NAME = "madoku-natural-erosion";
 
 	private static volatile NaturalErosionConfigManager.Settings settings = NaturalErosionConfigManager.defaults();
 	private static final Map<String, Identifier> BIOME_IDENTIFIERS = new ConcurrentHashMap<>();
@@ -507,4 +507,3 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 }
-

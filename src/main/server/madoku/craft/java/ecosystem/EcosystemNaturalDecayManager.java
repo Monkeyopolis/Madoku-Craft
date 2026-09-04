@@ -36,7 +36,7 @@ public final class EcosystemNaturalDecayManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalDecayManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
-	private static final String CONFIG_FILE_NAME = "natural-decay";
+	private static final String CONFIG_FILE_NAME = "madoku-natural-decay";
 
 	private static volatile NaturalDecayConfigManager.Settings settings = NaturalDecayConfigManager.defaults();
 	private static final Predicate<BlockState> NATURAL_LEAF_STATE = state -> state != null && state.is(BlockTags.LEAVES);
@@ -585,4 +585,3 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 }
-

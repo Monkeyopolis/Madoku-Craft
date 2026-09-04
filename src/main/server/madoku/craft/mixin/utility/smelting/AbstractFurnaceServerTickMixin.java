@@ -1,6 +1,5 @@
-package madoku.craft.mixin.smelting;
+package madoku.craft.mixin.utility.smelting;
 
-import madoku.craft.java.smelting.system.SmeltingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
@@ -9,6 +8,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import madoku.craft.java.utility.smelting.SmeltingAPIManager;
 
 @Mixin(AbstractFurnaceBlockEntity.class)
 public abstract class AbstractFurnaceServerTickMixin {

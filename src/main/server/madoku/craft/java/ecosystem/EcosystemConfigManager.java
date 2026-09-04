@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class EcosystemConfigManager {
 	public static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
-	public static final String CONFIG_FILE_NAME = "ecosystem";
+	public static final String CONFIG_FILE_NAME = "madoku-ecosystem";
 	public static final String FIELD_ENABLED = "enabled";
 	public static final String FIELD_SEASON_SPRING = "spring";
 	public static final String FIELD_SEASON_SUMMER = "summer";
@@ -303,5 +303,4 @@ public final class EcosystemConfigManager {
 		}
 	}
 }
-
 

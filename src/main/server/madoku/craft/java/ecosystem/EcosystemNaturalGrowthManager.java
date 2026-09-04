@@ -57,10 +57,11 @@ public final class EcosystemNaturalGrowthManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalGrowthManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
-	private static final String CONFIG_FILE_NAME = "natural-growth";
+	private static final String CONFIG_FILE_NAME = "madoku-natural-growth";
 	private static final int MAX_GRASS_CANDIDATES_PER_CHUNK = 4;
 	private static final int MAX_DESERT_FOLIAGE_GROWTH_CANDIDATES_PER_CHUNK = 4;
 	private static final int MAX_FOLIAGE_CANDIDATES_PER_CHUNK = 4;
+	private static final int NATURAL_GROWTH_CLEARANCE_RADIUS = 3;
 	private static final String BLOCK_ID_SHORT_GRASS = "minecraft:short_grass";
 	private static final String BLOCK_ID_TALL_GRASS = "minecraft:tall_grass";
 	private static final String BLOCK_ID_BUSH = "minecraft:bush";
@@ -439,6 +440,9 @@ public final class EcosystemNaturalGrowthManager {
 		BlockPos treePos = groundPos.above();
 		BlockState aboveState = world.getBlockState(treePos);
 		if (!aboveState.isAir() && !aboveState.is(Blocks.SNOW)) {
+			return false;
+		}
+		if (!hasNaturalGrowthClearance(world, treePos)) {
 			return false;
 		}
 
@@ -1275,6 +1279,9 @@ public final class EcosystemNaturalGrowthManager {
 		if (!aboveFree) {
 			return false;
 		}
+		if (!hasNaturalGrowthClearance(world, saplingPos)) {
+			return false;
+		}
 		return isTreeTypeNaturalForBiome(world, groundPos, treeType);
 	}
 
@@ -1341,7 +1348,42 @@ public final class EcosystemNaturalGrowthManager {
 		if (growState == null || !growState.isAir()) {
 			return false;
 		}
+		if (!hasNaturalGrowthClearance(world, growPos)) {
+			return false;
+		}
 		return Blocks.CACTUS.defaultBlockState().canSurvive(world, growPos);
+	}
+
+	/**
+	 * Keeps natural trees and cacti from growing into nearby structures or one
+	 * another. The support block is below the target and is intentionally not
+	 * part of the scan; the target itself may be air or replaceable snow.
+	 */
+	private static boolean hasNaturalGrowthClearance(ServerLevel world, BlockPos targetPos) {
+		if (world == null || targetPos == null) {
+			return false;
+		}
+
+		int radius = NATURAL_GROWTH_CLEARANCE_RADIUS;
+		int radiusSquared = radius * radius;
+		for (int dx = -radius; dx <= radius; dx++) {
+			for (int dy = 0; dy <= radius; dy++) {
+				for (int dz = -radius; dz <= radius; dz++) {
+					if (dx == 0 && dy == 0 && dz == 0
+						|| dx * dx + dy * dy + dz * dz > radiusSquared) {
+						continue;
+					}
+					BlockPos position = targetPos.offset(dx, dy, dz);
+					BlockState state = world.getBlockState(position);
+					if (!state.isAir()
+						&& !state.canBeReplaced()
+						&& !state.getCollisionShape(world, position).isEmpty()) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
 	}
 
 	static boolean isValidFoliageGroundCandidate(ServerLevel world, BlockPos groundPos, BlockState groundState, String foliageType) {
@@ -2325,4 +2367,3 @@ public final class EcosystemNaturalGrowthManager {
 
 
 }
-

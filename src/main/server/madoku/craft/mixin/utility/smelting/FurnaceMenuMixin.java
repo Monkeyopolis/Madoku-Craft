@@ -1,4 +1,4 @@
-package madoku.craft.mixin.smelting;
+package madoku.craft.mixin.utility.smelting;
 
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;

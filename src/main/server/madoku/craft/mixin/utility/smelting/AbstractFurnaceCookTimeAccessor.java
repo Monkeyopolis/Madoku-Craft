@@ -1,4 +1,4 @@
-package madoku.craft.mixin.smelting;
+package madoku.craft.mixin.utility.smelting;
 
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import org.spongepowered.asm.mixin.Mixin;

@@ -1,4 +1,4 @@
-package madoku.craft.mixin.smelting;
+package madoku.craft.mixin.utility.smelting;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

@@ -20,8 +20,8 @@ import madoku.craft.java.farming.MadokuFarmingManager;
 import madoku.craft.java.items.ItemsAPIManager;
 import madoku.craft.java.items.MadokuItemsProvider;
 import madoku.craft.java.levels.MadokuLevelsManager;
-import madoku.craft.java.smelting.system.MadokuSmeltingManager;
 import madoku.craft.java.pet.PetAPIManager;
+import madoku.craft.java.utility.smelting.MadokuUtilityManager;
 import madoku.craft.java.pet.MadokuPetProvider;
 import madoku.craft.java.worldgen.MadokuWorldgen;
 import net.fabricmc.api.ModInitializer;
@@ -35,7 +35,7 @@ public class MadokuCraft implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		MadokuCoreManager.initialize();
-		MadokuSmeltingManager.initialize();
+		MadokuUtilityManager.initialize();
 		MadokuMobManager.initialize();
 		MadokuWorldgen.initialize();
 		MadokuEntities.initialize();
@@ -75,7 +75,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuCoreManager.onServerStarted(server);
 			MadokuFarmingManager.onServerStarted(server);
 			MadokuEcosystemManager.onServerStarted(server);
-			MadokuSmeltingManager.onServerStarted();
+			MadokuUtilityManager.onServerStarted(server);
 			HealthAPIManager.loadPersistedData(server);
 			HungerAPIManager.loadPersistedData(server);
 			MadokuLevelsManager.loadPersistedData(server);
@@ -104,7 +104,7 @@ public class MadokuCraft implements ModInitializer {
 			ItemsAPIManager.reset();
 			MadokuCoreManager.reset();
 			ChunkDataAPIManager.reset();
-			MadokuSmeltingManager.onServerStopped();
+			MadokuUtilityManager.onServerStopped(server);
 			MadokuMobManager.onServerStopped();
 			HealthAPIManager.reset();
 			HungerAPIManager.reset();

@@ -1,4 +1,4 @@
-package madoku.craft.java.smelting.system;
+package madoku.craft.java.utility.smelting;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -7,7 +7,7 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Provider contract for Madoku Smelting runtime behavior. */
+/** Public provider contract for Madoku Smelting runtime behavior. */
 public interface SmeltingProvider {
 	default boolean isEnabled() { return false; }
 	default int getCookTimeTicks(AbstractFurnaceBlockEntity furnace, int originalTicks) { return originalTicks; }
