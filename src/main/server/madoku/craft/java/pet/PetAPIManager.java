@@ -41,6 +41,7 @@ public final class PetAPIManager {
 	public static void initialize() { provider.initialize(); }
 	public static void reset() { provider.reset(); }
 	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
+	public static void onServerTick(MinecraftServer server) { provider.onServerTick(server); }
 	public static void loadPersistedData(MinecraftServer server) { provider.loadPersistedData(server); }
 	public static void autosavePersistedData(MinecraftServer server) { provider.autosavePersistedData(server); }
 	public static void savePersistedData(MinecraftServer server) { provider.savePersistedData(server); }

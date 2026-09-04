@@ -10,6 +10,7 @@ public interface ItemsProvider {
 	default void initialize() { }
 	default void reset() { }
 	default void onServerStarted(MinecraftServer server) { }
+	default void onServerTick(MinecraftServer server) { }
 	default boolean isEnabled() { return false; }
 	default boolean areItemLevelsEnabled() { return false; }
 	default boolean isConfiguredFuel(ItemStack stack) { return false; }

@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.MadokuCoreManager;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -282,7 +282,7 @@ public final class ChunkAPIManager {
 	}
 
 	static String levelId(ServerLevel level) {
-		return level == null ? "" : SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString());
+		return level == null ? "" : MadokuCoreManager.normalizeLevelIdentifier(level.dimension().toString());
 	}
 
 	static long packChunk(int chunkX, int chunkZ) {
@@ -325,4 +325,3 @@ public final class ChunkAPIManager {
 
 	private record PendingChunkEvent(ServerLevel level, int chunkX, int chunkZ, boolean loaded, long generation) { }
 }
-

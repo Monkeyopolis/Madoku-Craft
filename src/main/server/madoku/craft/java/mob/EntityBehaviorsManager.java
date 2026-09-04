@@ -10,7 +10,7 @@ import java.util.UUID;
 
 import madoku.craft.java.attributes.LuckAPIManager;
 import madoku.craft.java.core.helper.HelperProjectileAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.java.farming.FarmingAPIManager;
 import madoku.craft.mixin.mob.AbstractSkeletonArrowInvoker;
 import net.minecraft.core.BlockPos;
@@ -355,7 +355,7 @@ public final class EntityBehaviorsManager {
 			String bestKey = "";
 			double bestProgress = Double.MAX_VALUE;
 			int tieCount = 0;
-			String levelId = SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString());
+			String levelId = MadokuCoreManager.normalizeLevelIdentifier(level.dimension().toString());
 			for (BlockPos candidate : BlockPos.betweenClosed(
 				center.offset(-searchRadiusHorizontal, -searchRadiusVertical, -searchRadiusHorizontal),
 				center.offset(searchRadiusHorizontal, searchRadiusVertical, searchRadiusHorizontal)
@@ -410,7 +410,7 @@ public final class EntityBehaviorsManager {
 			if (known == null) {
 				return null;
 			}
-			String levelId = SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString());
+			String levelId = MadokuCoreManager.normalizeLevelIdentifier(level.dimension().toString());
 			if (!levelId.equals(known.levelId())) {
 				BEE_KNOWN_CROP_TARGETS.remove(beeId, known);
 				return null;
@@ -443,7 +443,7 @@ public final class EntityBehaviorsManager {
 			if (level == null || state == null || !state.hasTarget() || beeId == null) {
 				return false;
 			}
-			String currentLevelId = SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString());
+			String currentLevelId = MadokuCoreManager.normalizeLevelIdentifier(level.dimension().toString());
 			if (!currentLevelId.equals(state.reservedLevelId)) {
 				return false;
 			}

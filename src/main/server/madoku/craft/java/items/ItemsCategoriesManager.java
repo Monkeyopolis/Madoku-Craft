@@ -9,7 +9,7 @@ import madoku.craft.mixin.item.ItemComponentsAccessor;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONTypeAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.sync.SyncConfigAPIManager;
 import madoku.craft.mixin.item.ItemBuiltInRegistryHolderAccessor;
 import net.minecraft.core.Holder;
@@ -71,9 +71,9 @@ public final class ItemsCategoriesManager {
 	private static final AttackRange DEFAULT_REACH = new AttackRange(0.0F, 3.0F, 0.0F, 5.0F, 0.3F, 1.0F);
 	private static final int MAX_FUEL_TICKS = 201600;
 	private static final long PLAYER_COMPONENT_SYNC_INTERVAL_TICKS = 5L;
-	private static final String TASK_TYPE_ITEM_PLAYER_TICK = "item_player_tick";
-	private static final String ITEM_PLAYER_TICK_SCHEDULER_KEY = "item_player_tick";
-	private static final long ITEM_PLAYER_TICK_DELAY = 1L;
+	private static final String ITEM_PLAYER_TICK_SYSTEM_ID = "item_player_tick";
+	private static final long ITEM_PLAYER_TICK_MIN_INTERVAL = 1L;
+	private static final long ITEM_PLAYER_TICK_MAX_INTERVAL = 5L;
 
 	private static final String ITEM_CONFIG_ROOT_FOLDER_NAME = "madoku-craft-items";
 	private static final String ITEM_CONFIG_SETTINGS_FILE_NAME = "madoku-items";
@@ -122,8 +122,7 @@ public final class ItemsCategoriesManager {
 	private static Set<Item> savedWeaponCategoryItems = Set.of();
 	private static Set<Item> savedArmorCategoryItems = Set.of();
 	private static Map<Item, DataComponentMap> savedClientComponents = Map.of();
-	private static volatile String schedulerId = "";
-	private static volatile boolean tickQueued;
+	private static volatile long nextPlayerTick = Long.MIN_VALUE;
 
 	private ItemsCategoriesManager() {
 	}
@@ -131,7 +130,6 @@ public final class ItemsCategoriesManager {
 	public static void initialize() {
 		ItemsCategoriesAPIManager.registerProvider(new MadokuItemsCategoriesProvider());
 		loadStaticConfig();
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_ITEM_PLAYER_TICK, ItemsCategoriesManager::runPlayerTickTask);
 		SyncConfigAPIManager.register(
 			"items",
 			ItemsCategoriesManager::createClientSyncSnapshot,
@@ -142,7 +140,7 @@ public final class ItemsCategoriesManager {
 
 	public static void onServerStarted(MinecraftServer server) {
 		applyConfiguredItemMetadata();
-		ensureQueued(server, ITEM_PLAYER_TICK_DELAY);
+		nextPlayerTick = Long.MIN_VALUE;
 	}
 
 	public static void applyConfiguredItemMetadata() {
@@ -159,78 +157,24 @@ public final class ItemsCategoriesManager {
 	}
 
 	public static void reset() {
-		schedulerId = "";
-		tickQueued = false;
+		nextPlayerTick = Long.MIN_VALUE;
+		AdaptiveIntervalAPIManager.clearSystem(ITEM_PLAYER_TICK_SYSTEM_ID);
 		savedClientComponents = Map.of();
 		itemLevelsEnabled = true;
 		itemStartingLevel = 1;
 		itemMaximumLevel = 5;
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		tickQueued = false;
-		if (server == null || context == null) {
-			return;
-		}
-
-		schedulerId = context.getSchedulerId();
-		long gameplayTick = context.getNowTick();
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) return;
+		long now = Math.max(0L, madoku.craft.java.core.time.TimeAPIManager.getGameplayTicks());
+		if (nextPlayerTick != Long.MIN_VALUE && now < nextPlayerTick) return;
+		long interval = AdaptiveIntervalAPIManager.resolve(ITEM_PLAYER_TICK_SYSTEM_ID, server,
+			ITEM_PLAYER_TICK_MIN_INTERVAL, ITEM_PLAYER_TICK_MAX_INTERVAL);
+		nextPlayerTick = now + Math.max(1L, interval);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			onPlayerTick(server, player, gameplayTick);
+			onPlayerTick(server, player, now);
 		}
-		ensureQueued(server, ITEM_PLAYER_TICK_DELAY);
-	}
-
-	private static void ensureQueued(MinecraftServer server, long delayTicks) {
-		if (server == null || tickQueued) {
-			return;
-		}
-
-		String currentSchedulerId = ensureScheduler();
-		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_ITEM_PLAYER_TICK)) {
-			tickQueued = true;
-			return;
-		}
-		if (enqueue(currentSchedulerId, delayTicks)) {
-			tickQueued = true;
-			return;
-		}
-
-		schedulerId = SchedulerAPIManager.createOrGetScheduler(
-			SchedulerAPIManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
-		);
-		if (enqueue(schedulerId, delayTicks)) {
-			tickQueued = true;
-			return;
-		}
-
-		LOGGER.error("Failed to enqueue item player tick task.");
-	}
-
-	private static String ensureScheduler() {
-		String current = schedulerId;
-		if (current != null && !current.isBlank()) {
-			return current;
-		}
-		schedulerId = SchedulerAPIManager.createOrGetScheduler(
-			SchedulerAPIManager.SchedulerBinding.global(ITEM_PLAYER_TICK_SCHEDULER_KEY)
-		);
-		return schedulerId;
-	}
-
-	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
-		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			targetSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE_ITEM_PLAYER_TICK,
-			new JsonObject(),
-			SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
-			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
 	}
 
 	public static String createClientSyncSnapshot() {
@@ -2097,4 +2041,3 @@ public final class ItemsCategoriesManager {
 		MULTI
 	}
 }
-

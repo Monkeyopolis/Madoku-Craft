@@ -7,7 +7,7 @@ import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONTypeAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.sync.SyncWorldAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.mixin.mob.MobExperienceAccessor;
@@ -51,16 +51,14 @@ import java.util.function.Predicate;
 public final class MobRegionalDifficultyManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MobRegionalDifficultyManager.class);
 
-	private static final String TASK_TYPE_TIME_TICK = "difficulty_time_tick";
-	private static final String TIME_SCHEDULER_OWNER_ID = "madoku-regional-difficulty-time";
-	private static final long TIME_SCHEDULER_MIN_INTERVAL_TICKS = 5L;
-	private static final long TIME_SCHEDULER_MAX_INTERVAL_TICKS = 100L;
+	private static final String TIME_ADAPTIVE_ID = "madoku-regional-difficulty-time";
+	private static final long TIME_ADAPTIVE_MIN_INTERVAL_TICKS = 5L;
+	private static final long TIME_ADAPTIVE_MAX_INTERVAL_TICKS = 100L;
 
 	private static final long TICKS_PER_DAY = 24000L;
 
 	private static volatile Snapshot snapshot = Snapshot.disabled();
-	private static volatile String timeSchedulerId = "";
-	private static volatile boolean timeTaskScheduled = false;
+	private static volatile long nextTimeTick = Long.MIN_VALUE;
 	private static volatile long cachedTimeDayCount = Long.MIN_VALUE;
 	private static volatile int cachedTimeAdjustment = 0;
 	private static final Map<UUID, PlayerDifficultyState> LAST_SYNC_STATE_BY_PLAYER = new HashMap<>();
@@ -70,33 +68,37 @@ public final class MobRegionalDifficultyManager {
 
 	public static void initialize() {
 		loadConfig();
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_TIME_TICK, MobRegionalDifficultyManager::runTimeTask);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
 			syncDifficultyToPlayer(server, handler.player, true)
 		);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		SchedulerAPIManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
-		timeSchedulerId = "";
-		timeTaskScheduled = false;
+		AdaptiveIntervalAPIManager.clearSystem(TIME_ADAPTIVE_ID);
+		nextTimeTick = Long.MIN_VALUE;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		LAST_SYNC_STATE_BY_PLAYER.clear();
 		refreshCachedTimeAdjustment(server, snapshot);
-		timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
-		SchedulerAPIManager.clearQueuedRequests(timeSchedulerId);
-		requestTimeProcessing(server, 1L);
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		requestTimeProcessing(server, resolveTimeSchedulerInterval(server));
+		if (server == null) return;
+		Snapshot config = snapshot;
+		if (!config.enabled() || !config.timeEnabled()) {
+			cachedTimeDayCount = Long.MIN_VALUE;
+			cachedTimeAdjustment = 0;
+			return;
+		}
+		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		if (nextTimeTick != Long.MIN_VALUE && now < nextTimeTick) return;
+		nextTimeTick = now + Math.max(1L, resolveTimeAdaptiveInterval(server));
+		refreshCachedTimeAdjustment(server, config);
 	}
 
 	public static void onServerStopped() {
-		SchedulerAPIManager.clearAdaptiveDelayState(TIME_SCHEDULER_OWNER_ID);
-		timeSchedulerId = "";
-		timeTaskScheduled = false;
+		AdaptiveIntervalAPIManager.clearSystem(TIME_ADAPTIVE_ID);
+		nextTimeTick = Long.MIN_VALUE;
 		cachedTimeDayCount = Long.MIN_VALUE;
 		cachedTimeAdjustment = 0;
 		LAST_SYNC_STATE_BY_PLAYER.clear();
@@ -660,29 +662,12 @@ public final class MobRegionalDifficultyManager {
 		return 0L;
 	}
 
-	private static void runTimeTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		if (context == null) {
-			return;
-		}
-		timeSchedulerId = context.getSchedulerId();
-		timeTaskScheduled = false;
-
-		Snapshot config = snapshot;
-		if (!config.enabled() || !config.timeEnabled()) {
-			cachedTimeDayCount = Long.MIN_VALUE;
-			cachedTimeAdjustment = 0;
-			return;
-		}
-		refreshCachedTimeAdjustment(server, config);
-		requestTimeProcessing(server, resolveTimeSchedulerInterval(server));
-	}
-
-	private static long resolveTimeSchedulerInterval(MinecraftServer server) {
-		return SchedulerAPIManager.resolveAdaptiveDelayTicks(
+	private static long resolveTimeAdaptiveInterval(MinecraftServer server) {
+		return AdaptiveIntervalAPIManager.resolve(
+			TIME_ADAPTIVE_ID,
 			server,
-			TIME_SCHEDULER_OWNER_ID,
-			TIME_SCHEDULER_MIN_INTERVAL_TICKS,
-			TIME_SCHEDULER_MAX_INTERVAL_TICKS
+			TIME_ADAPTIVE_MIN_INTERVAL_TICKS,
+			TIME_ADAPTIVE_MAX_INTERVAL_TICKS
 		);
 	}
 
@@ -697,47 +682,6 @@ public final class MobRegionalDifficultyManager {
 		cachedTimeAdjustment = config.timeAdjustment(dayCount);
 	}
 
-	private static void requestTimeProcessing(MinecraftServer server, long delay) {
-		Snapshot config = snapshot;
-		if (server == null || !config.enabled() || !config.timeEnabled() || timeTaskScheduled) {
-			return;
-		}
-
-		String schedulerId = ensureTimeSchedulerExists();
-		if (enqueueTimeTask(schedulerId, delay)) {
-			timeTaskScheduled = true;
-			return;
-		}
-
-		timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
-		if (enqueueTimeTask(timeSchedulerId, delay)) {
-			timeTaskScheduled = true;
-			return;
-		}
-		LOGGER.error("Failed to enqueue MobRegionalDifficultyManager time scheduler task.");
-	}
-
-	private static String ensureTimeSchedulerExists() {
-		if (timeSchedulerId == null || timeSchedulerId.isBlank()) {
-			timeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(TIME_SCHEDULER_OWNER_ID));
-		}
-		return timeSchedulerId;
-	}
-
-	private static boolean enqueueTimeTask(String schedulerId, long delay) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			schedulerId,
-			Math.max(0L, delay),
-			TASK_TYPE_TIME_TICK,
-			new JsonObject(),
-			SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
-			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
-	}
 
 	private static StructureContext resolveStructureContext(
 		ServerLevel world,
@@ -1414,4 +1358,3 @@ public final class MobRegionalDifficultyManager {
 		}
 	}
 	}
-

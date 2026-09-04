@@ -10,6 +10,7 @@ public final class MadokuItemsProvider implements ItemsProvider {
 	@Override public void initialize() { MadokuItemsManager.initialize(); }
 	@Override public void reset() { MadokuItemsManager.reset(); }
 	@Override public void onServerStarted(MinecraftServer server) { MadokuItemsManager.onServerStarted(server); }
+	@Override public void onServerTick(MinecraftServer server) { MadokuItemsManager.onServerTick(server); }
 	@Override public boolean isEnabled() { return MadokuItemsManager.isEnabled(); }
 	@Override public boolean areItemLevelsEnabled() { return MadokuItemsManager.areItemLevelsEnabled(); }
 	@Override public boolean isConfiguredFuel(ItemStack stack) { return MadokuItemsManager.isConfiguredFuel(stack); }

@@ -14,6 +14,7 @@ public interface HealthProvider {
 	default void autosavePersistedData(MinecraftServer server) { }
 	default void savePersistedData(MinecraftServer server) { }
 	default void onServerStarted(MinecraftServer server) { }
+	default void onServerTick(MinecraftServer server) { }
 	default void handlePlayerEffectsChanged(ServerPlayer player) { }
 	default boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) { return false; }
 	default boolean shouldOverrideVanillaEffectAttributes(LivingEntity entity, MobEffect effect) { return false; }

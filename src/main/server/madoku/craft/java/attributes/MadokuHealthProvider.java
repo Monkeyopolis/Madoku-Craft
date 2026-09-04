@@ -14,6 +14,7 @@ public final class MadokuHealthProvider implements HealthProvider {
 	@Override public void autosavePersistedData(MinecraftServer server) { MadokuHealthManager.autosavePersistedData(server); }
 	@Override public void savePersistedData(MinecraftServer server) { MadokuHealthManager.savePersistedData(server); }
 	@Override public void onServerStarted(MinecraftServer server) { MadokuHealthManager.onServerStarted(server); }
+	@Override public void onServerTick(MinecraftServer server) { MadokuHealthManager.onServerTick(server); }
 	@Override public void handlePlayerEffectsChanged(ServerPlayer player) { MadokuHealthManager.handlePlayerEffectsChanged(player); }
 	@Override public boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) { return MadokuHealthManager.shouldOverrideVanillaEffect(entity, effect); }
 	@Override public boolean shouldOverrideVanillaEffectAttributes(LivingEntity entity, MobEffect effect) { return MadokuHealthManager.shouldOverrideVanillaEffectAttributes(entity, effect); }

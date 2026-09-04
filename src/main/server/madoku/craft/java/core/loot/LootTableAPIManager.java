@@ -51,7 +51,7 @@ public final class LootTableAPIManager {
 	public static void reset() { provider.reset(); }
 
 	static long resolveReloadIntervalMillis(net.minecraft.server.MinecraftServer server) {
-		long ticks = madoku.craft.java.core.scheduler.SchedulerAdaptiveIntervalAPIManager.resolve("loot-table-config", server, 30L, 600L);
+		long ticks = madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager.resolve("loot-table-config", server, 30L, 600L);
 		return ticks * 50L;
 	}
 
@@ -331,4 +331,3 @@ public final class LootTableAPIManager {
 
 	static record SharedLootEntry(Item item, int weight, int minCount, int maxCount) { }
 }
-

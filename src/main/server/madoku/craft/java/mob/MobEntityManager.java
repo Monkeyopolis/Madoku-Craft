@@ -11,7 +11,7 @@ import madoku.craft.mixin.mob.MobExperienceAccessor;
 import madoku.craft.java.attributes.LuckAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.loot.EquipmentsConfigAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -77,8 +77,7 @@ public final class MobEntityManager {
 
 		void madokuCraft$setWorldDifficultyScalingApplied(boolean applied);
 	}
-	private static final String TASK_TYPE_MOB_RUNTIME_TICK = "mob_runtime_tick";
-	private static final String MOB_SCHEDULER_OWNER_ID = "madoku-mob-runtime";
+	private static final String MOB_RUNTIME_ADAPTIVE_ID = "madoku-mob-runtime";
 	private static final double CREEPER_POWER_PER_DAMAGE = 0.2D;
 	private static final String NESTED_VARIANT_TAG_PREFIX = "madoku-craft.nested-variant:";
 	private static final String FIELD_FLYING_SPEED = MobConfigManager.FIELD_FLYING_SPEED;
@@ -90,14 +89,12 @@ public final class MobEntityManager {
 	private static final Map<UUID, Boolean> CONFIGURED_MOB_BABY_STATES = new ConcurrentHashMap<>();
 	private static final java.util.Set<UUID> APPLIED_SPAWN_OVERRIDES = ConcurrentHashMap.newKeySet();
 
-	private static volatile String runtimeSchedulerId = "";
-	private static volatile boolean runtimeTaskScheduled = false;
+	private static volatile long nextRuntimeTick = Long.MIN_VALUE;
 
 	private MobEntityManager() {
 	}
 
 	public static void initialize() {
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_MOB_RUNTIME_TICK, MobEntityManager::runRuntimeTask);
 		ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
 			if (entity instanceof Bee) {
 				TRACKED_BEES.put(entity.getUUID(), entity);
@@ -111,7 +108,6 @@ public final class MobEntityManager {
 				if (livingEntity instanceof AgeableMob ageableMob
 					&& ageableMob.isBaby()
 					&& EntityComponentsManager.resolveMobBabySettings(livingEntity).configured()) {
-					requestRuntimeProcessing(world.getServer(), resolveRuntimeProcessingInterval(world.getServer()));
 				}
 				applyDifficultyScalingAfterMobOverrides(livingEntity, world, reappliedMobOverrides);
 			}
@@ -127,9 +123,8 @@ public final class MobEntityManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		SchedulerAPIManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
-		runtimeSchedulerId = "";
-		runtimeTaskScheduled = false;
+		AdaptiveIntervalAPIManager.clearSystem(MOB_RUNTIME_ADAPTIVE_ID);
+		nextRuntimeTick = Long.MIN_VALUE;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_BEES.clear();
@@ -143,19 +138,22 @@ public final class MobEntityManager {
 		EntityBehaviorsManager.StrayBehavior.resetRuntimeState();
 		EntityBehaviorsManager.BoggedBehavior.resetRuntimeState();
 		EntityBehaviorsManager.ParchedBehavior.resetRuntimeState();
-		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
-		SchedulerAPIManager.clearQueuedRequests(runtimeSchedulerId);
-		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
+		nextRuntimeTick = Long.MIN_VALUE;
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
+		if (server == null || !MobConfigManager.isEnabled()) return;
+		long now = Math.max(0L, madoku.craft.java.core.time.TimeAPIManager.getGameplayTicks());
+		if (nextRuntimeTick != Long.MIN_VALUE && now < nextRuntimeTick) return;
+		nextRuntimeTick = now + Math.max(1L, resolveRuntimeProcessingInterval(server));
+		EntityBehaviorsManager.BeeBehavior.tickRuntime(server, TRACKED_BEES.values(), true,
+			isMobFileEnabled(MobConfigManager.FILE_BEE));
+		tickConfiguredMobBabyStates();
 	}
 
 	public static void onServerStopped() {
-		SchedulerAPIManager.clearAdaptiveDelayState(MOB_SCHEDULER_OWNER_ID);
-		runtimeSchedulerId = "";
-		runtimeTaskScheduled = false;
+		AdaptiveIntervalAPIManager.clearSystem(MOB_RUNTIME_ADAPTIVE_ID);
+		nextRuntimeTick = Long.MIN_VALUE;
 		PENDING_CAVE_SPIDER_REPLACEMENTS.clear();
 		PENDING_ZOMBIE_REPLACEMENTS.clear();
 		TRACKED_BEES.clear();
@@ -1422,24 +1420,6 @@ public final class MobEntityManager {
 		CONFIGURED_MOB_BABY_STATES.remove(entity.getUUID());
 	}
 
-	private static void runRuntimeTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		if (context != null) {
-			runtimeSchedulerId = context.getSchedulerId();
-		}
-		runtimeTaskScheduled = false;
-		boolean beeRuntimeActive = EntityBehaviorsManager.BeeBehavior.tickRuntime(
-			server,
-			TRACKED_BEES.values(),
-			MobConfigManager.isEnabled(),
-			isMobFileEnabled(MobConfigManager.FILE_BEE)
-		);
-		boolean mobBabyRuntimeActive = tickConfiguredMobBabyStates();
-		if (beeRuntimeActive
-			|| mobBabyRuntimeActive) {
-			requestRuntimeProcessing(server, resolveRuntimeProcessingInterval(server));
-		}
-	}
-
 	private static boolean tickConfiguredMobBabyStates() {
 		boolean active = false;
 		for (Entity entity : TRACKED_AGEABLE_MOBS.values()) {
@@ -1475,49 +1455,14 @@ public final class MobEntityManager {
 	}
 
 	private static long resolveRuntimeProcessingInterval(MinecraftServer server) {
-		return SchedulerAPIManager.resolveAdaptiveDelayTicks(
+		return AdaptiveIntervalAPIManager.resolve(
+			MOB_RUNTIME_ADAPTIVE_ID,
 			server,
-			MOB_SCHEDULER_OWNER_ID,
 			1L,
 			5L
 		);
 	}
 
-	private static void requestRuntimeProcessing(MinecraftServer server, long delayTicks) {
-		if (server == null || !MobConfigManager.isEnabled() || runtimeTaskScheduled) {
-			return;
-		}
-		String schedulerId = ensureRuntimeSchedulerExists();
-		if (enqueueRuntimeTask(schedulerId, delayTicks)) {
-			runtimeTaskScheduled = true;
-			return;
-		}
-		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
-		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
-			runtimeTaskScheduled = true;
-		}
-	}
-
-	private static String ensureRuntimeSchedulerExists() {
-		if (runtimeSchedulerId == null || runtimeSchedulerId.isBlank()) {
-			runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(SchedulerAPIManager.SchedulerBinding.global(MOB_SCHEDULER_OWNER_ID));
-		}
-		return runtimeSchedulerId;
-	}
-
-	private static boolean enqueueRuntimeTask(String schedulerId, long delayTicks) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			schedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE_MOB_RUNTIME_TICK,
-			new JsonObject(),
-			SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED || status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
-	}
 
 	private record PendingZombieReplacement(EntityType<?> replacementType, EntitySpawnReason reason) {}
 
@@ -2537,10 +2482,4 @@ public final class MobEntityManager {
 	private record WeightedVariant(String key, double weight) {}
 
 }
-
-
-
-
-
-
 

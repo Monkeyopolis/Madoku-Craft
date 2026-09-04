@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.java.core.data.PlayerDataAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.sync.SyncPlayerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.levels.LevelsPlayerAPIManager;
@@ -19,16 +19,11 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public final class MadokuHungerManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuHungerManager.class);
-
 	private static final int VANILLA_MAX_HUNGER_POINTS = 20;
 	private static final long HARDCORE_STARVATION_DELAY_TICKS = 1L * 24000L;
 	private static final long HARD_STARVATION_DELAY_TICKS = 1L * 24000L;
@@ -40,23 +35,20 @@ public final class MadokuHungerManager {
 	private static final long HUNGER_PLAYER_TICK_MIN_INTERVAL = 1L;
 	private static final long HUNGER_PLAYER_TICK_MAX_INTERVAL = 5L;
 	private static final String DATA_FILE_NAME = "madoku-hunger";
-	private static final String TASK_TYPE_HUNGER_PLAYER_TICK = "hunger_player_tick";
-	private static final String HUNGER_PLAYER_TICK_SCHEDULER_KEY = "hunger_player_tick";
+	private static final String HUNGER_PLAYER_TICK_SYSTEM_ID = "hunger_player_tick";
 
 	private static final Map<UUID, PlayerState> PLAYER_STATES = new HashMap<>();
 	private static volatile HungerConfigManager.Settings settings = HungerConfigManager.Settings.defaults();
 	private static volatile Boolean clientSynchronizedEnabled;
 	private static volatile Integer clientSynchronizedMaximum;
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static volatile String schedulerId = "";
-	private static volatile boolean tickQueued;
+	private static volatile long nextPlayerTick = Long.MIN_VALUE;
 
 	private MadokuHungerManager() {
 	}
 
 	public static void initialize() {
 		loadStaticConfig();
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_HUNGER_PLAYER_TICK, MadokuHungerManager::runPlayerTickTask);
 		ServerPlayerEvents.JOIN.register(MadokuHungerManager::handlePlayerJoin);
 		ServerPlayerEvents.AFTER_RESPAWN.register(MadokuHungerManager::handlePlayerRespawn);
 		PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> handleBlockBreak(player));
@@ -65,9 +57,8 @@ public final class MadokuHungerManager {
 	public static void reset() {
 		PLAYER_STATES.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
-		schedulerId = "";
-		tickQueued = false;
-		SchedulerAPIManager.clearAdaptiveDelayState(HUNGER_PLAYER_TICK_SCHEDULER_KEY);
+		nextPlayerTick = Long.MIN_VALUE;
+		AdaptiveIntervalAPIManager.clearSystem(HUNGER_PLAYER_TICK_SYSTEM_ID);
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -103,7 +94,7 @@ public final class MadokuHungerManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		ensureQueued(server);
+		nextPlayerTick = Long.MIN_VALUE;
 	}
 
 	/**
@@ -276,74 +267,14 @@ public final class MadokuHungerManager {
 		return drained;
 	}
 
-	private static void runPlayerTickTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		tickQueued = false;
-		if (server == null || context == null) {
-			return;
-		}
-
-		schedulerId = context.getSchedulerId();
-		long gameplayTick = Math.max(0L, context.getNowTick());
-		onGameplayTick(server, gameplayTick);
-		ensureQueued(server);
-	}
-
-	private static void ensureQueued(MinecraftServer server) {
-		if (server == null || tickQueued) {
-			return;
-		}
-
-		String currentSchedulerId = ensureScheduler();
-		long delayTicks = SchedulerAPIManager.resolveAdaptiveDelayTicks(
-			server,
-			HUNGER_PLAYER_TICK_SCHEDULER_KEY,
-			HUNGER_PLAYER_TICK_MIN_INTERVAL,
-			HUNGER_PLAYER_TICK_MAX_INTERVAL
-		);
-		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_HUNGER_PLAYER_TICK)) {
-			tickQueued = true;
-			return;
-		}
-		if (enqueue(currentSchedulerId, delayTicks)) {
-			tickQueued = true;
-			return;
-		}
-
-		schedulerId = SchedulerAPIManager.createOrGetScheduler(
-			SchedulerAPIManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
-		);
-		if (enqueue(schedulerId, delayTicks)) {
-			tickQueued = true;
-			return;
-		}
-
-		LOGGER.error("Failed to enqueue hunger player tick task.");
-	}
-
-	private static String ensureScheduler() {
-		String current = schedulerId;
-		if (current != null && !current.isBlank()) {
-			return current;
-		}
-		schedulerId = SchedulerAPIManager.createOrGetScheduler(
-			SchedulerAPIManager.SchedulerBinding.global(HUNGER_PLAYER_TICK_SCHEDULER_KEY)
-		);
-		return schedulerId;
-	}
-
-	private static boolean enqueue(String targetSchedulerId, long delayTicks) {
-		if (targetSchedulerId == null || targetSchedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			targetSchedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE_HUNGER_PLAYER_TICK,
-			new JsonObject(),
-			SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
-			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
+	public static void onServerTick(MinecraftServer server) {
+		if (server == null) return;
+		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		if (nextPlayerTick != Long.MIN_VALUE && now < nextPlayerTick) return;
+		long interval = AdaptiveIntervalAPIManager.resolve(HUNGER_PLAYER_TICK_SYSTEM_ID, server,
+			HUNGER_PLAYER_TICK_MIN_INTERVAL, HUNGER_PLAYER_TICK_MAX_INTERVAL);
+		nextPlayerTick = now + Math.max(1L, interval);
+		onGameplayTick(server, now);
 	}
 
 	private static void onGameplayTick(MinecraftServer server, long gameplayTick) {

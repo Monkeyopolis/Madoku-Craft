@@ -13,6 +13,7 @@ public interface HungerProvider {
 	default void autosavePersistedData(MinecraftServer server) { }
 	default void savePersistedData(MinecraftServer server) { }
 	default void onServerStarted(MinecraftServer server) { }
+	default void onServerTick(MinecraftServer server) { }
 	default void handlePlayerTeleport(ServerPlayer player) { }
 	default boolean isEnabled() { return false; }
 	default boolean isSaturationEnabled() { return false; }

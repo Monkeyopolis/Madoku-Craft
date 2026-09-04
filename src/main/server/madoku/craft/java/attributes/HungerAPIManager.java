@@ -24,6 +24,7 @@ public final class HungerAPIManager {
 	public static void autosavePersistedData(MinecraftServer server) { provider.autosavePersistedData(server); }
 	public static void savePersistedData(MinecraftServer server) { provider.savePersistedData(server); }
 	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
+	public static void onServerTick(MinecraftServer server) { provider.onServerTick(server); }
 	public static void handlePlayerTeleport(ServerPlayer player) { provider.handlePlayerTeleport(player); }
 	public static boolean isEnabled() { return provider.isEnabled(); }
 	public static boolean isSaturationEnabled() { return provider.isSaturationEnabled(); }

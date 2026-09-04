@@ -25,6 +25,7 @@ public final class HealthAPIManager {
 	public static void autosavePersistedData(MinecraftServer server) { provider.autosavePersistedData(server); }
 	public static void savePersistedData(MinecraftServer server) { provider.savePersistedData(server); }
 	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
+	public static void onServerTick(MinecraftServer server) { provider.onServerTick(server); }
 	public static void handlePlayerEffectsChanged(ServerPlayer player) { provider.handlePlayerEffectsChanged(player); }
 	public static boolean shouldOverrideVanillaEffect(LivingEntity entity, MobEffect effect) {
 		return provider.shouldOverrideVanillaEffect(entity, effect);

@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.sync.SyncConfigAPIManager;
+import net.minecraft.server.MinecraftServer;
 
 public final class MadokuAttributesManager {
 	private static volatile AttributesConfigManager.Settings settings = AttributesConfigManager.Settings.defaults();
@@ -38,6 +39,11 @@ public final class MadokuAttributesManager {
 	public static boolean isEnabled() {
 		Boolean synchronizedEnabled = clientSynchronizedEnabled;
 		return synchronizedEnabled == null ? settings.enabled : synchronizedEnabled;
+	}
+
+	public static void onServerTick(MinecraftServer server) {
+		HealthAPIManager.onServerTick(server);
+		HungerAPIManager.onServerTick(server);
 	}
 
 	public static String createClientSyncSnapshot() {

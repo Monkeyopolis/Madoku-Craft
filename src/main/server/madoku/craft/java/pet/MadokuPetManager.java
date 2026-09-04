@@ -19,7 +19,8 @@ import java.util.UUID;
 
 import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.rarity.RarityAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.MadokuCoreManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 
@@ -33,9 +34,7 @@ public final class MadokuPetManager {
 
 	private static final String DATA_FILE_NAME = "madoku-pets";
 
-	private static final String TASK_TYPE_PET_RUNTIME_TICK = "pet_runtime_tick";
-	private static final String PET_RUNTIME_SCHEDULER_KEY = "pet_runtime_tick";
-	static final String PET_RUNTIME_SCHEDULER_OWNER_ID = "pet_runtime";
+	static final String PET_RUNTIME_ADAPTIVE_ID = "pet_runtime";
 	static final long PET_RUNTIME_MIN_INTERVAL_TICKS = 1L;
 	static final long PET_RUNTIME_MAX_INTERVAL_TICKS = 5L;
 
@@ -62,9 +61,7 @@ public final class MadokuPetManager {
 	private static final Map<UUID, TeleportStamp> LAST_TELEPORT_STAMPS_BY_PLAYER = new HashMap<>();
 
 	private static long lastAutosaveBucket = Long.MIN_VALUE;
-	private static volatile String runtimeSchedulerId = "";
-	private static volatile boolean runtimeTickQueued;
-	private static boolean runtimeTickExecuting;
+	private static volatile long nextRuntimeTick = Long.MIN_VALUE;
 
 	private MadokuPetManager() {
 	}
@@ -77,8 +74,6 @@ public final class MadokuPetManager {
 		PetHudManager.initialize();
 		PetHagManager.initialize();
 		PetComponentsManager.initialize();
-		SchedulerAPIManager.registerTaskHandler(PetAbilitiesManager.TASK_TYPE_PET_ATTACK, PetAbilitiesManager::runPetAttack);
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_PET_RUNTIME_TICK, MadokuPetManager::runPetRuntimeTick);
 		ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
 			if (!(entity instanceof ServerPlayer player)) {
 				return;
@@ -122,17 +117,13 @@ public final class MadokuPetManager {
 		LAST_TELEPORT_STAMPS_BY_PLAYER.clear();
 		PetHudManager.clear();
 		PetAbilitiesManager.reset();
-		SchedulerAPIManager.clearAdaptiveDelayState(PET_RUNTIME_SCHEDULER_OWNER_ID);
+		AdaptiveIntervalAPIManager.clearSystem(PET_RUNTIME_ADAPTIVE_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
-		runtimeSchedulerId = "";
-		runtimeTickQueued = false;
-		runtimeTickExecuting = false;
+		nextRuntimeTick = Long.MIN_VALUE;
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		if (hasRuntimeWork()) {
-			ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
-		}
+		nextRuntimeTick = Long.MIN_VALUE;
 	}
 
 	public static void loadPersistedData(MinecraftServer server) {
@@ -179,10 +170,15 @@ public final class MadokuPetManager {
 		}
 	}
 
-	private static void onServerTick(MinecraftServer server) {
+	public static void onServerTick(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
+		if (!hasRuntimeWork()) return;
+		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		if (nextRuntimeTick != Long.MIN_VALUE && now < nextRuntimeTick) return;
+		nextRuntimeTick = now + Math.max(1L, adaptiveTickInterval(server));
+		onPlayerTickPhase(server);
 
 		PetAbilitiesManager.refreshPlayerPassiveAbilityBonuses(server);
 
@@ -203,26 +199,8 @@ public final class MadokuPetManager {
 		PetAbilitiesManager.tickManagedExplosiveProjectiles(server);
 		PetAbilitiesManager.tickManagedChickenEggProjectiles(server);
 		PetAbilitiesManager.tickManagedBeeSwarms(server);
+		PetAbilitiesManager.tickPendingPetAttacks(server);
 		PetHudManager.flushAbilityHudSyncs(server);
-	}
-
-	private static void runPetRuntimeTick(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		runtimeTickQueued = false;
-		if (server == null || context == null) {
-			return;
-		}
-
-		runtimeSchedulerId = context.getSchedulerId();
-		runtimeTickExecuting = true;
-		try {
-			onPlayerTickPhase(server);
-			onServerTick(server);
-		} finally {
-			runtimeTickExecuting = false;
-			if (hasRuntimeWork()) {
-				ensureRuntimeQueued(server, adaptiveSchedulerInterval(server));
-			}
-		}
 	}
 
 	private static boolean hasRuntimeWork() {
@@ -231,65 +209,14 @@ public final class MadokuPetManager {
 			|| PetAbilitiesManager.hasRuntimeWork();
 	}
 
-	static long adaptiveSchedulerInterval(MinecraftServer server) {
-		return SchedulerAPIManager.resolveAdaptiveDelayTicks(
+	static long adaptiveTickInterval(MinecraftServer server) {
+		return AdaptiveIntervalAPIManager.resolve(
+			PET_RUNTIME_ADAPTIVE_ID,
 			server,
-			PET_RUNTIME_SCHEDULER_OWNER_ID,
 			PET_RUNTIME_MIN_INTERVAL_TICKS,
 			PET_RUNTIME_MAX_INTERVAL_TICKS
 		);
 	}
-
-	private static void ensureRuntimeQueued(MinecraftServer server, long delayTicks) {
-		if (server == null || runtimeTickQueued) {
-			return;
-		}
-
-		String currentSchedulerId = ensureRuntimeSchedulerExists();
-		if (SchedulerAPIManager.hasQueuedTask(currentSchedulerId, TASK_TYPE_PET_RUNTIME_TICK)) {
-			runtimeTickQueued = true;
-			return;
-		}
-		if (enqueueRuntimeTask(currentSchedulerId, delayTicks)) {
-			runtimeTickQueued = true;
-			return;
-		}
-
-		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(
-
-			SchedulerAPIManager.SchedulerBinding.global(PET_RUNTIME_SCHEDULER_KEY)
-		);
-		if (enqueueRuntimeTask(runtimeSchedulerId, delayTicks)) {
-			runtimeTickQueued = true;
-		}
-	}
-
-	private static String ensureRuntimeSchedulerExists() {
-		String current = runtimeSchedulerId;
-		if (current != null && !current.isBlank()) {
-			return current;
-		}
-		runtimeSchedulerId = SchedulerAPIManager.createOrGetScheduler(
-			SchedulerAPIManager.SchedulerBinding.global(PET_RUNTIME_SCHEDULER_KEY)
-		);
-		return runtimeSchedulerId;
-	}
-
-	private static boolean enqueueRuntimeTask(String schedulerId, long delayTicks) {
-		if (schedulerId == null || schedulerId.isBlank()) {
-			return false;
-		}
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			schedulerId,
-			Math.max(0L, delayTicks),
-			TASK_TYPE_PET_RUNTIME_TICK,
-			new JsonObject(),
-			SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED
-			|| status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL;
-	}
-
 
 	public static boolean isManagedPet(Entity entity) {
 		return PetEntitiesManager.isManaged(entity);
@@ -298,7 +225,7 @@ public final class MadokuPetManager {
 
 
 	public static long managedPetSteeringInterval(MinecraftServer server) {
-		return PetEntitiesManager.activeSchedulerTickInterval(server);
+		return PetEntitiesManager.activeTickInterval(server);
 	}
 
 	public static Vec3 managedPetMovementTarget(Mob pet) {
@@ -389,15 +316,15 @@ public final class MadokuPetManager {
 			nextDelay = PetEntitiesManager.syncPlayerPets(player);
 		} else {
 			PetEntitiesManager.removeAllPets(server, playerId);
-			nextDelay = PetAbilitiesManager.hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeSchedulerTickInterval(server) : -1L;
+			nextDelay = PetAbilitiesManager.hasAutomaticPetAbilities(inventory) ? PetEntitiesManager.activeTickInterval(server) : -1L;
 		}
 		LivingEntity ongoingReactiveTarget = PetAbilitiesManager.resolveOngoingReactiveTarget(player);
 
 		if (ongoingReactiveTarget != null) {
 			PetAbilitiesManager.triggerReactiveAbilities(player, ongoingReactiveTarget);
 				nextDelay = nextDelay < 0L
-					? PetEntitiesManager.activeSchedulerTickInterval(server)
-					: Math.min(nextDelay, PetEntitiesManager.activeSchedulerTickInterval(server));
+					? PetEntitiesManager.activeTickInterval(server)
+					: Math.min(nextDelay, PetEntitiesManager.activeTickInterval(server));
 			}
 		PetAbilitiesManager.tickAutomaticAbilities(player, gameplayTick);
 		if (nextDelay >= 0L) {
@@ -416,7 +343,7 @@ public final class MadokuPetManager {
 			long gameplayTick = TimeAPIManager.getGameplayTicks();
 			TeleportStamp stamp = new TeleportStamp(
 				gameplayTick,
-				SchedulerAPIManager.normalizeLevelIdentifier(player.level().dimension().toString()),
+				MadokuCoreManager.normalizeLevelIdentifier(player.level().dimension().toString()),
 				player.getX(),
 				player.getY(),
 				player.getZ(),
@@ -447,9 +374,6 @@ public final class MadokuPetManager {
 		Long existingTick = NEXT_PROCESS_TICKS_BY_PLAYER.get(playerId);
 		if (existingTick == null || targetTick < existingTick) {
 			NEXT_PROCESS_TICKS_BY_PLAYER.put(playerId, targetTick);
-		}
-		if (!runtimeTickExecuting) {
-			ensureRuntimeQueued(server, 0L);
 		}
 	}
 

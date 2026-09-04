@@ -11,6 +11,7 @@ public interface PetProvider {
 	default void initialize() { }
 	default void reset() { }
 	default void onServerStarted(MinecraftServer server) { }
+	default void onServerTick(MinecraftServer server) { }
 	default void loadPersistedData(MinecraftServer server) { }
 	default void autosavePersistedData(MinecraftServer server) { }
 	default void savePersistedData(MinecraftServer server) { }

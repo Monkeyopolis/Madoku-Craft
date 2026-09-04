@@ -24,6 +24,7 @@ public final class ItemsAPIManager {
 	public static void initialize() { provider.initialize(); }
 	public static void reset() { provider.reset(); }
 	public static void onServerStarted(MinecraftServer server) { provider.onServerStarted(server); }
+	public static void onServerTick(MinecraftServer server) { provider.onServerTick(server); }
 	public static boolean isEnabled() { return provider.isEnabled(); }
 	public static boolean areItemLevelsEnabled() { return provider.areItemLevelsEnabled(); }
 	public static boolean isConfiguredFuel(ItemStack stack) { return provider.isConfiguredFuel(stack); }

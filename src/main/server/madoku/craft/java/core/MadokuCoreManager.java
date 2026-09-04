@@ -14,15 +14,16 @@ import madoku.craft.java.core.helper.MadokuHelperProvider;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.loot.LootTableAPIManager;
 import madoku.craft.java.core.recipes.RecipesAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
+import madoku.craft.java.core.runtime.MadokuAdaptiveIntervalProvider;
 import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.smithing.SmithingAPIManager;
 import madoku.craft.java.core.sync.SyncAPIManager;
 import madoku.craft.java.core.sync.MadokuSyncProvider;
-import madoku.craft.java.core.scheduler.MadokuSchedulerProvider;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.core.time.MadokuTimeProvider;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
+import net.minecraft.resources.Identifier;
 
 import java.nio.file.Path;
 
@@ -46,10 +47,10 @@ public final class MadokuCoreManager {
 		DataAPIManager.initialize();
 		TimeAPIManager.registerProvider(new MadokuTimeProvider());
 		TimeAPIManager.initialize();
+		AdaptiveIntervalAPIManager.registerProvider(new MadokuAdaptiveIntervalProvider());
+		AdaptiveIntervalAPIManager.initialize();
 		ChunkAPIManager.initialize();
 		SeasonAPIManager.initialize();
-		SchedulerAPIManager.registerProvider(new MadokuSchedulerProvider());
-		SchedulerAPIManager.initialize();
 		SyncAPIManager.registerProvider(new MadokuSyncProvider());
 		SyncAPIManager.initialize();
 		RecipesAPIManager.initialize();
@@ -66,15 +67,30 @@ public final class MadokuCoreManager {
 		return JSONAPIManager.getOrCreateGlobalSystemDirectory(CORE_FOLDER_NAME);
 	}
 
+	/** Normalizes a level identifier for persisted world-scoped data. */
+	public static String normalizeLevelIdentifier(String levelId) {
+		if (levelId == null) return null;
+		String trimmed = levelId.trim();
+		if (trimmed.isEmpty()) return null;
+		if (Identifier.tryParse(trimmed) != null) return trimmed;
+		int slashIndex = trimmed.lastIndexOf('/');
+		int closeBracketIndex = trimmed.lastIndexOf(']');
+		if (slashIndex >= 0 && closeBracketIndex > slashIndex) {
+			String candidate = trimmed.substring(slashIndex + 1, closeBracketIndex).trim();
+			if (Identifier.tryParse(candidate) != null) return candidate;
+		}
+		return trimmed;
+	}
+
 	/** Resets runtime state for the core services and all core subsystems. */
 	public static void reset() {
 		HelperAPIManager.reset();
 		DataAPIManager.reset();
 		JSONAPIManager.reset();
 		TimeAPIManager.reset();
+		AdaptiveIntervalAPIManager.reset();
 		SeasonAPIManager.reset();
 		ChunkAPIManager.reset();
-		SchedulerAPIManager.reset();
 		SyncAPIManager.reset();
 		RecipesAPIManager.reset();
 		LootTableAPIManager.reset();
@@ -85,7 +101,6 @@ public final class MadokuCoreManager {
 	public static void loadPersistedData(net.minecraft.server.MinecraftServer server) {
 		DataAPIManager.loadPersistedData(server);
 		ChunkAPIManager.loadPersistedData(server);
-		SchedulerAPIManager.loadPersistedData(server);
 	}
 
 	public static void onServerStarted(net.minecraft.server.MinecraftServer server) {
@@ -106,11 +121,6 @@ public final class MadokuCoreManager {
 		EnchantAPIManager.onServerTick(server);
 		ChunkAPIManager.onServerTick(server);
 		MadokuEcosystemManager.onServerTick(server);
-		if (TimeAPIManager.isEnabled()) {
-			SchedulerAPIManager.onClockTick(server);
-		} else {
-			SchedulerAPIManager.onServerTick(server);
-		}
 	}
 
 	public static boolean shouldRunWorldSync(net.minecraft.server.MinecraftServer server) {

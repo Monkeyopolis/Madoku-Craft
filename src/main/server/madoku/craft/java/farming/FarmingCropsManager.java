@@ -10,7 +10,7 @@ import madoku.craft.java.core.data.ChunkDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.loot.LootTableCropsAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.season.SeasonBiomeClimateAPIManager;
 import madoku.craft.java.core.sync.SyncConfigAPIManager;
@@ -877,7 +877,7 @@ public final class FarmingCropsManager {
 		if (world == null) {
 			return "";
 		}
-		return SchedulerAPIManager.normalizeLevelIdentifier(world.dimension().toString());
+		return MadokuCoreManager.normalizeLevelIdentifier(world.dimension().toString());
 	}
 
 	private static PlotState findPlot(ServerLevel world, BlockPos soilPos) {

@@ -1,6 +1,6 @@
 package madoku.craft.java.utility.smelting;
 
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import net.minecraft.server.MinecraftServer;
 
 /** Orchestrates Madoku Utility and its runtime/configuration subsystems. */
@@ -30,10 +30,10 @@ public final class MadokuUtilityManager {
 
 	/** Shared adaptive scheduling helper for utility runtime systems. */
 	public static long resolveAdaptiveInterval(MinecraftServer server, String owner, long minimum, long maximum) {
-		return SchedulerAPIManager.resolveAdaptiveDelayTicks(server, owner, minimum, maximum);
+		return AdaptiveIntervalAPIManager.resolve(owner, server, minimum, maximum);
 	}
 
 	public static void clearAdaptiveInterval(String owner) {
-		SchedulerAPIManager.clearAdaptiveDelayState(owner);
+		AdaptiveIntervalAPIManager.clearSystem(owner);
 	}
 }

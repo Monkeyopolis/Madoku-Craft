@@ -1,14 +1,15 @@
-package madoku.craft.java.core.scheduler;
+package madoku.craft.java.core.runtime;
 
+import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.server.MinecraftServer;
+
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import madoku.craft.java.core.time.TimeAPIManager;
-
-public final class SchedulerAdaptiveIntervalAPIManager {
+/** Resolves load-aware work intervals for systems driven by server ticks. */
+final class AdaptiveIntervalManager {
 	private static final float LOW_LOAD_MSPT = 30.0f;
 	private static final float HIGH_LOAD_MSPT = 55.0f;
 	private static final float HEALTHY_MSPT = 42.0f;
@@ -24,40 +25,28 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 	private static final long SAFE_FLOOR_RELAX_TICKS = 1200L;
 	private static final Map<String, IntervalState> STATES = new ConcurrentHashMap<>();
 
-	private SchedulerAdaptiveIntervalAPIManager() {
-	}
+	private AdaptiveIntervalManager() { }
 
-	public static long resolve(String systemId, MinecraftServer server, long minimumIntervalTicks, long maximumIntervalTicks) {
+	static long resolve(String systemId, MinecraftServer server, long minimumIntervalTicks, long maximumIntervalTicks) {
 		long min = Math.max(1L, minimumIntervalTicks);
 		long max = Math.max(min, maximumIntervalTicks);
-		if (server == null || min == max) {
-			return min;
-		}
+		if (server == null || min == max) return min;
 		String normalizedSystemId = normalizeSystemId(systemId);
 		long nowTick = Math.max(0L, TimeAPIManager.getGameplayTicks());
 		IntervalState state = STATES.computeIfAbsent(normalizedSystemId, ignored -> IntervalState.initial(nowTick, min));
 		return state.resolve(server, nowTick, min, max);
 	}
 
-	public static void clearSystem(String systemId) {
-		STATES.remove(normalizeSystemId(systemId));
-	}
-
-	public static void clearAll() {
-		STATES.clear();
-	}
+	static void clearSystem(String systemId) { STATES.remove(normalizeSystemId(systemId)); }
+	static void clearAll() { STATES.clear(); }
 
 	private static String normalizeSystemId(String systemId) {
-		if (systemId == null) {
-			return "default";
-		}
+		if (systemId == null) return "default";
 		String normalized = systemId.trim().toLowerCase(Locale.ROOT);
 		return normalized.isEmpty() ? "default" : normalized;
 	}
 
-	private static long clamp(long value, long min, long max) {
-		return Math.max(min, Math.min(max, value));
-	}
+	private static long clamp(long value, long min, long max) { return Math.max(min, Math.min(max, value)); }
 
 	private static final class IntervalState {
 		private long currentInterval;
@@ -79,26 +68,18 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 			state.safeFloorInterval = state.currentInterval;
 			state.nextAllowedChangeTick = nowTick;
 			state.nextAllowedDownscaleTick = nowTick;
-			state.lastEvaluationTick = Long.MIN_VALUE;
 			return state;
 		}
 
 		private long resolve(MinecraftServer server, long nowTick, long min, long max) {
 			normalizeRange(nowTick, min, max);
-			if (nowTick == lastEvaluationTick) {
-				return clamp(currentInterval, safeFloorInterval, max);
-			}
-			if (nowTick < lastEvaluationTick) {
-				resetForClockRollback(nowTick, min, max);
-			}
+			if (nowTick == lastEvaluationTick) return clamp(currentInterval, safeFloorInterval, max);
+			if (nowTick < lastEvaluationTick) resetForClockRollback(nowTick, min, max);
 
 			float rawMspt = Math.max(0.0f, resolveAverageMspt(server));
 			if (Float.isFinite(rawMspt) && rawMspt > 0.0f) {
-				if (!Double.isFinite(smoothedMspt) || smoothedMspt <= 0.0d) {
-					smoothedMspt = rawMspt;
-				} else {
-					smoothedMspt = (EMA_ALPHA * rawMspt) + ((1.0d - EMA_ALPHA) * smoothedMspt);
-				}
+				if (!Double.isFinite(smoothedMspt) || smoothedMspt <= 0.0d) smoothedMspt = rawMspt;
+				else smoothedMspt = (EMA_ALPHA * rawMspt) + ((1.0d - EMA_ALPHA) * smoothedMspt);
 			}
 
 			double mspt = smoothedMspt;
@@ -107,43 +88,24 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 			boolean critical = Double.isFinite(mspt) && mspt >= CRITICAL_MSPT;
 			updateStreakMarkers(nowTick, healthy, unhealthy);
 
-			if (probing && unhealthy) {
-				failProbe(nowTick, min, max);
-			} else if (probing && nowTick - probeStartTick >= PROBE_OBSERVE_TICKS) {
-				succeedProbe(nowTick);
-			}
+			if (probing && unhealthy) failProbe(nowTick, min, max);
+			else if (probing && nowTick - probeStartTick >= PROBE_OBSERVE_TICKS) succeedProbe(nowTick);
 
-			if (safeFloorInterval > min
-				&& healthy
-				&& lastSafeFloorRaiseTick != Long.MIN_VALUE
-				&& nowTick - lastSafeFloorRaiseTick >= SAFE_FLOOR_RELAX_TICKS
-				&& nowTick >= nextAllowedDownscaleTick) {
+			if (safeFloorInterval > min && healthy && lastSafeFloorRaiseTick != Long.MIN_VALUE
+				&& nowTick - lastSafeFloorRaiseTick >= SAFE_FLOOR_RELAX_TICKS && nowTick >= nextAllowedDownscaleTick) {
 				safeFloorInterval = Math.max(min, safeFloorInterval - 1L);
 				lastSafeFloorRaiseTick = nowTick;
 			}
 
 			long targetInterval = currentInterval;
-			if (Double.isFinite(mspt)) {
-				targetInterval = calculateMsptTarget(mspt, min, max);
-			}
-
+			if (Double.isFinite(mspt)) targetInterval = calculateMsptTarget(mspt, min, max);
 			if (critical && currentInterval < max) {
-				long increased = Math.min(max, Math.max(targetInterval, currentInterval + 2L));
-				applyIntervalChange(increased, nowTick);
-			} else if (unhealthy
-				&& hasStayedUnhealthy(nowTick)
-				&& nowTick >= nextAllowedChangeTick
-				&& currentInterval < max) {
-				long increased = Math.min(max, Math.max(targetInterval, currentInterval + 1L));
-				applyIntervalChange(increased, nowTick);
-			} else if (healthy
-				&& !probing
-				&& nowTick >= nextAllowedChangeTick
-				&& nowTick >= nextAllowedDownscaleTick
-				&& hasStayedHealthy(nowTick)
-				&& currentInterval > safeFloorInterval) {
-				long probeCandidate = Math.max(safeFloorInterval, currentInterval - 1L);
-				startProbe(probeCandidate, nowTick);
+				applyIntervalChange(Math.min(max, Math.max(targetInterval, currentInterval + 2L)), nowTick);
+			} else if (unhealthy && hasStayedUnhealthy(nowTick) && nowTick >= nextAllowedChangeTick && currentInterval < max) {
+				applyIntervalChange(Math.min(max, Math.max(targetInterval, currentInterval + 1L)), nowTick);
+			} else if (healthy && !probing && nowTick >= nextAllowedChangeTick && nowTick >= nextAllowedDownscaleTick
+				&& hasStayedHealthy(nowTick) && currentInterval > safeFloorInterval) {
+				startProbe(Math.max(safeFloorInterval, currentInterval - 1L), nowTick);
 			}
 
 			lastEvaluationTick = nowTick;
@@ -153,12 +115,8 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 		private void normalizeRange(long nowTick, long min, long max) {
 			currentInterval = clamp(currentInterval, min, max);
 			safeFloorInterval = clamp(safeFloorInterval, min, max);
-			if (nextAllowedChangeTick == Long.MIN_VALUE) {
-				nextAllowedChangeTick = nowTick;
-			}
-			if (nextAllowedDownscaleTick == Long.MIN_VALUE) {
-				nextAllowedDownscaleTick = nowTick;
-			}
+			if (nextAllowedChangeTick == Long.MIN_VALUE) nextAllowedChangeTick = nowTick;
+			if (nextAllowedDownscaleTick == Long.MIN_VALUE) nextAllowedDownscaleTick = nowTick;
 		}
 
 		private void resetForClockRollback(long nowTick, long min, long max) {
@@ -176,30 +134,19 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 
 		private void updateStreakMarkers(long nowTick, boolean healthy, boolean unhealthy) {
 			if (healthy) {
-				if (lastHealthyTick == Long.MIN_VALUE) {
-					lastHealthyTick = nowTick;
-				}
+				if (lastHealthyTick == Long.MIN_VALUE) lastHealthyTick = nowTick;
 				lastUnhealthyTick = Long.MIN_VALUE;
-				return;
-			}
-			if (unhealthy) {
-				if (lastUnhealthyTick == Long.MIN_VALUE) {
-					lastUnhealthyTick = nowTick;
-				}
+			} else if (unhealthy) {
+				if (lastUnhealthyTick == Long.MIN_VALUE) lastUnhealthyTick = nowTick;
 				lastHealthyTick = Long.MIN_VALUE;
-				return;
+			} else {
+				lastHealthyTick = Long.MIN_VALUE;
+				lastUnhealthyTick = Long.MIN_VALUE;
 			}
-			lastHealthyTick = Long.MIN_VALUE;
-			lastUnhealthyTick = Long.MIN_VALUE;
 		}
 
-		private boolean hasStayedHealthy(long nowTick) {
-			return lastHealthyTick != Long.MIN_VALUE && nowTick - lastHealthyTick >= HEALTHY_STABLE_TICKS_TO_PROBE;
-		}
-
-		private boolean hasStayedUnhealthy(long nowTick) {
-			return lastUnhealthyTick != Long.MIN_VALUE && nowTick - lastUnhealthyTick >= UNHEALTHY_STABLE_TICKS_TO_SCALE_UP;
-		}
+		private boolean hasStayedHealthy(long nowTick) { return lastHealthyTick != Long.MIN_VALUE && nowTick - lastHealthyTick >= HEALTHY_STABLE_TICKS_TO_PROBE; }
+		private boolean hasStayedUnhealthy(long nowTick) { return lastUnhealthyTick != Long.MIN_VALUE && nowTick - lastUnhealthyTick >= UNHEALTHY_STABLE_TICKS_TO_SCALE_UP; }
 
 		private void startProbe(long probeCandidate, long nowTick) {
 			probing = true;
@@ -237,89 +184,45 @@ public final class SchedulerAdaptiveIntervalAPIManager {
 	}
 
 	private static long calculateMsptTarget(double mspt, long min, long max) {
-		if (mspt <= LOW_LOAD_MSPT) {
-			return min;
-		}
-		if (mspt >= HIGH_LOAD_MSPT) {
-			return max;
-		}
-		double ratio = (mspt - LOW_LOAD_MSPT) / (HIGH_LOAD_MSPT - LOW_LOAD_MSPT);
-		long span = max - min;
-		return min + Math.round(span * ratio);
+		if (mspt <= LOW_LOAD_MSPT) return min;
+		if (mspt >= HIGH_LOAD_MSPT) return max;
+		return min + Math.round((max - min) * ((mspt - LOW_LOAD_MSPT) / (HIGH_LOAD_MSPT - LOW_LOAD_MSPT)));
 	}
 
 	private static float resolveAverageMspt(MinecraftServer server) {
 		double directMspt = invokeNumericNoArgs(server, "getAverageTickTime");
-		if (Double.isFinite(directMspt) && directMspt > 0.0d) {
-			return (float) directMspt;
-		}
-
+		if (Double.isFinite(directMspt) && directMspt > 0.0d) return (float) directMspt;
 		double nanosPerTick = invokeNumericNoArgs(server, "getAverageNanosPerTick");
-		if (Double.isFinite(nanosPerTick) && nanosPerTick > 0.0d) {
-			return (float) (nanosPerTick / 1_000_000.0d);
-		}
-
+		if (Double.isFinite(nanosPerTick) && nanosPerTick > 0.0d) return (float) (nanosPerTick / 1_000_000.0d);
 		double tickTimesAverage = averageOfLongArray(invokeLongArrayNoArgs(server, "getTickTimesNanos"));
-		if (Double.isFinite(tickTimesAverage) && tickTimesAverage > 0.0d) {
-			return (float) (tickTimesAverage / 1_000_000.0d);
-		}
-
+		if (Double.isFinite(tickTimesAverage) && tickTimesAverage > 0.0d) return (float) (tickTimesAverage / 1_000_000.0d);
 		double tickTimesMsAverage = averageOfLongArray(invokeLongArrayNoArgs(server, "getTickTimes"));
-		if (Double.isFinite(tickTimesMsAverage) && tickTimesMsAverage > 0.0d) {
-			return (float) tickTimesMsAverage;
-		}
-
-		return 0.0f;
+		return Double.isFinite(tickTimesMsAverage) && tickTimesMsAverage > 0.0d ? (float) tickTimesMsAverage : 0.0f;
 	}
 
 	private static double invokeNumericNoArgs(Object target, String methodName) {
-		if (target == null || methodName == null || methodName.isBlank()) {
-			return Double.NaN;
-		}
+		if (target == null || methodName == null || methodName.isBlank()) return Double.NaN;
 		try {
 			Method method = target.getClass().getMethod(methodName);
 			Object value = method.invoke(target);
-			if (value instanceof Number number) {
-				return number.doubleValue();
-			}
-		} catch (ReflectiveOperationException ignored) {
-		}
-		return Double.NaN;
+			return value instanceof Number number ? number.doubleValue() : Double.NaN;
+		} catch (ReflectiveOperationException ignored) { return Double.NaN; }
 	}
 
 	private static long[] invokeLongArrayNoArgs(Object target, String methodName) {
-		if (target == null || methodName == null || methodName.isBlank()) {
-			return null;
-		}
+		if (target == null || methodName == null || methodName.isBlank()) return null;
 		try {
 			Method method = target.getClass().getMethod(methodName);
 			Object value = method.invoke(target);
-			if (value instanceof long[] array) {
-				return array;
-			}
-		} catch (ReflectiveOperationException ignored) {
-		}
-		return null;
+			return value instanceof long[] array ? array : null;
+		} catch (ReflectiveOperationException ignored) { return null; }
 	}
 
 	private static double averageOfLongArray(long[] values) {
-		if (values == null || values.length == 0) {
-			return Double.NaN;
-		}
+		if (values == null || values.length == 0) return Double.NaN;
 		double sum = 0.0d;
 		int count = 0;
-		for (long value : values) {
-			if (value <= 0L) {
-				continue;
-			}
-			sum += value;
-			count++;
-		}
-		if (count == 0) {
-			return Double.NaN;
-		}
-		return sum / count;
+		for (long value : values) if (value > 0L) { sum += value; count++; }
+		return count == 0 ? Double.NaN : sum / count;
 	}
 }
-
-

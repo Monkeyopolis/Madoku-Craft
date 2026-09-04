@@ -26,6 +26,8 @@ public final class MadokuItemsManager {
 		ItemsStacksManager.onServerStarted(server);
 	}
 
+	public static void onServerTick(MinecraftServer server) { ItemsCategoriesManager.onServerTick(server); }
+
 	public static boolean isEnabled() { return ItemsCategoriesManager.isEnabled(); }
 
 	public static boolean areItemLevelsEnabled() { return ItemsCategoriesManager.areItemLevelsEnabled(); }

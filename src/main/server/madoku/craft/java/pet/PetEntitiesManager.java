@@ -323,7 +323,7 @@ public final class PetEntitiesManager {
 	}
 
 	static long managedPetSteeringInterval(MinecraftServer server) {
-		return activeSchedulerTickInterval(server);
+		return activeTickInterval(server);
 	}
 
 	static boolean hasRuntimeWork() {
@@ -502,7 +502,7 @@ public final class PetEntitiesManager {
 		}
 
 		boolean anyActive = false;
-		long nextDelay = idleSchedulerTickInterval(server);
+		long nextDelay = idleTickInterval(server);
 		UUID[] petIds = PET_IDS_BY_PLAYER.computeIfAbsent(player.getUUID(), ignored -> new UUID[SLOT_COUNT]);
 		for (int slot = 0; slot < SLOT_COUNT; slot++) {
 			ItemStack stack = inventory.getItem(slot);
@@ -531,7 +531,7 @@ public final class PetEntitiesManager {
 				ensurePetConfiguration(pet, rule, PetEntitiesManager.petLevel(stack));
 					boolean beeSwarmActive = rule.hasAbility(MadokuPetManager.PET_ABILITY_BEE_SWARM) && PetAbilitiesManager.isBeeSwarmActive(player.getUUID(), slot);
 				if (beeSwarmActive) {
-					nextDelay = Math.min(nextDelay, activeSchedulerTickInterval(server));
+				nextDelay = Math.min(nextDelay, activeTickInterval(server));
 				} else {
 					nextDelay = Math.min(nextDelay, MovementController.updatePetPosition(
 						player,
@@ -643,16 +643,16 @@ public final class PetEntitiesManager {
 		return "minecraft:bat".equals(petId) || "minecraft:bee".equals(petId);
 	}
 
-	static long activeSchedulerTickInterval(MinecraftServer server) {
-		return MadokuPetManager.adaptiveSchedulerInterval(server);
+	static long activeTickInterval(MinecraftServer server) {
+		return MadokuPetManager.adaptiveTickInterval(server);
 	}
 
 	static boolean petEntitiesEnabled() {
 		return PetConfigManager.settings().enabled && PetConfigManager.settings().entitiesEnabled;
 	}
 
-	static long idleSchedulerTickInterval(MinecraftServer server) {
-		long activeInterval = activeSchedulerTickInterval(server);
+	static long idleTickInterval(MinecraftServer server) {
+		long activeInterval = activeTickInterval(server);
 		return Math.max(activeInterval, Math.min(20L, activeInterval * 3L));
 	}
 
@@ -692,7 +692,7 @@ public final class PetEntitiesManager {
 					pet.setDeltaMovement(Vec3.ZERO);
 					clearFollowCommand(pet.getUUID(), followCommandsByPet);
 					scheduleNextIdleMove(pet, rule, nextIdleMoveByPet);
-					return activeSchedulerTickInterval(pet);
+					return activeTickInterval(pet);
 				}
 
 				if (isHoveringPet(pet)) {
@@ -709,7 +709,7 @@ public final class PetEntitiesManager {
 				double followSpeed = rule == null ? 1.25D : rule.followSpeed;
 				issueFollowCommandIfNeeded(pet, desiredPosition, followSpeed, followCommandsByPet);
 				pet.getLookControl().setLookAt(desiredPosition.x, desiredPosition.y, desiredPosition.z, 30.0F, 30.0F);
-				return activeSchedulerTickInterval(pet);
+				return activeTickInterval(pet);
 			}
 
 			private static long updateHoveringPetPosition(
@@ -755,7 +755,7 @@ public final class PetEntitiesManager {
 				if (distance <= 0.05D) {
 					pet.setDeltaMovement(Vec3.ZERO);
 				} else {
-					double interval = Math.max(1L, activeSchedulerTickInterval(pet));
+				double interval = Math.max(1L, activeTickInterval(pet));
 					double speed = Mth.clamp(configuredSpeed * 0.20D * interval, 0.06D * interval, 0.35D * interval);
 					Vec3 movement = difference.scale(Math.min(speed, distance) / distance);
 					pet.move(MoverType.SELF, movement);
@@ -763,7 +763,7 @@ public final class PetEntitiesManager {
 					orientPetToMovement(pet, difference);
 				}
 				pet.getLookControl().setLookAt(target.x, target.y, target.z, 30.0F, 30.0F);
-				return activeSchedulerTickInterval(pet);
+				return activeTickInterval(pet);
 			}
 
 			private static void orientPetToMovement(Mob pet, Vec3 movement) {
@@ -841,7 +841,7 @@ public final class PetEntitiesManager {
 				Map<UUID, FollowCommand> followCommandsByPet
 			) {
 				if (pet == null || !pet.getNavigation().isDone()) {
-					return activeSchedulerTickInterval(pet);
+					return activeTickInterval(pet);
 				}
 
 				long gameTime = pet.level().getGameTime();
@@ -859,7 +859,7 @@ public final class PetEntitiesManager {
 				pet.getNavigation().moveTo(idleTarget.x, idleTarget.y, idleTarget.z, rule == null ? 0.75D : rule.idleMoveSpeed);
 				pet.getLookControl().setLookAt(idleTarget.x, idleTarget.y, idleTarget.z, 20.0F, 20.0F);
 				scheduleNextIdleMove(pet, rule, nextIdleMoveByPet);
-				return activeSchedulerTickInterval(pet);
+				return activeTickInterval(pet);
 			}
 
 			private static Vec3 resolveIdleTarget(ServerPlayer owner, Mob pet, int slot, double idleDistance, double idleDistanceSqr, PetRule rule) {
@@ -947,25 +947,25 @@ public final class PetEntitiesManager {
 				}
 			}
 
-			private static long activeSchedulerTickInterval(Mob pet) {
-				return PetEntitiesManager.activeSchedulerTickInterval(pet == null ? null : pet.level().getServer());
+			private static long activeTickInterval(Mob pet) {
+				return PetEntitiesManager.activeTickInterval(pet == null ? null : pet.level().getServer());
 			}
 
-			private static long idleSchedulerTickInterval(Mob pet) {
-				long activeInterval = activeSchedulerTickInterval(pet);
+			private static long idleTickInterval(Mob pet) {
+				long activeInterval = activeTickInterval(pet);
 				return Math.max(activeInterval, Math.min(20L, activeInterval * 3L));
 			}
 
 			private static long clampScheduledDelay(long delay, Mob pet) {
-				return Math.max(activeSchedulerTickInterval(pet), Math.min(idleSchedulerTickInterval(pet), delay));
+				return Math.max(activeTickInterval(pet), Math.min(idleTickInterval(pet), delay));
 			}
 
 			private static long nextIdleMoveDelay(Mob pet, Map<UUID, Long> nextIdleMoveByPet) {
 				if (pet == null) {
-					return idleSchedulerTickInterval(null);
+					return idleTickInterval(null);
 				}
 				long gameTime = pet.level().getGameTime();
-				long nextMoveTick = nextIdleMoveByPet.getOrDefault(pet.getUUID(), gameTime + idleSchedulerTickInterval(pet));
+				long nextMoveTick = nextIdleMoveByPet.getOrDefault(pet.getUUID(), gameTime + idleTickInterval(pet));
 				return clampScheduledDelay(nextMoveTick - gameTime, pet);
 			}
 

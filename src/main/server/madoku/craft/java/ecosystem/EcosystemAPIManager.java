@@ -7,7 +7,7 @@ import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.data.WorldChunkDataAPIManager;
 import madoku.craft.java.core.data.WorldChunkDataKey;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAdaptiveIntervalAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -191,7 +191,7 @@ final class EcosystemAPIManager {
 		PERIODIC_DISCOVERY_CHUNK_KEYS.clear();
 		lastPeriodicDiscoveryDay = Long.MIN_VALUE;
 		periodicDiscoveryCursor = 0;
-		SchedulerAdaptiveIntervalAPIManager.clearSystem(DISCOVERY_INTERVAL_SYSTEM_ID);
+		AdaptiveIntervalAPIManager.clearSystem(DISCOVERY_INTERVAL_SYSTEM_ID);
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
@@ -224,7 +224,7 @@ final class EcosystemAPIManager {
 			return;
 		}
 
-		long interval = SchedulerAdaptiveIntervalAPIManager.resolve(
+		long interval = AdaptiveIntervalAPIManager.resolve(
 			DISCOVERY_INTERVAL_SYSTEM_ID,
 			server,
 			DISCOVERY_MIN_INTERVAL_TICKS,

@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import madoku.craft.java.core.data.DataSystemsAPIManager;
 import madoku.craft.java.core.data.WorldDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAdaptiveIntervalAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -58,7 +58,7 @@ public final class SeasonWeatherAPIManager {
 		lastAppliedCondition = null;
 		nextAdaptivePollGameplayTick = -1L;
 		lastAppliedLevelConditions.clear();
-		SchedulerAdaptiveIntervalAPIManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
+		AdaptiveIntervalAPIManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
 	}
 
 	public static boolean isEnabled() {
@@ -96,7 +96,7 @@ public final class SeasonWeatherAPIManager {
 	public static void onServerTick(MinecraftServer server) {
 		if (server == null) return;
 		if (!isEnabled()) {
-			SchedulerAdaptiveIntervalAPIManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
+			AdaptiveIntervalAPIManager.clearSystem(ADAPTIVE_INTERVAL_SYSTEM_ID);
 			return;
 		}
 		if (currentServer != server) onServerStarted(server);
@@ -178,7 +178,7 @@ public final class SeasonWeatherAPIManager {
 	private static long resolveAdaptivePollInterval(MinecraftServer server) {
 		long configuredInterval = resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes());
 		long maximum = Math.max(1L, Math.min(MAX_ADAPTIVE_POLL_TICKS, configuredInterval));
-		return SchedulerAdaptiveIntervalAPIManager.resolve(
+		return AdaptiveIntervalAPIManager.resolve(
 			ADAPTIVE_INTERVAL_SYSTEM_ID,
 			server,
 			1L,
@@ -351,4 +351,3 @@ public final class SeasonWeatherAPIManager {
 		public boolean precipitating() { return precipitating; }
 	}
 }
-

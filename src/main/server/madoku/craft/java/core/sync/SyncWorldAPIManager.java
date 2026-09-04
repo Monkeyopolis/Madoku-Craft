@@ -2,7 +2,7 @@ package madoku.craft.java.core.sync;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
@@ -23,7 +23,7 @@ public final class SyncWorldAPIManager {
 
 	public static void reset() {
 		nextPeriodicSyncTick = Long.MIN_VALUE;
-		SchedulerAPIManager.clearAdaptiveDelayState(ADAPTIVE_OWNER_ID);
+		AdaptiveIntervalAPIManager.clearSystem(ADAPTIVE_OWNER_ID);
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -43,9 +43,9 @@ public final class SyncWorldAPIManager {
 			return false;
 		}
 
-		long interval = SchedulerAPIManager.resolveAdaptiveDelayTicks(
-			server,
+		long interval = AdaptiveIntervalAPIManager.resolve(
 			ADAPTIVE_OWNER_ID,
+			server,
 			MIN_PERIODIC_INTERVAL_TICKS,
 			MAX_PERIODIC_INTERVAL_TICKS
 		);
@@ -67,4 +67,3 @@ public final class SyncWorldAPIManager {
 
 
 }
-

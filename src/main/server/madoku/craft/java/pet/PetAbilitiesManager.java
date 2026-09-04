@@ -15,7 +15,7 @@ import madoku.craft.java.MadokuCraft;
 import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.helper.HelperProjectileAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.pet.PetComponentsAPIManager.PetInventory;
 import madoku.craft.java.pet.PetConfigManager.PetAbilityRule;
@@ -54,11 +54,8 @@ public final class PetAbilitiesManager {
 	private static final Identifier PLAYER_HEALTH_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_max_health_bonus");
 	private static final Identifier PLAYER_ARMOR_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_bonus");
 	private static final Identifier PLAYER_ARMOR_TOUGHNESS_MODIFIER = Identifier.fromNamespaceAndPath(MadokuCraft.MOD_ID, "madoku_pets_player_armor_toughness_bonus");
-	private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(PetAbilitiesManager.class);
-
 	private static final int SLOT_COUNT = PetEntitiesManager.SLOT_COUNT;
-	static final String TASK_TYPE_PET_ATTACK = "pet_attack";
-	private static final String PLAYER_SCHEDULER_KEY = "player_entities";
+	private static final long PENDING_ATTACK_EXPIRATION_TICKS = 5L * 60L * 20L;
 	private static final String PET_ABILITY_RANGED_HOMING_ARROW = MadokuPetManager.PET_ABILITY_RANGED_HOMING_ARROW;
 	private static final String PET_ABILITY_WEB_PROJECTILE = MadokuPetManager.PET_ABILITY_WEB_PROJECTILE;
 	private static final String PET_ABILITY_EXPLOSIVE_PROJECTILE = MadokuPetManager.PET_ABILITY_EXPLOSIVE_PROJECTILE;
@@ -107,7 +104,7 @@ public final class PetAbilitiesManager {
 	private static final int BEE_SWARM_MIN_TARGET_SCAN_INTERVAL_TICKS = 4;
 	private static final int BEE_SWARM_MAX_TARGET_SCAN_INTERVAL_TICKS = 20;
 	private static final int BEE_SWARM_MAX_TARGET_CANDIDATES = 4;
-	private static final String BEE_TARGET_SCAN_SCHEDULER_OWNER_ID = "madoku-pets-bee-target-scan";
+	private static final String BEE_TARGET_SCAN_ADAPTIVE_ID = "madoku-pets-bee-target-scan";
 	private static final long BEE_SWARM_MAX_TARGET_DURATION_TICKS = 15L * 20L;
 	private static final long BEE_SWARM_DAMAGE_INTERVAL_TICKS = 20L;
 	private static final float BEE_SWARM_DEFAULT_DAMAGE_PER_SECOND = 1.6F;
@@ -115,14 +112,8 @@ public final class PetAbilitiesManager {
 	private static final double BEE_SWARM_ORBIT_RADIUS_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_ORBIT_VERTICAL_VARIANCE = 0.30D;
 	private static final double BEE_SWARM_MAX_MOVE_PER_TICK = 0.38D;
-	private static final String FIELD_SLOT = "slot";
-	private static final String FIELD_ABILITY_ID = "ability-id";
-	private static final String FIELD_TARGET_UUID = "target-uuid";
-	private static final String FIELD_SPAWN_X = "spawn-x";
-	private static final String FIELD_SPAWN_Y = "spawn-y";
-	private static final String FIELD_SPAWN_Z = "spawn-z";
-	private static final Map<UUID, String> PLAYER_SCHEDULER_IDS = new HashMap<>();
 	private static final Map<UUID, Map<Integer, Map<String, Long>>> PLAYER_ABILITY_COOLDOWNS = new HashMap<>();
+	private static final List<PendingPetAttack> PENDING_PET_ATTACKS = new ArrayList<>();
 	private static final Map<UUID, Long> NEXT_BEE_TARGET_SCAN_TICK = new HashMap<>();
 	private static final Map<UUID, WebProjectileState> ACTIVE_WEB_PROJECTILES = new ConcurrentHashMap<>();
 	private static final Map<UUID, ProjectileVolleyState> ACTIVE_PROJECTILE_VOLLEYS = new ConcurrentHashMap<>();
@@ -136,10 +127,10 @@ public final class PetAbilitiesManager {
 	private static final Map<UUID, ExplosiveVulnerabilityState> EXPLOSIVE_VULNERABILITY_BY_ENTITY = new ConcurrentHashMap<>();
 
 	static void reset() {
-		PLAYER_SCHEDULER_IDS.clear();
 		PLAYER_ABILITY_COOLDOWNS.clear();
+		PENDING_PET_ATTACKS.clear();
 		NEXT_BEE_TARGET_SCAN_TICK.clear();
-		SchedulerAPIManager.clearAdaptiveDelayState(BEE_TARGET_SCAN_SCHEDULER_OWNER_ID);
+		AdaptiveIntervalAPIManager.clearSystem(BEE_TARGET_SCAN_ADAPTIVE_ID);
 		ACTIVE_WEB_PROJECTILES.clear();
 		ACTIVE_PROJECTILE_VOLLEYS.clear();
 		ACTIVE_WEB_CONTROLS.clear();
@@ -153,7 +144,8 @@ public final class PetAbilitiesManager {
 	}
 
 	static boolean hasRuntimeWork() {
-		return !ACTIVE_WEB_PROJECTILES.isEmpty()
+		return !PENDING_PET_ATTACKS.isEmpty()
+			|| !ACTIVE_WEB_PROJECTILES.isEmpty()
 			|| !ACTIVE_PROJECTILE_VOLLEYS.isEmpty()
 			|| !ACTIVE_WEB_CONTROLS.isEmpty()
 			|| !ACTIVE_HEALTH_REGENERATIONS.isEmpty()
@@ -1586,9 +1578,9 @@ public final class PetAbilitiesManager {
 				return;
 			}
 			MinecraftServer server = player.level().getServer();
-			long interval = SchedulerAPIManager.resolveAdaptiveDelayTicks(
+			long interval = AdaptiveIntervalAPIManager.resolve(
+				BEE_TARGET_SCAN_ADAPTIVE_ID,
 				server,
-				BEE_TARGET_SCAN_SCHEDULER_OWNER_ID,
 				BEE_SWARM_MIN_TARGET_SCAN_INTERVAL_TICKS,
 				BEE_SWARM_MAX_TARGET_SCAN_INTERVAL_TICKS
 			);
@@ -1798,55 +1790,27 @@ public final class PetAbilitiesManager {
 			}
 		}
 
-			static void runPetAttack(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-			if (server == null || context == null || payload == null) {
-				return;
-			}
-
-			SchedulerAPIManager.SchedulerBinding binding = context.getBinding();
-			UUID playerId = binding == null ? null : binding.getEntityUuid();
-			if (playerId == null) {
-				return;
-			}
-
-			PLAYER_SCHEDULER_IDS.put(playerId, context.getSchedulerId());
+		static void runPetAttack(MinecraftServer server, UUID playerId, int slot, String abilityType,
+			UUID targetId, Vec3 spawnPosition) {
+			if (server == null || playerId == null || spawnPosition == null) return;
 			ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-			if (player == null || !player.isAlive()) {
-				return;
-			}
-
-			int slot = PetConfigManager.getInt(payload, FIELD_SLOT, -1);
-			if (slot < 0 || slot >= SLOT_COUNT) {
-				return;
-			}
+			if (player == null || !player.isAlive()) return;
 			long gameplayTicks = TimeAPIManager.getGameplayTicks();
 
 			PetInventory inventory = petInventory(player);
-			if (inventory == null || slot >= inventory.getContainerSize()) {
-				return;
-			}
+			if (slot < 0 || slot >= SLOT_COUNT || inventory == null || slot >= inventory.getContainerSize()) return;
 			synchronizeAllAbilityCooldowns(player, inventory, gameplayTicks);
 
 			ItemStack stack = inventory.getItem(slot);
 			PetRule rule = PetConfigManager.resolvePetRule(stack);
-			String abilityType = PetConfigManager.normalizeAbilityId(PetConfigManager.getString(payload, FIELD_ABILITY_ID, ""));
+			abilityType = PetConfigManager.normalizeAbilityId(abilityType);
 			PetAbilityRule ability = rule == null ? null : rule.ability(abilityType);
 			if (rule == null || ability == null || !ability.canPerformReactiveAttack() || !isAbilityOffCooldown(player, slot, ability.abilityType, gameplayTicks)) {
 				return;
 			}
 
-			UUID targetId = parseUuid(PetConfigManager.getString(payload, FIELD_TARGET_UUID, ""));
 			LivingEntity target = findLivingEntity(server, targetId);
-			if (!canReactiveAttackTarget(player, target)) {
-				return;
-			}
-
-
-			Vec3 spawnPosition = new Vec3(
-				PetConfigManager.getDouble(payload, FIELD_SPAWN_X, player.getX()),
-				PetConfigManager.getDouble(payload, FIELD_SPAWN_Y, player.getEyeY()),
-				PetConfigManager.getDouble(payload, FIELD_SPAWN_Z, player.getZ())
-			);
+			if (!canReactiveAttackTarget(player, target)) return;
 			if (spawnPetReactiveAttack(player, target, spawnPosition, rule, ability)) {
 				if (PET_ABILITY_WEB_PROJECTILE.equals(ability.abilityType)) {
 					setSharedAbilityCooldownForInventory(player, inventory, PET_ABILITY_WEB_PROJECTILE, gameplayTicks + ability.cooldownTicks);
@@ -2916,62 +2880,38 @@ public final class PetAbilitiesManager {
 			}
 
 			UUID playerId = player.getUUID();
-			String schedulerId = ensureSchedulerExists(playerId);
-			if (enqueuePetAttackTask(schedulerId, slot, abilityType, target, spawnPosition, delayTicks)) {
-				return true;
-			}
-
-			String created = SchedulerAPIManager.createOrGetScheduler(
-				SchedulerAPIManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId)
-			);
-			PLAYER_SCHEDULER_IDS.put(playerId, created);
-			if (!enqueuePetAttackTask(created, slot, abilityType, target, spawnPosition, delayTicks)) {
-				LOGGER.error("Failed to enqueue delayed pet attack for player={} slot={}", playerId, slot);
-				return false;
-			}
+			long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+			long dueTick = safeAdd(now, Math.max(0L, delayTicks));
+			PENDING_PET_ATTACKS.add(new PendingPetAttack(playerId, slot, abilityType, target.getUUID(),
+				spawnPosition, dueTick, safeAdd(dueTick, PENDING_ATTACK_EXPIRATION_TICKS)));
 			return true;
 		}
 
-		private static String ensureSchedulerExists(UUID playerId) {
-			String schedulerId = PLAYER_SCHEDULER_IDS.get(playerId);
-			if (schedulerId == null || schedulerId.isBlank()) {
-				schedulerId = SchedulerAPIManager.createOrGetScheduler(
-					SchedulerAPIManager.SchedulerBinding.player(PLAYER_SCHEDULER_KEY, playerId)
-				);
-				PLAYER_SCHEDULER_IDS.put(playerId, schedulerId);
+	static void tickPendingPetAttacks(MinecraftServer server) {
+		if (server == null || PENDING_PET_ATTACKS.isEmpty()) return;
+		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
+		Iterator<PendingPetAttack> iterator = PENDING_PET_ATTACKS.iterator();
+		while (iterator.hasNext()) {
+			PendingPetAttack pending = iterator.next();
+			if (pending == null || now >= pending.expiresAtTick()) {
+				iterator.remove();
+				continue;
 			}
-			return schedulerId;
+			if (now < pending.dueTick()) continue;
+			if (server.getPlayerList().getPlayer(pending.playerId()) == null) continue;
+			iterator.remove();
+			runPetAttack(server, pending.playerId(), pending.slot(), pending.abilityType(),
+				pending.targetId(), pending.spawnPosition());
 		}
+	}
 
-		private static boolean enqueuePetAttackTask(
-			String schedulerId,
-			int slot,
-			String abilityType,
-			LivingEntity target,
-			Vec3 spawnPosition,
-			long delayTicks
-		) {
-			if (schedulerId == null || schedulerId.isBlank() || target == null || spawnPosition == null) {
-				return false;
-			}
+	private static long safeAdd(long left, long right) {
+		if (right <= 0L || left > Long.MAX_VALUE - right) return Long.MAX_VALUE;
+		return left + right;
+	}
 
-			JsonObject payload = madoku.craft.java.core.json.JSONFormatAPIManager.object()
-				.put(FIELD_SLOT, slot)
-				.put(FIELD_ABILITY_ID, abilityType)
-				.put(FIELD_TARGET_UUID, target.getUUID().toString())
-				.put(FIELD_SPAWN_X, spawnPosition.x)
-				.put(FIELD_SPAWN_Y, spawnPosition.y)
-				.put(FIELD_SPAWN_Z, spawnPosition.z)
-				.build();
-			SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-				schedulerId,
-				Math.max(0L, delayTicks),
-				TASK_TYPE_PET_ATTACK,
-				payload,
-				SchedulerAPIManager.TickDomain.GAMEPLAY
-			);
-			return status == SchedulerAPIManager.EnqueueStatus.ACCEPTED;
-		}
+	private record PendingPetAttack(UUID playerId, int slot, String abilityType, UUID targetId,
+		Vec3 spawnPosition, long dueTick, long expiresAtTick) { }
 
 		static boolean isAbilityOffCooldown(ServerPlayer player, int slot, String abilityType, long gameplayTicks) {
 			if (player == null || slot < 0 || slot >= SLOT_COUNT || abilityType == null || abilityType.isBlank()) return false;
@@ -3092,8 +3032,6 @@ public final class PetAbilitiesManager {
 		}
 
 			static void applyPersistedData(JsonObject source) {
-			PLAYER_SCHEDULER_IDS.clear();
-
 			PLAYER_ABILITY_COOLDOWNS.clear();
 			if (source == null) {
 				return;

@@ -1,15 +1,11 @@
 package madoku.craft.java.utility.smelting;
 
-import com.google.gson.JsonObject;
-
 import madoku.craft.java.core.json.JSONAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
+import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.mixin.utility.smelting.AbstractFurnaceServerTickInvoker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -21,9 +17,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.SmokerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -32,9 +25,6 @@ import java.util.Set;
 
 /** Runtime subsystem that applies the configured smelting behavior. */
 public final class MadokuSmeltingManager {
-	private static final Logger LOGGER = LoggerFactory.getLogger(MadokuSmeltingManager.class);
-	private static final String TASK_TYPE_SMELTING_TICK = "utility_smelting_furnace_tick";
-	private static final String ADAPTIVE_INTERVAL_OWNER = "utility-smelting";
 	private static final int MINIMUM_COOK_TICKS = 20;
 	private static final int BASE_FURNACE_COOK_TICKS = 200;
 	private static final int BASE_SMOKER_COOK_TICKS = 100;
@@ -42,8 +32,6 @@ public final class MadokuSmeltingManager {
 
 	private static volatile Map<BlockEntityType<?>, FurnaceBehavior> behaviorByBlockEntityType = Map.of();
 	private static volatile Map<RecipeType<?>, FurnaceBehavior> behaviorByRecipeType = Map.of();
-	private static final Map<FurnaceKey, String> schedulerIds = new HashMap<>();
-	private static final Set<FurnaceKey> scheduledFurnaces = new HashSet<>();
 	private static final Set<FurnaceKey> advancingFurnaces = new HashSet<>();
 	private static final Map<FurnaceKey, Long> lastProcessedWorldTime = new HashMap<>();
 	private static final Map<FurnaceKey, Long> lastProcessedGameTime = new HashMap<>();
@@ -52,7 +40,6 @@ public final class MadokuSmeltingManager {
 	}
 
 	public static void initialize() {
-		SchedulerAPIManager.registerTaskHandler(TASK_TYPE_SMELTING_TICK, MadokuSmeltingManager::runScheduledFurnaceTask);
 		resetRuntimeState();
 		rebuildRules(SmeltingConfigManager.getSettings());
 	}
@@ -95,7 +82,6 @@ public final class MadokuSmeltingManager {
 
 	public static void onServerStopped(MinecraftServer server) {
 		resetRuntimeState();
-		MadokuUtilityManager.clearAdaptiveInterval(ADAPTIVE_INTERVAL_OWNER);
 	}
 
 	public static void onFurnaceServerTick(ServerLevel level, BlockPos blockPos, BlockState blockState, AbstractFurnaceBlockEntity furnace) {
@@ -114,7 +100,7 @@ public final class MadokuSmeltingManager {
 
 		// This hook runs after vanilla has processed the current real furnace tick.
 		// Use per-furnace absolute clocks so command/sleep jumps cannot be lost while
-		// an adaptive scheduler task is waiting in the queue.
+		// furnace work is processed directly from the furnace tick hook.
 		long currentWorldTime = level.getOverworldClockTime();
 		long previousWorldTime = lastProcessedWorldTime.getOrDefault(key, currentWorldTime);
 		long currentGameTime = level.getGameTime();
@@ -124,61 +110,6 @@ public final class MadokuSmeltingManager {
 		lastProcessedWorldTime.put(key, currentWorldTime);
 		lastProcessedGameTime.put(key, currentGameTime);
 		advanceFurnaceTicks(level, blockPos, Math.max(0L, worldTimeDelta - gameTimeDelta));
-		requestFurnaceProcessing(server, key);
-	}
-
-	private static void runScheduledFurnaceTask(MinecraftServer server, SchedulerAPIManager.TaskContext context, JsonObject payload) {
-		if (server == null || context == null || !isEnabled()) return;
-		FurnaceKey key = FurnaceKey.from(context.getBinding());
-		if (key == null) return;
-		schedulerIds.put(key, context.getSchedulerId());
-		scheduledFurnaces.remove(key);
-		ServerLevel level = resolveLevel(server, key.levelId());
-		if (level == null) {
-			clearFurnaceRuntimeState(key);
-			return;
-		}
-		BlockPos blockPos = BlockPos.of(key.blockPosLong());
-		BlockEntity blockEntity = level.getBlockEntity(blockPos);
-		if (!(blockEntity instanceof AbstractFurnaceBlockEntity furnace)) {
-			clearFurnaceRuntimeState(key);
-			return;
-		}
-
-		// The normal furnace server-tick hook processes forwarded time immediately.
-		// This task remains as a fallback for a furnace whose hook was delayed.
-		long currentWorldTime = level.getOverworldClockTime();
-		long previousWorldTime = lastProcessedWorldTime.getOrDefault(key, currentWorldTime);
-		long currentGameTime = level.getGameTime();
-		long previousGameTime = lastProcessedGameTime.getOrDefault(key, currentGameTime);
-		long worldTimeDelta = Math.max(0L, currentWorldTime - previousWorldTime);
-		long gameTimeDelta = Math.max(0L, currentGameTime - previousGameTime);
-		lastProcessedWorldTime.put(key, currentWorldTime);
-		lastProcessedGameTime.put(key, currentGameTime);
-		advanceFurnaceTicks(level, blockPos, Math.max(0L, worldTimeDelta - gameTimeDelta));
-
-		if (!shouldTrackFurnace(furnace, level.getBlockState(blockPos))) {
-			lastProcessedWorldTime.remove(key);
-			lastProcessedGameTime.remove(key);
-		}
-	}
-
-	private static void requestFurnaceProcessing(MinecraftServer server, FurnaceKey key) {
-		if (key == null || scheduledFurnaces.contains(key)) return;
-		// Scheduler entries are removed by the scheduler runtime after their last
-		// queued task executes. Reacquire the binding here so a cached ID cannot
-		// become stale and cause SCHEDULER_NOT_FOUND on the next furnace tick.
-		String schedulerId = SchedulerAPIManager.createOrGetScheduler(key.toBinding());
-		schedulerIds.put(key, schedulerId);
-		long delay = MadokuUtilityManager.resolveAdaptiveInterval(server, ADAPTIVE_INTERVAL_OWNER, 1L, 20L);
-		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
-			schedulerId, Math.max(0L, delay), TASK_TYPE_SMELTING_TICK, new JsonObject(), SchedulerAPIManager.TickDomain.GAMEPLAY
-		);
-		if (status == SchedulerAPIManager.EnqueueStatus.ACCEPTED || status == SchedulerAPIManager.EnqueueStatus.QUEUE_FULL) {
-			scheduledFurnaces.add(key);
-		} else {
-			LOGGER.error("Failed to enqueue smelting scheduler task for furnace={} @ {}", key.levelId(), key.blockPosLong());
-		}
 	}
 
 	private static void advanceFurnaceTicks(ServerLevel level, BlockPos blockPos, long extraTicks) {
@@ -223,23 +154,7 @@ public final class MadokuSmeltingManager {
 		byRecipeType.put(recipeType, behavior);
 	}
 
-	private static ServerLevel resolveLevel(MinecraftServer server, String levelId) {
-		Identifier id = Identifier.tryParse(levelId);
-		if (id == null) id = Identifier.tryParse(SchedulerAPIManager.normalizeLevelIdentifier(levelId));
-		return id == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
-	}
-
-	private static void clearFurnaceRuntimeState(FurnaceKey key) {
-		scheduledFurnaces.remove(key);
-		advancingFurnaces.remove(key);
-		schedulerIds.remove(key);
-		lastProcessedWorldTime.remove(key);
-		lastProcessedGameTime.remove(key);
-	}
-
 	private static void resetRuntimeState() {
-		schedulerIds.clear();
-		scheduledFurnaces.clear();
 		advancingFurnaces.clear();
 		lastProcessedWorldTime.clear();
 		lastProcessedGameTime.clear();
@@ -265,18 +180,9 @@ public final class MadokuSmeltingManager {
 	private record FurnaceKey(String levelId, long blockPosLong) {
 		private static FurnaceKey from(ServerLevel level, BlockPos blockPos) {
 			return level == null || blockPos == null ? null : new FurnaceKey(
-				SchedulerAPIManager.normalizeLevelIdentifier(level.dimension().toString()), blockPos.asLong());
+				MadokuCoreManager.normalizeLevelIdentifier(level.dimension().toString()), blockPos.asLong());
 		}
 
-		private static FurnaceKey from(SchedulerAPIManager.SchedulerBinding binding) {
-			if (binding == null || binding.getEventType() != SchedulerAPIManager.EventType.BLOCK_ENTITY
-				|| binding.getLevelId() == null || binding.getBlockPosLong() == null) return null;
-			return new FurnaceKey(binding.getLevelId(), binding.getBlockPosLong());
-		}
-
-		private SchedulerAPIManager.SchedulerBinding toBinding() {
-			return SchedulerAPIManager.SchedulerBinding.blockEntity(TASK_TYPE_SMELTING_TICK, levelId, blockPosLong);
-		}
 
 	}
 }

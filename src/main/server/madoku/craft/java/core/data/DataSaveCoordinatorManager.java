@@ -2,7 +2,6 @@ package madoku.craft.java.core.data;
 
 import madoku.craft.java.attributes.HealthAPIManager;
 import madoku.craft.java.attributes.HungerAPIManager;
-import madoku.craft.java.core.scheduler.SchedulerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
 import madoku.craft.java.entity.MadokuEntities;
@@ -62,7 +61,6 @@ public final class DataSaveCoordinatorManager {
 			MadokuEntities.savePersistedData(server);
 			FarmingAPIManager.savePersistedData(server);
 			MadokuEcosystemManager.savePersistedData(server);
-			SchedulerAPIManager.savePersistedData(server);
 			HealthAPIManager.savePersistedData(server);
 			HungerAPIManager.savePersistedData(server);
 			LevelsPlayerAPIManager.savePersistedData(server);
@@ -71,7 +69,6 @@ public final class DataSaveCoordinatorManager {
 			MadokuEntities.autosavePersistedData(server);
 			FarmingAPIManager.autosavePersistedData(server);
 			MadokuEcosystemManager.autosavePersistedData(server);
-			SchedulerAPIManager.autosavePersistedData(server);
 			HealthAPIManager.autosavePersistedData(server);
 			HungerAPIManager.autosavePersistedData(server);
 			LevelsPlayerAPIManager.autosavePersistedData(server);

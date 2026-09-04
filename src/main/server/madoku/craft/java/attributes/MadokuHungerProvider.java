@@ -13,6 +13,7 @@ public final class MadokuHungerProvider implements HungerProvider {
 	@Override public void autosavePersistedData(MinecraftServer server) { MadokuHungerManager.autosavePersistedData(server); }
 	@Override public void savePersistedData(MinecraftServer server) { MadokuHungerManager.savePersistedData(server); }
 	@Override public void onServerStarted(MinecraftServer server) { MadokuHungerManager.onServerStarted(server); }
+	@Override public void onServerTick(MinecraftServer server) { MadokuHungerManager.onServerTick(server); }
 	@Override public void handlePlayerTeleport(ServerPlayer player) { MadokuHungerManager.handlePlayerTeleport(player); }
 	@Override public boolean isEnabled() { return MadokuHungerManager.isEnabled(); }
 	@Override public boolean isSaturationEnabled() { return MadokuHungerManager.isSaturationEnabled(); }

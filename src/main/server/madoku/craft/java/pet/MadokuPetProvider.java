@@ -11,6 +11,7 @@ public final class MadokuPetProvider implements PetProvider {
 	@Override public void initialize() { MadokuPetManager.initialize(); }
 	@Override public void reset() { MadokuPetManager.reset(); }
 	@Override public void onServerStarted(MinecraftServer server) { MadokuPetManager.onServerStarted(server); }
+	@Override public void onServerTick(MinecraftServer server) { MadokuPetManager.onServerTick(server); }
 	@Override public void loadPersistedData(MinecraftServer server) { MadokuPetManager.loadPersistedData(server); }
 	@Override public void autosavePersistedData(MinecraftServer server) { MadokuPetManager.autosavePersistedData(server); }
 	@Override public void savePersistedData(MinecraftServer server) { MadokuPetManager.savePersistedData(server); }
