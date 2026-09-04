@@ -6,10 +6,8 @@ import com.google.gson.JsonObject;
 
 import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.java.core.chunk.ChunkAPIManager;
-import madoku.craft.java.core.data.DataSaveCoordinatorManager;
-import madoku.craft.java.core.data.DataWorldChunkAPIManager;
+import madoku.craft.java.core.data.WorldChunkDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
-import madoku.craft.java.core.json.JSONTypeAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
@@ -22,14 +20,10 @@ import net.minecraft.world.entity.Entity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -43,7 +37,6 @@ final class SchedulerRuntimeManager {
 	private static final long DEFAULT_INACTIVE_EXPIRATION_MINUTES = 5L;
 	private static final String DATA_FOLDER_NAME = MadokuCoreManager.CORE_FOLDER_NAME + "/madoku-scheduler";
 	private static final String DATA_FILE_NAME = "madoku-scheduler";
-	private static final String SCHEDULER_FILES_DIRECTORY = "schedulers";
 	private static final String GROUP_GENERAL = "general";
 	private static final String FIELD_EXPIRATION = "expiration";
 	private static final String FIELD_LAST_TOUCHED_DAY = "last-touched-day";
@@ -95,7 +88,6 @@ final class SchedulerRuntimeManager {
 
 	static void savePersistedData(MinecraftServer server) {
 		if (server == null) return;
-		saveSchedulerFiles(server);
 		JSONAPIManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), getAutoSaveIntervalTicks(server));
@@ -109,7 +101,6 @@ final class SchedulerRuntimeManager {
 			lastAutosaveBucket = currentBucket;
 			return;
 		}
-		saveSchedulerFiles(server);
 		JSONAPIManager.saveWorldData(server, DATA_FOLDER_NAME, DATA_FILE_NAME, toPersistedData());
 		dirty = false;
 		lastAutosaveBucket = currentBucket;
@@ -332,7 +323,7 @@ final class SchedulerRuntimeManager {
 
 	private static JsonObject toPersistedData() {
 		return JSONFormatAPIManager.object().put("gameplay-ticks", Math.max(0L, TimeAPIManager.getGameplayTicks())).array("schedulers", schedulers -> {
-			for (SchedulerEntry entry : SCHEDULERS.values()) if (entry != null && !entry.tasks.isEmpty()) schedulers.add(entry.schedulerId);
+			for (SchedulerEntry entry : SCHEDULERS.values()) if (entry != null && !entry.tasks.isEmpty()) schedulers.add(entry.toJson());
 		}).build();
 	}
 
@@ -344,8 +335,7 @@ final class SchedulerRuntimeManager {
 		JsonArray schedulers = getArray(source, "schedulers");
 		if (schedulers == null) return;
 		for (JsonElement element : schedulers) {
-			SchedulerEntry entry = element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-				? loadSchedulerEntry(server, element.getAsString()) : SchedulerEntry.fromJson(element);
+			SchedulerEntry entry = SchedulerEntry.fromJson(element);
 			if (entry == null || entry.tasks.isEmpty()) continue;
 			SCHEDULERS.put(entry.schedulerId, entry);
 			SCHEDULER_IDS_BY_BINDING.put(bindingKey(entry.binding), entry.schedulerId);
@@ -353,70 +343,7 @@ final class SchedulerRuntimeManager {
 	}
 
 	private static long getAutoSaveIntervalTicks(MinecraftServer server) {
-		return DataWorldChunkAPIManager.getAutoSaveIntervalTicks();
-	}
-
-	private static SchedulerEntry loadSchedulerEntry(MinecraftServer server, String schedulerId) {
-		String normalizedSchedulerId = schedulerId == null ? "" : schedulerId.trim();
-		Path file = resolveSchedulerFile(server, normalizedSchedulerId, false);
-		if (server == null || normalizedSchedulerId.isBlank() || file == null || !Files.isRegularFile(file)) return null;
-		try {
-			return SchedulerEntry.fromJson(JSONFormatAPIManager.readManagedDocument(file).data());
-		} catch (IOException | RuntimeException exception) {
-			LOGGER.error("Failed to load scheduler data file {}", file, exception);
-			return null;
-		}
-	}
-
-	private static void saveSchedulerFiles(MinecraftServer server) {
-		if (server == null) return;
-		Set<String> activeSchedulerIds = new LinkedHashSet<>();
-		for (SchedulerEntry entry : SCHEDULERS.values()) {
-			if (entry == null || entry.tasks.isEmpty()) continue;
-			activeSchedulerIds.add(entry.schedulerId);
-			Path file = resolveSchedulerFile(server, entry.schedulerId, false);
-			if (file == null) continue;
-			JsonObject data = entry.toJson();
-			JsonObject general = new JsonObject();
-			general.addProperty("scheduler-id", entry.schedulerId);
-			DataSaveCoordinatorManager.submit("scheduler-" + entry.schedulerId, file,
-				() -> JSONFormatAPIManager.writeManagedDocument(file, data, general, JSONTypeAPIManager.STATIC_DATA));
-		}
-		Path schedulerDirectory = resolveSchedulerDirectory(server, false);
-		Set<String> capturedActiveSchedulerIds = new LinkedHashSet<>(activeSchedulerIds);
-		DataSaveCoordinatorManager.submit("scheduler-cleanup", schedulerDirectory,
-			() -> deleteStaleSchedulerFiles(server, capturedActiveSchedulerIds));
-	}
-
-	private static void deleteStaleSchedulerFiles(MinecraftServer server, Set<String> activeSchedulerIds) {
-		Path schedulerDirectory = resolveSchedulerDirectory(server, false);
-		if (schedulerDirectory == null || !Files.isDirectory(schedulerDirectory)) return;
-		try (var files = Files.list(schedulerDirectory)) {
-			files.filter(Files::isRegularFile).filter(path -> path.getFileName().toString().endsWith(".json")).forEach(path -> {
-				String fileName = path.getFileName().toString();
-				String schedulerId = fileName.substring(0, fileName.length() - ".json".length());
-				if (activeSchedulerIds.contains(schedulerId)) return;
-				try { Files.deleteIfExists(path); }
-				catch (IOException exception) { LOGGER.error("Failed to delete stale scheduler data file {}", path, exception); }
-			});
-		} catch (IOException exception) {
-			LOGGER.error("Failed to enumerate scheduler data directory {}", schedulerDirectory, exception);
-		}
-	}
-
-	private static Path resolveSchedulerDirectory(MinecraftServer server, boolean createDirectories) {
-		if (server == null) return null;
-		Path directory = JSONAPIManager.getWorldRootDirectory(server).resolve(DATA_FOLDER_NAME).resolve(SCHEDULER_FILES_DIRECTORY);
-		if (!createDirectories) return directory;
-		try { Files.createDirectories(directory); return directory; }
-		catch (IOException exception) { throw new IllegalStateException("Failed to create scheduler directory: " + directory, exception); }
-	}
-
-	private static Path resolveSchedulerFile(MinecraftServer server, String schedulerId, boolean createDirectories) {
-		String normalized = schedulerId == null ? "" : schedulerId.trim();
-		if (normalized.isBlank()) return null;
-		Path directory = resolveSchedulerDirectory(server, createDirectories);
-		return directory == null ? null : directory.resolve(normalized + ".json");
+		return WorldChunkDataAPIManager.getAutoSaveIntervalTicks();
 	}
 
 	private static void removeScheduler(SchedulerEntry entry) {
@@ -625,6 +552,3 @@ final class SchedulerRuntimeManager {
 		}
 	}
 }
-
-
-

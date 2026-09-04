@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import madoku.craft.java.MadokuCraft;
-import madoku.craft.java.core.data.DataPlayerAPIManager;
+import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.scheduler.SchedulerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -94,9 +94,9 @@ public final class MadokuHealthManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = PlayerDataAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -105,7 +105,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -118,7 +118,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 		syncTrackedPlayerHealth(server);
-		DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		PlayerDataAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {

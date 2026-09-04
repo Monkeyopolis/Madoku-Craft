@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import madoku.craft.java.core.data.DataPlayerAPIManager;
+import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.rarity.RarityAPIManager;
 import madoku.craft.java.core.scheduler.SchedulerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -141,10 +141,10 @@ public final class MadokuPetManager {
 		}
 
 		reloadConfig();
-		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME, "ability-cooldowns", "uuid");
+		JsonObject data = PlayerDataAPIManager.getSystemData(DATA_FILE_NAME, "ability-cooldowns", "uuid");
 		PetAbilitiesManager.applyPersistedData(data);
 		PetEntitiesManager.removeAllPetEntitiesOnServerStart(server);
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -153,7 +153,7 @@ public final class MadokuPetManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -166,7 +166,7 @@ public final class MadokuPetManager {
 			return;
 		}
 
-		DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, PetAbilitiesManager.toPersistedData(), "ability-cooldowns", "uuid");
+		PlayerDataAPIManager.setSystemData(DATA_FILE_NAME, PetAbilitiesManager.toPersistedData(), "ability-cooldowns", "uuid");
 	}
 
 	private static void onPlayerTickPhase(MinecraftServer server) {
@@ -475,4 +475,3 @@ public final class MadokuPetManager {
 	}
 
 }
-

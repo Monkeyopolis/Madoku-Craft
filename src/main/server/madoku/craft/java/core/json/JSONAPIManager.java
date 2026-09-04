@@ -2,13 +2,12 @@ package madoku.craft.java.core.json;
 
 import com.google.gson.JsonObject;
 import madoku.craft.java.MadokuCraft;
-import madoku.craft.java.core.data.DataSaveCoordinatorManager;
+import madoku.craft.java.core.data.MadokuSavedData;
+import madoku.craft.java.core.data.MadokuSavedDataManager;
+import net.minecraft.nbt.CompoundTag;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,9 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Runtime API subsystem orchestrating JSON formatting and type management. */
 public final class JSONAPIManager {
 	private static final String GLOBAL_ROOT_FOLDER_NAME = MadokuCraft.MOD_ID;
-	private static final Logger LOGGER = LoggerFactory.getLogger(JSONAPIManager.class);
 	private static final long DEFAULT_AUTO_SAVE_MINUTES = 5L;
-	private static final Map<Path, JsonObject> SETTINGS_CACHE = new ConcurrentHashMap<>();
+	private static final Map<String, JsonObject> SETTINGS_CACHE = new ConcurrentHashMap<>();
 	private static volatile String cachedModVersion;
 	private static volatile boolean initialized;
 
@@ -51,11 +49,6 @@ public final class JSONAPIManager {
 		return root;
 	}
 
-	public static Path getWorldRootDirectory(MinecraftServer server) {
-		if (server == null) throw new IllegalArgumentException("Server must not be null.");
-		return server.getWorldPath(LevelResource.ROOT).resolve(MadokuCraft.MOD_ID);
-	}
-
 	public static Path getOrCreateGlobalSystemDirectory(String systemName) {
 		Path directory = getGlobalRootDirectory().resolve(requireRelativePath(systemName, "system directory")).normalize();
 		ensureInside(getGlobalRootDirectory(), directory, "System directory");
@@ -63,58 +56,51 @@ public final class JSONAPIManager {
 		return directory;
 	}
 
-	public static Path getOrCreateWorldSystemDirectory(MinecraftServer server, String systemName) {
-		Path root = getWorldRootDirectory(server).toAbsolutePath().normalize();
-		Path directory = root.resolve(requireRelativePath(systemName, "world system directory")).normalize();
-		ensureInside(root, directory, "World system directory");
-		try { Files.createDirectories(directory); } catch (IOException exception) { throw new IllegalStateException("Failed to create world system directory: " + directory, exception); }
-		return directory;
-	}
-
 	public static JsonObject loadWorldData(MinecraftServer server, String folderName, String jsonName) { return loadWorldData(server, folderName, jsonName, new JsonObject()); }
 
 	public static synchronized JsonObject loadWorldData(MinecraftServer server, String folderName, String jsonName, JsonObject defaults) {
-		Path file = resolveWorldFile(server, folderName, jsonName, true);
+		String key = worldDataKey(folderName, jsonName);
 		JsonObject safeDefaults = defaults == null ? new JsonObject() : defaults.deepCopy();
-		try {
-			JSONFormatAPIManager.ManagedDocument source = JSONFormatAPIManager.readManagedDocument(file);
-			JsonObject data = source.data();
-			if (!source.hasSettings() || !Files.isRegularFile(file) || data.isEmpty()) data = safeDefaults.deepCopy();
-			JSONFormatAPIManager.writeManagedDocument(file, data, source.settings(), JSONTypeAPIManager.STATIC_DATA);
-			cacheSettings(file, source.settings());
-			return data.deepCopy();
-		} catch (IOException | RuntimeException exception) {
-			LOGGER.error("Failed to load world data file {}", file, exception);
-			return safeDefaults.deepCopy();
-		}
+		MadokuSavedData savedData = MadokuSavedDataManager.jsonWorld(server);
+		CompoundTag root = savedData.copyData();
+		CompoundTag entries = root.getCompoundOrEmpty("entries");
+		CompoundTag entry = entries.getCompoundOrEmpty(key);
+		JsonObject data = entry.contains("data") ? MadokuSavedDataManager.toJson(entry.getCompoundOrEmpty("data")) : null;
+		JsonObject settings = entry.contains("settings") ? MadokuSavedDataManager.toJson(entry.getCompoundOrEmpty("settings")) : new JsonObject();
+		if (data == null || data.isEmpty()) data = safeDefaults.deepCopy();
+		cacheSettings(key, settings);
+		putJsonWorldEntry(savedData, key, data, settings);
+		return data.deepCopy();
 	}
 
-	public static void saveWorldData(MinecraftServer server, String folderName, String jsonName, JsonObject data) {
-		Path file = resolveWorldFile(server, folderName, jsonName, false);
-		JsonObject settings = SETTINGS_CACHE.get(file);
-		JsonObject snapshot = data == null ? new JsonObject() : data.deepCopy();
-		JsonObject capturedSettings = settings == null ? new JsonObject() : settings.deepCopy();
-		DataSaveCoordinatorManager.submit(
-			"json-" + file.getFileName(),
-			file,
-			() -> JSONFormatAPIManager.writeManagedDocument(file, snapshot, capturedSettings, JSONTypeAPIManager.STATIC_DATA)
-		);
+	public static synchronized void saveWorldData(MinecraftServer server, String folderName, String jsonName, JsonObject data) {
+		if (server == null) return;
+		String key = worldDataKey(folderName, jsonName);
+		JsonObject settings = SETTINGS_CACHE.getOrDefault(key, new JsonObject());
+		putJsonWorldEntry(MadokuSavedDataManager.jsonWorld(server), key,
+			data == null ? new JsonObject() : data, settings);
 	}
 
 	public static synchronized long getAutoSaveIntervalTicks(MinecraftServer server, String folderName, String jsonName) {
-		Path file = resolveWorldFile(server, folderName, jsonName, false);
-		JsonObject settings = SETTINGS_CACHE.get(file);
+		String key = worldDataKey(folderName, jsonName);
+		JsonObject settings = SETTINGS_CACHE.get(key);
 		if (settings == null) {
-			try { settings = JSONFormatAPIManager.readManagedDocument(file).settings(); cacheSettings(file, settings); }
-			catch (IOException | RuntimeException exception) { LOGGER.error("Failed to read world data settings {}", file, exception); return minutesToTicks(DEFAULT_AUTO_SAVE_MINUTES); }
+			CompoundTag entry = MadokuSavedDataManager.jsonWorld(server).copyData().getCompoundOrEmpty("entries").getCompoundOrEmpty(key);
+			settings = entry.contains("settings") ? MadokuSavedDataManager.toJson(entry.getCompoundOrEmpty("settings")) : new JsonObject();
+			cacheSettings(key, settings);
 		}
 		return minutesToTicks(readLong(settings, JSONTypeAPIManager.FIELD_AUTOSAVE, DEFAULT_AUTO_SAVE_MINUTES));
 	}
 
 	public static synchronized void deleteWorldData(MinecraftServer server, String folderName, String jsonName) {
-		Path file = resolveWorldFile(server, folderName, jsonName, false);
-		try { Files.deleteIfExists(file); } catch (IOException exception) { LOGGER.error("Failed to delete world data file {}", file, exception); }
-		SETTINGS_CACHE.remove(file);
+		String key = worldDataKey(folderName, jsonName);
+		MadokuSavedData savedData = MadokuSavedDataManager.jsonWorld(server);
+		CompoundTag root = savedData.copyData();
+		CompoundTag entries = root.getCompoundOrEmpty("entries").copy();
+		entries.remove(key);
+		root.put("entries", entries);
+		savedData.replaceData(root);
+		SETTINGS_CACHE.remove(key);
 	}
 
 	public static synchronized void clearRuntimeState() { SETTINGS_CACHE.clear(); }
@@ -156,21 +142,26 @@ public final class JSONAPIManager {
 			+ normalized.substring(separator + 1).replace('_', '-');
 	}
 
-	static void cacheSettings(Path file, JsonObject settings) { if (file != null && settings != null) SETTINGS_CACHE.put(file, settings.deepCopy()); }
+	static void cacheSettings(String key, JsonObject settings) { if (key != null && settings != null) SETTINGS_CACHE.put(key, settings.deepCopy()); }
 
-	private static Path resolveWorldFile(MinecraftServer server, String folderName, String jsonName, boolean createDirectory) {
-		Path root = getWorldRootDirectory(server).toAbsolutePath().normalize();
-		String folder = requireRelativePath(folderName, "world data folder");
-		Path directory = root.resolve(folder).normalize();
-		ensureInside(root, directory, "World data folder");
-		if (createDirectory) try { Files.createDirectories(directory); } catch (IOException exception) { throw new IllegalStateException("Failed to create world data directory: " + directory, exception); }
-		String name = jsonName == null ? "" : jsonName.trim();
-		if (name.isBlank()) throw new IllegalArgumentException("JSON file name must not be blank.");
-		if (!name.toLowerCase().endsWith(".json")) name += ".json";
-		Path file = directory.resolve(name).normalize();
-		ensureInside(directory, file, "JSON file");
-		return file;
+	private static void putJsonWorldEntry(MadokuSavedData savedData, String key, JsonObject data, JsonObject settings) {
+		if (savedData == null) return;
+		CompoundTag root = savedData.copyData();
+		CompoundTag entries = root.getCompoundOrEmpty("entries").copy();
+		CompoundTag entry = new CompoundTag();
+		entry.put("data", MadokuSavedDataManager.toNbt(data));
+		entry.put("settings", MadokuSavedDataManager.toNbt(settings));
+		entries.put(key, entry);
+		root.put("entries", entries);
+		savedData.replaceData(root);
 	}
+
+	private static String worldDataKey(String folderName, String jsonName) {
+		String name = jsonName == null ? "" : jsonName.trim();
+		if (!name.toLowerCase(Locale.ROOT).endsWith(".json")) name += ".json";
+		return requireRelativePath(folderName, "world data folder") + "/" + name;
+	}
+
 
 	private static String requireRelativePath(String value, String label) {
 		if (value == null || value.trim().isBlank()) throw new IllegalArgumentException(label + " must not be blank.");
@@ -194,6 +185,3 @@ public final class JSONAPIManager {
 		catch (ArithmeticException exception) { return DEFAULT_AUTO_SAVE_MINUTES * TimeAPIManager.SECONDS_PER_MINUTE * TimeAPIManager.TICKS_PER_SECOND; }
 	}
 }
-
-
-

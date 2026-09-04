@@ -3,7 +3,7 @@ package madoku.craft.java.core.season;
 import com.google.gson.JsonObject;
 
 import madoku.craft.java.core.data.DataSystemsAPIManager;
-import madoku.craft.java.core.data.DataWorldAPIManager;
+import madoku.craft.java.core.data.WorldDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.scheduler.SchedulerAdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -148,7 +148,7 @@ public final class SeasonWeatherAPIManager {
 	}
 
 	private static void restorePersistedState(MinecraftServer server, long now) {
-		JsonObject source = DataWorldAPIManager.getSystemData(DATA_SYSTEM_ID);
+		JsonObject source = WorldDataAPIManager.getSystemData(DATA_SYSTEM_ID);
 		WeatherCondition persistedCondition = resolveCondition(readString(source, FIELD_CONDITION, ""));
 		long persistedEnd = readLong(source, FIELD_CONDITION_END, -1L);
 		long persistedNextEvaluation = readLong(source, FIELD_NEXT_EVALUATION, -1L);
@@ -172,7 +172,7 @@ public final class SeasonWeatherAPIManager {
 			.put(FIELD_CONDITION_END, conditionEndAbsoluteTime)
 			.put(FIELD_NEXT_EVALUATION, nextEvaluationAbsoluteTime)
 			.build();
-		DataWorldAPIManager.setSystemData(DATA_SYSTEM_ID, state);
+		WorldDataAPIManager.setSystemData(DATA_SYSTEM_ID, state);
 	}
 
 	private static long resolveAdaptivePollInterval(MinecraftServer server) {
@@ -351,5 +351,4 @@ public final class SeasonWeatherAPIManager {
 		public boolean precipitating() { return precipitating; }
 	}
 }
-
 

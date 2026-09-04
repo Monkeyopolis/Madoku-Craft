@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.java.core.data.DataPlayerAPIManager;
+import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.scheduler.SchedulerAPIManager;
 import madoku.craft.java.core.sync.SyncPlayerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -76,9 +76,9 @@ public final class MadokuHungerManager {
 		}
 
 		loadStaticConfig();
-		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = PlayerDataAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 	}
 
@@ -87,7 +87,7 @@ public final class MadokuHungerManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = PlayerDataAPIManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -99,7 +99,7 @@ public final class MadokuHungerManager {
 		if (server == null) {
 			return;
 		}
-		DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		PlayerDataAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void onServerStarted(MinecraftServer server) {

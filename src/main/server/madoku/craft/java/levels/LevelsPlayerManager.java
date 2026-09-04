@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 
 import madoku.craft.java.attributes.HealthAPIManager;
 import madoku.craft.java.attributes.HungerAPIManager;
-import madoku.craft.java.core.data.DataPlayerAPIManager;
+import madoku.craft.java.core.data.PlayerDataAPIManager;
 import madoku.craft.java.core.sync.SyncPlayerAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
@@ -82,9 +82,9 @@ public final class LevelsPlayerManager {
 	public static void loadPersistedData(MinecraftServer server) {
 		if (server == null) return;
 		LevelsConfigManager.reload();
-		JsonObject data = DataPlayerAPIManager.getSystemData(DATA_FILE_NAME);
+		JsonObject data = PlayerDataAPIManager.getSystemData(DATA_FILE_NAME);
 		applyPersistedData(data);
-		long interval = DataPlayerAPIManager.getAutoSaveIntervalTicks();
+		long interval = Math.max(1L, PlayerDataAPIManager.getAutoSaveIntervalTicks());
 		lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), Math.max(1L, interval));
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
 			state(player);
@@ -96,7 +96,7 @@ public final class LevelsPlayerManager {
 
 	public static void autosavePersistedData(MinecraftServer server) {
 		if (server == null) return;
-		long interval = Math.max(1L, DataPlayerAPIManager.getAutoSaveIntervalTicks());
+		long interval = Math.max(1L, PlayerDataAPIManager.getAutoSaveIntervalTicks());
 		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), interval);
 		if (bucket != lastAutosaveBucket) {
 			lastAutosaveBucket = bucket;
@@ -105,7 +105,7 @@ public final class LevelsPlayerManager {
 	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server != null) DataPlayerAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
+		if (server != null) PlayerDataAPIManager.setSystemData(DATA_FILE_NAME, toPersistedData());
 	}
 
 	public static void flushDirtySyncs(MinecraftServer server) {

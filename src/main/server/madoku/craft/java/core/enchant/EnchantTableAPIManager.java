@@ -87,7 +87,7 @@ public final class EnchantTableAPIManager {
 		ItemStack input = menu.getSlot(0).getItem();
 		ItemStack inputPrototype = input.copyWithCount(1);
 		int cost = menu.costs[option];
-		if (input.isEmpty() || cost <= 0 || player.experienceLevel < cost) return false;
+		if (input.isEmpty() || cost <= 0 || (!player.hasInfiniteMaterials() && player.experienceLevel < cost)) return false;
 
 		int lapisCost = option + 1;
 		ItemStack lapis = menu.getSlot(1).getItem();
@@ -173,4 +173,3 @@ public final class EnchantTableAPIManager {
 	}
 
 }
-

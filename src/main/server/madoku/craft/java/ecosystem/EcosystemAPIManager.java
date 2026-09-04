@@ -4,7 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import madoku.craft.java.core.chunk.ChunkAPIManager;
-import madoku.craft.java.core.data.DataWorldChunkAPIManager;
+import madoku.craft.java.core.data.WorldChunkDataAPIManager;
+import madoku.craft.java.core.data.WorldChunkDataKey;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.scheduler.SchedulerAdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
@@ -545,7 +546,7 @@ final class EcosystemAPIManager {
 			EcosystemNaturalErosionManager.reset();
 			EcosystemNaturalDecayManager.reset();
 
-			long autoSaveIntervalTicks = DataWorldChunkAPIManager.getAutoSaveIntervalTicks();
+			long autoSaveIntervalTicks = WorldChunkDataAPIManager.getAutoSaveIntervalTicks();
 			lastAutosaveBucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 			dirty = false;
 			DIRTY_CHUNK_KEYS.clear();
@@ -559,7 +560,7 @@ final class EcosystemAPIManager {
 			return;
 		}
 
-		long autoSaveIntervalTicks = DataWorldChunkAPIManager.getAutoSaveIntervalTicks();
+		long autoSaveIntervalTicks = WorldChunkDataAPIManager.getAutoSaveIntervalTicks();
 		long bucket = Math.floorDiv(TimeAPIManager.getGameplayTicks(), autoSaveIntervalTicks);
 		if (bucket == lastAutosaveBucket) {
 			return;
@@ -589,15 +590,15 @@ final class EcosystemAPIManager {
 			if (chunkData == null) {
 				continue;
 			}
-			DataWorldChunkAPIManager.setChunkSystemData(
-				new DataWorldChunkAPIManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+			WorldChunkDataAPIManager.setChunkSystemData(
+				new WorldChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
 				DATA_SYSTEM_ID,
 				chunkData
 			);
 		}
 		for (ChunkRefKey chunkKey : staleChunkKeys) {
-			DataWorldChunkAPIManager.removeChunkSystemData(
-				new DataWorldChunkAPIManager.ChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
+			WorldChunkDataAPIManager.removeChunkSystemData(
+				new WorldChunkDataKey(chunkKey.levelId(), chunkKey.chunkX(), chunkKey.chunkZ()),
 				DATA_SYSTEM_ID
 			);
 		}
@@ -612,7 +613,7 @@ final class EcosystemAPIManager {
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(level), chunkX, chunkZ);
 		RETAINED_UNLOADED_CHUNK_KEYS.remove(chunkKey);
 		if (chunkKey.levelId().isBlank() || !LOADED_PERSISTED_CHUNK_KEYS.add(chunkKey)) return;
-		JsonObject source = DataWorldChunkAPIManager.getChunkSystemData(level, chunkX, chunkZ, DATA_SYSTEM_ID);
+		JsonObject source = WorldChunkDataAPIManager.getChunkSystemData(level, chunkX, chunkZ, DATA_SYSTEM_ID);
 		if (source != null && !source.isEmpty()) {
 			source.addProperty(FIELD_LEVEL_ID, chunkKey.levelId());
 			source.addProperty(FIELD_CHUNK_X, chunkX);
@@ -879,21 +880,21 @@ final class EcosystemAPIManager {
 		}
 
 		JsonObject chunkData = createChunkPersistedData(chunkKey);
-		DataWorldChunkAPIManager.ChunkDataKey dataKey = new DataWorldChunkAPIManager.ChunkDataKey(
+		WorldChunkDataKey dataKey = new WorldChunkDataKey(
 			chunkKey.levelId(),
 			chunkKey.chunkX(),
 			chunkKey.chunkZ()
 		);
 		if (chunkData != null) {
-			DataWorldChunkAPIManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
+		WorldChunkDataAPIManager.setChunkSystemData(dataKey, DATA_SYSTEM_ID, chunkData);
 			PERSISTED_CHUNK_KEYS.add(chunkKey);
 			RETAINED_UNLOADED_CHUNK_KEYS.add(chunkKey);
 		} else {
-			DataWorldChunkAPIManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
+		WorldChunkDataAPIManager.removeChunkSystemData(dataKey, DATA_SYSTEM_ID);
 			PERSISTED_CHUNK_KEYS.remove(chunkKey);
 			RETAINED_UNLOADED_CHUNK_KEYS.remove(chunkKey);
 		}
-		DataWorldChunkAPIManager.savePersistedData(level.getServer());
+		WorldChunkDataAPIManager.savePersistedData(level.getServer());
 
 		evictRuntimeChunkState(chunkKey);
 	}
@@ -1012,7 +1013,7 @@ final class EcosystemAPIManager {
 	}
 
 	static String levelId(ServerLevel world) {
-		String dimensionId = DataWorldChunkAPIManager.dimensionId(world);
+		String dimensionId = WorldChunkDataAPIManager.dimensionId(world);
 		return dimensionId.isBlank() ? "" : dimensionId;
 	}
 

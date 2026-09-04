@@ -110,6 +110,9 @@ public final class LootTableEntitiesAPIManager {
 		}
 
 		LivingEntity thisEntity = resolveLootContextParameter(lootContext, "THIS_ENTITY", LivingEntity.class);
+		if (thisEntity instanceof Sheep && isSheepShearingContext(lootContext)) {
+			return null;
+		}
 		String tableId = resolveQueriedLootTableId(lootContext);
 		if (tableId.isBlank()) {
 			tableId = resolveEntityLootTableId(thisEntity);
@@ -208,6 +211,11 @@ public final class LootTableEntitiesAPIManager {
 			adjusted.add(stack);
 		}
 		return List.copyOf(adjusted);
+	}
+
+	private static boolean isSheepShearingContext(LootContext lootContext) {
+		ItemStack tool = resolveLootContextParameter(lootContext, "TOOL", ItemStack.class);
+		return tool != null && tool.is(Items.SHEARS);
 	}
 
 
@@ -639,7 +647,6 @@ public final class LootTableEntitiesAPIManager {
 
 	}
 }
-
 
 
 

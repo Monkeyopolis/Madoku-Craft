@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import madoku.craft.java.core.data.DataSystemsAPIManager;
-import madoku.craft.java.core.data.DataWorldAPIManager;
+import madoku.craft.java.core.data.WorldDataAPIManager;
 import madoku.craft.java.core.data.ChunkDataAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
@@ -172,7 +172,7 @@ public final class FarmingCropsManager {
 
 		loadStaticConfig();
 		loadCropConfigs();
-		JsonObject data = DataWorldAPIManager.getSystemData(DATA_SYSTEM_ID);
+		JsonObject data = WorldDataAPIManager.getSystemData(DATA_SYSTEM_ID);
 		applyPersistedData(data);
 		dirty = false;
 	}
@@ -192,7 +192,7 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		DataWorldAPIManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
+		WorldDataAPIManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
 		dirty = false;
 	}
 
@@ -2197,4 +2197,3 @@ public final class FarmingCropsManager {
 	) { }
 
 }
-

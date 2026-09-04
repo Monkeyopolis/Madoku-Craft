@@ -9,31 +9,37 @@ public final class MadokuDataManager {
 	private MadokuDataManager() { }
 
 	public static void initialize() {
+		MadokuSavedDataManager.registerProvider(new MadokuSavedDataProvider());
+		MadokuSavedDataManager.initialize();
+		WorldDataAPIManager.registerProvider(new MadokuWorldDataProvider());
+		WorldDataAPIManager.initialize();
+		WorldChunkDataAPIManager.registerProvider(new MadokuWorldChunkDataProvider());
+		WorldChunkDataAPIManager.initialize();
+		PlayerDataAPIManager.registerProvider(new MadokuPlayerDataProvider());
+		PlayerDataAPIManager.initialize();
 		DataSaveCoordinatorManager.initialize();
 		DataSystemsAPIManager.initialize();
-		DataWorldAPIManager.initialize();
-		DataWorldChunkAPIManager.initialize();
-		DataPlayerAPIManager.initialize();
 		initialized = true;
 	}
 	public static void reset() {
-		DataWorldAPIManager.reset();
-		DataWorldChunkAPIManager.reset();
-		DataPlayerAPIManager.reset();
+		WorldDataAPIManager.reset();
+		WorldChunkDataAPIManager.reset();
+		PlayerDataAPIManager.reset();
 		DataSystemsAPIManager.reset();
 		DataSaveCoordinatorManager.reset();
+		MadokuSavedDataManager.reset();
 		initialized = false;
 	}
 	public static boolean isInitialized() { return initialized; }
 	public static void loadPersistedData(MinecraftServer server) {
-		DataWorldAPIManager.loadPersistedData(server);
-		DataWorldChunkAPIManager.loadPersistedData(server);
-		DataPlayerAPIManager.loadPersistedData(server);
+		WorldDataAPIManager.loadPersistedData(server);
+		WorldChunkDataAPIManager.loadPersistedData(server);
+		PlayerDataAPIManager.loadPersistedData(server);
 	}
 	public static void onServerStarted(MinecraftServer server) {
-		DataWorldAPIManager.onServerStarted(server);
-		DataWorldChunkAPIManager.onServerStarted(server);
-		DataPlayerAPIManager.onServerStarted(server);
+		WorldDataAPIManager.onServerStarted(server);
+		WorldChunkDataAPIManager.onServerStarted(server);
+		PlayerDataAPIManager.onServerStarted(server);
 	}
 	public static void autosavePersistedData(MinecraftServer server) { DataSaveCoordinatorManager.autosave(server); }
 	public static void onServerStopping(MinecraftServer server) { DataSaveCoordinatorManager.saveAndWait(server); }
