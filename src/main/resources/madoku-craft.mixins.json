@@ -119,7 +119,8 @@
     "mob.WitherSkeletonWitherEffectMixin"
   ],
   "client": [
-    "inventory.AbstractContainerScreenAccessor",
+	    "music.MusicManagerMixin",
+	    "inventory.AbstractContainerScreenAccessor",
     "core.EnchantmentScreenMixin",
     "core.SmithingScreenMixin",
     "season.BiomeSeasonalPrecipitationMixin",

@@ -22,6 +22,7 @@ import madoku.craft.java.pet.PetHudManagerClient;
 import madoku.craft.java.pet.PetRendererManager;
 import madoku.craft.java.season.ClientSeasonalPrecipitationState;
 import madoku.craft.java.trade.MerchantEggVariantsClient;
+import madoku.craft.java.utility.music.MadokuMusicManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
@@ -35,6 +36,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		MadokuMusicManager.initialize();
 		SyncAPIManager.initializeClient();
 		MadokuHudManager.initialize();
 		PetHudManagerClient.initialize();

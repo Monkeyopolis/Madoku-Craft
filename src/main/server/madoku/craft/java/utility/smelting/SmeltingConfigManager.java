@@ -10,8 +10,7 @@ import java.nio.file.Path;
 
 /** Static configuration group for furnace, blast-furnace, and smoker behavior. */
 public final class SmeltingConfigManager {
-	public static final String CONFIG_FOLDER_NAME = "madoku-craft-smelting";
-	public static final String CONFIG_FILE_NAME = "madoku-smelting";
+	public static final String CONFIG_FILE_NAME = "madoku-smelting.json";
 	public static final String FIELD_ENABLED = "enabled";
 	public static final String FIELD_BLOCK_ID = "block-id";
 	public static final String FIELD_SMELTING_SPEED = "smelting-speed";
@@ -23,7 +22,7 @@ public final class SmeltingConfigManager {
 	}
 
 	public static void initialize() {
-		Path file = UtilityConfigManager.getSubsystemDirectory(CONFIG_FOLDER_NAME).resolve(CONFIG_FILE_NAME + ".json");
+		Path file = UtilityConfigManager.getRootDirectory().resolve(CONFIG_FILE_NAME);
 		try {
 			JsonObject normalized = JSONFormatAPIManager.ensureManagedFile(
 				file,

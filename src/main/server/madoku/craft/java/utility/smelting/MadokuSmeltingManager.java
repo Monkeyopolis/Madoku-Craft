@@ -165,7 +165,11 @@ public final class MadokuSmeltingManager {
 
 	private static void requestFurnaceProcessing(MinecraftServer server, FurnaceKey key) {
 		if (key == null || scheduledFurnaces.contains(key)) return;
-		String schedulerId = schedulerIds.computeIfAbsent(key, value -> SchedulerAPIManager.createOrGetScheduler(value.toBinding()));
+		// Scheduler entries are removed by the scheduler runtime after their last
+		// queued task executes. Reacquire the binding here so a cached ID cannot
+		// become stale and cause SCHEDULER_NOT_FOUND on the next furnace tick.
+		String schedulerId = SchedulerAPIManager.createOrGetScheduler(key.toBinding());
+		schedulerIds.put(key, schedulerId);
 		long delay = MadokuUtilityManager.resolveAdaptiveInterval(server, ADAPTIVE_INTERVAL_OWNER, 1L, 20L);
 		SchedulerAPIManager.EnqueueStatus status = SchedulerAPIManager.enqueue(
 			schedulerId, Math.max(0L, delay), TASK_TYPE_SMELTING_TICK, new JsonObject(), SchedulerAPIManager.TickDomain.GAMEPLAY
