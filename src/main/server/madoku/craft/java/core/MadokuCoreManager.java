@@ -23,6 +23,7 @@ import madoku.craft.java.core.sync.MadokuSyncProvider;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.core.time.MadokuTimeProvider;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
+import madoku.craft.java.debug.MadokuMsptDebug;
 import net.minecraft.resources.Identifier;
 
 import java.nio.file.Path;
@@ -117,10 +118,10 @@ public final class MadokuCoreManager {
 	}
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
-		HelperAPIManager.onServerTick(server);
-		EnchantAPIManager.onServerTick(server);
-		ChunkAPIManager.onServerTick(server);
-		MadokuEcosystemManager.onServerTick(server);
+		MadokuMsptDebug.measure("madoku.core.helper", server, HelperAPIManager::onServerTick);
+		MadokuMsptDebug.measure("madoku.core.enchant", server, EnchantAPIManager::onServerTick);
+		MadokuMsptDebug.measure("madoku.core.chunk", server, ChunkAPIManager::onServerTick);
+		MadokuMsptDebug.measure("madoku.core.ecosystem", server, MadokuEcosystemManager::onServerTick);
 	}
 
 	public static boolean shouldRunWorldSync(net.minecraft.server.MinecraftServer server) {

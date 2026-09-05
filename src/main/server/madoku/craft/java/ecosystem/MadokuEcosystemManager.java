@@ -9,6 +9,7 @@ public final class MadokuEcosystemManager {
 
 	/** Initializes the shared ecosystem runtime and each ecosystem subsystem. */
 	public static void initialize() {
+		EcosystemBlockStateManager.initialize();
 		EcosystemAPIManager.initialize();
 		NaturalGrowthAPIManager.registerProvider(new MadokuNaturalGrowthProvider());
 		NaturalErosionAPIManager.registerProvider(new MadokuNaturalErosionProvider());

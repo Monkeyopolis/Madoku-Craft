@@ -3,14 +3,12 @@ package madoku.craft.java.ecosystem;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.RandomSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
@@ -32,7 +30,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 public final class EcosystemNaturalDecayManager {
-	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_decay";
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalDecayManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
@@ -43,24 +40,11 @@ public final class EcosystemNaturalDecayManager {
 	static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
 	private static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, Long>> treeDecayTargetOwnersByChunk = new LinkedHashMap<>();
 
-	private static final ChunkAPIManager.ChunkProcessor CHUNK_PROCESSOR = new ChunkAPIManager.ChunkProcessor() {
-		@Override
-		public boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
-			return (EcosystemAPIManager.candidateMaskAt(level, position) & EcosystemAPIManager.CANDIDATE_DECAY) != 0;
-		}
-
-		@Override
-		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
-			EcosystemNaturalDecayManager.handleRandomPosition(level, position);
-		}
-	};
-
 	private EcosystemNaturalDecayManager() {
 	}
 
 	public static void initialize() {
 		loadConfig();
-		ChunkAPIManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 	}
 
 	public static void reset() {
@@ -275,7 +259,7 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	public static void syncChunkProcessorActivation() {
-		ChunkAPIManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
+		// Vanilla BlockState.randomTick is the dispatcher for this subsystem.
 	}
 
 	/** Discovers decay in the same column selected for Growth and Erosion. */
@@ -329,8 +313,8 @@ public final class EcosystemNaturalDecayManager {
 	}
 
 	static void handleRandomPosition(ServerLevel world, BlockPos position) {
-		// Random ticking may only advance an existing source-leaf candidate.
-		// Leaf/target discovery belongs exclusively to discoverChunk.
+		// Random ticking advances an existing source-leaf candidate. One-position
+		// discovery is performed by EcosystemNaturalDecayBlockProvider.
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
@@ -342,6 +326,43 @@ public final class EcosystemNaturalDecayManager {
 			currentAbsoluteDayTime,
 			position.asLong()
 		);
+	}
+
+	static void discoverCandidateAt(ServerLevel world, BlockPos position, BlockState state) {
+		if (world == null || position == null || state == null || !isEnabled()) {
+			return;
+		}
+		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, state);
+		if (targetPos != null) {
+			pickTreeDecayCandidateForPosition(
+				world,
+				position.getX() >> 4,
+				position.getZ() >> 4,
+				position.asLong(),
+				targetPos.asLong()
+			);
+		}
+	}
+
+	static void removeCandidateAt(EcosystemAPIManager.ChunkRefKey chunkKey, long packedPosition) {
+		if (chunkKey == null) {
+			return;
+		}
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.get(chunkKey);
+		if (candidates == null || candidates.remove(packedPosition) == null) {
+			return;
+		}
+		EcosystemAPIManager.removeCandidatePositionBit(chunkKey.levelId(), packedPosition, EcosystemAPIManager.CANDIDATE_DECAY);
+		Map<Long, Long> owners = treeDecayTargetOwnersByChunk.get(chunkKey);
+		if (owners != null) {
+			owners.values().removeIf(value -> value == packedPosition);
+			if (owners.isEmpty()) {
+				treeDecayTargetOwnersByChunk.remove(chunkKey);
+			}
+		}
+		if (candidates.isEmpty()) {
+			treeDecayCandidatesByChunk.remove(chunkKey);
+		}
 	}
 
 	static double resolveTreeDecayRequiredTicks(ServerLevel world, String seasonId) {

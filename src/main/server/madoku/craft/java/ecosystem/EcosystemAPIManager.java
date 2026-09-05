@@ -7,7 +7,6 @@ import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.data.WorldChunkDataAPIManager;
 import madoku.craft.java.core.data.WorldChunkDataKey;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
-import madoku.craft.java.core.runtime.AdaptiveIntervalAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -95,6 +94,19 @@ final class EcosystemAPIManager {
 		Blocks.COARSE_DIRT,
 		Blocks.ROOTED_DIRT
 	);
+	/** Blocks whose states may host an ecosystem candidate. */
+	static final Set<Block> ECOSYSTEM_GROWTH_BLOCKS = Set.of(
+		Blocks.GRASS_BLOCK,
+		Blocks.DIRT,
+		Blocks.COARSE_DIRT,
+		Blocks.PODZOL,
+		Blocks.MYCELIUM,
+		Blocks.ROOTED_DIRT,
+		Blocks.DIRT_PATH,
+		Blocks.MUD,
+		Blocks.SAND,
+		Blocks.RED_SAND
+	);
 	private static final String TREE_TYPE_OAK = "oak";
 	private static final String TREE_TYPE_SPRUCE = "spruce";
 	private static final String TREE_TYPE_BIRCH = "birch";
@@ -115,17 +127,8 @@ final class EcosystemAPIManager {
 	private static final Set<ChunkRefKey> PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> RETAINED_UNLOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final Set<ChunkRefKey> LOADED_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final List<DiscoveryChunkState> PERIODIC_DISCOVERY_CHUNKS = new ArrayList<>();
-	private static final Set<ChunkRefKey> PERIODIC_DISCOVERY_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final String DISCOVERY_INTERVAL_SYSTEM_ID = "ecosystem.discovery";
-	private static final long DISCOVERY_MIN_INTERVAL_TICKS = 1L;
-	private static final long DISCOVERY_MAX_INTERVAL_TICKS = 20L;
-	private static final int DISCOVERY_MAX_WORK_UNITS_PER_TICK = 32;
-	private static final int PERIODIC_DISCOVERY_CHECKPOINT_HOUR = 6;
-	private static long lastPeriodicDiscoveryDay = Long.MIN_VALUE;
-	private static int periodicDiscoveryCursor;
+	private static final Map<String, ServerLevel> LOADED_LEVELS = new LinkedHashMap<>();
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
 	static final Map<ColumnRefKey, Set<String>> dirtKeysByColumn = new LinkedHashMap<>();
@@ -142,14 +145,13 @@ final class EcosystemAPIManager {
 	private static final ChunkAPIManager.ChunkLifecycleListener CHUNK_LISTENER = new ChunkAPIManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			scheduleLoadedChunkDiscovery(level, chunkX, chunkZ);
+			registerLoadedLevel(level);
+			loadPersistedChunkData(level, chunkX, chunkZ);
 		}
 
 		@Override
 		public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
 			persistAndEvictChunkState(level, chunkX, chunkZ);
-			removeLoadedDiscoveryChunk(level, chunkX, chunkZ);
-			removePeriodicDiscoveryChunk(level, chunkX, chunkZ);
 		}
 	};
 	private static String cachedProbeLevelId = "";
@@ -185,13 +187,8 @@ final class EcosystemAPIManager {
 		PERSISTED_CHUNK_KEYS.clear();
 		RETAINED_UNLOADED_CHUNK_KEYS.clear();
 		LOADED_PERSISTED_CHUNK_KEYS.clear();
-		LOADED_DISCOVERY_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
-		PERIODIC_DISCOVERY_CHUNKS.clear();
-		PERIODIC_DISCOVERY_CHUNK_KEYS.clear();
-		lastPeriodicDiscoveryDay = Long.MIN_VALUE;
-		periodicDiscoveryCursor = 0;
-		AdaptiveIntervalAPIManager.clearSystem(DISCOVERY_INTERVAL_SYSTEM_ID);
+		LOADED_LEVELS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
@@ -204,199 +201,9 @@ final class EcosystemAPIManager {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		if (server == null || !isEnabled()) {
-			return;
-		}
-
-		ServerLevel overworld = server.overworld();
-		if (overworld == null) {
-			return;
-		}
-
-		long absoluteDayTime = TimeAPIManager.getCurrentAbsoluteDayTime(overworld);
-		long currentDay = TimeAPIManager.getDay(absoluteDayTime);
-		if (hasPassedPeriodicDiscoveryCheckpoint(absoluteDayTime) && currentDay > lastPeriodicDiscoveryDay) {
-			beginPeriodicDiscovery(server);
-			lastPeriodicDiscoveryDay = currentDay;
-		}
-
-		if (PERIODIC_DISCOVERY_CHUNKS.isEmpty()) {
-			return;
-		}
-
-		long interval = AdaptiveIntervalAPIManager.resolve(
-			DISCOVERY_INTERVAL_SYSTEM_ID,
-			server,
-			DISCOVERY_MIN_INTERVAL_TICKS,
-			DISCOVERY_MAX_INTERVAL_TICKS
-		);
-		processPeriodicDiscoveryWork(resolveDiscoveryWorkUnits(interval));
+		// Candidate discovery is now event/state driven. Vanilla random ticking
+		// performs the only recurring work, so there is no periodic chunk scan.
 	}
-
-	private static int resolveDiscoveryWorkUnits(long adaptiveInterval) {
-		long clampedInterval = Math.max(DISCOVERY_MIN_INTERVAL_TICKS, Math.min(DISCOVERY_MAX_INTERVAL_TICKS, adaptiveInterval));
-		long intervalSpan = DISCOVERY_MAX_INTERVAL_TICKS - DISCOVERY_MIN_INTERVAL_TICKS;
-		if (intervalSpan <= 0L) {
-			return DISCOVERY_MAX_WORK_UNITS_PER_TICK;
-		}
-		long workSpan = DISCOVERY_MAX_WORK_UNITS_PER_TICK - 1L;
-		return Math.max(1, DISCOVERY_MAX_WORK_UNITS_PER_TICK - (int) Math.round(
-			((double) (clampedInterval - DISCOVERY_MIN_INTERVAL_TICKS) * workSpan) / intervalSpan
-		));
-	}
-
-	private static void beginPeriodicDiscovery(MinecraftServer server) {
-		PERIODIC_DISCOVERY_CHUNKS.clear();
-		PERIODIC_DISCOVERY_CHUNK_KEYS.clear();
-		periodicDiscoveryCursor = 0;
-		for (ServerLevel level : server.getAllLevels()) {
-			if (level == null) {
-				continue;
-			}
-			level.getChunkSource().chunkMap.forEachReadyToSendChunk(chunk -> {
-				if (chunk == null) {
-					return;
-				}
-				ChunkRefKey key = new ChunkRefKey(levelId(level), chunk.getPos().x(), chunk.getPos().z());
-				if (!PERIODIC_DISCOVERY_CHUNK_KEYS.add(key)) {
-					return;
-				}
-				PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunkState(level, key, chunk));
-			});
-		}
-	}
-
-	private static void processPeriodicDiscoveryWork(int workUnits) {
-		int remaining = Math.max(0, workUnits);
-		while (remaining-- > 0 && !PERIODIC_DISCOVERY_CHUNKS.isEmpty()) {
-			if (periodicDiscoveryCursor >= PERIODIC_DISCOVERY_CHUNKS.size()) {
-				periodicDiscoveryCursor = 0;
-			}
-			DiscoveryChunkState discoveryChunk = PERIODIC_DISCOVERY_CHUNKS.get(periodicDiscoveryCursor);
-			if (!ChunkAPIManager.isChunkAccessible(
-				discoveryChunk.level(),
-				discoveryChunk.key().chunkX(),
-				discoveryChunk.key().chunkZ()
-			)) {
-				removePeriodicDiscoveryState(periodicDiscoveryCursor);
-				continue;
-			}
-
-			if (!advanceDiscoveryChunk(discoveryChunk)) {
-				// Keep the selected chunk active until its column and decay cursors finish.
-				// The adaptive interval controls the one-column rate; queued chunks do not
-				// dilute that rate for the chunk currently being discovered.
-				continue;
-			}
-			LOADED_DISCOVERY_CHUNK_KEYS.add(discoveryChunk.key());
-			removePeriodicDiscoveryState(periodicDiscoveryCursor);
-		}
-	}
-
-	private static boolean advanceDiscoveryChunk(DiscoveryChunkState state) {
-		if (state == null || state.chunk() == null) {
-			return true;
-		}
-		int columnIndex = state.nextColumn < 256 ? state.nextColumn++ : -1;
-		if (columnIndex >= 0) {
-			discoverSurfaceColumn(state, columnIndex);
-			if (isNaturalDecayEnabled()) {
-				EcosystemNaturalDecayManager.discoverColumn(
-					state.level(),
-					state.chunk(),
-					state.key().chunkX(),
-					state.key().chunkZ(),
-					columnIndex,
-					state
-				);
-			}
-		}
-		state.decayComplete = !isNaturalDecayEnabled() || state.nextColumn >= 256;
-		if (state.nextColumn >= 256 && !state.candidatesFinalized) {
-			EcosystemNaturalGrowthManager.finalizeDiscoveryCandidates(state);
-			state.candidatesFinalized = true;
-		}
-		return state.nextColumn >= 256 && state.decayComplete;
-	}
-
-	private static void removePeriodicDiscoveryState(int index) {
-		if (index < 0 || index >= PERIODIC_DISCOVERY_CHUNKS.size()) {
-			return;
-		}
-		DiscoveryChunkState removed = PERIODIC_DISCOVERY_CHUNKS.remove(index);
-		if (removed != null) {
-			PERIODIC_DISCOVERY_CHUNK_KEYS.remove(removed.key());
-		}
-		if (index < periodicDiscoveryCursor) {
-			periodicDiscoveryCursor--;
-		}
-		periodicDiscoveryCursor = Math.max(0, Math.min(periodicDiscoveryCursor, PERIODIC_DISCOVERY_CHUNKS.size()));
-	}
-
-	private static void removePeriodicDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
-		if (level == null) {
-			return;
-		}
-		ChunkRefKey key = new ChunkRefKey(levelId(level), chunkX, chunkZ);
-		for (int index = PERIODIC_DISCOVERY_CHUNKS.size() - 1; index >= 0; index--) {
-			if (!PERIODIC_DISCOVERY_CHUNKS.get(index).key().equals(key)) {
-				continue;
-			}
-			removePeriodicDiscoveryState(index);
-		}
-		periodicDiscoveryCursor = Math.max(0, Math.min(periodicDiscoveryCursor, PERIODIC_DISCOVERY_CHUNKS.size()));
-	}
-
-	private static void scheduleLoadedChunkDiscovery(ServerLevel level, int chunkX, int chunkZ) {
-		if (level == null || !isEnabled() || !ChunkAPIManager.isChunkAccessible(level, chunkX, chunkZ)) {
-			return;
-		}
-		ChunkRefKey key = new ChunkRefKey(levelId(level), chunkX, chunkZ);
-		if (LOADED_DISCOVERY_CHUNK_KEYS.contains(key) || !PERIODIC_DISCOVERY_CHUNK_KEYS.add(key)) {
-			return;
-		}
-		LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
-		if (chunk == null) {
-			PERIODIC_DISCOVERY_CHUNK_KEYS.remove(key);
-			return;
-		}
-		PERIODIC_DISCOVERY_CHUNKS.add(new DiscoveryChunkState(level, key, chunk));
-	}
-
-	private static void removeLoadedDiscoveryChunk(ServerLevel level, int chunkX, int chunkZ) {
-		if (level != null) {
-			LOADED_DISCOVERY_CHUNK_KEYS.remove(new ChunkRefKey(levelId(level), chunkX, chunkZ));
-		}
-	}
-
-	private static void discoverSurfaceColumn(DiscoveryChunkState discoveryState, int columnIndex) {
-		ServerLevel level = discoveryState == null ? null : discoveryState.level();
-		int chunkX = discoveryState == null ? 0 : discoveryState.key().chunkX();
-		int chunkZ = discoveryState == null ? 0 : discoveryState.key().chunkZ();
-		if (level == null || !isEnabled()) {
-			return;
-		}
-		int localX = columnIndex & 15;
-		int localZ = columnIndex >> 4;
-		int x = (chunkX << 4) + localX;
-		int z = (chunkZ << 4) + localZ;
-		int topY = Math.min(
-			level.getMaxY() - 1,
-			level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1
-		);
-		if (topY < level.getMinY()) {
-			return;
-		}
-		BlockPos groundPos = new BlockPos(x, topY, z);
-		SurfaceDiscoverySample sample = new SurfaceDiscoverySample(
-			groundPos,
-			level.getBlockState(groundPos),
-			level.getBlockState(groundPos.above())
-		);
-		EcosystemNaturalGrowthManager.discoverColumn(level, chunkX, chunkZ, sample, discoveryState);
-		EcosystemNaturalErosionManager.discoverColumn(level, chunkX, chunkZ, sample);
-	}
-
 
 	public static boolean isEnabled() {
 		return ecosystemEnabled;
@@ -502,10 +309,10 @@ final class EcosystemAPIManager {
 		}
 		syncChunkProcessorActivation();
 		for (ServerLevel level : server.getAllLevels()) {
+			registerLoadedLevel(level);
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
 				if (chunk != null) {
 					loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
-					scheduleLoadedChunkDiscovery(level, chunk.getPos().x(), chunk.getPos().z());
 				}
 			});
 		}
@@ -810,7 +617,19 @@ final class EcosystemAPIManager {
 	}
 
 	static void syncChunkProcessorTracking(ChunkRefKey chunkKey) {
-		// Candidate masks are maintained incrementally by candidate stores.
+		// Candidate masks are maintained incrementally by candidate stores. The
+		// corresponding block-state eligibility is synchronized at each mask
+		// mutation; no chunk processor is involved.
+	}
+
+	static void registerLoadedLevel(ServerLevel level) {
+		if (level != null) {
+			LOADED_LEVELS.put(levelId(level), level);
+		}
+	}
+
+	static ServerLevel loadedLevel(String levelId) {
+		return levelId == null ? null : LOADED_LEVELS.get(levelId);
 	}
 
 	static int candidateMaskAt(ServerLevel world, BlockPos position) {
@@ -828,10 +647,12 @@ final class EcosystemAPIManager {
 			return;
 		}
 		CandidatePositionKey key = new CandidatePositionKey(levelId, position);
-		CANDIDATE_POSITION_MASKS.put(key, CANDIDATE_POSITION_MASKS.getOrDefault(key, 0) | bit);
+		int nextMask = CANDIDATE_POSITION_MASKS.getOrDefault(key, 0) | bit;
+		CANDIDATE_POSITION_MASKS.put(key, nextMask);
 		CANDIDATE_POSITION_KEYS_BY_CHUNK
 			.computeIfAbsent(chunkRefForPos(levelId, position), ignored -> new LinkedHashSet<>())
 			.add(key);
+		EcosystemBlockStateManager.onCandidateMaskChanged(levelId, position, nextMask);
 	}
 
 	static void addCandidatePositionBit(String levelId, long position, int bit) {
@@ -857,6 +678,25 @@ final class EcosystemAPIManager {
 		} else {
 			CANDIDATE_POSITION_MASKS.put(key, nextMask);
 		}
+		EcosystemBlockStateManager.onCandidateMaskChanged(levelId, position, nextMask);
+	}
+
+	/** Removes every ecosystem record at a position that was replaced or broken. */
+	static void removeAllCandidatesAt(ServerLevel level, BlockPos position) {
+		if (level == null || position == null) {
+			return;
+		}
+		String levelId = levelId(level);
+		long packedPosition = position.asLong();
+		boolean hadCandidate = candidateMaskAt(level, position) != 0;
+		removeDirtStateByKey(dirtKey(level, position));
+
+		ChunkRefKey chunkKey = chunkRefForPos(levelId, packedPosition);
+		EcosystemNaturalGrowthManager.removeCandidatesAt(chunkKey, packedPosition);
+		EcosystemNaturalDecayManager.removeCandidateAt(chunkKey, packedPosition);
+		if (hadCandidate) {
+			markChunkDirty(chunkKey);
+		}
 	}
 
 	static long deriveCandidateStartTime(long lastProcessedAbsoluteDayTime, double progressTicks) {
@@ -864,10 +704,6 @@ final class EcosystemAPIManager {
 			return Math.max(0L, lastProcessedAbsoluteDayTime);
 		}
 		return Math.max(0L, lastProcessedAbsoluteDayTime - (long) progressTicks);
-	}
-
-	private static boolean hasPassedPeriodicDiscoveryCheckpoint(long absoluteDayTime) {
-		return TimeAPIManager.getClockHour(absoluteDayTime) >= PERIODIC_DISCOVERY_CHECKPOINT_HOUR;
 	}
 
 	private static void persistAndEvictChunkState(ServerLevel level, int chunkX, int chunkZ) {
@@ -1298,6 +1134,11 @@ final class EcosystemAPIManager {
 	record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
 	}
 
+	/**
+	 * Retained only as a compatibility holder for old provider helper methods.
+	 * No instance is created by the runtime; chunk/column discovery is no longer
+	 * scheduled or called.
+	 */
 	static final class DiscoveryChunkState {
 		final ServerLevel level;
 		final ChunkRefKey key;
@@ -1324,20 +1165,11 @@ final class EcosystemAPIManager {
 			this.level = level;
 			this.key = key;
 			this.chunk = chunk;
-			this.decayComplete = false;
 		}
 
-		ServerLevel level() {
-			return level;
-		}
-
-		ChunkRefKey key() {
-			return key;
-		}
-
-		LevelChunk chunk() {
-			return chunk;
-		}
+		ServerLevel level() { return level; }
+		ChunkRefKey key() { return key; }
+		LevelChunk chunk() { return chunk; }
 	}
 
 	record SurfaceDiscoverySample(BlockPos groundPos, BlockState groundState, BlockState aboveState) {

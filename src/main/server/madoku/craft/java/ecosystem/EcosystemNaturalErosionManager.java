@@ -2,7 +2,6 @@ package madoku.craft.java.ecosystem;
 
 import com.google.gson.JsonObject;
 
-import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import net.minecraft.core.BlockPos;
@@ -12,7 +11,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.RandomSource;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -28,7 +26,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class EcosystemNaturalErosionManager {
-	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_erosion";
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EcosystemNaturalErosionManager.class);
 	private static final String CONFIG_FOLDER_NAME = "madoku-craft-ecosystem";
@@ -40,24 +37,11 @@ public final class EcosystemNaturalErosionManager {
 	private static final Map<String, TagKey<Biome>> BIOME_TAG_KEYS = new ConcurrentHashMap<>();
 	private static final Map<Holder<Biome>, Map<String, Boolean>> BIOME_RULE_MATCHES = new ConcurrentHashMap<>();
 
-	private static final ChunkAPIManager.ChunkProcessor CHUNK_PROCESSOR = new ChunkAPIManager.ChunkProcessor() {
-		@Override
-		public boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
-			return (EcosystemAPIManager.candidateMaskAt(level, position) & EcosystemAPIManager.CANDIDATE_WET) != 0;
-		}
-
-		@Override
-		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
-			EcosystemNaturalErosionManager.handleRandomPosition(level, position);
-		}
-	};
-
 	private EcosystemNaturalErosionManager() {
 	}
 
 	public static void initialize() {
 		loadConfig();
-		ChunkAPIManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 	}
 
 	public static void reset() {
@@ -80,7 +64,7 @@ public final class EcosystemNaturalErosionManager {
 	}
 
 	public static void syncChunkProcessorActivation() {
-		ChunkAPIManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
+		// Vanilla BlockState.randomTick is the dispatcher for this subsystem.
 	}
 
 	static void discoverColumn(
@@ -139,6 +123,15 @@ public final class EcosystemNaturalErosionManager {
 
 		BlockState state = world.getBlockState(position);
 		if (isLavaMagmaSeedCandidate(world, position, state)) {
+			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "wet");
+		}
+	}
+
+	static void discoverCandidateAt(ServerLevel world, BlockPos position, BlockState state) {
+		if (world == null || position == null || state == null || !isEnabled()) {
+			return;
+		}
+		if (isWetSeedCandidate(world, position, state) || isLavaMagmaSeedCandidate(world, position, state)) {
 			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "wet");
 		}
 	}

@@ -3,7 +3,6 @@ package madoku.craft.java.ecosystem;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.season.SeasonAPIManager;
@@ -15,7 +14,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.RandomSource;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
@@ -44,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class EcosystemNaturalGrowthManager {
-	public static final String CHUNK_PROCESSOR_ID = "ecosystem_natural_growth";
 	private static final String TREE_TYPE_OAK = "oak";
 	private static final String TREE_TYPE_SPRUCE = "spruce";
 	private static final String TREE_TYPE_BIRCH = "birch";
@@ -85,29 +82,11 @@ public final class EcosystemNaturalGrowthManager {
 	static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.GrassCandidateState>> desertFoliageGrowthCandidatesByChunk = new LinkedHashMap<>();
 	static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.FoliageCandidateState>> foliageCandidatesByChunk = new LinkedHashMap<>();
 
-	private static final ChunkAPIManager.ChunkProcessor CHUNK_PROCESSOR = new ChunkAPIManager.ChunkProcessor() {
-		@Override
-		public boolean acceptsRandomPosition(ServerLevel level, BlockPos position) {
-			int mask = EcosystemAPIManager.candidateMaskAt(level, position);
-			return (mask & (EcosystemAPIManager.CANDIDATE_DIRT
-				| EcosystemAPIManager.CANDIDATE_TREE
-				| EcosystemAPIManager.CANDIDATE_CACTUS
-				| EcosystemAPIManager.CANDIDATE_GRASS
-				| EcosystemAPIManager.CANDIDATE_FOLIAGE)) != 0;
-		}
-
-		@Override
-		public void handleRandomPosition(ServerLevel level, BlockPos position, RandomSource random) {
-			EcosystemNaturalGrowthManager.handleRandomPosition(level, position);
-		}
-	};
-
 	private EcosystemNaturalGrowthManager() {
 	}
 
 	public static void initialize() {
 		loadConfig();
-		ChunkAPIManager.registerChunkProcessor(CHUNK_PROCESSOR_ID, CHUNK_PROCESSOR);
 	}
 
 	public static void reset() {
@@ -835,7 +814,7 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	public static void syncChunkProcessorActivation() {
-		ChunkAPIManager.setChunkProcessorActive(CHUNK_PROCESSOR_ID, isEnabled());
+		// Vanilla BlockState.randomTick is the dispatcher for this subsystem.
 	}
 
 	static void discoverColumn(
@@ -1036,8 +1015,8 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static void handleRandomPosition(ServerLevel world, BlockPos position) {
-		// Random ticking may only advance existing candidates and process them when due.
-		// Candidate discovery belongs to discoverChunk and the deferred discovery worker.
+		// Random ticking advances existing candidates. One-position discovery is
+		// performed by EcosystemNaturalGrowthBlockProvider before this method.
 		if (world == null || position == null || !isEnabled()) {
 			return;
 		}
@@ -1063,6 +1042,85 @@ public final class EcosystemNaturalGrowthManager {
 		if ((mask & EcosystemAPIManager.CANDIDATE_FOLIAGE) != 0) {
 			processDesertFoliageGrowthCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
 			processFoliageCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
+		}
+	}
+
+	/**
+	 * Performs one-position candidate discovery for a state that has not been
+	 * checked yet. This is intentionally bounded to the position supplied by
+	 * vanilla; it never walks a chunk, section, or heightmap.
+	 */
+	static void discoverCandidateAt(ServerLevel world, BlockPos position, BlockState state) {
+		if (world == null || position == null || state == null || !isEnabled()) {
+			return;
+		}
+
+		if (isSurfaceDirtCandidate(world, position, state)) {
+			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "surface_dirt");
+		}
+
+		int chunkX = position.getX() >> 4;
+		int chunkZ = position.getZ() >> 4;
+		long packedPosition = position.asLong();
+		if (resolveTreeTypesForBiome(world, position).stream().anyMatch(treeType ->
+			isValidTreeGroundCandidate(world, position, state, treeType))) {
+			pickTreeCandidateForChunk(world, chunkX, chunkZ, Set.of(packedPosition));
+		}
+		if (isValidCactusGroundCandidate(world, position, state)) {
+			pickCactusCandidateForChunk(world, chunkX, chunkZ, Set.of(packedPosition));
+		}
+		if (isValidGrassGroundCandidate(world, position, state)) {
+			pickGrassCandidateForChunk(world, chunkX, chunkZ, Set.of(packedPosition));
+		}
+		if (isValidDesertFoliageGrowthGroundCandidate(world, position, state)) {
+			pickDesertFoliageGrowthCandidateForChunk(world, chunkX, chunkZ, Set.of(packedPosition));
+		}
+		if (isValidFoliageGroundCandidate(world, position, state, NaturalGrowthConfigManager.FIELD_WILDFLOWERS)) {
+			pickFoliageCandidateForChunk(world, chunkX, chunkZ, NaturalGrowthConfigManager.FIELD_WILDFLOWERS, Set.of(packedPosition));
+		}
+		if (isValidFoliageGroundCandidate(world, position, state, NaturalGrowthConfigManager.FIELD_PINK_PETALS)) {
+			pickFoliageCandidateForChunk(world, chunkX, chunkZ, NaturalGrowthConfigManager.FIELD_PINK_PETALS, Set.of(packedPosition));
+		}
+	}
+
+	static void removeCandidatesAt(EcosystemAPIManager.ChunkRefKey chunkKey, long packedPosition) {
+		if (chunkKey == null || packedPosition == Long.MIN_VALUE) {
+			return;
+		}
+		EcosystemAPIManager.TreeCandidateState tree = treeCandidatesByChunk.get(chunkKey);
+		if (tree != null && tree.groundPos == packedPosition) {
+			removeTreeCandidate(chunkKey);
+		}
+		EcosystemAPIManager.CactusCandidateState cactus = cactusCandidatesByChunk.get(chunkKey);
+		if (cactus != null && cactus.groundPos == packedPosition) {
+			removeCactusCandidate(chunkKey);
+		}
+		removeGrassCandidateAt(grassCandidatesByChunk, chunkKey, packedPosition, EcosystemAPIManager.CANDIDATE_GRASS);
+		removeGrassCandidateAt(desertFoliageGrowthCandidatesByChunk, chunkKey, packedPosition, EcosystemAPIManager.CANDIDATE_FOLIAGE);
+		Map<Long, EcosystemAPIManager.FoliageCandidateState> foliage = foliageCandidatesByChunk.get(chunkKey);
+		if (foliage != null && foliage.remove(packedPosition) != null) {
+			EcosystemAPIManager.removeCandidatePositionBit(
+				chunkKey.levelId(), packedPosition, EcosystemAPIManager.CANDIDATE_FOLIAGE
+			);
+			if (foliage.isEmpty()) {
+				foliageCandidatesByChunk.remove(chunkKey);
+			}
+		}
+	}
+
+	private static void removeGrassCandidateAt(
+		Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.GrassCandidateState>> candidatesByChunk,
+		EcosystemAPIManager.ChunkRefKey chunkKey,
+		long packedPosition,
+		int candidateBit
+	) {
+		Map<Long, EcosystemAPIManager.GrassCandidateState> candidates = candidatesByChunk.get(chunkKey);
+		if (candidates == null || candidates.remove(packedPosition) == null) {
+			return;
+		}
+		EcosystemAPIManager.removeCandidatePositionBit(chunkKey.levelId(), packedPosition, candidateBit);
+		if (candidates.isEmpty()) {
+			candidatesByChunk.remove(chunkKey);
 		}
 	}
 

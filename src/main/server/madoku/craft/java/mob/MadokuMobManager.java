@@ -1,5 +1,6 @@
 package madoku.craft.java.mob;
 
+import madoku.craft.java.debug.MadokuMsptDebug;
 import net.minecraft.server.MinecraftServer;
 
 /** Orchestrates the mob, entity, regional-difficulty, and world-difficulty subsystems. */
@@ -25,8 +26,8 @@ public final class MadokuMobManager {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		MobRegionalDifficultyManager.onServerTick(server);
-		MobEntityManager.onServerTick(server);
+		MadokuMsptDebug.measure("madoku.mobs.regional_difficulty", server, MobRegionalDifficultyManager::onServerTick);
+		MadokuMsptDebug.measure("madoku.mobs.entity_runtime", server, MobEntityManager::onServerTick);
 	}
 
 	public static void onServerStopped() {
