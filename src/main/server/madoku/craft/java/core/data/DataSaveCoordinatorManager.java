@@ -9,14 +9,12 @@ import madoku.craft.java.farming.FarmingAPIManager;
 import madoku.craft.java.levels.LevelsPlayerAPIManager;
 import madoku.craft.java.pet.PetAPIManager;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.SavedDataStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Coordinates vanilla SavedDataStorage autosaves and shutdown flushes. */
+/** Coordinates state capture and vanilla player, chunk, and SavedData flushes. */
 public final class DataSaveCoordinatorManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataSaveCoordinatorManager.class);
-	private static long dirtyChunks;
 	private static volatile long lastAutosaveBucket = Long.MIN_VALUE;
 	private static SaveMetrics lastMetrics = SaveMetrics.empty();
 
@@ -24,13 +22,11 @@ public final class DataSaveCoordinatorManager {
 
 	public static synchronized void initialize() {
 		lastAutosaveBucket = Long.MIN_VALUE;
-		dirtyChunks = 0L;
 		lastMetrics = SaveMetrics.empty();
 	}
 
 	public static synchronized void reset() {
 		lastAutosaveBucket = Long.MIN_VALUE;
-		dirtyChunks = 0L;
 		lastMetrics = SaveMetrics.empty();
 	}
 
@@ -47,15 +43,13 @@ public final class DataSaveCoordinatorManager {
 		if (server == null) return;
 		long start = System.nanoTime();
 		captureAndSchedule(server, true, "shutdown");
-		for (SavedDataStorage storage : MadokuSavedDataManager.storages()) storage.saveAndJoin();
-		lastMetrics = new SaveMetrics("shutdown", dirtyChunks, 0L, 0L,
+		server.saveEverything(false, false, false);
+		lastMetrics = new SaveMetrics("shutdown", 0L, 0L, 0L,
 			Math.max(0L, (System.nanoTime() - start) / 1_000_000L), 0L);
 		LOGGER.info("Madoku vanilla SavedData save completed: {}", lastMetrics);
 	}
 
 	public static SaveMetrics getLastMetrics() { return lastMetrics; }
-	public static void recordDirtyChunks(long count) { if (count > 0L) dirtyChunks += count; }
-
 	private static void captureAndSchedule(MinecraftServer server, boolean shutdown, String reason) {
 		if (shutdown) {
 			MadokuEntities.savePersistedData(server);
@@ -78,8 +72,10 @@ public final class DataSaveCoordinatorManager {
 		WorldDataAPIManager.savePersistedData(server);
 		WorldChunkDataAPIManager.savePersistedData(server);
 		PlayerDataAPIManager.savePersistedData(server);
-		for (SavedDataStorage storage : MadokuSavedDataManager.storages()) storage.scheduleSave();
-		if (!shutdown) LOGGER.debug("Madoku {} scheduled through vanilla SavedDataStorage", reason);
+		if (!shutdown) {
+			server.saveEverything(true, false, false);
+			LOGGER.debug("Madoku {} completed through vanilla player, chunk, and SavedData saves", reason);
+		}
 	}
 
 	public record SaveMetrics(String reason, long dirtyChunks, long filesWritten, long bytesWritten,

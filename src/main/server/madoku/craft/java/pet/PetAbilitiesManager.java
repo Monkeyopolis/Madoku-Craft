@@ -3031,8 +3031,12 @@ public final class PetAbilitiesManager {
 				.build();
 		}
 
-			static void applyPersistedData(JsonObject source) {
+		static void applyPersistedData(JsonObject source) {
 			PLAYER_ABILITY_COOLDOWNS.clear();
+			applyPersistedPlayerData(source);
+		}
+
+		static void applyPersistedPlayerData(JsonObject source) {
 			if (source == null) {
 				return;
 			}

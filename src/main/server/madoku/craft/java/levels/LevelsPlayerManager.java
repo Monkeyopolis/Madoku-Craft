@@ -137,6 +137,7 @@ public final class LevelsPlayerManager {
 
 	private static void handlePlayerJoin(ServerPlayer player) {
 		if (player == null) return;
+		applyPersistedPlayerData(PlayerDataAPIManager.getSystemDataForPlayer(player, DATA_FILE_NAME, "players", "uuid"));
 		state(player);
 		LevelsAttributesManager.applyPlayerAttributes(player);
 		HealthAPIManager.restoreJoinHealth(player);
@@ -165,19 +166,30 @@ public final class LevelsPlayerManager {
 		if (playersElement == null || !playersElement.isJsonArray()) return;
 		for (JsonElement element : playersElement.getAsJsonArray()) {
 			if (element == null || !element.isJsonObject()) continue;
-			JsonObject playerData = element.getAsJsonObject();
-			try {
-				UUID playerId = UUID.fromString(readString(playerData, "uuid", ""));
-				PlayerState state = PlayerState.defaults();
-				state.level = Math.min(maxPlayerLevel(), Math.max(1, readInt(playerData, "level", 1)));
-				state.currentXp = Math.max(0, readInt(playerData, "current-xp", 0));
-				state.requiredXp = requiredXpForLevel(state.level);
-				state.availablePoints = Math.max(0, readInt(playerData, "available-points", 1));
-				JsonObject stats = object(playerData, "stats");
-				for (LevelStat stat : LevelStat.values()) state.statLevels.put(stat, stat.clampLevel(readInt(stats, stat.id(), LevelStat.DEFAULT_LEVEL)));
-				PLAYER_STATES.put(playerId, state);
-			} catch (IllegalArgumentException ignored) { }
+			applyPersistedPlayerState(element.getAsJsonObject());
 		}
+	}
+
+	private static void applyPersistedPlayerData(JsonObject data) {
+		JsonElement playersElement = data == null ? null : data.get("players");
+		if (playersElement == null || !playersElement.isJsonArray()) return;
+		for (JsonElement element : playersElement.getAsJsonArray()) {
+			if (element != null && element.isJsonObject()) applyPersistedPlayerState(element.getAsJsonObject());
+		}
+	}
+
+	private static void applyPersistedPlayerState(JsonObject playerData) {
+		try {
+			UUID playerId = UUID.fromString(readString(playerData, "uuid", ""));
+			PlayerState state = PlayerState.defaults();
+			state.level = Math.min(maxPlayerLevel(), Math.max(1, readInt(playerData, "level", 1)));
+			state.currentXp = Math.max(0, readInt(playerData, "current-xp", 0));
+			state.requiredXp = requiredXpForLevel(state.level);
+			state.availablePoints = Math.max(0, readInt(playerData, "available-points", 1));
+			JsonObject stats = object(playerData, "stats");
+			for (LevelStat stat : LevelStat.values()) state.statLevels.put(stat, stat.clampLevel(readInt(stats, stat.id(), LevelStat.DEFAULT_LEVEL)));
+			PLAYER_STATES.put(playerId, state);
+		} catch (IllegalArgumentException ignored) { }
 	}
 
 	private static JsonObject toPersistedData() {

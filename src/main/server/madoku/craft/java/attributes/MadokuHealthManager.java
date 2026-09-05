@@ -516,6 +516,7 @@ public final class MadokuHealthManager {
 			return;
 		}
 
+		applyPersistedPlayerData(PlayerDataAPIManager.getSystemDataForPlayer(player, DATA_FILE_NAME, "players", "uuid"));
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		state.onlineThisSession = true;
 		state.lastProcessedGameplayTick = TimeAPIManager.getGameplayTicks();
@@ -635,22 +636,31 @@ public final class MadokuHealthManager {
 			if (element == null || !element.isJsonObject()) {
 				continue;
 			}
-			JsonObject playerData = element.getAsJsonObject();
-			UUID playerId = parseUuid(getString(playerData, "uuid", ""));
-			if (playerId == null) {
-				continue;
-			}
-
-			PlayerState state = new PlayerState();
-			double savedHealth = getDouble(playerData, "current-health", Double.NaN);
-			state.savedHealth = Double.isNaN(savedHealth) ? -1.0f : Math.max(0.0f, (float) savedHealth);
-			state.actionProgressTicks = Math.max(0L, getLong(playerData, "action-progress-ticks", 0L));
-			state.lowHungerActionProgressTicks = Math.max(0L, getLong(playerData, "low-hunger-action-progress-ticks", 0L));
-			state.poisonProgressTicks = Math.max(0L, getLong(playerData, "poison-progress-ticks", 0L));
-			state.witherProgressTicks = Math.max(0L, getLong(playerData, "wither-progress-ticks", 0L));
-			state.regenerationProgressTicks = Math.max(0L, getLong(playerData, "regeneration-progress-ticks", 0L));
-			PLAYER_STATES.put(playerId, state);
+			applyPersistedPlayerState(element.getAsJsonObject());
 		}
+	}
+
+	private static void applyPersistedPlayerData(JsonObject source) {
+		JsonArray players = getArray(source, "players");
+		if (players == null) return;
+		for (JsonElement element : players) {
+			if (element != null && element.isJsonObject()) applyPersistedPlayerState(element.getAsJsonObject());
+		}
+	}
+
+	private static void applyPersistedPlayerState(JsonObject playerData) {
+		UUID playerId = parseUuid(getString(playerData, "uuid", ""));
+		if (playerId == null) return;
+
+		PlayerState state = new PlayerState();
+		double savedHealth = getDouble(playerData, "current-health", Double.NaN);
+		state.savedHealth = Double.isNaN(savedHealth) ? -1.0f : Math.max(0.0f, (float) savedHealth);
+		state.actionProgressTicks = Math.max(0L, getLong(playerData, "action-progress-ticks", 0L));
+		state.lowHungerActionProgressTicks = Math.max(0L, getLong(playerData, "low-hunger-action-progress-ticks", 0L));
+		state.poisonProgressTicks = Math.max(0L, getLong(playerData, "poison-progress-ticks", 0L));
+		state.witherProgressTicks = Math.max(0L, getLong(playerData, "wither-progress-ticks", 0L));
+		state.regenerationProgressTicks = Math.max(0L, getLong(playerData, "regeneration-progress-ticks", 0L));
+		PLAYER_STATES.put(playerId, state);
 	}
 
 	private static long consumeElapsedTicks(PlayerState state, long gameplayTick) {

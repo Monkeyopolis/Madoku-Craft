@@ -1,12 +1,15 @@
 package madoku.craft.java.farming;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import madoku.craft.java.core.data.DataSystemsAPIManager;
-import madoku.craft.java.core.data.WorldDataAPIManager;
 import madoku.craft.java.core.data.ChunkDataAPIManager;
+import madoku.craft.java.core.data.WorldChunkDataAPIManager;
+import madoku.craft.java.core.data.WorldChunkDataKey;
+import madoku.craft.java.core.chunk.ChunkAPIManager;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.core.loot.LootTableCropsAPIManager;
@@ -110,16 +113,25 @@ public final class FarmingCropsManager {
 	private static final Map<String, CropState> cropsByKey = new HashMap<>();
 	private static final Map<String, Set<String>> cropKeysByChunk = new HashMap<>();
 	private static final Map<String, PendingHarvestRule> pendingHarvestRulesByKey = new HashMap<>();
-	private static final Map<String, JsonObject> serializedPlotsByKey = new HashMap<>();
-	private static final Map<String, Long> serializedPlotFingerprintsByKey = new HashMap<>();
-	private static final Map<String, JsonObject> serializedCropsByKey = new HashMap<>();
-	private static final Map<String, Long> serializedCropFingerprintsByKey = new HashMap<>();
+	private static final Set<String> LOADED_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final ChunkAPIManager.ChunkLifecycleListener CHUNK_LISTENER = new ChunkAPIManager.ChunkLifecycleListener() {
+		@Override public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
+			loadChunkData(level, chunkX, chunkZ);
+			processCropsInChunk(level, chunkX, chunkZ);
+		}
+
+		@Override public void onChunkUnloaded(ServerLevel level, int chunkX, int chunkZ) {
+			saveChunkData(level, chunkX, chunkZ);
+			evictChunkData(level, chunkX, chunkZ);
+		}
+	};
 
 	private FarmingCropsManager() {
 	}
 
 	public static void initialize() {
 		DataSystemsAPIManager.registerSystem(DATA_SYSTEM_ID);
+		ChunkAPIManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 		loadStaticConfig();
 		loadCropConfigs();
 		SyncConfigAPIManager.register(
@@ -141,10 +153,7 @@ public final class FarmingCropsManager {
 		cropsByKey.clear();
 		cropKeysByChunk.clear();
 		pendingHarvestRulesByKey.clear();
-		serializedPlotsByKey.clear();
-		serializedPlotFingerprintsByKey.clear();
-		serializedCropsByKey.clear();
-		serializedCropFingerprintsByKey.clear();
+		LOADED_CHUNK_KEYS.clear();
 		dirty = false;
 		clientSynchronized = false;
 		savedClientSettings = null;
@@ -160,7 +169,10 @@ public final class FarmingCropsManager {
 		applyCropItemMetadata();
 		for (ServerLevel level : server.getAllLevels()) {
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
-				if (chunk != null) processCropsInChunk(level, chunk.getPos().x(), chunk.getPos().z());
+				if (chunk != null) {
+					loadChunkData(level, chunk.getPos().x(), chunk.getPos().z());
+					processCropsInChunk(level, chunk.getPos().x(), chunk.getPos().z());
+				}
 			});
 		}
 	}
@@ -172,8 +184,11 @@ public final class FarmingCropsManager {
 
 		loadStaticConfig();
 		loadCropConfigs();
-		JsonObject data = WorldDataAPIManager.getSystemData(DATA_SYSTEM_ID);
-		applyPersistedData(data);
+		plotsByKey.clear();
+		cropsByKey.clear();
+		cropKeysByChunk.clear();
+		pendingHarvestRulesByKey.clear();
+		LOADED_CHUNK_KEYS.clear();
 		dirty = false;
 	}
 
@@ -192,7 +207,12 @@ public final class FarmingCropsManager {
 			return;
 		}
 
-		WorldDataAPIManager.setSystemData(DATA_SYSTEM_ID, toPersistedData());
+		for (ServerLevel level : server.getAllLevels()) {
+			for (String key : Set.copyOf(LOADED_CHUNK_KEYS)) {
+				int[] coordinates = chunkCoordinates(key, level);
+				if (coordinates != null) saveChunkData(level, coordinates[0], coordinates[1]);
+			}
+		}
 		dirty = false;
 	}
 
@@ -447,6 +467,7 @@ public final class FarmingCropsManager {
 		if (rule == null) {
 			return;
 		}
+		LOADED_CHUNK_KEYS.add(cropChunkKey(world, cropPos.getX() >> 4, cropPos.getZ() >> 4));
 		// A mature pumpkin/melon placed as a block is not a farming harvest.
 		// Do not let a farmland scan turn it into tracked crop state.
 		if (isCropMatureBlock(cropState, rule)
@@ -589,6 +610,103 @@ public final class FarmingCropsManager {
 				keys.remove(staleKey);
 			}
 		}
+	}
+
+	private static void loadChunkData(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null) return;
+		String chunkKey = cropChunkKey(world, chunkX, chunkZ);
+		LOADED_CHUNK_KEYS.add(chunkKey);
+		evictChunkRuntime(world, chunkX, chunkZ);
+		JsonObject source = WorldChunkDataAPIManager.getChunkSystemData(world, chunkX, chunkZ, DATA_SYSTEM_ID);
+		JsonElement plotsElement = source.get(FIELD_PLOTS);
+		if (plotsElement != null && plotsElement.isJsonArray()) {
+			for (JsonElement element : plotsElement.getAsJsonArray()) {
+				PlotState plot = PlotState.fromJson(element);
+				if (plot != null) putPlotState(plot.key(), plot);
+			}
+		}
+		JsonElement cropsElement = source.get(FIELD_CROPS);
+		if (cropsElement != null && cropsElement.isJsonArray()) {
+			for (JsonElement element : cropsElement.getAsJsonArray()) {
+				CropState crop = CropState.fromJson(element);
+				if (crop != null) putCropState(crop.key(), crop);
+			}
+		}
+	}
+
+	private static void saveChunkData(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null) return;
+		String chunkKey = cropChunkKey(world, chunkX, chunkZ);
+		LOADED_CHUNK_KEYS.add(chunkKey);
+		JsonObject data = toChunkPersistedData(world, chunkX, chunkZ);
+		JsonArray plots = data.getAsJsonArray(FIELD_PLOTS);
+		JsonArray crops = data.getAsJsonArray(FIELD_CROPS);
+		if ((plots == null || plots.isEmpty()) && (crops == null || crops.isEmpty())) {
+			WorldChunkDataAPIManager.removeChunkSystemData(
+				new WorldChunkDataKey(levelId(world), chunkX, chunkZ), DATA_SYSTEM_ID
+			);
+		} else {
+			WorldChunkDataAPIManager.setChunkSystemData(
+				new WorldChunkDataKey(levelId(world), chunkX, chunkZ), DATA_SYSTEM_ID, data
+			);
+		}
+	}
+
+	private static void evictChunkData(ServerLevel world, int chunkX, int chunkZ) {
+		evictChunkRuntime(world, chunkX, chunkZ);
+		LOADED_CHUNK_KEYS.remove(cropChunkKey(world, chunkX, chunkZ));
+	}
+
+	private static void evictChunkRuntime(ServerLevel world, int chunkX, int chunkZ) {
+		if (world == null) return;
+		String levelId = levelId(world);
+		String chunkKey = cropChunkKey(world, chunkX, chunkZ);
+		plotsByKey.entrySet().removeIf(entry -> entry.getValue() == null
+			|| !levelId.equals(entry.getValue().levelId)
+			|| BlockPos.getX(entry.getValue().soilPos) >> 4 != chunkX
+			|| BlockPos.getZ(entry.getValue().soilPos) >> 4 != chunkZ);
+		cropsByKey.entrySet().removeIf(entry -> entry.getValue() == null
+			|| !levelId.equals(entry.getValue().levelId)
+			|| BlockPos.getX(entry.getValue().cropPos) >> 4 != chunkX
+			|| BlockPos.getZ(entry.getValue().cropPos) >> 4 != chunkZ);
+		cropKeysByChunk.remove(chunkKey);
+		pendingHarvestRulesByKey.keySet().removeIf(key -> keyBelongsToChunk(key, levelId, chunkX, chunkZ));
+	}
+
+	private static JsonObject toChunkPersistedData(ServerLevel world, int chunkX, int chunkZ) {
+		JsonArray plots = new JsonArray();
+		for (PlotState plot : plotsByKey.values()) {
+			if (plot != null && levelId(world).equals(plot.levelId)
+				&& BlockPos.getX(plot.soilPos) >> 4 == chunkX && BlockPos.getZ(plot.soilPos) >> 4 == chunkZ) {
+				plots.add(plot.toJson());
+			}
+		}
+		JsonArray crops = new JsonArray();
+		for (CropState crop : cropsByKey.values()) {
+			if (crop != null && levelId(world).equals(crop.levelId)
+				&& BlockPos.getX(crop.cropPos) >> 4 == chunkX && BlockPos.getZ(crop.cropPos) >> 4 == chunkZ) {
+				crops.add(crop.toJson());
+			}
+		}
+		return JSONFormatAPIManager.object().put(FIELD_PLOTS, plots).put(FIELD_CROPS, crops).build();
+	}
+
+	private static int[] chunkCoordinates(String key, ServerLevel world) {
+		if (key == null || world == null) return null;
+		String prefix = levelId(world) + "|";
+		if (!key.startsWith(prefix)) return null;
+		String[] parts = key.substring(prefix.length()).split("\\|", 2);
+		if (parts.length != 2) return null;
+		try { return new int[] { Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) }; }
+		catch (NumberFormatException ignored) { return null; }
+	}
+
+	private static boolean keyBelongsToChunk(String key, String levelId, int chunkX, int chunkZ) {
+		if (key == null || levelId == null || !key.startsWith(levelId + "|")) return false;
+		try {
+			long position = Long.parseLong(key.substring(levelId.length() + 1));
+			return (BlockPos.getX(position) >> 4) == chunkX && (BlockPos.getZ(position) >> 4) == chunkZ;
+		} catch (NumberFormatException ignored) { return false; }
 	}
 
 	private static void applyElapsedCropProgress(
@@ -891,6 +1009,7 @@ public final class FarmingCropsManager {
 		if (world == null || soilPos == null) {
 			return null;
 		}
+		LOADED_CHUNK_KEYS.add(cropChunkKey(world, soilPos.getX() >> 4, soilPos.getZ() >> 4));
 
 		String key = plotKey(world, soilPos);
 		PlotState existing = plotsByKey.get(key);
@@ -946,8 +1065,6 @@ public final class FarmingCropsManager {
 
 	private static CropState removeCropStateByKey(String key) {
 		CropState removed = cropsByKey.remove(key);
-		serializedCropsByKey.remove(key);
-		serializedCropFingerprintsByKey.remove(key);
 		if (removed != null) {
 			removeCropKeyFromChunk(removed);
 		}
@@ -1002,84 +1119,6 @@ public final class FarmingCropsManager {
 			return safeCurrent;
 		}
 		return safePrevious;
-	}
-
-	private static void applyPersistedData(JsonObject source) {
-		plotsByKey.clear();
-		cropsByKey.clear();
-		cropKeysByChunk.clear();
-		pendingHarvestRulesByKey.clear();
-		serializedPlotsByKey.clear();
-		serializedPlotFingerprintsByKey.clear();
-		serializedCropsByKey.clear();
-		serializedCropFingerprintsByKey.clear();
-
-		if (source == null) {
-			return;
-		}
-
-		JsonElement plotsElement = source.get(FIELD_PLOTS);
-		if (plotsElement != null && plotsElement.isJsonArray()) {
-			for (JsonElement element : plotsElement.getAsJsonArray()) {
-				PlotState plot = PlotState.fromJson(element);
-				if (plot == null) {
-					continue;
-				}
-				putPlotState(plot.key(), plot);
-			}
-		}
-
-		JsonElement cropsElement = source.get(FIELD_CROPS);
-		if (cropsElement != null && cropsElement.isJsonArray()) {
-			for (JsonElement element : cropsElement.getAsJsonArray()) {
-				CropState crop = CropState.fromJson(element);
-				if (crop == null) {
-					continue;
-				}
-				putCropState(crop.key(), crop);
-			}
-		}
-
-		// Dirt ecosystem tracking moved to MadokuEcosystem.
-	}
-
-	private static JsonObject toPersistedData() {
-		JSONFormatAPIManager.ArrayBuilder plots = JSONFormatAPIManager.array();
-		for (PlotState plot : plotsByKey.values()) {
-			if (plot != null) {
-				String key = plot.key();
-				long fingerprint = plot.persistenceFingerprint();
-				JsonObject serialized = serializedPlotsByKey.get(key);
-				if (serialized == null || !Long.valueOf(fingerprint).equals(serializedPlotFingerprintsByKey.get(key))) {
-					serialized = plot.toJson();
-					serializedPlotsByKey.put(key, serialized);
-					serializedPlotFingerprintsByKey.put(key, fingerprint);
-				}
-				plots.add(serialized);
-			}
-		}
-		serializedPlotsByKey.keySet().retainAll(plotsByKey.keySet());
-		serializedPlotFingerprintsByKey.keySet().retainAll(plotsByKey.keySet());
-		JSONFormatAPIManager.ArrayBuilder crops = JSONFormatAPIManager.array();
-		for (CropState crop : cropsByKey.values()) {
-			if (crop != null) {
-				String key = crop.key();
-				long fingerprint = crop.persistenceFingerprint();
-				JsonObject serialized = serializedCropsByKey.get(key);
-				if (serialized == null || !Long.valueOf(fingerprint).equals(serializedCropFingerprintsByKey.get(key))) {
-					serialized = crop.toJson();
-					serializedCropsByKey.put(key, serialized);
-					serializedCropFingerprintsByKey.put(key, fingerprint);
-				}
-				crops.add(serialized);
-			}
-		}
-		serializedCropsByKey.keySet().retainAll(cropsByKey.keySet());
-		serializedCropFingerprintsByKey.keySet().retainAll(cropsByKey.keySet());
-		return JSONFormatAPIManager.object()
-			.put(FIELD_PLOTS, plots.build())
-			.put(FIELD_CROPS, crops.build())
-			.build();
 	}
 
 	private static void loadStaticConfig() {
@@ -1697,16 +1736,6 @@ public final class FarmingCropsManager {
 				.build();
 		}
 
-		private long persistenceFingerprint() {
-			long result = 17L;
-			result = 31L * result + levelId.hashCode();
-			result = 31L * result + soilPos;
-			result = 31L * result + cropPos;
-			result = 31L * result + (cropId == null ? 0 : cropId.hashCode());
-			result = 31L * result + (fertilized ? 1L : 0L);
-			return 31L * result + fertilizedAtGameplayTick;
-		}
-
 		private static PlotState fromJson(JsonElement element) {
 			if (element == null || !element.isJsonObject()) {
 				return null;
@@ -1776,17 +1805,6 @@ public final class FarmingCropsManager {
 				.put(FIELD_PROGRESS_GROWTH_TICKS, progressGrowthTicks)
 				.put(FIELD_LAST_PROCESSED_ABSOLUTE_DAY_TIME, lastProcessedAbsoluteDayTime)
 				.build();
-		}
-
-		private long persistenceFingerprint() {
-			long result = 17L;
-			result = 31L * result + levelId.hashCode();
-			result = 31L * result + cropPos;
-			result = 31L * result + soilPos;
-			result = 31L * result + (cropId == null ? 0 : cropId.hashCode());
-			result = 31L * result + Double.doubleToLongBits(requiredGrowthTicks);
-			result = 31L * result + Double.doubleToLongBits(progressGrowthTicks);
-			return 31L * result + lastProcessedAbsoluteDayTime;
 		}
 
 		private static CropState fromJson(JsonElement element) {

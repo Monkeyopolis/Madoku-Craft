@@ -2,6 +2,7 @@ package madoku.craft.java.core.data;
 
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 
 /** Public API for indexed per-player data. */
 public final class PlayerDataAPIManager {
@@ -24,6 +25,7 @@ public final class PlayerDataAPIManager {
 	public static void savePersistedData(MinecraftServer server) { provider.savePersistedData(server); }
 	public static JsonObject getSystemData(String systemId) { return provider.getSystemData(systemId); }
 	public static JsonObject getSystemData(String systemId, String entriesKey, String playerIdKey) { return provider.getSystemData(systemId, entriesKey, playerIdKey); }
+	public static JsonObject getSystemDataForPlayer(ServerPlayer player, String systemId, String entriesKey, String playerIdKey) { return provider.getSystemDataForPlayer(player, systemId, entriesKey, playerIdKey); }
 	public static void setSystemData(String systemId, JsonObject data) { provider.setSystemData(systemId, data); }
 	public static void setSystemData(String systemId, JsonObject data, String entriesKey, String playerIdKey) { provider.setSystemData(systemId, data, entriesKey, playerIdKey); }
 	public static long getAutoSaveIntervalTicks() { return provider.getAutoSaveIntervalTicks(); }

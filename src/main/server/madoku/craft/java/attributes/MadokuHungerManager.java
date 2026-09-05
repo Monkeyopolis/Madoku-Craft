@@ -481,6 +481,7 @@ public final class MadokuHungerManager {
 			return;
 		}
 
+		applyPersistedPlayerData(PlayerDataAPIManager.getSystemDataForPlayer(player, DATA_FILE_NAME, "players", "uuid"));
 		boolean firstJoin = !PLAYER_STATES.containsKey(player.getUUID());
 		PlayerState state = PLAYER_STATES.computeIfAbsent(player.getUUID(), ignored -> new PlayerState());
 		int maxHungerPoints = resolveMaximumHungerPoints(player);
@@ -685,21 +686,30 @@ public final class MadokuHungerManager {
 			if (element == null || !element.isJsonObject()) {
 				continue;
 			}
-			JsonObject playerData = element.getAsJsonObject();
-			UUID playerId = parseUuid(getString(playerData, "uuid", ""));
-			if (playerId == null) {
-				continue;
-			}
-
-			PlayerState state = new PlayerState();
-			state.blockBreakProgress = Math.max(0L, getLong(playerData, "block-break-progress", 0L));
-			state.movementProgress = Math.max(0.0d, getDouble(playerData, "movement-progress", 0.0d));
-			state.timeProgressTicks = Math.max(0L, getLong(playerData, "time-progress-ticks", 0L));
-			state.hungerEffectProgressTicks = Math.max(0L, getLong(playerData, "hunger-effect-progress-ticks", 0L));
-			state.saturationEffectProgressTicks = Math.max(0L, getLong(playerData, "saturation-effect-progress-ticks", 0L));
-			state.zeroHungerProgressTicks = Math.max(0L, getLong(playerData, "zero-hunger-progress-ticks", 0L));
-			PLAYER_STATES.put(playerId, state);
+			applyPersistedPlayerState(element.getAsJsonObject());
 		}
+	}
+
+	private static void applyPersistedPlayerData(JsonObject source) {
+		JsonArray players = getArray(source, "players");
+		if (players == null) return;
+		for (JsonElement element : players) {
+			if (element != null && element.isJsonObject()) applyPersistedPlayerState(element.getAsJsonObject());
+		}
+	}
+
+	private static void applyPersistedPlayerState(JsonObject playerData) {
+		UUID playerId = parseUuid(getString(playerData, "uuid", ""));
+		if (playerId == null) return;
+
+		PlayerState state = new PlayerState();
+		state.blockBreakProgress = Math.max(0L, getLong(playerData, "block-break-progress", 0L));
+		state.movementProgress = Math.max(0.0d, getDouble(playerData, "movement-progress", 0.0d));
+		state.timeProgressTicks = Math.max(0L, getLong(playerData, "time-progress-ticks", 0L));
+		state.hungerEffectProgressTicks = Math.max(0L, getLong(playerData, "hunger-effect-progress-ticks", 0L));
+		state.saturationEffectProgressTicks = Math.max(0L, getLong(playerData, "saturation-effect-progress-ticks", 0L));
+		state.zeroHungerProgressTicks = Math.max(0L, getLong(playerData, "zero-hunger-progress-ticks", 0L));
+		PLAYER_STATES.put(playerId, state);
 	}
 
 	private static long consumeElapsedTicks(PlayerState state, long gameplayTick) {

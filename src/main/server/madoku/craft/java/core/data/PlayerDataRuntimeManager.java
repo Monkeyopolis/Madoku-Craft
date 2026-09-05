@@ -3,22 +3,28 @@ package madoku.craft.java.core.data;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentTarget;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
-/** Internal runtime for indexed per-player data backed by vanilla SavedData. */
+/** Internal runtime for player-owned data stored in vanilla player NBT through Fabric attachments. */
 final class PlayerDataRuntimeManager {
-	private static final String FIELD_PLAYERS = "players";
 	private static final String FIELD_SYSTEMS = "systems";
+	private static final AttachmentType<CompoundTag> PLAYER_DATA_ATTACHMENT = AttachmentRegistry.create(
+		Identifier.fromNamespaceAndPath("madoku-craft", "player-data"),
+		builder -> builder.persistent(CompoundTag.CODEC).copyOnDeath()
+	);
 	private static final Map<UUID, Map<String, JsonObject>> PLAYER_DATA = new LinkedHashMap<>();
-	private static final Set<UUID> DIRTY_PLAYERS = new LinkedHashSet<>();
 	private static volatile MinecraftServer currentServer;
 	private static volatile boolean initialized;
 
@@ -26,14 +32,14 @@ final class PlayerDataRuntimeManager {
 
 	public static void initialize() {
 		PLAYER_DATA.clear();
-		DIRTY_PLAYERS.clear();
 		currentServer = null;
 		initialized = true;
+		ServerPlayerEvents.JOIN.register(PlayerDataRuntimeManager::loadPlayerAttachment);
+		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> loadPlayerAttachment(newPlayer));
 	}
 
 	public static void reset() {
 		PLAYER_DATA.clear();
-		DIRTY_PLAYERS.clear();
 		currentServer = null;
 		initialized = false;
 	}
@@ -44,33 +50,24 @@ final class PlayerDataRuntimeManager {
 		if (server == null) return;
 		currentServer = server;
 		PLAYER_DATA.clear();
-		DIRTY_PLAYERS.clear();
-		MadokuSavedData savedData = MadokuSavedDataManager.players(server);
-		CompoundTag root = savedData.copyData();
-		CompoundTag players = root.getCompoundOrEmpty(FIELD_PLAYERS);
-		for (Map.Entry<String, Tag> playerEntry : players.entrySet()) {
-			UUID playerId;
-			try { playerId = UUID.fromString(playerEntry.getKey()); }
-			catch (RuntimeException ignored) { continue; }
-			if (!(playerEntry.getValue() instanceof CompoundTag playerTag)) continue;
-			CompoundTag systems = playerTag.getCompoundOrEmpty(FIELD_SYSTEMS);
-			Map<String, JsonObject> target = PLAYER_DATA.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>());
-			for (Map.Entry<String, Tag> systemEntry : systems.entrySet()) {
-				if (systemEntry.getValue() instanceof CompoundTag compound) {
-					target.put(normalizeSystemId(systemEntry.getKey()), MadokuSavedDataManager.toJson(compound));
-				}
-			}
-		}
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
-		if (server != null) currentServer = server;
+		if (server != null) {
+			currentServer = server;
+			for (ServerPlayer player : server.getPlayerList().getPlayers()) loadPlayerAttachment(player);
+		}
 	}
 
-	public static void autosavePersistedData(MinecraftServer server) { }
+	public static void autosavePersistedData(MinecraftServer server) {
+		// Vanilla owns player-file scheduling. The data is synchronized to the player entity
+		// before vanilla's saveEverything call.
+	}
 
 	public static void savePersistedData(MinecraftServer server) {
-		if (server != null) syncSavedData(server);
+		if (server == null) return;
+		currentServer = server;
+		for (ServerPlayer player : server.getPlayerList().getPlayers()) syncPlayerAttachment(player);
 	}
 
 	public static JsonObject getSystemData(String systemId) {
@@ -96,6 +93,25 @@ final class PlayerDataRuntimeManager {
 		return result;
 	}
 
+	/** Returns one player's data in the same aggregate shape as {@link #getSystemData(String, String, String)}. */
+	public static JsonObject getSystemDataForPlayer(ServerPlayer player, String systemId, String entriesKey, String playerIdKey) {
+		if (player == null) return emptyEntries(entriesKey, "players");
+		loadPlayerAttachment(player);
+		String normalizedSystemId = normalizeSystemId(systemId);
+		String normalizedEntriesKey = normalizeKey(entriesKey, "players");
+		String normalizedPlayerIdKey = normalizeKey(playerIdKey, "uuid");
+		JsonArray entries = new JsonArray();
+		JsonObject data = PLAYER_DATA.getOrDefault(player.getUUID(), Map.of()).get(normalizedSystemId);
+		if (data != null) {
+			JsonObject copy = data.deepCopy();
+			copy.addProperty(normalizedPlayerIdKey, player.getUUID().toString());
+			entries.add(copy);
+		}
+		JsonObject result = new JsonObject();
+		result.add(normalizedEntriesKey, entries);
+		return result;
+	}
+
 	public static void setSystemData(String systemId, JsonObject source) {
 		setSystemData(systemId, source, "players", "uuid");
 	}
@@ -105,7 +121,7 @@ final class PlayerDataRuntimeManager {
 		String normalizedEntriesKey = normalizeKey(entriesKey, "players");
 		String normalizedPlayerIdKey = normalizeKey(playerIdKey, "uuid");
 		if (normalizedSystemId.isBlank()) return;
-		Set<UUID> seenPlayers = new LinkedHashSet<>();
+		Map<UUID, JsonObject> updates = new LinkedHashMap<>();
 		JsonElement entriesElement = source == null ? null : source.get(normalizedEntriesKey);
 		if (entriesElement != null && entriesElement.isJsonArray()) {
 			for (JsonElement element : entriesElement.getAsJsonArray()) {
@@ -114,52 +130,75 @@ final class PlayerDataRuntimeManager {
 				UUID playerId = parseUuid(data.get(normalizedPlayerIdKey));
 				if (playerId == null) continue;
 				data.remove(normalizedPlayerIdKey);
-				seenPlayers.add(playerId);
-				Map<String, JsonObject> systems = PLAYER_DATA.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>());
-				JsonObject previous = systems.put(normalizedSystemId, data);
-				if (previous == null || !previous.equals(data)) DIRTY_PLAYERS.add(playerId);
+				updates.put(playerId, data);
 			}
 		}
+
 		for (Map.Entry<UUID, Map<String, JsonObject>> entry : PLAYER_DATA.entrySet()) {
-			if (seenPlayers.contains(entry.getKey())) continue;
-			if (entry.getValue().remove(normalizedSystemId) != null) DIRTY_PLAYERS.add(entry.getKey());
+			JsonObject updated = updates.remove(entry.getKey());
+			if (updated == null) {
+				entry.getValue().remove(normalizedSystemId);
+			} else {
+				entry.getValue().put(normalizedSystemId, updated);
+			}
 		}
-		PLAYER_DATA.entrySet().removeIf(entry -> entry.getValue().isEmpty() && !DIRTY_PLAYERS.contains(entry.getKey()));
-		if (!DIRTY_PLAYERS.isEmpty() && currentServer != null) syncSavedData(currentServer);
+		for (Map.Entry<UUID, JsonObject> update : updates.entrySet()) {
+			PLAYER_DATA.computeIfAbsent(update.getKey(), ignored -> new LinkedHashMap<>())
+				.put(normalizedSystemId, update.getValue());
+		}
+		PLAYER_DATA.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+		if (currentServer != null) {
+			for (ServerPlayer player : currentServer.getPlayerList().getPlayers()) {
+				syncPlayerAttachment(player);
+			}
+		}
 	}
 
 	public static long getAutoSaveIntervalTicks() { return WorldChunkDataRuntimeManager.getAutoSaveIntervalTicks(); }
 
-	private static void syncSavedData(MinecraftServer server) {
-		MadokuSavedData savedData = MadokuSavedDataManager.players(server);
-		CompoundTag players = new CompoundTag();
-		for (Map.Entry<UUID, Map<String, JsonObject>> playerEntry : PLAYER_DATA.entrySet()) {
-			if (playerEntry.getValue() == null || playerEntry.getValue().isEmpty()) continue;
-			CompoundTag systems = new CompoundTag();
-			for (Map.Entry<String, JsonObject> systemEntry : playerEntry.getValue().entrySet()) {
-				if (systemEntry.getKey() != null && systemEntry.getValue() != null) {
-					systems.put(systemEntry.getKey(), MadokuSavedDataManager.toNbt(systemEntry.getValue()));
+	private static void loadPlayerAttachment(ServerPlayer player) {
+		if (player == null) return;
+		currentServer = player.level().getServer();
+		CompoundTag root = ((AttachmentTarget) player).getAttached(PLAYER_DATA_ATTACHMENT);
+		Map<String, JsonObject> systems = new LinkedHashMap<>();
+		CompoundTag systemTag = root == null ? null : root.getCompoundOrEmpty(FIELD_SYSTEMS);
+		if (systemTag != null) {
+			for (Map.Entry<String, Tag> entry : systemTag.entrySet()) {
+				if (entry.getValue() instanceof CompoundTag compound) {
+					systems.put(normalizeSystemId(entry.getKey()), MadokuSavedDataManager.toJson(compound));
 				}
 			}
-			CompoundTag player = new CompoundTag();
-			player.put(FIELD_SYSTEMS, systems);
-			players.put(playerEntry.getKey().toString(), player);
 		}
-		CompoundTag root = savedData.copyData();
-		root.put(FIELD_PLAYERS, players);
-		savedData.replaceData(root);
-		DIRTY_PLAYERS.clear();
+		PLAYER_DATA.put(player.getUUID(), systems);
+	}
+
+	private static void syncPlayerAttachment(ServerPlayer player) {
+		if (player == null) return;
+		Map<String, JsonObject> systems = PLAYER_DATA.get(player.getUUID());
+		CompoundTag root = new CompoundTag();
+		CompoundTag systemTag = new CompoundTag();
+		if (systems != null) {
+			for (Map.Entry<String, JsonObject> entry : systems.entrySet()) {
+				if (entry.getKey() != null && entry.getValue() != null) {
+					systemTag.put(entry.getKey(), MadokuSavedDataManager.toNbt(entry.getValue()));
+				}
+			}
+		}
+		root.put(FIELD_SYSTEMS, systemTag);
+		((AttachmentTarget) player).setAttached(PLAYER_DATA_ATTACHMENT, root);
+	}
+
+	private static JsonObject emptyEntries(String requestedKey, String fallback) {
+		JsonObject result = new JsonObject();
+		result.add(normalizeKey(requestedKey, fallback), new JsonArray());
+		return result;
 	}
 
 	private static String normalizeSystemId(String systemId) { return systemId == null ? "" : systemId.trim().toLowerCase(java.util.Locale.ROOT); }
 	private static String normalizeKey(String value, String fallback) { return value == null || value.isBlank() ? fallback : value.trim(); }
 	private static UUID parseUuid(JsonElement element) {
 		if (element == null || element.isJsonNull()) return null;
-		return parseUuid(element.getAsString());
-	}
-
-	private static UUID parseUuid(String value) {
-		try { return value == null ? null : UUID.fromString(value); }
+		try { return UUID.fromString(element.getAsString()); }
 		catch (RuntimeException ignored) { return null; }
 	}
 }

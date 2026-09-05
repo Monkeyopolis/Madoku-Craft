@@ -267,6 +267,9 @@ public final class MadokuPetManager {
 			return;
 		}
 
+		PetAbilitiesManager.applyPersistedPlayerData(
+			PlayerDataAPIManager.getSystemDataForPlayer(player, DATA_FILE_NAME, "ability-cooldowns", "uuid")
+		);
 		handlePlayerLeave(server, player.getUUID());
 		PetHudManager.markAbilityHudDirty(player.getUUID());
 		PetAbilitiesManager.applyPlayerPassiveAbilityBonuses(player);

@@ -7,7 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Built-in chunk-data provider backed by per-dimension vanilla SavedData. */
+/** Built-in chunk-data provider backed by native persistent chunk attachments. */
 public final class MadokuWorldChunkDataProvider implements WorldChunkDataProvider {
 	@Override public void initialize() { WorldChunkDataRuntimeManager.initialize(); }
 	@Override public void reset() { WorldChunkDataRuntimeManager.reset(); }
