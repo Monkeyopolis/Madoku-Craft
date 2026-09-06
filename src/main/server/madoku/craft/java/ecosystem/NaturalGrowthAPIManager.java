@@ -18,5 +18,11 @@ public final class NaturalGrowthAPIManager {
 
 	public static boolean isEnabled() { return provider.isEnabled(); }
 
-	public static void syncChunkProcessorActivation() { provider.syncChunkProcessorActivation(); }
+	public static boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
+		return provider.acceptsRandomPosition(event);
+	}
+
+	public static void onRandomPosition(EcosystemRandomPositionEvent event) {
+		provider.onRandomPosition(event);
+	}
 }

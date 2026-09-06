@@ -6,5 +6,6 @@ public interface NaturalErosionProvider {
 	default void reset() { }
 	default NaturalErosionConfigManager.Settings getSettings() { return NaturalErosionConfigManager.defaults(); }
 	default boolean isEnabled() { return false; }
-	default void syncChunkProcessorActivation() { }
+	default boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) { return false; }
+	default void onRandomPosition(EcosystemRandomPositionEvent event) { }
 }

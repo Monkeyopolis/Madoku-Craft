@@ -6,5 +6,6 @@ public interface NaturalGrowthProvider {
 	default void reset() { }
 	default NaturalGrowthConfigManager.Settings getSettings() { return NaturalGrowthConfigManager.defaults(); }
 	default boolean isEnabled() { return false; }
-	default void syncChunkProcessorActivation() { }
+	default boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) { return false; }
+	default void onRandomPosition(EcosystemRandomPositionEvent event) { }
 }

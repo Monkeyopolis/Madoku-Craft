@@ -5,13 +5,14 @@ import com.google.gson.JsonObject;
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.biome.Biome;
@@ -51,6 +52,16 @@ public final class EcosystemNaturalErosionManager {
 		BIOME_RULE_MATCHES.clear();
 	}
 
+	private enum WetEligibility {
+		ELIGIBLE,
+		NOT_TRACKABLE,
+		NOT_SURFACE,
+		SUBMERGED,
+		NO_RULE
+	}
+
+
+
 	public static NaturalErosionConfigManager.Settings getSettings() {
 		return settings;
 	}
@@ -63,141 +74,203 @@ public final class EcosystemNaturalErosionManager {
 		return isEnabled();
 	}
 
-	public static void syncChunkProcessorActivation() {
-		// Vanilla BlockState.randomTick is the dispatcher for this subsystem.
+	static boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
+		if (event == null || !isEnabled()) {
+			return false;
+		}
+		BlockState sampledState = event.sampledState();
+		return sampledState != null && isTrackableGroundBlock(sampledState);
 	}
 
-	static void discoverColumn(
+	public static void onRandomPosition(EcosystemRandomPositionEvent event) {
+		if (event == null) {
+			return;
+		}
+		ServerLevel world = event.level();
+		BlockPos position = event.position();
+		BlockState groundState = event.sampledState();
+		if (world == null || position == null || groundState == null || !isEnabled()) {
+			return;
+		}
+		NaturalErosionConfigManager.NamedErosionRule seedRule = resolveAdjacentSeedRule(world, position, groundState);
+		if (seedRule == null) {
+			return;
+		}
+
+		String seedKey = EcosystemAPIManager.levelId(world) + "|" + position.asLong();
+		EcosystemAPIManager.DirtState trackedSeed = EcosystemAPIManager.dirtBlocksByKey.get(seedKey);
+		if (trackedSeed == null || !"wet".equals(trackedSeed.mode)) {
+			spreadWetTrackingFromSeed(world, position, seedRule);
+		}
+	}
+
+	/**
+	 * Finds a seed only when this one surface block is horizontally next to a
+	 * still, same-height surface fluid. The configured radius is intentionally
+	 * not used here; it belongs to the one-time spread from the discovered seed.
+	 */
+	private static NaturalErosionConfigManager.NamedErosionRule resolveAdjacentSeedRule(
 		ServerLevel world,
-		int chunkX,
-		int chunkZ,
-		EcosystemAPIManager.SurfaceDiscoverySample sample
+		BlockPos blockPos,
+		BlockState state
 	) {
-		if (world == null || sample == null || sample.groundPos() == null || sample.groundState() == null || !isEnabled()) {
-			return;
+		if (world == null || blockPos == null || state == null) {
+			return null;
 		}
-		BlockPos groundPos = sample.groundPos();
-		BlockState groundState = sample.groundState();
-		if (isWetSeedCandidate(world, groundPos, groundState)) {
-			String seedKey = EcosystemAPIManager.levelId(world) + "|" + groundPos.asLong();
-			EcosystemAPIManager.DirtState trackedSeed = EcosystemAPIManager.dirtBlocksByKey.get(seedKey);
-			if (trackedSeed == null || !"wet".equals(trackedSeed.mode)) {
-				spreadWetTrackingFromSeed(world, groundPos);
-			} else {
-				EcosystemAPIManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
+		if (!isTrackableGroundBlock(state)) {
+			return null;
+		}
+		if (isSubmergedInErosionFluid(world, blockPos)) {
+			return null;
+		}
+		if (!isSurfaceGroundBlock(world, blockPos)) {
+			return null;
+		}
+
+		boolean waterSource = false;
+		boolean lavaSource = false;
+		for (Direction direction : Direction.Plane.HORIZONTAL) {
+			BlockPos sourcePosition = blockPos.relative(direction);
+			var fluidState = world.getFluidState(sourcePosition);
+			if (!fluidState.isSource()) {
+				continue;
+			}
+			if (isWaterErosionEnabled()
+				&& fluidState.is(FluidTags.WATER)
+				&& isSurfaceFluidSource(world, sourcePosition, FluidTags.WATER)) {
+				waterSource = true;
+			}
+			if (isLavaErosionEnabled()
+				&& fluidState.is(FluidTags.LAVA)
+				&& isSurfaceFluidSource(world, sourcePosition, FluidTags.LAVA)) {
+				lavaSource = true;
 			}
 		}
-		if (isLavaMagmaSeedCandidate(world, groundPos, groundState)) {
-			EcosystemAPIManager.trackDirtCandidateForMode(world, groundPos, groundState, "wet");
+		if (!waterSource && !lavaSource) {
+			return null;
 		}
+
+		NaturalErosionConfigManager.NamedErosionRule rule = waterSource
+			? resolveErosionRuleForFluid(world, blockPos, state, true)
+			: null;
+		if (rule == null && lavaSource) {
+			rule = resolveErosionRuleForFluid(world, blockPos, state, false);
+		}
+		if (rule == null) {
+			return null;
+		}
+
+		return rule;
 	}
 
-	static void handleRandomPosition(ServerLevel world, BlockPos position) {
-		if (world == null || position == null || !isEnabled()) {
+	/** Spreads one discovered seed across the configured same-height surface radius. */
+	private static void spreadWetTrackingFromSeed(
+		ServerLevel world,
+		BlockPos seedPosition,
+		NaturalErosionConfigManager.NamedErosionRule seedRule
+	) {
+		if (world == null || seedPosition == null || seedRule == null || seedRule.rule() == null) {
 			return;
 		}
-		long currentAbsoluteDayTime = EcosystemAPIManager.resolveCachedAbsoluteDayTime(world);
-		int chunkX = position.getX() >> 4;
-		int chunkZ = position.getZ() >> 4;
-		EcosystemNaturalGrowthManager.processDirtAtPosition(
-			world,
-			chunkX,
-			chunkZ,
-			currentAbsoluteDayTime,
-			"wet",
-			position.asLong()
-		);
-
-		// Preserve the old erosion behavior: reaching a water-adjacent seed expands
-		// the tracked wet area instead of only advancing the seed itself.
-		BlockPos groundPosition = EcosystemAPIManager.resolveCachedGroundPosition(world, position);
-		if (groundPosition != null) {
-			BlockState groundState = world.getBlockState(groundPosition);
-			String seedKey = EcosystemAPIManager.levelId(world) + "|" + groundPosition.asLong();
-			EcosystemAPIManager.DirtState trackedSeed = EcosystemAPIManager.dirtBlocksByKey.get(seedKey);
-			if (isWetSeedCandidate(world, groundPosition, groundState)
-				&& (trackedSeed == null || !"wet".equals(trackedSeed.mode))) {
-				spreadWetTrackingFromSeed(world, groundPosition);
-			}
-		}
-
-		BlockState state = world.getBlockState(position);
-		if (isLavaMagmaSeedCandidate(world, position, state)) {
-			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "wet");
-		}
-	}
-
-	static void discoverCandidateAt(ServerLevel world, BlockPos position, BlockState state) {
-		if (world == null || position == null || state == null || !isEnabled()) {
-			return;
-		}
-		if (isWetSeedCandidate(world, position, state) || isLavaMagmaSeedCandidate(world, position, state)) {
-			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "wet");
-		}
-	}
-
-	static void spreadWetTrackingFromSeed(ServerLevel world, BlockPos seedPosition) {
-		if (world == null || seedPosition == null || !isWaterErosionEnabled()) {
+		boolean waterSeed = isRuleForFluid(seedRule, true);
+		int radius = waterSeed
+			? (isWaterErosionEnabled() ? Math.max(0, currentSettings().waterErosionRadius()) : -1)
+			: (isLavaErosionEnabled() ? Math.max(0, currentSettings().lavaErosionRadius()) : -1);
+		if (radius < 0) {
 			return;
 		}
 
-		int radius = currentSettings().waterErosionRadius();
 		for (int offsetX = -radius; offsetX <= radius; offsetX++) {
 			for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
 				if (Math.abs(offsetX) + Math.abs(offsetZ) > radius) {
 					continue;
 				}
-
-				BlockPos groundPosition = seedPosition.offset(offsetX, 0, offsetZ);
-				trackWetCandidate(world, groundPosition);
-				trackWetCandidate(world, groundPosition.above());
+				BlockPos candidatePosition = seedPosition.offset(offsetX, 0, offsetZ);
+				BlockState candidateState = world.getBlockState(candidatePosition);
+				if (!isWetTrackedCandidate(world, candidatePosition, candidateState, seedRule.ruleId())) {
+					continue;
+				}
+				EcosystemAPIManager.trackWetCandidate(
+					world,
+					candidatePosition,
+					candidateState,
+					seedRule
+				);
 			}
 		}
 	}
 
-	private static void trackWetCandidate(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
-			return;
+	private static NaturalErosionConfigManager.NamedErosionRule resolveErosionRuleForFluid(
+		ServerLevel world,
+		BlockPos pos,
+		BlockState state,
+		boolean water
+	) {
+		if (world == null || pos == null || state == null) {
+			return null;
 		}
-		BlockState state = world.getBlockState(position);
-		if (isWetTrackedCandidate(world, position, state)) {
-			EcosystemAPIManager.trackDirtCandidateForMode(world, position, state, "wet");
+		String blockId = EcosystemConfigManager.blockId(state.getBlock());
+		if (blockId.isBlank()) {
+			return null;
 		}
+		for (NaturalErosionConfigManager.NamedErosionRule candidate : EcosystemAPIManager.cachedErosionRules) {
+			if (candidate == null || candidate.rule() == null || !isRuleForFluid(candidate, water)
+				|| !isErosionRuleEnabled(candidate.ruleId())) {
+				continue;
+			}
+			if (matchesErosionRule(world, pos, blockId, candidate.ruleId(), candidate.rule())) {
+				return candidate;
+			}
+		}
+		return null;
 	}
 
-	static boolean isWetSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !isTrackableGroundBlock(state)) {
+	private static boolean isRuleForFluid(NaturalErosionConfigManager.NamedErosionRule rule, boolean water) {
+		if (rule == null) {
 			return false;
 		}
-		if (isSubmerged(world, blockPos)) {
-			return false;
-		}
-		return isAdjacentToSurfaceWater(world, blockPos);
-	}
-
-	static boolean isLavaMagmaSeedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isLavaErosionEnabled()) {
-			return false;
-		}
-		String sourceBlockId = EcosystemConfigManager.blockId(state.getBlock());
-		if (!EcosystemAPIManager.isLavaMagmaSourceBlockId(sourceBlockId)) {
-			return false;
-		}
-		return isAdjacentToLava(world, blockPos, currentSettings().lavaErosionRadius());
+		boolean magmaRule = NaturalErosionConfigManager.FIELD_MAGMA_BLOCK.equals(rule.ruleId());
+		return water != magmaRule;
 	}
 
 	static boolean isWetTrackedCandidate(ServerLevel world, BlockPos blockPos, BlockState state) {
-		if (world == null || blockPos == null || state == null || !isWaterErosionEnabled() || !isTrackableGroundBlock(state)) {
-			return false;
-		}
-		if (EcosystemAPIManager.resolveErosionRule(world, blockPos, state, "") == null) {
-			return false;
-		}
-		return !isSubmerged(world, blockPos);
+		return isWetTrackedCandidate(world, blockPos, state, "");
 	}
 
-	static void syncChunkProcessorTracking(EcosystemAPIManager.ChunkRefKey chunkKey) {
-		EcosystemAPIManager.syncChunkProcessorTracking(chunkKey);
+	static boolean isWetTrackedCandidate(ServerLevel world, BlockPos blockPos, BlockState state, String preferredRuleId) {
+		WetEligibility result = evaluateWetEligibility(world, blockPos, state, preferredRuleId == null ? "" : preferredRuleId);
+		return result == WetEligibility.ELIGIBLE;
+	}
+
+	private static WetEligibility evaluateWetEligibility(ServerLevel world, BlockPos blockPos, BlockState state, String preferredRuleId) {
+		if (world == null || blockPos == null || state == null
+			|| (!isWaterErosionEnabled() && !isLavaErosionEnabled())
+			|| !isTrackableGroundBlock(state)) {
+			return WetEligibility.NOT_TRACKABLE;
+		}
+		if (isSubmergedInErosionFluid(world, blockPos)) {
+			return WetEligibility.SUBMERGED;
+		}
+		if (!isSurfaceGroundBlock(world, blockPos)) {
+			return WetEligibility.NOT_SURFACE;
+		}
+		NaturalErosionConfigManager.NamedErosionRule rule = EcosystemAPIManager.resolveErosionRule(world, blockPos, state, preferredRuleId);
+		if (rule == null || (!preferredRuleId.isBlank() && !preferredRuleId.equals(rule.ruleId()))) {
+			return WetEligibility.NO_RULE;
+		}
+		return WetEligibility.ELIGIBLE;
+	}
+
+	private static boolean isSurfaceGroundBlock(ServerLevel world, BlockPos blockPos) {
+		if (world == null || blockPos == null) {
+			return false;
+		}
+		int surfaceY = world.getHeight(
+			net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+			blockPos.getX(),
+			blockPos.getZ()
+		) - 1;
+		return blockPos.getY() == surfaceY;
 	}
 
 	static boolean isLavaMagmaSourceBlockId(String blockId) {
@@ -226,7 +299,8 @@ public final class EcosystemNaturalErosionManager {
 		}
 
 		NaturalErosionConfigManager.NamedErosionRule magmaRule = findErosionRuleById(NaturalErosionConfigManager.FIELD_MAGMA_BLOCK);
-		if (magmaRule != null && isLavaErosionEnabled() && matchesLavaMagmaRule(world, pos, blockId, magmaRule.ruleId(), magmaRule.rule())) {
+		if (magmaRule != null && isLavaErosionEnabled()
+			&& matchesErosionRule(world, pos, blockId, magmaRule.ruleId(), magmaRule.rule())) {
 			return magmaRule;
 		}
 
@@ -337,18 +411,6 @@ public final class EcosystemNaturalErosionManager {
 		return false;
 	}
 
-	private static boolean matchesLavaMagmaRule(
-		ServerLevel world,
-		BlockPos pos,
-		String sourceBlockId,
-		String ruleId,
-		NaturalErosionConfigManager.ErosionRuleSettings rule
-	) {
-		return isLavaErosionEnabled()
-			&& matchesErosionRule(world, pos, sourceBlockId, ruleId, rule)
-			&& isAdjacentToLava(world, pos, currentSettings().lavaErosionRadius());
-	}
-
 	private static Block resolveErosionTargetBlock(String ruleId) {
 		String normalizedRuleId = EcosystemConfigManager.normalize(ruleId);
 		String targetBlockId = switch (normalizedRuleId) {
@@ -409,57 +471,32 @@ public final class EcosystemNaturalErosionManager {
 			|| world.getFluidState(pos.above()).is(net.minecraft.tags.FluidTags.WATER);
 	}
 
-	static boolean isAdjacentToSurfaceWater(ServerLevel world, BlockPos blockPos) {
-		if (world == null || blockPos == null) {
+	private static boolean isSurfaceFluidSource(
+		ServerLevel world,
+		BlockPos fluidPosition,
+		net.minecraft.tags.TagKey<net.minecraft.world.level.material.Fluid> fluidTag
+	) {
+		if (world == null || fluidPosition == null || fluidTag == null) {
 			return false;
 		}
-		for (Direction direction : Direction.values()) {
-			if (direction == null) {
-				continue;
-			}
-			if (isSurfaceLevelWater(world, blockPos.relative(direction))) {
-				return true;
-			}
-		}
-		return false;
+		int surfaceY = world.getHeight(
+			net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+			fluidPosition.getX(),
+			fluidPosition.getZ()
+		) - 1;
+		return fluidPosition.getY() == surfaceY;
 	}
 
-	static boolean isAdjacentToLava(ServerLevel world, BlockPos blockPos, int radius) {
-		if (world == null || blockPos == null || radius < 0) {
+	private static boolean isSubmergedInErosionFluid(ServerLevel world, BlockPos pos) {
+		if (world == null || pos == null) {
 			return false;
 		}
-		if (world.getFluidState(blockPos).is(net.minecraft.tags.FluidTags.LAVA)) {
-			return true;
-		}
-		if (radius == 0) {
-			return false;
-		}
-		for (Direction direction : Direction.values()) {
-			if (direction == null) {
-				continue;
-			}
-			BlockPos neighborPos = blockPos.relative(direction);
-			if (world.getFluidState(neighborPos).is(net.minecraft.tags.FluidTags.LAVA)) {
-				return true;
-			}
-		}
-		return false;
+		return isErosionFluid(world.getFluidState(pos));
 	}
 
-	private static boolean isSurfaceLevelWater(ServerLevel world, BlockPos waterPos) {
-		if (world == null || waterPos == null) {
-			return false;
-		}
-		var fluidState = world.getFluidState(waterPos);
-		if (!fluidState.is(net.minecraft.tags.FluidTags.WATER) || !fluidState.isSource()) {
-			return false;
-		}
-		var aboveFluidState = world.getFluidState(waterPos.above());
-		if (aboveFluidState.is(net.minecraft.tags.FluidTags.WATER)) {
-			return false;
-		}
-		int topY = world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, waterPos.getX(), waterPos.getZ()) - 1;
-		return waterPos.getY() >= topY;
+	private static boolean isErosionFluid(net.minecraft.world.level.material.FluidState fluidState) {
+		return fluidState != null
+			&& (fluidState.is(FluidTags.WATER) || fluidState.is(FluidTags.LAVA));
 	}
 
 	private static NaturalErosionConfigManager.Settings currentSettings() {

@@ -128,8 +128,8 @@ final class EcosystemAPIManager {
 	private static final Set<ChunkRefKey> RETAINED_UNLOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
-	private static final Map<String, ServerLevel> LOADED_LEVELS = new LinkedHashMap<>();
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
+	private static final Map<String, Map<Long, DirtState>> dirtStatesByLevelAndPosition = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
 	static final Map<ColumnRefKey, Set<String>> dirtKeysByColumn = new LinkedHashMap<>();
 	private static final Map<CandidatePositionKey, Integer> CANDIDATE_POSITION_MASKS = new LinkedHashMap<>();
@@ -145,7 +145,6 @@ final class EcosystemAPIManager {
 	private static final ChunkAPIManager.ChunkLifecycleListener CHUNK_LISTENER = new ChunkAPIManager.ChunkLifecycleListener() {
 		@Override
 		public void onChunkLoaded(ServerLevel level, int chunkX, int chunkZ) {
-			registerLoadedLevel(level);
 			loadPersistedChunkData(level, chunkX, chunkZ);
 		}
 
@@ -178,6 +177,7 @@ final class EcosystemAPIManager {
 	public static void reset() {
 		EcosystemConfigManager.reset();
 		dirtBlocksByKey.clear();
+		dirtStatesByLevelAndPosition.clear();
 		dirtKeysByChunk.clear();
 		dirtKeysByColumn.clear();
 		CANDIDATE_POSITION_MASKS.clear();
@@ -188,7 +188,6 @@ final class EcosystemAPIManager {
 		RETAINED_UNLOADED_CHUNK_KEYS.clear();
 		LOADED_PERSISTED_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
-		LOADED_LEVELS.clear();
 		lastAutosaveBucket = Long.MIN_VALUE;
 		dirty = false;
 		loadingPersistedData = false;
@@ -273,12 +272,6 @@ final class EcosystemAPIManager {
 		return isVegetationGrowthEnabled() && settings.vegetationGrowth() != null && settings.vegetationGrowth().isEnabled(foliageType);
 	}
 
-	private static void syncChunkProcessorActivation() {
-		NaturalGrowthAPIManager.syncChunkProcessorActivation();
-		NaturalErosionAPIManager.syncChunkProcessorActivation();
-		NaturalDecayAPIManager.syncChunkProcessorActivation();
-	}
-
 	private static void loadConfig() {
 		naturalGrowthSettings = NaturalGrowthAPIManager.getSettings();
 		naturalErosionSettings = NaturalErosionAPIManager.getSettings();
@@ -307,9 +300,7 @@ final class EcosystemAPIManager {
 		if (server == null) {
 			return;
 		}
-		syncChunkProcessorActivation();
 		for (ServerLevel level : server.getAllLevels()) {
-			registerLoadedLevel(level);
 			level.getChunkSource().chunkMap.forEachReadyToSendChunk((LevelChunk chunk) -> {
 				if (chunk != null) {
 					loadPersistedChunkData(level, chunk.getPos().x(), chunk.getPos().z());
@@ -322,13 +313,13 @@ final class EcosystemAPIManager {
 		if (server == null) {
 			return;
 		}
-		syncChunkProcessorActivation();
 		PERSISTED_CHUNK_KEYS.clear();
 		DIRTY_CHUNK_KEYS.clear();
 		loadingPersistedData = true;
 		try {
 			if (!isEnabled()) {
 				dirtBlocksByKey.clear();
+				dirtStatesByLevelAndPosition.clear();
 				dirtKeysByChunk.clear();
 				dirtKeysByColumn.clear();
 				CANDIDATE_POSITION_MASKS.clear();
@@ -343,6 +334,7 @@ final class EcosystemAPIManager {
 			}
 
 			dirtBlocksByKey.clear();
+			dirtStatesByLevelAndPosition.clear();
 			dirtKeysByChunk.clear();
 			dirtKeysByColumn.clear();
 			CANDIDATE_POSITION_MASKS.clear();
@@ -477,6 +469,38 @@ final class EcosystemAPIManager {
 		return true;
 	}
 
+	static boolean trackWetCandidate(
+		ServerLevel world,
+		BlockPos dirtPos,
+		BlockState state,
+		NaturalErosionConfigManager.NamedErosionRule erosionRule
+	) {
+		if (world == null || dirtPos == null || state == null || erosionRule == null || erosionRule.rule() == null
+			|| !EcosystemNaturalErosionManager.isEnabled()) {
+			return false;
+		}
+		String key = dirtKey(world, dirtPos);
+		DirtState existing = dirtBlocksByKey.get(key);
+		if (existing != null && MODE_WET.equals(existing.mode)) {
+			return false;
+		}
+		double requiredGrowthTicks = EcosystemNaturalGrowthManager.randomDaysToTicks(erosionRule.rule().erosionTime());
+		if (requiredGrowthTicks <= 0.0d) {
+			return false;
+		}
+		putDirtState(key, new DirtState(
+			levelId(world),
+			dirtPos.asLong(),
+			MODE_WET,
+			erosionRule.ruleId(),
+			requiredGrowthTicks,
+			existing != null && MODE_WET.equals(existing.mode) ? existing.progressGrowthTicks : 0.0d,
+			resolveAbsoluteDayTime(world)
+		));
+		dirty = true;
+		return true;
+	}
+
 	static boolean isTrackableGroundBlock(BlockState state) {
 		return EcosystemNaturalErosionManager.isTrackableGroundBlock(state);
 	}
@@ -490,7 +514,9 @@ final class EcosystemAPIManager {
 			return false;
 		}
 		if (MODE_WET.equals(mode)) {
-			return EcosystemNaturalErosionManager.isWaterErosionEnabled() && EcosystemNaturalErosionManager.isWetTrackedCandidate(world, blockPos, state);
+			return (EcosystemNaturalErosionManager.isWaterErosionEnabled()
+				|| EcosystemNaturalErosionManager.isLavaErosionEnabled())
+				&& EcosystemNaturalErosionManager.isWetTrackedCandidate(world, blockPos, state);
 		}
 		if (MODE_SURFACE_DIRT.equals(mode)) {
 			return isBlockGrowthEnabled() && EcosystemNaturalGrowthManager.isSurfaceDirtCandidate(world, blockPos, state, discoveredAboveState);
@@ -500,7 +526,8 @@ final class EcosystemAPIManager {
 
 	static boolean isModeEnabled(String mode) {
 		if (MODE_WET.equals(mode)) {
-			return EcosystemNaturalErosionManager.isWaterErosionEnabled();
+			return EcosystemNaturalErosionManager.isWaterErosionEnabled()
+				|| EcosystemNaturalErosionManager.isLavaErosionEnabled();
 		}
 		if (MODE_SURFACE_DIRT.equals(mode)) {
 			return isBlockGrowthEnabled();
@@ -533,6 +560,7 @@ final class EcosystemAPIManager {
 		DirtState previous = dirtBlocksByKey.put(key, value);
 		ChunkRefKey previousChunkKey = null;
 		if (previous != null) {
+			removeDirtPositionIndex(previous);
 			previousChunkKey = chunkRefForPos(previous.levelId, previous.dirtPos);
 			removeCandidatePositionBit(previous.levelId, previous.dirtPos, MODE_WET.equals(previous.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			removeChunkIndex(dirtKeysByChunk, previousChunkKey, key);
@@ -541,17 +569,12 @@ final class EcosystemAPIManager {
 		}
 		ChunkRefKey nextChunkKey = null;
 		if (value != null) {
+			putDirtPositionIndex(value);
 			nextChunkKey = chunkRefForPos(value.levelId, value.dirtPos);
 			addCandidatePositionBit(value.levelId, value.dirtPos, MODE_WET.equals(value.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			addChunkIndex(dirtKeysByChunk, nextChunkKey, key);
 			addColumnIndex(value, key);
 			markChunkDirty(nextChunkKey);
-		}
-		if (previousChunkKey != null) {
-			syncChunkProcessorTracking(previousChunkKey);
-		}
-		if (nextChunkKey != null) {
-			syncChunkProcessorTracking(nextChunkKey);
 		}
 		return previous;
 	}
@@ -559,14 +582,45 @@ final class EcosystemAPIManager {
 	static DirtState removeDirtStateByKey(String key) {
 		DirtState removed = dirtBlocksByKey.remove(key);
 		if (removed != null) {
+			removeDirtPositionIndex(removed);
 			ChunkRefKey chunkKey = chunkRefForPos(removed.levelId, removed.dirtPos);
 			removeCandidatePositionBit(removed.levelId, removed.dirtPos, MODE_WET.equals(removed.mode) ? CANDIDATE_WET : CANDIDATE_DIRT);
 			removeChunkIndex(dirtKeysByChunk, chunkKey, key);
 			removeColumnIndex(removed, key);
 			markChunkDirty(chunkKey);
-			syncChunkProcessorTracking(chunkKey);
 		}
 		return removed;
+	}
+
+	static DirtState dirtStateAt(String levelId, long packedPosition) {
+		if (levelId == null || levelId.isBlank() || packedPosition == Long.MIN_VALUE) {
+			return null;
+		}
+		Map<Long, DirtState> states = dirtStatesByLevelAndPosition.get(levelId);
+		return states == null ? null : states.get(packedPosition);
+	}
+
+	private static void putDirtPositionIndex(DirtState dirt) {
+		if (dirt == null || dirt.levelId.isBlank() || dirt.dirtPos == Long.MIN_VALUE) {
+			return;
+		}
+		dirtStatesByLevelAndPosition
+			.computeIfAbsent(dirt.levelId, ignored -> new LinkedHashMap<>())
+			.put(dirt.dirtPos, dirt);
+	}
+
+	private static void removeDirtPositionIndex(DirtState dirt) {
+		if (dirt == null || dirt.levelId.isBlank() || dirt.dirtPos == Long.MIN_VALUE) {
+			return;
+		}
+		Map<Long, DirtState> states = dirtStatesByLevelAndPosition.get(dirt.levelId);
+		if (states == null) {
+			return;
+		}
+		states.remove(dirt.dirtPos);
+		if (states.isEmpty()) {
+			dirtStatesByLevelAndPosition.remove(dirt.levelId);
+		}
 	}
 
 	private static void addColumnIndex(DirtState dirt, String entryKey) {
@@ -616,22 +670,6 @@ final class EcosystemAPIManager {
 		indexMap.remove(chunkKey);
 	}
 
-	static void syncChunkProcessorTracking(ChunkRefKey chunkKey) {
-		// Candidate masks are maintained incrementally by candidate stores. The
-		// corresponding block-state eligibility is synchronized at each mask
-		// mutation; no chunk processor is involved.
-	}
-
-	static void registerLoadedLevel(ServerLevel level) {
-		if (level != null) {
-			LOADED_LEVELS.put(levelId(level), level);
-		}
-	}
-
-	static ServerLevel loadedLevel(String levelId) {
-		return levelId == null ? null : LOADED_LEVELS.get(levelId);
-	}
-
 	static int candidateMaskAt(ServerLevel world, BlockPos position) {
 		if (world == null || position == null) {
 			return 0;
@@ -647,12 +685,15 @@ final class EcosystemAPIManager {
 			return;
 		}
 		CandidatePositionKey key = new CandidatePositionKey(levelId, position);
-		int nextMask = CANDIDATE_POSITION_MASKS.getOrDefault(key, 0) | bit;
+		int currentMask = CANDIDATE_POSITION_MASKS.getOrDefault(key, 0);
+		int nextMask = currentMask | bit;
+		if (nextMask == currentMask) {
+			return;
+		}
 		CANDIDATE_POSITION_MASKS.put(key, nextMask);
 		CANDIDATE_POSITION_KEYS_BY_CHUNK
 			.computeIfAbsent(chunkRefForPos(levelId, position), ignored -> new LinkedHashSet<>())
 			.add(key);
-		EcosystemBlockStateManager.onCandidateMaskChanged(levelId, position, nextMask);
 	}
 
 	static void addCandidatePositionBit(String levelId, long position, int bit) {
@@ -677,25 +718,6 @@ final class EcosystemAPIManager {
 			}
 		} else {
 			CANDIDATE_POSITION_MASKS.put(key, nextMask);
-		}
-		EcosystemBlockStateManager.onCandidateMaskChanged(levelId, position, nextMask);
-	}
-
-	/** Removes every ecosystem record at a position that was replaced or broken. */
-	static void removeAllCandidatesAt(ServerLevel level, BlockPos position) {
-		if (level == null || position == null) {
-			return;
-		}
-		String levelId = levelId(level);
-		long packedPosition = position.asLong();
-		boolean hadCandidate = candidateMaskAt(level, position) != 0;
-		removeDirtStateByKey(dirtKey(level, position));
-
-		ChunkRefKey chunkKey = chunkRefForPos(levelId, packedPosition);
-		EcosystemNaturalGrowthManager.removeCandidatesAt(chunkKey, packedPosition);
-		EcosystemNaturalDecayManager.removeCandidateAt(chunkKey, packedPosition);
-		if (hadCandidate) {
-			markChunkDirty(chunkKey);
 		}
 	}
 
@@ -747,6 +769,7 @@ final class EcosystemAPIManager {
 				if (dirt == null) {
 					continue;
 				}
+				removeDirtPositionIndex(dirt);
 				removeCandidatePositionBit(
 					dirt.levelId,
 					dirt.dirtPos,
@@ -1132,44 +1155,6 @@ final class EcosystemAPIManager {
 	}
 
 	record ChunkRefKey(String levelId, int chunkX, int chunkZ) {
-	}
-
-	/**
-	 * Retained only as a compatibility holder for old provider helper methods.
-	 * No instance is created by the runtime; chunk/column discovery is no longer
-	 * scheduled or called.
-	 */
-	static final class DiscoveryChunkState {
-		final ServerLevel level;
-		final ChunkRefKey key;
-		final LevelChunk chunk;
-		int nextColumn;
-		int decaySectionIndex;
-		int decayBlockIndex;
-		boolean decayComplete;
-		boolean candidatesFinalized;
-		long sampledTreeGroundPos = Long.MIN_VALUE;
-		int sampledTreeCandidateCount;
-		long sampledCactusGroundPos = Long.MIN_VALUE;
-		int sampledCactusCandidateCount;
-		final List<Long> sampledGrassGroundPositions = new ArrayList<>();
-		int sampledGrassCandidateCount;
-		final List<Long> sampledDesertFoliageGroundPositions = new ArrayList<>();
-		int sampledDesertFoliageCandidateCount;
-		final List<Long> sampledWildflowerGroundPositions = new ArrayList<>();
-		int sampledWildflowerCandidateCount;
-		final List<Long> sampledPinkPetalGroundPositions = new ArrayList<>();
-		int sampledPinkPetalCandidateCount;
-
-		DiscoveryChunkState(ServerLevel level, ChunkRefKey key, LevelChunk chunk) {
-			this.level = level;
-			this.key = key;
-			this.chunk = chunk;
-		}
-
-		ServerLevel level() { return level; }
-		ChunkRefKey key() { return key; }
-		LevelChunk chunk() { return chunk; }
 	}
 
 	record SurfaceDiscoverySample(BlockPos groundPos, BlockState groundState, BlockState aboveState) {

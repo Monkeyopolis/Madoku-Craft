@@ -63,7 +63,7 @@ public final class NaturalErosionConfigManager {
 		return new Settings(
 			new WaterErosionSettings(
 				true,
-				2,
+				3,
 				new WaterBlockErosionSettings(
 					new ErosionRuleSettings(true, DEFAULT_GROUND_SOURCE_BLOCKS, DEFAULT_MUD_BIOMES, new EcosystemConfigManager.DayRange(7, 14)),
 					new ErosionRuleSettings(true, DEFAULT_GROUND_SOURCE_BLOCKS, DEFAULT_RED_SAND_BIOMES, new EcosystemConfigManager.DayRange(7, 14)),
@@ -72,7 +72,7 @@ public final class NaturalErosionConfigManager {
 			),
 			new LavaErosionSettings(
 				true,
-				1,
+				3,
 				new LavaBlockErosionSettings(
 					new ErosionRuleSettings(true, DEFAULT_MAGMA_SOURCE_BLOCKS, List.of(), new EcosystemConfigManager.DayRange(14, 28))
 				)
@@ -247,6 +247,5 @@ public final class NaturalErosionConfigManager {
 		}
 	}
 }
-
 
 

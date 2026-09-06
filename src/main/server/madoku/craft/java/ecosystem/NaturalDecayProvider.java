@@ -6,5 +6,6 @@ public interface NaturalDecayProvider {
 	default void reset() { }
 	default NaturalDecayConfigManager.Settings getSettings() { return NaturalDecayConfigManager.defaults(); }
 	default boolean isEnabled() { return false; }
-	default void syncChunkProcessorActivation() { }
+	default boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) { return false; }
+	default void onRandomPosition(EcosystemRandomPositionEvent event) { }
 }
