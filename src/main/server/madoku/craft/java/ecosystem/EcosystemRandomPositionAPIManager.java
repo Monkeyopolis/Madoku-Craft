@@ -3,6 +3,7 @@ package madoku.craft.java.ecosystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.state.BlockState;
 
 /** Public API for the shared ecosystem random-position source. */
 public final class EcosystemRandomPositionAPIManager {
@@ -31,12 +32,8 @@ public final class EcosystemRandomPositionAPIManager {
 
 	public static void dispatch(ServerLevel level, BlockPos position, RandomSource random) {
 		if (level != null && position != null && random != null) {
-			provider.dispatch(new EcosystemRandomPositionEvent(
-				level,
-				position,
-				level.getBlockState(position),
-				random
-			));
+			BlockState sampledState = level.getBlockState(position);
+			provider.dispatch(new EcosystemRandomPositionEvent(level, position, sampledState, random));
 		}
 	}
 }

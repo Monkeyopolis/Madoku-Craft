@@ -680,6 +680,39 @@ final class EcosystemAPIManager {
 		);
 	}
 
+	static void invalidateCandidatesAt(EcosystemBlockChangeEvent event) {
+		if (event == null || event.level() == null || event.position() == null) {
+			return;
+		}
+		ServerLevel world = event.level();
+		BlockPos position = event.position();
+		int candidateMask = candidateMaskAt(world, position);
+		if (candidateMask == 0) {
+			return;
+		}
+
+		String worldId = levelId(world);
+		long packedPosition = position.asLong();
+		if ((candidateMask & (CANDIDATE_DIRT | CANDIDATE_WET)) != 0) {
+			DirtState dirt = dirtStateAt(worldId, packedPosition);
+			if (dirt != null) {
+				removeDirtStateByKey(dirt.key());
+			}
+		}
+
+		ChunkRefKey chunkKey = chunkRefForPos(worldId, packedPosition);
+		int growthCandidateMask = CANDIDATE_TREE
+			| CANDIDATE_CACTUS
+			| CANDIDATE_GRASS
+			| CANDIDATE_FOLIAGE;
+		if ((candidateMask & growthCandidateMask) != 0) {
+			EcosystemNaturalGrowthManager.removeCandidatesAt(chunkKey, packedPosition);
+		}
+		if ((candidateMask & CANDIDATE_DECAY) != 0) {
+			EcosystemNaturalDecayManager.removeCandidateAt(chunkKey, packedPosition);
+		}
+	}
+
 	private static void addCandidatePositionMask(String levelId, long position, int bit) {
 		if (levelId == null || levelId.isBlank() || position == Long.MIN_VALUE) {
 			return;

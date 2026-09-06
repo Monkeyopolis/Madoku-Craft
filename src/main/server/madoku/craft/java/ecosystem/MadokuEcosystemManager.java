@@ -40,6 +40,8 @@ public final class MadokuEcosystemManager {
 				NaturalDecayAPIManager.onRandomPosition(event);
 			}
 		};
+	private static final EcosystemBlockChangeListener CANDIDATE_INVALIDATION_LISTENER =
+		EcosystemAPIManager::invalidateCandidatesAt;
 
 	private MadokuEcosystemManager() {
 	}
@@ -49,6 +51,8 @@ public final class MadokuEcosystemManager {
 		EcosystemAPIManager.initialize();
 		EcosystemRandomPositionAPIManager.registerProvider(new MadokuEcosystemRandomPositionProvider());
 		EcosystemRandomPositionAPIManager.initialize();
+		EcosystemBlockChangeAPIManager.registerProvider(new MadokuEcosystemBlockChangeProvider());
+		EcosystemBlockChangeAPIManager.initialize();
 		NaturalGrowthAPIManager.registerProvider(new MadokuNaturalGrowthProvider());
 		NaturalErosionAPIManager.registerProvider(new MadokuNaturalErosionProvider());
 		NaturalDecayAPIManager.registerProvider(new MadokuNaturalDecayProvider());
@@ -56,6 +60,7 @@ public final class MadokuEcosystemManager {
 		NaturalErosionAPIManager.initialize();
 		NaturalDecayAPIManager.initialize();
 		registerRandomPositionListeners();
+		registerBlockChangeListeners();
 		EcosystemAPIManager.refreshSettings();
 	}
 
@@ -65,21 +70,28 @@ public final class MadokuEcosystemManager {
 		EcosystemRandomPositionAPIManager.registerListener(DECAY_RANDOM_POSITION_LISTENER);
 	}
 
+	private static void registerBlockChangeListeners() {
+		EcosystemBlockChangeAPIManager.registerListener(CANDIDATE_INVALIDATION_LISTENER);
+	}
+
 	/** Resets each ecosystem subsystem and the shared ecosystem runtime. */
 	public static void reset() {
 		EcosystemRandomPositionAPIManager.unregisterListener(GROWTH_RANDOM_POSITION_LISTENER);
 		EcosystemRandomPositionAPIManager.unregisterListener(EROSION_RANDOM_POSITION_LISTENER);
 		EcosystemRandomPositionAPIManager.unregisterListener(DECAY_RANDOM_POSITION_LISTENER);
+		EcosystemBlockChangeAPIManager.unregisterListener(CANDIDATE_INVALIDATION_LISTENER);
 		NaturalGrowthAPIManager.reset();
 		NaturalErosionAPIManager.reset();
 		NaturalDecayAPIManager.reset();
 		EcosystemRandomPositionAPIManager.reset();
+		EcosystemBlockChangeAPIManager.reset();
 		EcosystemAPIManager.reset();
 	}
 
 	public static void onServerTick(MinecraftServer server) { EcosystemAPIManager.onServerTick(server); }
 	public static void onServerStarted(MinecraftServer server) {
 		registerRandomPositionListeners();
+		registerBlockChangeListeners();
 		EcosystemAPIManager.onServerStarted(server);
 	}
 	public static void loadPersistedData(MinecraftServer server) { EcosystemAPIManager.loadPersistedData(server); }

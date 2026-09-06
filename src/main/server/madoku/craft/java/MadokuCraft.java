@@ -13,7 +13,6 @@ import madoku.craft.java.core.rarity.MadokuRarityProvider;
 import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.sync.SyncConfigAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
-import madoku.craft.java.debug.MadokuMsptDebug;
 import madoku.craft.java.mob.MadokuMobManager;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
 import madoku.craft.java.entity.MadokuEntities;
@@ -36,7 +35,6 @@ public class MadokuCraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		MadokuMsptDebug.initialize();
 		MadokuCoreManager.initialize();
 		MadokuUtilityManager.initialize();
 		MadokuMobManager.initialize();
@@ -99,7 +97,6 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-			MadokuMsptDebug.onServerStopped();
 			SyncConfigAPIManager.resetClientSynchronizedState();
 			SeasonAPIManager.reset();
 			MadokuEntities.reset();
@@ -117,33 +114,24 @@ public class MadokuCraft implements ModInitializer {
 			JSONAPIManager.clearRuntimeState();
 		});
 
-		ServerTickEvents.START_SERVER_TICK.register(server ->
-			MadokuMsptDebug.measure("madoku.start.time", server, TimeAPIManager::refreshSleepTickIncrement)
-		);
-		ServerTickEvents.START_SERVER_TICK.register(server ->
-			MadokuMsptDebug.measure("madoku.start.season", server, SeasonAPIManager::onServerStartTick)
-		);
+		ServerTickEvents.START_SERVER_TICK.register(server -> TimeAPIManager.refreshSleepTickIncrement(server));
+		ServerTickEvents.START_SERVER_TICK.register(SeasonAPIManager::onServerStartTick);
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			long tickIncrement = TimeAPIManager.getCachedSleepTickIncrement();
-			MadokuMsptDebug.beginSection("madoku.time");
-			try {
-				TimeAPIManager.advance(server, tickIncrement);
-				TimeAPIManager.update(server);
-			} finally {
-				MadokuMsptDebug.endSection();
-			}
-			MadokuMsptDebug.measure("madoku.core", server, MadokuCoreManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.attributes", server, MadokuAttributesManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.items", server, ItemsAPIManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.entities", server, MadokuEntities::onServerTick);
-			MadokuMsptDebug.measure("madoku.pets", server, PetAPIManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.autosave", server, MadokuCoreManager::autosavePersistedData);
-			MadokuMsptDebug.measure("madoku.season", server, SeasonAPIManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.mobs", server, MadokuMobManager::onServerTick);
-			MadokuMsptDebug.measure("madoku.levels", server, MadokuLevelsManager::flushDirtySyncs);
+			TimeAPIManager.advance(server, tickIncrement);
+			TimeAPIManager.update(server);
+			MadokuCoreManager.onServerTick(server);
+			MadokuAttributesManager.onServerTick(server);
+			ItemsAPIManager.onServerTick(server);
+			MadokuEntities.onServerTick(server);
+			PetAPIManager.onServerTick(server);
+			MadokuCoreManager.autosavePersistedData(server);
+			SeasonAPIManager.onServerTick(server);
+			MadokuMobManager.onServerTick(server);
+			MadokuLevelsManager.flushDirtySyncs(server);
 			if (MadokuCoreManager.shouldRunWorldSync(server)) {
-				MadokuMsptDebug.measure("madoku.world_sync", server, MadokuCraft::syncWorldState);
+				syncWorldState(server);
 			}
 		});
 	}

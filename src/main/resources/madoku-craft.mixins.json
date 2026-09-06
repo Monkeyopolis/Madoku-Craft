@@ -3,10 +3,6 @@
   "package": "madoku.craft.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "debug.MinecraftServerMsptDebugMixin",
-    "debug.ServerChunkCacheMsptDebugMixin",
-    "debug.ServerLevelMsptDebugMixin",
-    "debug.LevelMsptDebugMixin",
     "core.ApplyBonusCountFortuneMixin",
     "mob.AbstractArrowDamageMixin",
     "mob.AbstractArrowFlameMixin",
@@ -47,6 +43,7 @@
     "season.IceBlockSeasonalMeltMixin",
     "pet.InventoryMenuPetSlotsMixin",
     "core.InventoryMenuRarityMixin",
+	"core.LevelEcosystemBlockChangeMixin",
     "item.ItemBuiltInRegistryHolderAccessor",
     "item.ItemComponentsAccessor",
 	"inventory.SlotAccessor",

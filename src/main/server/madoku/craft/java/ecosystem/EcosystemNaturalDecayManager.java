@@ -263,8 +263,7 @@ public final class EcosystemNaturalDecayManager {
 			&& isNaturallyGeneratedLeaf(sampledState)) {
 			return true;
 		}
-		return (EcosystemAPIManager.candidateMaskAt(world, position)
-			& EcosystemAPIManager.CANDIDATE_DECAY) != 0;
+		return false;
 	}
 
 	public static void onRandomPosition(EcosystemRandomPositionEvent event) {

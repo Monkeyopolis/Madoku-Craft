@@ -5,7 +5,6 @@ import com.google.gson.JsonParser;
 
 import madoku.craft.java.core.json.JSONFormatAPIManager;
 import madoku.craft.java.core.sync.SyncConfigAPIManager;
-import madoku.craft.java.debug.MadokuMsptDebug;
 import net.minecraft.server.MinecraftServer;
 
 public final class MadokuAttributesManager {
@@ -43,8 +42,8 @@ public final class MadokuAttributesManager {
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		MadokuMsptDebug.measure("madoku.attributes.health", server, HealthAPIManager::onServerTick);
-		MadokuMsptDebug.measure("madoku.attributes.hunger", server, HungerAPIManager::onServerTick);
+		HealthAPIManager.onServerTick(server);
+		HungerAPIManager.onServerTick(server);
 	}
 
 	public static String createClientSyncSnapshot() {

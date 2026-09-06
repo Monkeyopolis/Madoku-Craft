@@ -823,15 +823,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (sampledState != null && EcosystemAPIManager.ECOSYSTEM_GROWTH_BLOCKS.contains(sampledState.getBlock())) {
 			return true;
 		}
-
-		int candidateMask = EcosystemAPIManager.candidateMaskAt(world, position);
-		int growthCandidateMask = EcosystemAPIManager.CANDIDATE_DIRT
-			| EcosystemAPIManager.CANDIDATE_WET
-			| EcosystemAPIManager.CANDIDATE_TREE
-			| EcosystemAPIManager.CANDIDATE_CACTUS
-			| EcosystemAPIManager.CANDIDATE_GRASS
-			| EcosystemAPIManager.CANDIDATE_FOLIAGE;
-		return (candidateMask & growthCandidateMask) != 0;
+		return false;
 	}
 
 	static void discoverSurfaceSample(
