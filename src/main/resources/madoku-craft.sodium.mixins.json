@@ -1,9 +1,0 @@
-{
-  "required": false,
-  "package": "madoku.craft.mixin.color",
-  "compatibilityLevel": "JAVA_25",
-  "client": [
-    "SodiumColorProviderContextMixin",
-    "SodiumSpruceBirchFoliageProviderMixin"
-  ]
-}

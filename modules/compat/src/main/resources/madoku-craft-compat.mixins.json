@@ -1,0 +1,22 @@
+{
+  "required": false,
+  "package": "madoku.craft.mixin",
+  "plugin": "madoku.craft.mixin.compat.MadokuCompatMixinPlugin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "attributes.LivingEntityArmorDamageMixin",
+    "attributes.LivingEntityLuckLootMixin",
+    "core.ItemInputRarityMixin",
+    "farming.BlockFarmingDropsMixin",
+    "farming.LootTableFarmingMixin",
+    "utility.ConfiguredFuelValuesMixin"
+  ],
+  "client": [
+    "attributes.HudFoodLevelMixin",
+    "attributes.ItemFoodClientGateMixin",
+    "attributes.PlayerEatClientGateMixin",
+    "color.BiomeTemperatureColorMixin",
+    "color.SpruceBirchLeafTintMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}

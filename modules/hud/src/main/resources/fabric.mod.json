@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "madoku-craft-hud",
+  "version": "${version}",
+  "name": "Madoku Craft: HUD",
+  "description": "A configurable hud overhaul mod.",
+  "authors": ["Monkeyopolis"],
+  "license": "CC0-1.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["madoku.craft.java.hud.MadokuHudClientInitializer"]
+  },
+  "mixins": ["madoku-craft-hud.mixins.json"],
+  "depends": {
+    "fabricloader": "${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": "${fabric_api_version}",
+    "madoku-craft-core": "*"
+  }
+}

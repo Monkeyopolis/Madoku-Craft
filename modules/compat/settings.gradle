@@ -1,0 +1,22 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+rootProject.name = "madoku-craft-compat"
+
+includeBuild("../core")
+includeBuild("../attributes")
+includeBuild("../levels")
+includeBuild("../farming")
+includeBuild("../mobs")
+includeBuild("../pets")
+includeBuild("../items")
+includeBuild("../utility")
+includeBuild("../hud")

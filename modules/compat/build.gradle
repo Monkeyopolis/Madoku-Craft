@@ -1,0 +1,86 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	mavenCentral()
+	mavenLocal()
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"madoku-craft-compat" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir "src/main/server"
+		}
+	}
+	client {
+		java {
+			srcDir "src/main/client"
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	implementation "madoku.craft:madoku-craft-core:${project.core_version}"
+	implementation "madoku.craft:madoku-craft-attributes:${project.attributes_version}"
+	implementation "madoku.craft:madoku-craft-levels:${project.levels_version}"
+	implementation "madoku.craft:madoku-craft-farming:${project.farming_version}"
+	implementation "madoku.craft:madoku-craft-mobs:${project.mobs_version}"
+	implementation "madoku.craft:madoku-craft-pets:${project.pets_version}"
+	implementation "madoku.craft:madoku-craft-items:${project.items_version}"
+	implementation "madoku.craft:madoku-craft-utility:${project.utility_version}"
+	clientImplementation "madoku.craft:madoku-craft-core:${project.core_version}@jar"
+	clientImplementation "madoku.craft:madoku-craft-hud:${project.hud_version}@jar"
+	clientImplementation "madoku.craft:madoku-craft-pets:${project.pets_version}@jar"
+
+	// Sodium/Iris stay optional runtime mods and are not required to compile
+	// this module. The dependencies above are Madoku's public module APIs,
+	// which Compat uses to bridge payloads and other cross-module behavior.
+}
+
+processResources {
+	inputs.property "version", project.version
+	inputs.property "minecraft_version", project.minecraft_version
+	inputs.property "loader_version", project.loader_version
+	inputs.property "fabric_api_version", project.fabric_api_version
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version,
+			"minecraft_version": project.minecraft_version,
+			"loader_version": project.loader_version,
+			"fabric_api_version": project.fabric_api_version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+}
+
+java {
+	withSourcesJar()
+
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}

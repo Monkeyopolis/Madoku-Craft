@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "package": "madoku.craft.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "pet.EntityPetBehaviorMixin",
+    "pet.InventoryMenuPetSlotsMixin",
+    "pet.ItemCostEggVariantsMixin",
+    "pet.LivingEntityPetBehaviorMixin",
+    "pet.MobWebStunMixin",
+    "pet.PetInventoryMixin",
+    "pet.PetItemTooltipMixin",
+    "pet.ServerEntityPetUpdateIntervalMixin",
+    "pet.ServerGamePacketListenerCreativePetSlotMixin",
+    "pet.ServerGamePacketListenerPetLeftClickMixin",
+    "pet.ServerPlayerTeleportPetMixin"
+  ],
+  "client": [
+    "pet.CreativeModeInventoryScreenPetSlotMixin",
+    "pet.MerchantScreenAccessor",
+    "pet.PetLeftClickInputMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}

@@ -3,7 +3,7 @@
 	"id": "madoku-craft",
 	"version": "${version}",
 	"name": "Madoku Craft",
-	"description": "Modifies Minecraft's core gameplay into a configurable one.",
+	"description": "An interconnected overhaul mod that modifies vanilla Minecraft.",
 	"authors": [
 		"Monkeyopolis"
 	],

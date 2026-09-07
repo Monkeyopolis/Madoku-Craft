@@ -11,16 +11,10 @@ base {
 }
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
 	maven {
+		name = "CurseMaven"
 		url = "https://www.cursemaven.com"
-		content {
-			includeGroup "curse.maven"
-		}
+		content { includeGroup "curse.maven" }
 	}
 }
 
@@ -35,17 +29,174 @@ loom {
 	}
 }
 
+// Feature repositories are checked out below modules/<name>. The bundle project
+// compiles their matching source roots into the existing unified mod jar.
+def madokuModuleNames = [
+	"core",
+	"attributes",
+	"items",
+	"farming",
+	"ecosystem",
+	"levels",
+	"mobs",
+	"pets",
+	"utility",
+	"hud",
+	"compat"
+]
+
+def madokuModuleRoots = madokuModuleNames
+	.collect { file("modules/${it}") }
+	.findAll { it.isDirectory() }
+
+def madokuModuleSourceDirs = { String sourceRoot ->
+	madokuModuleRoots.collect { new File(it, "src/main/${sourceRoot}") }
+}
+
+def madokuModuleResourceDirs = madokuModuleRoots.collect {
+	new File(it, "src/main/resources")
+}
+
 sourceSets {
 	main {
 		java {
-			srcDir "src/main/server"
+			srcDirs = ["src/main/server"] + madokuModuleSourceDirs("server")
+		}
+		resources {
+			srcDirs = ["src/main/resources"] + madokuModuleResourceDirs
+			exclude { details ->
+				String path = details.file.absolutePath.replace('\\', '/')
+				path.contains('/modules/') && details.path in [
+					'fabric.mod.json',
+					'assets/madoku-craft/lang/en_us.json'
+				]
+			}
 		}
 	}
 	client {
 		java {
-			srcDir "src/main/client"
+			srcDirs = ["src/main/client"] + madokuModuleSourceDirs("client")
 		}
 	}
+}
+
+tasks.register("validateMadokuModuleBoundaries") {
+	group = "verification"
+	description = "Validates the modular source layout and Core dependency boundary."
+
+	doLast {
+		def errors = []
+		madokuModuleNames.each { String moduleName ->
+			File moduleRoot = file("modules/${moduleName}")
+			if (!moduleRoot.isDirectory()) {
+				errors << "Missing declared module directory: modules/${moduleName}"
+				return
+			}
+
+			["build.gradle", "settings.gradle", "gradle.properties"].each { String metadataFile ->
+				if (!new File(moduleRoot, metadataFile).isFile()) {
+					errors << "Missing ${metadataFile}: modules/${moduleName}/${metadataFile}"
+				}
+			}
+			if (!new File(moduleRoot, "src/main/resources/fabric.mod.json").isFile()) {
+				errors << "Missing Fabric metadata: modules/${moduleName}/src/main/resources/fabric.mod.json"
+			}
+
+			if (moduleName != "core") {
+				String buildText = new File(moduleRoot, "build.gradle").text
+				String settingsText = new File(moduleRoot, "settings.gradle").text
+				if (!buildText.contains("madoku-craft-core")) {
+					errors << "Module ${moduleName} must declare a Core dependency."
+				}
+				if (!settingsText.contains('includeBuild("../core")')) {
+					errors << "Module ${moduleName} must include the sibling Core build."
+				}
+			}
+		}
+
+		def allowedRootSources = [
+			"src/main/server/madoku/craft/java/MadokuCraft.java",
+			"src/main/client/madoku/craft/java/MadokuCraftClient.java"
+		].collect { file(it).canonicalPath }
+		fileTree("src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
+			if (!allowedRootSources.contains(sourceFile.canonicalPath)) {
+				errors << "Root source must remain an aggregate-only entrypoint: ${sourceFile}"
+			}
+		}
+
+		File compatManifestFile = file("modules/compat/src/main/resources/fabric.mod.json")
+		if (compatManifestFile.isFile()) {
+			def compatManifest = new groovy.json.JsonSlurper().parse(compatManifestFile)
+			[
+				"madoku-craft-attributes",
+				"madoku-craft-levels",
+				"madoku-craft-farming",
+				"madoku-craft-mobs",
+				"madoku-craft-pets",
+				"madoku-craft-items",
+				"madoku-craft-hud"
+			].each { String featureId ->
+				if (compatManifest.depends?.containsKey(featureId)) {
+					errors << "Compat must not require feature module ${featureId}; use optional detection instead."
+				}
+			}
+		}
+
+		File hudBuildFile = file("modules/hud/build.gradle")
+		if (hudBuildFile.isFile() && hudBuildFile.text.contains("madoku-craft-attributes")) {
+			errors << "HUD must not declare a direct Attributes Gradle dependency; use Compat for the optional bridge."
+		}
+		File hudManifestFile = file("modules/hud/src/main/resources/fabric.mod.json")
+		if (hudManifestFile.isFile()) {
+			def hudManifest = new groovy.json.JsonSlurper().parse(hudManifestFile)
+			if (hudManifest.depends?.containsKey("madoku-craft-attributes")) {
+				errors << "HUD must not require the Attributes module; use Compat for the optional bridge."
+			}
+		}
+		fileTree("modules/hud/src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
+			sourceFile.eachLine { String line, int lineNumber ->
+				if (line ==~ /^\s*import\s+madoku\.craft\.java\.attributes\./) {
+					errors << "HUD must not import Attributes APIs at ${sourceFile}: ${lineNumber}: ${line.trim()}"
+				}
+			}
+		}
+
+		File utilityBuildFile = file("modules/utility/build.gradle")
+		if (utilityBuildFile.isFile() && utilityBuildFile.text.contains("madoku-craft-items")) {
+			errors << "Utility must not declare a direct Items Gradle dependency; use Compat for the optional bridge."
+		}
+		File utilityManifestFile = file("modules/utility/src/main/resources/fabric.mod.json")
+		if (utilityManifestFile.isFile()) {
+			def utilityManifest = new groovy.json.JsonSlurper().parse(utilityManifestFile)
+			if (utilityManifest.depends?.containsKey("madoku-craft-items")) {
+				errors << "Utility must not require the Items module; use Compat for the optional bridge."
+			}
+		}
+		fileTree("modules/utility/src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
+			sourceFile.eachLine { String line, int lineNumber ->
+				if (line ==~ /^\s*import\s+madoku\.craft\.java\.items\./) {
+					errors << "Utility must not import Items APIs at ${sourceFile}: ${lineNumber}: ${line.trim()}"
+				}
+			}
+		}
+
+		def forbiddenCoreImport = ~/^\s*import\s+madoku\.craft\.java\.(attributes|items|farming|ecosystem|levels|mob|pet|hud|compat|entity|utility)\./
+		fileTree("modules/core/src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
+			sourceFile.eachLine { String line, int lineNumber ->
+				if (line ==~ forbiddenCoreImport) {
+					errors << "Core imports a feature package at ${sourceFile}: ${lineNumber}: ${line.trim()}"
+				}
+			}
+		}
+
+		if (!errors.isEmpty()) {
+			throw new GradleException("Madoku module boundary validation failed:\n - " + errors.join("\n - "))
+		}
+	}
+}
+
+		tasks.named("check") {
+	dependsOn("validateMadokuModuleBoundaries")
 }
 
 dependencies {
@@ -56,9 +207,11 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	// Optional client-side integrations, following the Curse Maven dependency pattern used by Madoku Craft Items.
+	// Optional client-side integrations, following the original Madoku Craft
+	// development dependency pattern. These are not Fabric manifest requirements.
 	implementation "curse.maven:sodium-394468:${project.sodium_id}"
 	implementation "curse.maven:irisshaders-455508:${project.iris_id}"
+
 }
 
 processResources {
