@@ -11,4 +11,6 @@ pluginManagement {
 
 rootProject.name = "madoku-craft-items"
 
-includeBuild("../core")
+if (gradle.parent == null) {
+	includeBuild("../core")
+}

@@ -11,12 +11,14 @@ pluginManagement {
 
 rootProject.name = "madoku-craft-compat"
 
-includeBuild("../core")
-includeBuild("../attributes")
-includeBuild("../levels")
-includeBuild("../farming")
-includeBuild("../mobs")
-includeBuild("../pets")
-includeBuild("../items")
-includeBuild("../utility")
-includeBuild("../hud")
+if (gradle.parent == null) {
+	includeBuild("../core")
+	includeBuild("../attributes")
+	includeBuild("../levels")
+	includeBuild("../farming")
+	includeBuild("../mobs")
+	includeBuild("../pets")
+	includeBuild("../items")
+	includeBuild("../utility")
+	includeBuild("../hud")
+}
