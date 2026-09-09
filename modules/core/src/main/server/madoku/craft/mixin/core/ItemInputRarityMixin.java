@@ -1,9 +1,7 @@
 package madoku.craft.mixin.core;
 
-import madoku.craft.java.pet.PetHagAPIManager;
-import madoku.craft.java.pet.PetEntitiesAPIManager;
+import madoku.craft.java.core.iteminput.ItemInputFeatureAPIManager;
 import madoku.craft.java.core.rarity.RarityAPIManager;
-import madoku.craft.java.items.ItemsAPIManager;
 import net.minecraft.server.commands.GiveCommand;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -12,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
+/** Applies Core rarity behavior to stacks created through /give. */
 @Mixin(GiveCommand.class)
 public class ItemInputRarityMixin {
 	@Redirect(
@@ -26,18 +25,18 @@ public class ItemInputRarityMixin {
 		ItemStack stack
 	) {
 		if (inventory != null && inventory.player instanceof ServerPlayer serverPlayer) {
-			if (PetEntitiesAPIManager.isPetItem(stack)) {
-				RarityAPIManager.Tier rarity = RarityAPIManager.fromString(PetHagAPIManager.rarity(stack));
+			if (ItemInputFeatureAPIManager.isPetItem(stack)) {
+				RarityAPIManager.Tier rarity = ItemInputFeatureAPIManager.petRarity(stack);
 				RarityAPIManager.applyConfiguredRarity(
 					stack,
 					rarity == null ? RarityAPIManager.Tier.COMMON : rarity
 				);
 			} else {
-				ItemsAPIManager.applyConfiguredItemLevel(stack, 1);
+				ItemInputFeatureAPIManager.applyItemLevel(stack, 1);
 				RarityAPIManager.applyGeneratedRarity(stack, serverPlayer.getRandom(), serverPlayer);
 			}
+			ItemInputFeatureAPIManager.applyPetLore(stack);
 		}
-		PetHagAPIManager.applyLore(stack);
 		return inventory.add(stack);
 	}
 }

@@ -2,7 +2,6 @@ package madoku.craft.mixin.attributes;
 
 import madoku.craft.java.core.enchant.BooksConfigAPIManager;
 import madoku.craft.java.core.enchant.EnchantBooksAPIManager;
-import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -14,7 +13,6 @@ import org.apache.commons.lang3.mutable.MutableFloat;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Enchantment.class)
@@ -46,30 +44,6 @@ public abstract class EnchantmentMaximumLevelMixin {
 		CallbackInfo callbackInfo
 	) {
 		EnchantBooksAPIManager.endSoulSpeedLocationChangedEffects();
-	}
-
-	@Inject(method = "getMaxLevel", at = @At("RETURN"), cancellable = true)
-	private void madokuCraft$useConfiguredMaximumLevel(CallbackInfoReturnable<Integer> callbackInfo) {
-		callbackInfo.setReturnValue(
-			BooksConfigAPIManager.getConfiguredMaximumLevel(
-				(Enchantment) (Object) this,
-				callbackInfo.getReturnValue()
-			)
-		);
-	}
-
-	@Inject(method = "canEnchant", at = @At("RETURN"), cancellable = true)
-	private void madokuCraft$useConfiguredCompatibleItems(
-		ItemStack stack,
-		CallbackInfoReturnable<Boolean> callbackInfo
-	) {
-		callbackInfo.setReturnValue(
-			BooksConfigAPIManager.resolveConfiguredCanEnchant(
-				(Enchantment) (Object) this,
-				stack,
-				callbackInfo.getReturnValue()
-			)
-		);
 	}
 
 	/** Prevents configured Bane of Arthropods from retaining vanilla bonus damage. */
@@ -410,19 +384,4 @@ public abstract class EnchantmentMaximumLevelMixin {
 		callbackInfo.cancel();
 	}
 
-	@Inject(method = "areCompatible", at = @At("RETURN"), cancellable = true)
-	private static void madokuCraft$useConfiguredConflictSettings(
-		Holder<Enchantment> first,
-		Holder<Enchantment> second,
-		CallbackInfoReturnable<Boolean> callbackInfo
-	) {
-		callbackInfo.setReturnValue(
-			BooksConfigAPIManager.resolveConfiguredCompatibility(
-				first,
-				second,
-				callbackInfo.getReturnValue()
-			)
-		);
-	}
 }
-

@@ -22,6 +22,9 @@ public abstract class MobDifficultySpawnMixin implements MobEntityManager.Diffic
 	private static final String MADOKU_CRAFT_DIFFICULTY_ADJUSTMENT_KEY = "madoku_craft_spawn_difficulty_adjustment";
 
 	@Unique
+	private static final String MADOKU_CRAFT_WORLD_DIFFICULTY_SCALING_APPLIED_KEY = "madoku_craft_world_difficulty_scaling_applied";
+
+	@Unique
 	private int madokuCraft$spawnDifficultyAdjustment;
 
 	@Unique
@@ -47,11 +50,20 @@ public abstract class MobDifficultySpawnMixin implements MobEntityManager.Diffic
 	@Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
 	private void madokuCraft$writeSpawnDifficultyAdjustment(ValueOutput output, CallbackInfo ci) {
 		output.putInt(MADOKU_CRAFT_DIFFICULTY_ADJUSTMENT_KEY, madokuCraft$spawnDifficultyAdjustment);
+		output.putBoolean(MADOKU_CRAFT_WORLD_DIFFICULTY_SCALING_APPLIED_KEY, madokuCraft$worldDifficultyScalingApplied);
 	}
 
 	@Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
 	private void madokuCraft$readSpawnDifficultyAdjustment(ValueInput input, CallbackInfo ci) {
 		madokuCraft$spawnDifficultyAdjustment = input.getIntOr(MADOKU_CRAFT_DIFFICULTY_ADJUSTMENT_KEY, 0);
+		// Older saves did not persist this guard. A mob with a stored regional
+		// adjustment was already through the initial scaling pipeline, so treat it
+		// as world-scaled while migrating that save instead of compounding health
+		// and other world-difficulty attributes on its first reload.
+		madokuCraft$worldDifficultyScalingApplied = input.getBooleanOr(
+			MADOKU_CRAFT_WORLD_DIFFICULTY_SCALING_APPLIED_KEY,
+			madokuCraft$spawnDifficultyAdjustment > 0
+		);
 	}
 
 	@Override

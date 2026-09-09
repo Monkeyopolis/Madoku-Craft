@@ -123,6 +123,7 @@ public final class MadokuCoreManager {
 		RecipesAPIManager.initialize();
 		LootTableAPIManager.initialize();
 		EnchantAPIManager.initialize();
+		RarityAPIManager.initialize();
 		SmithingAPIManager.onServerStarted(server);
 	}
 

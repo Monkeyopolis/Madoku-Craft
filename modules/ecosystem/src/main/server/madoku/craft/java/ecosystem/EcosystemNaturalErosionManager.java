@@ -17,6 +17,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,25 +75,39 @@ public final class EcosystemNaturalErosionManager {
 		return isEnabled();
 	}
 
-	static boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
-		if (event == null || !isEnabled()) {
-			return false;
-		}
-		BlockState sampledState = event.sampledState();
-		return sampledState != null && isTrackableGroundBlock(sampledState);
-	}
-
-	public static void onRandomPosition(EcosystemRandomPositionEvent event) {
+	public static void onChunkTick(EcosystemChunkTickEvent event) {
 		if (event == null) {
 			return;
 		}
 		ServerLevel world = event.level();
-		BlockPos position = event.position();
-		BlockState groundState = event.sampledState();
-		if (world == null || position == null || groundState == null || !isEnabled()) {
+		BlockPos sampledPosition = event.surfaceGroundPosition();
+		if (world == null || sampledPosition == null || !isEnabled()) {
+			if (world != null) {
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.invalid-sample", 1L);
+			}
 			return;
 		}
-		NaturalErosionConfigManager.NamedErosionRule seedRule = resolveAdjacentSeedRule(world, position, groundState);
+		BlockPos position = resolveErosionSurfaceGroundPosition(world, event.chunk(), sampledPosition);
+		BlockState groundState = position == null
+			? null
+			: position.equals(sampledPosition) && event.surfaceGroundState() != null
+				? event.surfaceGroundState()
+				: world.getBlockState(position);
+		if (position == null || groundState == null) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.invalid-sample", 1L);
+			return;
+		}
+		long ruleStartedNanos = System.nanoTime();
+		NaturalErosionConfigManager.NamedErosionRule seedRule;
+		try {
+			seedRule = resolveAdjacentSeedRule(world, event.chunk(), position, groundState);
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(
+				world,
+				"erosion-rule-resolution",
+				System.nanoTime() - ruleStartedNanos
+			);
+		}
 		if (seedRule == null) {
 			return;
 		}
@@ -100,7 +115,32 @@ public final class EcosystemNaturalErosionManager {
 		String seedKey = EcosystemAPIManager.levelId(world) + "|" + position.asLong();
 		EcosystemAPIManager.DirtState trackedSeed = EcosystemAPIManager.dirtBlocksByKey.get(seedKey);
 		if (trackedSeed == null || !"wet".equals(trackedSeed.mode)) {
-			spreadWetTrackingFromSeed(world, position, seedRule);
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.spread-attempt", 1L);
+			long spreadStartedNanos = System.nanoTime();
+			try {
+				int trackedCandidates = spreadWetTrackingFromSeed(world, position, seedRule);
+				if (trackedCandidates > 0) {
+					EcosystemMsptMonitor.recordEcosystemOutcome(
+						world,
+						"erosion.candidates-tracked",
+						trackedCandidates
+					);
+					LOGGER.info(
+						"Natural erosion candidates tracked: dimension={} seed={} rule={} source={} count={}",
+						EcosystemAPIManager.levelId(world),
+						position,
+						seedRule.ruleId(),
+						groundState,
+						trackedCandidates
+					);
+				}
+			} finally {
+				EcosystemMsptMonitor.recordEcosystemStage(
+					world,
+					"erosion-spread",
+					System.nanoTime() - spreadStartedNanos
+				);
+			}
 		}
 	}
 
@@ -111,19 +151,26 @@ public final class EcosystemNaturalErosionManager {
 	 */
 	private static NaturalErosionConfigManager.NamedErosionRule resolveAdjacentSeedRule(
 		ServerLevel world,
+		LevelChunk chunk,
 		BlockPos blockPos,
 		BlockState state
 	) {
 		if (world == null || blockPos == null || state == null) {
+			if (world != null) {
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.invalid-sample", 1L);
+			}
 			return null;
 		}
 		if (!isTrackableGroundBlock(state)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.not-trackable", 1L);
 			return null;
 		}
 		if (isSubmergedInErosionFluid(world, blockPos)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.submerged", 1L);
 			return null;
 		}
-		if (!isSurfaceGroundBlock(world, blockPos)) {
+		if (!isSurfaceGroundBlock(world, chunk, blockPos)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.not-surface", 1L);
 			return null;
 		}
 
@@ -137,16 +184,17 @@ public final class EcosystemNaturalErosionManager {
 			}
 			if (isWaterErosionEnabled()
 				&& fluidState.is(FluidTags.WATER)
-				&& isSurfaceFluidSource(world, sourcePosition, FluidTags.WATER)) {
+				&& isSurfaceFluidSource(world, chunk, sourcePosition, FluidTags.WATER)) {
 				waterSource = true;
 			}
 			if (isLavaErosionEnabled()
 				&& fluidState.is(FluidTags.LAVA)
-				&& isSurfaceFluidSource(world, sourcePosition, FluidTags.LAVA)) {
+				&& isSurfaceFluidSource(world, chunk, sourcePosition, FluidTags.LAVA)) {
 				lavaSource = true;
 			}
 		}
 		if (!waterSource && !lavaSource) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.no-fluid-source", 1L);
 			return null;
 		}
 
@@ -157,29 +205,39 @@ public final class EcosystemNaturalErosionManager {
 			rule = resolveErosionRuleForFluid(world, blockPos, state, false);
 		}
 		if (rule == null) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.no-rule", 1L);
 			return null;
 		}
 
+		EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.seed-found", 1L);
+		LOGGER.info(
+			"Natural erosion seed found: dimension={} position={} source={} rule={}",
+			EcosystemAPIManager.levelId(world),
+			blockPos,
+			state,
+			rule.ruleId()
+		);
 		return rule;
 	}
 
 	/** Spreads one discovered seed across the configured same-height surface radius. */
-	private static void spreadWetTrackingFromSeed(
+	private static int spreadWetTrackingFromSeed(
 		ServerLevel world,
 		BlockPos seedPosition,
 		NaturalErosionConfigManager.NamedErosionRule seedRule
 	) {
 		if (world == null || seedPosition == null || seedRule == null || seedRule.rule() == null) {
-			return;
+			return 0;
 		}
 		boolean waterSeed = isRuleForFluid(seedRule, true);
 		int radius = waterSeed
 			? (isWaterErosionEnabled() ? Math.max(0, currentSettings().waterErosionRadius()) : -1)
 			: (isLavaErosionEnabled() ? Math.max(0, currentSettings().lavaErosionRadius()) : -1);
 		if (radius < 0) {
-			return;
+			return 0;
 		}
 
+		int trackedCandidates = 0;
 		for (int offsetX = -radius; offsetX <= radius; offsetX++) {
 			for (int offsetZ = -radius; offsetZ <= radius; offsetZ++) {
 				if (Math.abs(offsetX) + Math.abs(offsetZ) > radius) {
@@ -187,17 +245,31 @@ public final class EcosystemNaturalErosionManager {
 				}
 				BlockPos candidatePosition = seedPosition.offset(offsetX, 0, offsetZ);
 				BlockState candidateState = world.getBlockState(candidatePosition);
-				if (!isWetTrackedCandidate(world, candidatePosition, candidateState, seedRule.ruleId())) {
+				WetEligibility candidateEligibility = evaluateWetEligibility(
+					world,
+					candidatePosition,
+					candidateState,
+					seedRule.ruleId()
+				);
+				if (candidateEligibility != WetEligibility.ELIGIBLE) {
+					EcosystemMsptMonitor.recordEcosystemOutcome(
+						world,
+						"erosion.spread-rejected-" + candidateEligibility.name().toLowerCase(java.util.Locale.ROOT),
+						1L
+					);
 					continue;
 				}
-				EcosystemAPIManager.trackWetCandidate(
+				if (EcosystemAPIManager.trackWetCandidate(
 					world,
 					candidatePosition,
 					candidateState,
 					seedRule
-				);
+				)) {
+					trackedCandidates++;
+				}
 			}
 		}
+		return trackedCandidates;
 	}
 
 	private static NaturalErosionConfigManager.NamedErosionRule resolveErosionRuleForFluid(
@@ -242,6 +314,12 @@ public final class EcosystemNaturalErosionManager {
 		return result == WetEligibility.ELIGIBLE;
 	}
 
+	static String wetEligibilityOutcome(ServerLevel world, BlockPos blockPos, BlockState state, String preferredRuleId) {
+		return evaluateWetEligibility(world, blockPos, state, preferredRuleId == null ? "" : preferredRuleId)
+			.name()
+			.toLowerCase(java.util.Locale.ROOT);
+	}
+
 	private static WetEligibility evaluateWetEligibility(ServerLevel world, BlockPos blockPos, BlockState state, String preferredRuleId) {
 		if (world == null || blockPos == null || state == null
 			|| (!isWaterErosionEnabled() && !isLavaErosionEnabled())
@@ -251,7 +329,7 @@ public final class EcosystemNaturalErosionManager {
 		if (isSubmergedInErosionFluid(world, blockPos)) {
 			return WetEligibility.SUBMERGED;
 		}
-		if (!isSurfaceGroundBlock(world, blockPos)) {
+		if (!isSurfaceGroundBlock(world, resolveChunk(world, blockPos), blockPos)) {
 			return WetEligibility.NOT_SURFACE;
 		}
 		NaturalErosionConfigManager.NamedErosionRule rule = EcosystemAPIManager.resolveErosionRule(world, blockPos, state, preferredRuleId);
@@ -261,16 +339,40 @@ public final class EcosystemNaturalErosionManager {
 		return WetEligibility.ELIGIBLE;
 	}
 
-	private static boolean isSurfaceGroundBlock(ServerLevel world, BlockPos blockPos) {
-		if (world == null || blockPos == null) {
+	private static boolean isSurfaceGroundBlock(ServerLevel world, LevelChunk chunk, BlockPos blockPos) {
+		if (world == null || chunk == null || blockPos == null) {
 			return false;
 		}
-		int surfaceY = world.getHeight(
-			net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
-			blockPos.getX(),
-			blockPos.getZ()
-		) - 1;
+		int surfaceY = chunk.getHeight(
+			net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+			blockPos.getX() & 15,
+			blockPos.getZ() & 15
+		);
 		return blockPos.getY() == surfaceY;
+	}
+
+	private static BlockPos resolveErosionSurfaceGroundPosition(ServerLevel world, LevelChunk chunk, BlockPos sampledPosition) {
+		if (world == null || chunk == null || sampledPosition == null) {
+			return null;
+		}
+		int surfaceY = Math.min(
+			world.getMaxY() - 1,
+			chunk.getHeight(
+				net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+				sampledPosition.getX() & 15,
+				sampledPosition.getZ() & 15
+			)
+		);
+		return surfaceY < world.getMinY()
+			? null
+			: new BlockPos(sampledPosition.getX(), surfaceY, sampledPosition.getZ());
+	}
+
+	private static LevelChunk resolveChunk(ServerLevel world, BlockPos position) {
+		if (world == null || position == null) {
+			return null;
+		}
+		return world.getChunkSource().getChunkNow(position.getX() >> 4, position.getZ() >> 4);
 	}
 
 	static boolean isLavaMagmaSourceBlockId(String blockId) {
@@ -473,17 +575,26 @@ public final class EcosystemNaturalErosionManager {
 
 	private static boolean isSurfaceFluidSource(
 		ServerLevel world,
+		LevelChunk activeChunk,
 		BlockPos fluidPosition,
 		net.minecraft.tags.TagKey<net.minecraft.world.level.material.Fluid> fluidTag
 	) {
 		if (world == null || fluidPosition == null || fluidTag == null) {
 			return false;
 		}
-		int surfaceY = world.getHeight(
-			net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
-			fluidPosition.getX(),
-			fluidPosition.getZ()
-		) - 1;
+		LevelChunk chunk = activeChunk != null
+			&& activeChunk.getPos().x() == (fluidPosition.getX() >> 4)
+			&& activeChunk.getPos().z() == (fluidPosition.getZ() >> 4)
+			? activeChunk
+			: resolveChunk(world, fluidPosition);
+		if (chunk == null) {
+			return false;
+		}
+		int surfaceY = chunk.getHeight(
+			net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+			fluidPosition.getX() & 15,
+			fluidPosition.getZ() & 15
+		);
 		return fluidPosition.getY() == surfaceY;
 	}
 

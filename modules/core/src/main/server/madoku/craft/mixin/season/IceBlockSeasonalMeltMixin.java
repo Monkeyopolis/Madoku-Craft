@@ -48,5 +48,3 @@ public abstract class IceBlockSeasonalMeltMixin {
 		ci.cancel();
 	}
 }
-
-

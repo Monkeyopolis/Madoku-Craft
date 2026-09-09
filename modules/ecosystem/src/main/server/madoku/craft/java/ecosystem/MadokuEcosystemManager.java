@@ -12,54 +12,52 @@ public final class MadokuEcosystemManager {
 		@Override public void savePersistedData(MinecraftServer server) { MadokuEcosystemManager.savePersistedData(server); }
 	};
 
-	private static final EcosystemRandomPositionListener GROWTH_RANDOM_POSITION_LISTENER =
-		new EcosystemRandomPositionListener() {
-			@Override
-			public boolean accepts(EcosystemRandomPositionEvent event) {
-				return NaturalGrowthAPIManager.acceptsRandomPosition(event);
-			}
-
-			@Override
-			public void onRandomPosition(EcosystemRandomPositionEvent event) {
-				NaturalGrowthAPIManager.onRandomPosition(event);
-			}
-		};
-	private static final EcosystemRandomPositionListener EROSION_RANDOM_POSITION_LISTENER =
-		new EcosystemRandomPositionListener() {
-			@Override
-			public boolean accepts(EcosystemRandomPositionEvent event) {
-				return NaturalErosionAPIManager.acceptsRandomPosition(event);
-			}
-
-			@Override
-			public void onRandomPosition(EcosystemRandomPositionEvent event) {
-				NaturalErosionAPIManager.onRandomPosition(event);
-			}
-		};
-	private static final EcosystemRandomPositionListener DECAY_RANDOM_POSITION_LISTENER =
-		new EcosystemRandomPositionListener() {
-			@Override
-			public boolean accepts(EcosystemRandomPositionEvent event) {
-				return NaturalDecayAPIManager.acceptsRandomPosition(event);
-			}
-
-			@Override
-			public void onRandomPosition(EcosystemRandomPositionEvent event) {
-				NaturalDecayAPIManager.onRandomPosition(event);
-			}
-		};
+	private static final EcosystemChunkTickListener GROWTH_CHUNK_TICK_LISTENER =
+		MadokuEcosystemManager::dispatchGrowthChunkTick;
+	private static final EcosystemChunkTickListener EROSION_CHUNK_TICK_LISTENER =
+		MadokuEcosystemManager::dispatchErosionChunkTick;
+	private static final EcosystemChunkTickListener DECAY_CHUNK_TICK_LISTENER =
+		MadokuEcosystemManager::dispatchDecayChunkTick;
 	private static final EcosystemBlockChangeListener CANDIDATE_INVALIDATION_LISTENER =
 		EcosystemAPIManager::invalidateCandidatesAt;
 
 	private MadokuEcosystemManager() {
 	}
 
+	private static void dispatchGrowthChunkTick(EcosystemChunkTickEvent event) {
+		recordChunkTickStage("growth", event, NaturalGrowthAPIManager::onChunkTick);
+	}
+
+	private static void dispatchErosionChunkTick(EcosystemChunkTickEvent event) {
+		recordChunkTickStage("erosion", event, NaturalErosionAPIManager::onChunkTick);
+	}
+
+	private static void dispatchDecayChunkTick(EcosystemChunkTickEvent event) {
+		recordChunkTickStage("decay", event, NaturalDecayAPIManager::onChunkTick);
+	}
+
+	private static void recordChunkTickStage(
+		String stage,
+		EcosystemChunkTickEvent event,
+		EcosystemChunkTickListener listener
+	) {
+		if (event == null) {
+			return;
+		}
+		long startedNanos = System.nanoTime();
+		try {
+			listener.onChunkTick(event);
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(event.level(), stage, System.nanoTime() - startedNanos);
+		}
+	}
+
 	/** Initializes the shared ecosystem runtime and each ecosystem subsystem. */
 	public static void initialize() {
 		DataSaveParticipantAPIManager.register(DATA_SAVE_PARTICIPANT);
 		EcosystemAPIManager.initialize();
-		EcosystemRandomPositionAPIManager.registerProvider(new MadokuEcosystemRandomPositionProvider());
-		EcosystemRandomPositionAPIManager.initialize();
+		EcosystemChunkTickAPIManager.registerProvider(new MadokuEcosystemChunkTickProvider());
+		EcosystemChunkTickAPIManager.initialize();
 		EcosystemBlockChangeAPIManager.registerProvider(new MadokuEcosystemBlockChangeProvider());
 		EcosystemBlockChangeAPIManager.initialize();
 		NaturalGrowthAPIManager.registerProvider(new MadokuNaturalGrowthProvider());
@@ -68,15 +66,15 @@ public final class MadokuEcosystemManager {
 		NaturalGrowthAPIManager.initialize();
 		NaturalErosionAPIManager.initialize();
 		NaturalDecayAPIManager.initialize();
-		registerRandomPositionListeners();
+		registerChunkTickListeners();
 		registerBlockChangeListeners();
 		EcosystemAPIManager.refreshSettings();
 	}
 
-	private static void registerRandomPositionListeners() {
-		EcosystemRandomPositionAPIManager.registerListener(GROWTH_RANDOM_POSITION_LISTENER);
-		EcosystemRandomPositionAPIManager.registerListener(EROSION_RANDOM_POSITION_LISTENER);
-		EcosystemRandomPositionAPIManager.registerListener(DECAY_RANDOM_POSITION_LISTENER);
+	private static void registerChunkTickListeners() {
+		EcosystemChunkTickAPIManager.registerListener(GROWTH_CHUNK_TICK_LISTENER);
+		EcosystemChunkTickAPIManager.registerListener(EROSION_CHUNK_TICK_LISTENER);
+		EcosystemChunkTickAPIManager.registerListener(DECAY_CHUNK_TICK_LISTENER);
 	}
 
 	private static void registerBlockChangeListeners() {
@@ -85,21 +83,21 @@ public final class MadokuEcosystemManager {
 
 	/** Resets each ecosystem subsystem and the shared ecosystem runtime. */
 	public static void reset() {
-		EcosystemRandomPositionAPIManager.unregisterListener(GROWTH_RANDOM_POSITION_LISTENER);
-		EcosystemRandomPositionAPIManager.unregisterListener(EROSION_RANDOM_POSITION_LISTENER);
-		EcosystemRandomPositionAPIManager.unregisterListener(DECAY_RANDOM_POSITION_LISTENER);
+		EcosystemChunkTickAPIManager.unregisterListener(GROWTH_CHUNK_TICK_LISTENER);
+		EcosystemChunkTickAPIManager.unregisterListener(EROSION_CHUNK_TICK_LISTENER);
+		EcosystemChunkTickAPIManager.unregisterListener(DECAY_CHUNK_TICK_LISTENER);
 		EcosystemBlockChangeAPIManager.unregisterListener(CANDIDATE_INVALIDATION_LISTENER);
 		NaturalGrowthAPIManager.reset();
 		NaturalErosionAPIManager.reset();
 		NaturalDecayAPIManager.reset();
-		EcosystemRandomPositionAPIManager.reset();
+		EcosystemChunkTickAPIManager.reset();
 		EcosystemBlockChangeAPIManager.reset();
 		EcosystemAPIManager.reset();
 	}
 
 	public static void onServerTick(MinecraftServer server) { EcosystemAPIManager.onServerTick(server); }
 	public static void onServerStarted(MinecraftServer server) {
-		registerRandomPositionListeners();
+		registerChunkTickListeners();
 		registerBlockChangeListeners();
 		EcosystemAPIManager.onServerStarted(server);
 	}

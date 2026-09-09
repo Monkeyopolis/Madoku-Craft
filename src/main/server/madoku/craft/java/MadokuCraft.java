@@ -13,6 +13,7 @@ import madoku.craft.java.mob.MadokuMobManager;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
 import madoku.craft.java.farming.MadokuFarmingManager;
 import madoku.craft.java.items.ItemsAPIManager;
+import madoku.craft.java.items.MadokuItemsManager;
 import madoku.craft.java.levels.MadokuLevelsManager;
 import madoku.craft.java.pet.PetAPIManager;
 import madoku.craft.java.pet.MadokuPetManager;
@@ -31,7 +32,7 @@ public class MadokuCraft implements ModInitializer {
 		MadokuModuleRegistry.initialize();
 		MadokuCoreManager.initialize();
 		MadokuMobManager.initialize();
-		ItemsAPIManager.initialize();
+		MadokuItemsManager.initialize();
 		MadokuFarmingManager.initialize();
 		MadokuEcosystemManager.initialize();
 		MadokuAttributesManager.initialize();

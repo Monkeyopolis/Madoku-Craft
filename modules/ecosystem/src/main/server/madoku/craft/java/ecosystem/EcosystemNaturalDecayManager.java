@@ -13,17 +13,21 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public final class EcosystemNaturalDecayManager {
 
@@ -32,6 +36,7 @@ public final class EcosystemNaturalDecayManager {
 	private static final String CONFIG_FILE_NAME = "madoku-natural-decay";
 
 	private static volatile NaturalDecayConfigManager.Settings settings = NaturalDecayConfigManager.defaults();
+	private static final Predicate<BlockState> LEAF_BLOCK_STATE = state -> state != null && state.is(BlockTags.LEAVES);
 	static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, EcosystemAPIManager.TreeDecayCandidateState>> treeDecayCandidatesByChunk = new LinkedHashMap<>();
 	private static final Map<EcosystemAPIManager.ChunkRefKey, Map<Long, Long>> treeDecayTargetOwnersByChunk = new LinkedHashMap<>();
 
@@ -248,47 +253,122 @@ public final class EcosystemNaturalDecayManager {
 		return EcosystemAPIManager.isEnabled() && settings.isEnabled();
 	}
 
-	static boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
-		if (event == null || !isEnabled()) {
-			return false;
-		}
-		ServerLevel world = event.level();
-		BlockPos position = event.position();
-		if (world == null || position == null) {
-			return false;
-		}
-		BlockState sampledState = event.sampledState();
-		if (sampledState != null
-			&& sampledState.is(BlockTags.LEAVES)
-			&& isNaturallyGeneratedLeaf(sampledState)) {
-			return true;
-		}
-		return false;
-	}
-
-	public static void onRandomPosition(EcosystemRandomPositionEvent event) {
+	public static void onChunkTick(EcosystemChunkTickEvent event) {
 		if (event == null) {
 			return;
 		}
 		ServerLevel world = event.level();
-		BlockPos position = event.position();
-		BlockState sampledState = event.sampledState();
-		if (world == null || position == null || sampledState == null || !isEnabled()) {
+		if (world == null || event.chunk() == null || !isEnabled()) {
 			return;
 		}
 
 		long currentAbsoluteDayTime = EcosystemAPIManager.resolveCachedAbsoluteDayTime(world);
-		BlockPos targetPos = resolveTreeDecayTargetPos(world, position, sampledState);
-		if (targetPos != null) {
-			pickTreeDecayCandidateForPosition(
+		int chunkX = event.chunk().getPos().x();
+		int chunkZ = event.chunk().getPos().z();
+		long candidateStartedNanos = System.nanoTime();
+		try {
+			processTreeDecayCandidatesInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(
 				world,
-				position.getX() >> 4,
-				position.getZ() >> 4,
-				position.asLong(),
-				targetPos.asLong()
+				"decay-candidate-processing",
+				System.nanoTime() - candidateStartedNanos
 			);
 		}
-		processTreeDecayCandidateAt(world, position, currentAbsoluteDayTime);
+
+		long discoveryStartedNanos = System.nanoTime();
+		try {
+			discoverTreeDecayCandidatesInColumn(world, event.chunk(), event.surfaceGroundPosition());
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(
+				world,
+				"decay-surface-discovery",
+				System.nanoTime() - discoveryStartedNanos
+			);
+		}
+	}
+
+	private static void processTreeDecayCandidatesInChunk(
+		ServerLevel world,
+		int chunkX,
+		int chunkZ,
+		long currentAbsoluteDayTime
+	) {
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(
+			EcosystemAPIManager.levelId(world), chunkX, chunkZ
+		);
+		Map<Long, EcosystemAPIManager.TreeDecayCandidateState> candidates = treeDecayCandidatesByChunk.get(chunkKey);
+		if (candidates == null || candidates.isEmpty()) {
+			return;
+		}
+		for (EcosystemAPIManager.TreeDecayCandidateState candidate : new ArrayList<>(candidates.values())) {
+			if (candidate != null) {
+				processTreeDecayCandidateAt(world, BlockPos.of(candidate.leafPos), currentAbsoluteDayTime);
+			}
+		}
+	}
+
+	private static void discoverTreeDecayCandidatesInColumn(
+		ServerLevel world,
+		LevelChunk chunk,
+		BlockPos surfaceGroundPosition
+	) {
+		if (world == null || chunk == null || surfaceGroundPosition == null || !isEnabled()) {
+			return;
+		}
+
+		int x = surfaceGroundPosition.getX();
+		int z = surfaceGroundPosition.getZ();
+		int chunkX = chunk.getPos().x();
+		int chunkZ = chunk.getPos().z();
+		int topY = Math.min(
+			world.getMaxY() - 1,
+			chunk.getHeight(
+				net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE,
+				x & 15,
+				z & 15
+			) - 1
+		);
+		if (topY <= surfaceGroundPosition.getY()) {
+			return;
+		}
+
+		LevelChunkSection[] sections = chunk.getSections();
+		int firstSectionIndex = Math.max(
+			0,
+			(surfaceGroundPosition.getY() + 1 - world.getMinY()) >> 4
+		);
+		int lastSectionIndex = Math.min(
+			sections.length - 1,
+			(topY - world.getMinY()) >> 4
+		);
+		for (int sectionIndex = firstSectionIndex; sectionIndex <= lastSectionIndex; sectionIndex++) {
+			LevelChunkSection section = sections[sectionIndex];
+			if (section == null || !section.maybeHas(LEAF_BLOCK_STATE)) {
+				continue;
+			}
+
+			int sectionMinY = world.getMinY() + sectionIndex * 16;
+			int firstY = Math.max(surfaceGroundPosition.getY() + 1, sectionMinY);
+			int lastY = Math.min(topY, sectionMinY + 15);
+			for (int y = firstY; y <= lastY; y++) {
+				BlockPos leafPosition = new BlockPos(x, y, z);
+				BlockState leafState = world.getBlockState(leafPosition);
+				if (!leafState.is(BlockTags.LEAVES) || !isNaturallyGeneratedLeaf(leafState)) {
+					continue;
+				}
+				BlockPos targetPosition = resolveTreeDecayTargetPos(world, leafPosition, leafState);
+				if (targetPosition != null) {
+					pickTreeDecayCandidateForPosition(
+						world,
+						chunkX,
+						chunkZ,
+						leafPosition.asLong(),
+						targetPosition.asLong()
+					);
+				}
+			}
+		}
 	}
 
 	static void removeCandidateAt(EcosystemAPIManager.ChunkRefKey chunkKey, long packedPosition) {

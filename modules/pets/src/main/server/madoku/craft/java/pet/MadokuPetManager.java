@@ -72,6 +72,7 @@ public final class MadokuPetManager {
 		PetEntitiesManager.initialize();
 		MadokuEntities.initialize();
 		PetConfigManager.initialize();
+		MadokuPetsCoreAdapters.initialize();
 		PetAbilitiesManager.initialize();
 		PetHudManager.initialize();
 		PetHagManager.initialize();

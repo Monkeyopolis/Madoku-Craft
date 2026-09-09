@@ -156,10 +156,16 @@ public final class EntityComponentsManager {
 		AttributeInstance instance = entity.getAttribute(attribute);
 		if (instance == null) return false;
 		double base = instance.getBaseValue();
+		double oldMaxHealth = attribute == Attributes.MAX_HEALTH ? entity.getMaxHealth() : 0.0D;
+		boolean wasAtMaxHealth = attribute == Attributes.MAX_HEALTH && entity.getHealth() >= oldMaxHealth;
 		double addition = MobWorldDifficultyManager.resolveAddition(key, base, entity.level().getDifficulty(), hardcore);
 		if (!Double.isFinite(addition) || addition == 0.0D) return false;
 		instance.setBaseValue(Math.max(0.0D, base + addition));
-		if (attribute == Attributes.MAX_HEALTH) entity.setHealth(Math.min(entity.getHealth(), entity.getMaxHealth()));
+		if (attribute == Attributes.MAX_HEALTH) {
+			entity.setHealth(wasAtMaxHealth
+				? (float) entity.getMaxHealth()
+				: Math.min(entity.getHealth(), entity.getMaxHealth()));
+		}
 		return true;
 	}
 

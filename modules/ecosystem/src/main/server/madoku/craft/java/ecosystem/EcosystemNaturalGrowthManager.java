@@ -655,9 +655,12 @@ public final class EcosystemNaturalGrowthManager {
 		return true;
 	}
 
-	private static void setBlockAndUpdate(ServerLevel world, BlockPos position, BlockState state) {
-		world.setBlockAndUpdate(position, state);
-		EcosystemAPIManager.invalidateCachedGroundPosition();
+	private static boolean setBlockAndUpdate(ServerLevel world, BlockPos position, BlockState state) {
+		boolean changed = world.setBlockAndUpdate(position, state);
+		if (changed) {
+			EcosystemAPIManager.invalidateCachedGroundPosition();
+		}
+		return changed;
 	}
 
 	private static boolean tryPlaceWeightedFoliageTarget(ServerLevel world, BlockPos growPos, List<WeightedFoliagePlacement> placements) {
@@ -809,23 +812,6 @@ public final class EcosystemNaturalGrowthManager {
 		return EcosystemAPIManager.isEnabled() && settings.isEnabled();
 	}
 
-	static boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
-		if (event == null || !isEnabled()) {
-			return false;
-		}
-		ServerLevel world = event.level();
-		BlockPos position = event.position();
-		if (world == null || position == null) {
-			return false;
-		}
-
-		BlockState sampledState = event.sampledState();
-		if (sampledState != null && EcosystemAPIManager.ECOSYSTEM_GROWTH_BLOCKS.contains(sampledState.getBlock())) {
-			return true;
-		}
-		return false;
-	}
-
 	static void discoverSurfaceSample(
 		ServerLevel world,
 		int chunkX,
@@ -837,9 +823,38 @@ public final class EcosystemNaturalGrowthManager {
 		}
 		BlockPos groundPos = sample.groundPos();
 		BlockState groundState = sample.groundState();
+		String sampledGroundId = EcosystemConfigManager.blockId(groundState.getBlock());
+		EcosystemMsptMonitor.recordEcosystemOutcome(
+			world,
+			"growth.surface-sample-ground." + (sampledGroundId.isBlank() ? "unknown" : sampledGroundId),
+			1L
+		);
+		EcosystemMsptMonitor.recordEcosystemOutcome(
+			world,
+			"growth.surface-sample-above-" + (sample.aboveState() != null && sample.aboveState().isAir() ? "air" : "occupied"),
+			1L
+		);
 		if (groundState.getBlock() == Blocks.DIRT) {
-			EcosystemAPIManager.trackDirtCandidateForMode(world, groundPos, groundState, "surface_dirt", sample.aboveState());
+			if (EcosystemAPIManager.trackDirtCandidateForMode(world, groundPos, groundState, "surface_dirt", sample.aboveState())) {
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.surface-dirt-tracked", 1L);
+				LOGGER.info(
+					"Natural growth candidate tracked: type=surface_dirt dimension={} position={} ground={} above={}",
+					EcosystemAPIManager.levelId(world),
+					groundPos,
+					groundState,
+					sample.aboveState()
+				);
+			}
 		}
+
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(
+			EcosystemAPIManager.levelId(world), chunkX, chunkZ
+		);
+		boolean hadTreeCandidate = treeCandidatesByChunk.containsKey(chunkKey);
+		boolean hadCactusCandidate = cactusCandidatesByChunk.containsKey(chunkKey);
+		int grassCandidateCount = grassCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size();
+		int desertFoliageCandidateCount = desertFoliageGrowthCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size();
+		int foliageCandidateCount = foliageCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size();
 
 		Set<Long> groundCandidate = Set.of(groundPos.asLong());
 		if (isTrackableTreeGroundBlock(groundState)) {
@@ -860,6 +875,57 @@ public final class EcosystemNaturalGrowthManager {
 		if (isValidFoliageGroundCandidate(world, groundPos, groundState, NaturalGrowthConfigManager.FIELD_PINK_PETALS, sample.aboveState())) {
 			pickFoliageCandidateForChunk(world, chunkX, chunkZ, NaturalGrowthConfigManager.FIELD_PINK_PETALS, groundCandidate, sample);
 		}
+
+		if (!hadTreeCandidate && treeCandidatesByChunk.containsKey(chunkKey)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.tree-candidate-tracked", 1L);
+			EcosystemAPIManager.TreeCandidateState candidate = treeCandidatesByChunk.get(chunkKey);
+			logGrowthCandidateTracked(world, "tree", candidate == null ? Long.MIN_VALUE : candidate.groundPos, candidate == null ? "" : candidate.treeType);
+		}
+		if (!hadCactusCandidate && cactusCandidatesByChunk.containsKey(chunkKey)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.cactus-candidate-tracked", 1L);
+			EcosystemAPIManager.CactusCandidateState candidate = cactusCandidatesByChunk.get(chunkKey);
+			logGrowthCandidateTracked(world, "cactus", candidate == null ? Long.MIN_VALUE : candidate.groundPos, "");
+		}
+		int addedGrassCandidates = grassCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size() - grassCandidateCount;
+		if (addedGrassCandidates > 0) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.grass-candidates-tracked", addedGrassCandidates);
+			logGrowthCandidateCount(world, "grass", addedGrassCandidates);
+		}
+		int addedDesertFoliageCandidates = desertFoliageGrowthCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size() - desertFoliageCandidateCount;
+		if (addedDesertFoliageCandidates > 0) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.desert-foliage-candidates-tracked", addedDesertFoliageCandidates);
+			logGrowthCandidateCount(world, "desert_foliage", addedDesertFoliageCandidates);
+		}
+		int addedFoliageCandidates = foliageCandidatesByChunk.getOrDefault(chunkKey, Map.of()).size() - foliageCandidateCount;
+		if (addedFoliageCandidates > 0) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.foliage-candidates-tracked", addedFoliageCandidates);
+			logGrowthCandidateCount(world, "foliage", addedFoliageCandidates);
+		}
+	}
+
+	private static void logGrowthCandidateTracked(ServerLevel world, String type, long packedGroundPos, String subtype) {
+		if (world == null || packedGroundPos == Long.MIN_VALUE) {
+			return;
+		}
+		LOGGER.info(
+			"Natural growth candidate tracked: type={} subtype={} dimension={} position={}",
+			type,
+			subtype == null ? "" : subtype,
+			EcosystemAPIManager.levelId(world),
+			BlockPos.of(packedGroundPos)
+		);
+	}
+
+	private static void logGrowthCandidateCount(ServerLevel world, String type, int count) {
+		if (world == null || count <= 0) {
+			return;
+		}
+		LOGGER.info(
+			"Natural growth candidates tracked: type={} dimension={} count={}",
+			type,
+			EcosystemAPIManager.levelId(world),
+			count
+		);
 	}
 
 	private static BlockState discoveredGroundState(
@@ -877,74 +943,83 @@ public final class EcosystemNaturalGrowthManager {
 		return sample != null && groundPos.equals(sample.groundPos()) ? sample.aboveState() : null;
 	}
 
-	public static void onRandomPosition(EcosystemRandomPositionEvent event) {
+	public static void onChunkTick(EcosystemChunkTickEvent event) {
 		if (event == null || !isEnabled()) {
 			return;
 		}
 		ServerLevel world = event.level();
-		BlockPos position = event.position();
-		BlockState sampledState = event.sampledState();
-		if (world == null || position == null || sampledState == null) {
+		if (world == null || event.chunk() == null) {
 			return;
 		}
 
-		processCandidatesAtPosition(world, position);
-		if (!isSurfaceGroundPosition(world, position)) {
-			return;
-		}
-
-		EcosystemAPIManager.SurfaceDiscoverySample sample = new EcosystemAPIManager.SurfaceDiscoverySample(
-			position,
-			sampledState,
-			world.getBlockState(position.above())
-		);
-		discoverSurfaceSample(world, position.getX() >> 4, position.getZ() >> 4, sample);
-	}
-
-	private static boolean isSurfaceGroundPosition(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
-			return false;
-		}
-		int topY = Math.min(
-			world.getMaxY() - 1,
-			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, position.getX(), position.getZ()) - 1
-		);
-		return topY >= world.getMinY() && position.getY() == topY;
-	}
-
-	private static void processCandidatesAtPosition(ServerLevel world, BlockPos position) {
-		long selectedPosition = position.asLong();
-		int chunkX = position.getX() >> 4;
-		int chunkZ = position.getZ() >> 4;
-		int mask = EcosystemAPIManager.candidateMaskAt(world, position);
-		int growthCandidateMask = EcosystemAPIManager.CANDIDATE_DIRT
-			| EcosystemAPIManager.CANDIDATE_WET
-			| EcosystemAPIManager.CANDIDATE_TREE
-			| EcosystemAPIManager.CANDIDATE_CACTUS
-			| EcosystemAPIManager.CANDIDATE_GRASS
-			| EcosystemAPIManager.CANDIDATE_FOLIAGE;
-		if ((mask & growthCandidateMask) == 0) {
-			return;
-		}
 		long currentAbsoluteDayTime = EcosystemAPIManager.resolveCachedAbsoluteDayTime(world);
-		if ((mask & EcosystemAPIManager.CANDIDATE_DIRT) != 0) {
-			processDirtAtPosition(world, chunkX, chunkZ, currentAbsoluteDayTime, "surface_dirt", selectedPosition);
+		int chunkX = event.chunk().getPos().x();
+		int chunkZ = event.chunk().getPos().z();
+		long candidateStartedNanos = System.nanoTime();
+		try {
+			if (hasTrackedCandidateInChunk(world, chunkX, chunkZ)) {
+				processDirtCandidatesInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+				processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+				processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+				processGrassCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+				processDesertFoliageGrowthCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+				processFoliageCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+			}
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(
+				world,
+				"growth-candidate-processing",
+				System.nanoTime() - candidateStartedNanos
+			);
 		}
-		if ((mask & EcosystemAPIManager.CANDIDATE_WET) != 0) {
-			processDirtAtPosition(world, chunkX, chunkZ, currentAbsoluteDayTime, "wet", selectedPosition);
+
+		BlockPos surfaceGroundPosition = event.surfaceGroundPosition();
+		BlockState surfaceGroundState = event.surfaceGroundState();
+		long discoveryStartedNanos = System.nanoTime();
+		try {
+			if (surfaceGroundPosition == null || surfaceGroundState == null) {
+				return;
+			}
+			EcosystemAPIManager.SurfaceDiscoverySample sample = new EcosystemAPIManager.SurfaceDiscoverySample(
+				surfaceGroundPosition,
+				surfaceGroundState,
+				event.surfaceAboveState()
+			);
+			discoverSurfaceSample(world, chunkX, chunkZ, sample);
+		} finally {
+			EcosystemMsptMonitor.recordEcosystemStage(
+				world,
+				"growth-surface-discovery",
+				System.nanoTime() - discoveryStartedNanos
+			);
 		}
-		if ((mask & EcosystemAPIManager.CANDIDATE_TREE) != 0) {
-			processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
+	}
+
+	private static boolean hasTrackedCandidateInChunk(ServerLevel world, int chunkX, int chunkZ) {
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(
+			EcosystemAPIManager.levelId(world), chunkX, chunkZ
+		);
+		return EcosystemAPIManager.dirtKeysByChunk.containsKey(chunkKey)
+			|| treeCandidatesByChunk.containsKey(chunkKey)
+			|| cactusCandidatesByChunk.containsKey(chunkKey)
+			|| grassCandidatesByChunk.containsKey(chunkKey)
+			|| desertFoliageGrowthCandidatesByChunk.containsKey(chunkKey)
+			|| foliageCandidatesByChunk.containsKey(chunkKey);
+	}
+
+	private static void processDirtCandidatesInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
+		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(
+			EcosystemAPIManager.levelId(world), chunkX, chunkZ
+		);
+		Set<String> dirtKeys = EcosystemAPIManager.dirtKeysByChunk.get(chunkKey);
+		if (dirtKeys == null || dirtKeys.isEmpty()) {
+			return;
 		}
-		if ((mask & EcosystemAPIManager.CANDIDATE_CACTUS) != 0) {
-			processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
-		}
-		if ((mask & EcosystemAPIManager.CANDIDATE_GRASS) != 0) {
-			processGrassCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
-		}
-		if ((mask & EcosystemAPIManager.CANDIDATE_FOLIAGE) != 0) {
-			processDesertFoliageGrowthCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
-			processFoliageCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, selectedPosition);
+		for (String dirtKey : List.copyOf(dirtKeys)) {
+			EcosystemAPIManager.DirtState dirt = EcosystemAPIManager.dirtBlocksByKey.get(dirtKey);
+			if (dirt != null) {
+				processDirtAtPosition(world, chunkX, chunkZ, currentAbsoluteDayTime, dirt.mode, dirt.dirtPos);
+			}
 		}
 	}
 
@@ -1811,6 +1886,7 @@ public final class EcosystemNaturalGrowthManager {
 		if (dirt == null || !targetMode.equals(dirt.mode)) {
 			return;
 		}
+		recordDirtOutcome(world, dirt.mode, "candidate-processed");
 
 		EcosystemAPIManager.ChunkRefKey targetChunkKey = new EcosystemAPIManager.ChunkRefKey(worldLevelId, chunkX, chunkZ);
 		BlockPos dirtPos = BlockPos.of(dirt.dirtPos);
@@ -1836,12 +1912,26 @@ public final class EcosystemNaturalGrowthManager {
 		if (!due) {
 			return;
 		}
+		recordDirtOutcome(world, dirt.mode, "candidate-due");
 
 		BlockState state = world.getBlockState(dirtPos);
 		boolean stillEligible = "wet".equals(dirt.mode)
 			? EcosystemNaturalErosionManager.isWetTrackedCandidate(world, dirtPos, state, dirt.erosionRuleId)
 			: EcosystemAPIManager.isCandidateForMode(world, dirtPos, state, dirt.mode);
 		if (!EcosystemNaturalErosionManager.isTrackableGroundBlock(state) || !stillEligible) {
+			recordDirtOutcome(world, dirt.mode, "candidate-invalidated");
+			if ("wet".equals(dirt.mode)) {
+				EcosystemMsptMonitor.recordEcosystemOutcome(
+					world,
+					"erosion.wet-revalidation-" + EcosystemNaturalErosionManager.wetEligibilityOutcome(
+						world,
+						dirtPos,
+						state,
+						dirt.erosionRuleId
+					),
+					1L
+				);
+			}
 			EcosystemAPIManager.removeDirtStateByKey(dirt.key());
 			return;
 		}
@@ -1851,16 +1941,52 @@ public final class EcosystemNaturalGrowthManager {
 			: EcosystemNaturalErosionManager.resolveWetGroundReplacementBlock(world, dirtPos, state, dirt.erosionRuleId);
 		boolean replacementApplied = replacement != null && replacement != state.getBlock();
 		if (replacementApplied) {
-			setBlockAndUpdate(world, dirtPos, replacement.defaultBlockState());
+			BlockState target = replacement.defaultBlockState();
+			boolean setterResult = setBlockAndUpdate(world, dirtPos, target);
+			BlockState after = world.getBlockState(dirtPos);
+			boolean changed = !state.equals(after) && after.getBlock() == replacement;
+			recordDirtOutcome(world, dirt.mode, changed ? "converted" : "conversion-failed");
+			EcosystemMsptMonitor.recordEcosystemOutcome(
+				world,
+				("wet".equals(dirt.mode) ? "erosion" : "growth.surface-dirt")
+					+ ".block-change-" + (changed ? "detected" : "none"),
+				1L
+			);
+			LOGGER.info(
+				"Natural {} application: dimension={} position={} rule={} source={} target={} setter-result={} after={} block-change-detected={}",
+				"wet".equals(dirt.mode) ? "erosion" : "growth",
+				EcosystemAPIManager.levelId(world),
+				dirtPos,
+				dirt.erosionRuleId,
+				state,
+				target,
+				setterResult,
+				after,
+				changed
+			);
+		} else {
+			recordDirtOutcome(world, dirt.mode, "no-replacement");
+			LOGGER.info(
+				"Natural {} application skipped: dimension={} position={} rule={} source={} reason=no-replacement",
+				"wet".equals(dirt.mode) ? "erosion" : "growth",
+				EcosystemAPIManager.levelId(world),
+				dirtPos,
+				dirt.erosionRuleId,
+				state
+			);
 		}
 		EcosystemAPIManager.removeDirtStateByKey(dirt.key());
 	}
 
-	static void processTreeCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processTreeCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
+	private static void recordDirtOutcome(ServerLevel world, String mode, String outcome) {
+		if ("wet".equals(mode)) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "erosion.wet-" + outcome, 1L);
+		} else {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.surface-dirt-" + outcome, 1L);
+		}
 	}
 
-	static void processTreeCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedGroundPosition) {
+	static void processTreeCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -1868,9 +1994,6 @@ public final class EcosystemNaturalGrowthManager {
 		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(EcosystemAPIManager.levelId(world), chunkX, chunkZ);
 		EcosystemAPIManager.TreeCandidateState candidate = treeCandidatesByChunk.get(chunkKey);
 		if (candidate == null) {
-			return;
-		}
-		if (selectedGroundPosition != Long.MIN_VALUE && candidate.groundPos != selectedGroundPosition) {
 			return;
 		}
 
@@ -1912,7 +2035,10 @@ public final class EcosystemNaturalGrowthManager {
 		}
 
 		if (currentProgress + 1e-6d >= candidate.requiredGrowthTicks) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.tree-candidate-due", 1L);
+			BlockState beforeAbove = world.getBlockState(groundPos.above());
 			boolean grownNow = tryGrowTreeAtGround(world, groundPos, candidate.treeType, true);
+			recordGrowthApplication(world, "tree", groundPos, beforeAbove, grownNow, candidate.treeType);
 			EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_TREE);
 			treeCandidatesByChunk.remove(chunkKey);
 			EcosystemAPIManager.markChunkDirty(chunkKey);
@@ -1923,10 +2049,6 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static void processCactusCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processCactusCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
-	}
-
-	static void processCactusCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedGroundPosition) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -1934,9 +2056,6 @@ public final class EcosystemNaturalGrowthManager {
 		EcosystemAPIManager.ChunkRefKey chunkKey = new EcosystemAPIManager.ChunkRefKey(EcosystemAPIManager.levelId(world), chunkX, chunkZ);
 		EcosystemAPIManager.CactusCandidateState candidate = cactusCandidatesByChunk.get(chunkKey);
 		if (candidate == null) {
-			return;
-		}
-		if (selectedGroundPosition != Long.MIN_VALUE && candidate.groundPos != selectedGroundPosition) {
 			return;
 		}
 
@@ -1978,7 +2097,10 @@ public final class EcosystemNaturalGrowthManager {
 		}
 
 		if (currentProgress + 1e-6d >= candidate.requiredGrowthTicks) {
+			EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.cactus-candidate-due", 1L);
+			BlockState beforeAbove = world.getBlockState(groundPos.above());
 			boolean grownNow = tryGrowCactusAtGround(world, groundPos, true);
+			recordGrowthApplication(world, "cactus", groundPos, beforeAbove, grownNow, "");
 			EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_CACTUS);
 			cactusCandidatesByChunk.remove(chunkKey);
 
@@ -1990,10 +2112,6 @@ public final class EcosystemNaturalGrowthManager {
 	}
 
 	static void processGrassCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processGrassCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
-	}
-
-	static void processGrassCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedGroundPosition) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -2014,10 +2132,6 @@ public final class EcosystemNaturalGrowthManager {
 				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
-			if (selectedGroundPosition != Long.MIN_VALUE && candidate.groundPos != selectedGroundPosition) {
-				continue;
-			}
-
 			if (!candidate.levelId.equals(EcosystemAPIManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_GRASS);
 				iterator.remove();
@@ -2059,7 +2173,10 @@ public final class EcosystemNaturalGrowthManager {
 			}
 
 			if (currentProgress + 1e-6d >= candidate.requiredGrowthTicks) {
-				tryGrowGrassAtGround(world, groundPos);
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.grass-candidate-due", 1L);
+				BlockState beforeAbove = world.getBlockState(groundPos.above());
+				boolean grownNow = tryGrowGrassAtGround(world, groundPos);
+				recordGrowthApplication(world, "grass", groundPos, beforeAbove, grownNow, "");
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_GRASS);
 				iterator.remove();
 				removedAny = true;
@@ -2079,10 +2196,6 @@ public final class EcosystemNaturalGrowthManager {
 
 
 	static void processDesertFoliageGrowthCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processDesertFoliageGrowthCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
-	}
-
-	static void processDesertFoliageGrowthCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedGroundPosition) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -2103,10 +2216,6 @@ public final class EcosystemNaturalGrowthManager {
 				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
-			if (selectedGroundPosition != Long.MIN_VALUE && candidate.groundPos != selectedGroundPosition) {
-				continue;
-			}
-
 			if (!candidate.levelId.equals(EcosystemAPIManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_FOLIAGE);
 				iterator.remove();
@@ -2148,7 +2257,10 @@ public final class EcosystemNaturalGrowthManager {
 			}
 
 			if (currentProgress + 1e-6d >= candidate.requiredGrowthTicks) {
-				tryGrowDesertFoliageAtGround(world, groundPos);
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.desert-foliage-candidate-due", 1L);
+				BlockState beforeAbove = world.getBlockState(groundPos.above());
+				boolean grownNow = tryGrowDesertFoliageAtGround(world, groundPos);
+				recordGrowthApplication(world, "desert_foliage", groundPos, beforeAbove, grownNow, "");
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_FOLIAGE);
 				iterator.remove();
 				removedAny = true;
@@ -2168,10 +2280,6 @@ public final class EcosystemNaturalGrowthManager {
 
 
 	static void processFoliageCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime) {
-		processFoliageCandidateInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime, Long.MIN_VALUE);
-	}
-
-	static void processFoliageCandidateInChunk(ServerLevel world, int chunkX, int chunkZ, long currentAbsoluteDayTime, long selectedGroundPosition) {
 		if (world == null || !isEnabled()) {
 			return;
 		}
@@ -2192,10 +2300,6 @@ public final class EcosystemNaturalGrowthManager {
 				EcosystemAPIManager.markChunkDirty(chunkKey);
 				continue;
 			}
-			if (selectedGroundPosition != Long.MIN_VALUE && candidate.groundPos != selectedGroundPosition) {
-				continue;
-			}
-
 			if (!candidate.levelId.equals(EcosystemAPIManager.levelId(world)) || candidate.chunkX != chunkX || candidate.chunkZ != chunkZ) {
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_FOLIAGE);
 				iterator.remove();
@@ -2237,7 +2341,10 @@ public final class EcosystemNaturalGrowthManager {
 			}
 
 			if (currentProgress + 1e-6d >= candidate.requiredGrowthTicks) {
-				tryGrowFoliageAtGround(world, groundPos, candidate.foliageType);
+				EcosystemMsptMonitor.recordEcosystemOutcome(world, "growth.foliage-candidate-due", 1L);
+				BlockState beforeAbove = world.getBlockState(groundPos.above());
+				boolean grownNow = tryGrowFoliageAtGround(world, groundPos, candidate.foliageType);
+				recordGrowthApplication(world, "foliage", groundPos, beforeAbove, grownNow, candidate.foliageType);
 				EcosystemAPIManager.removeCandidatePositionBit(candidate.levelId, candidate.groundPos, EcosystemAPIManager.CANDIDATE_FOLIAGE);
 				iterator.remove();
 				removedAny = true;
@@ -2253,6 +2360,40 @@ public final class EcosystemNaturalGrowthManager {
 		if (removedAny) {
 
 		}
+	}
+
+	private static void recordGrowthApplication(
+		ServerLevel world,
+		String type,
+		BlockPos groundPos,
+		BlockState beforeAbove,
+		boolean operationResult,
+		String subtype
+	) {
+		BlockState afterAbove = groundPos == null ? null : world.getBlockState(groundPos.above());
+		boolean blockChanged = beforeAbove != null && afterAbove != null && !beforeAbove.equals(afterAbove);
+		String normalizedType = type == null || type.isBlank() ? "unknown" : type;
+		EcosystemMsptMonitor.recordEcosystemOutcome(
+			world,
+			"growth." + normalizedType + "-operation-" + (operationResult ? "success" : "failed"),
+			1L
+		);
+		EcosystemMsptMonitor.recordEcosystemOutcome(
+			world,
+			"growth." + normalizedType + "-block-change-" + (blockChanged ? "detected" : "none"),
+			1L
+		);
+		LOGGER.info(
+			"Natural growth application: type={} subtype={} dimension={} ground={} before-above={} after-above={} operation-result={} block-change-detected={}",
+			normalizedType,
+			subtype == null ? "" : subtype,
+			EcosystemAPIManager.levelId(world),
+			groundPos,
+			beforeAbove,
+			afterAbove,
+			operationResult,
+			blockChanged
+		);
 	}
 
 

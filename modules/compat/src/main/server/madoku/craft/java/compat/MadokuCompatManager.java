@@ -5,7 +5,6 @@ import madoku.craft.java.compat.farming.MadokuFarmingFeatureAdapters;
 import madoku.craft.java.compat.levels.MadokuLevelsFeatureAdapters;
 import madoku.craft.java.compat.loot.MadokuLootFeatureAdapters;
 import madoku.craft.java.compat.mobs.MadokuMobFeatureAdapters;
-import madoku.craft.java.compat.smithing.MadokuSmithingFeatureAdapters;
 import madoku.craft.java.compat.utility.MadokuUtilityFeatureAdapters;
 
 /** Registers adapters owned by Compat. */
@@ -58,13 +57,6 @@ public final class MadokuCompatManager {
 			MadokuCompatModuleState.ITEMS_ID
 		)) {
 			MadokuUtilityFeatureAdapters.initialize();
-		}
-		if (MadokuCompatModuleState.hasAll(MadokuCompatModuleState.CORE_ID)
-			&& MadokuCompatModuleState.hasAny(
-				MadokuCompatModuleState.ITEMS_ID,
-				MadokuCompatModuleState.PETS_ID
-			)) {
-			MadokuSmithingFeatureAdapters.initialize();
 		}
 	}
 }

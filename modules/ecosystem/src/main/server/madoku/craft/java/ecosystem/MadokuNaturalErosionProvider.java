@@ -6,10 +6,7 @@ public final class MadokuNaturalErosionProvider implements NaturalErosionProvide
 	@Override public void reset() { EcosystemNaturalErosionManager.reset(); }
 	@Override public NaturalErosionConfigManager.Settings getSettings() { return EcosystemNaturalErosionManager.getSettings(); }
 	@Override public boolean isEnabled() { return EcosystemNaturalErosionManager.isEnabled(); }
-	@Override public boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
-		return EcosystemNaturalErosionManager.acceptsRandomPosition(event);
-	}
-	@Override public void onRandomPosition(EcosystemRandomPositionEvent event) {
-		EcosystemNaturalErosionManager.onRandomPosition(event);
+	@Override public void onChunkTick(EcosystemChunkTickEvent event) {
+		EcosystemNaturalErosionManager.onChunkTick(event);
 	}
 }

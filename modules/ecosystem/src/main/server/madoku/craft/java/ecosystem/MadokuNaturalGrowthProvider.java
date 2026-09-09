@@ -6,10 +6,7 @@ public final class MadokuNaturalGrowthProvider implements NaturalGrowthProvider 
 	@Override public void reset() { EcosystemNaturalGrowthManager.reset(); }
 	@Override public NaturalGrowthConfigManager.Settings getSettings() { return EcosystemNaturalGrowthManager.getSettings(); }
 	@Override public boolean isEnabled() { return EcosystemNaturalGrowthManager.isEnabled(); }
-	@Override public boolean acceptsRandomPosition(EcosystemRandomPositionEvent event) {
-		return EcosystemNaturalGrowthManager.acceptsRandomPosition(event);
-	}
-	@Override public void onRandomPosition(EcosystemRandomPositionEvent event) {
-		EcosystemNaturalGrowthManager.onRandomPosition(event);
+	@Override public void onChunkTick(EcosystemChunkTickEvent event) {
+		EcosystemNaturalGrowthManager.onChunkTick(event);
 	}
 }

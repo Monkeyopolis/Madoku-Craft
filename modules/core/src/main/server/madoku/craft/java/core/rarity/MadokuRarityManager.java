@@ -73,7 +73,7 @@ public final class MadokuRarityManager {
 	}
 
 	public static boolean isRarityItem(ItemStack stack) {
-		return detectAppliedRarity(stack) != null;
+		return RarityEligibilityAPIManager.isEligible(stack) && detectAppliedRarity(stack) != null;
 	}
 
 	public static double resolveWeight(Tier tier, double luckStat, boolean useMadokuLuck) {

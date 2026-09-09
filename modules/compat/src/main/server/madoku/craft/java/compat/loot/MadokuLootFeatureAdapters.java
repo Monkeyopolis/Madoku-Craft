@@ -6,10 +6,7 @@ import madoku.craft.java.compat.MadokuCompatModuleState;
 import madoku.craft.java.core.loot.LootFeatureAPIManager;
 import madoku.craft.java.core.loot.LootFeatureAdapter;
 import madoku.craft.java.farming.FarmingAPIManager;
-import madoku.craft.java.items.ItemsAPIManager;
 import madoku.craft.java.mob.MobEntityManager;
-import madoku.craft.java.pet.PetAPIManager;
-import madoku.craft.java.pet.PetHagAPIManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -96,31 +93,6 @@ public final class MadokuLootFeatureAdapters {
 					? MobEntityManager.resolveZombieMobDropsConfigReference(entity) : "";
 			}
 
-			@Override
-			public void applyGeneratedItemLevel(ItemStack stack, RandomSource random) {
-				if (MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.ITEMS_ID)) {
-					ItemsAPIManager.applyGeneratedItemLevel(stack, random);
-				}
-			}
-
-			@Override
-			public boolean isRarityCategoryItem(ItemStack stack) {
-				return MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.ITEMS_ID)
-					&& ItemsAPIManager.isRarityCategoryItem(stack);
-			}
-
-			@Override
-			public void applyPetLore(ItemStack stack) {
-				if (MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.PETS_ID)) {
-					PetHagAPIManager.applyLore(stack);
-				}
-			}
-
-			@Override
-			public boolean isPetsEnabled() {
-				return MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.PETS_ID)
-					&& PetAPIManager.isEnabled();
-			}
 		});
 	}
 }

@@ -144,6 +144,20 @@ public final class SeasonAPIManager {
 		return SeasonEnvironmentTransitionAPIManager.adjustForShelter(level, pos, adjustedClimate);
 	}
 
+	private static SeasonBiomeClimateAPIManager.Climate resolveWaterClimate(
+		ServerLevel level,
+		BlockPos pos,
+		Biome biome
+	) {
+		SeasonBiomeClimateAPIManager.Climate climate = biome == null
+			? SeasonBiomeClimateAPIManager.resolve(level, pos)
+			: SeasonBiomeClimateAPIManager.resolve(biome);
+		String season = getCurrentSeasonId(level);
+		return new SeasonBiomeClimateAPIManager.Climate(
+			SeasonEnvironmentTransitionAPIManager.adjustSeasonalTemperature(climate.temperature()),
+			SeasonEnvironmentTransitionAPIManager.adjustHumidity(climate.humidity(), season));
+	}
+
 	public static Biome.Precipitation resolveSeasonalPrecipitation(Biome biome) {
 		return SeasonEnvironmentTransitionAPIManager.resolvePrecipitation(biome, getCurrentSeasonId());
 	}
@@ -167,11 +181,11 @@ public final class SeasonAPIManager {
 	}
 
 	public static boolean shouldSeasonFreezeAt(ServerLevel level, Biome biome, BlockPos pos) {
-		return SeasonEnvironmentTransitionAPIManager.shouldFreezeAt(level, pos, resolveBiomeClimate(level, pos, biome));
+		return SeasonEnvironmentTransitionAPIManager.shouldFreezeAt(level, pos, resolveWaterClimate(level, pos, biome));
 	}
 
 	public static boolean shouldSeasonMeltAt(ServerLevel level, BlockPos pos) {
-		return SeasonEnvironmentTransitionAPIManager.shouldMeltAt(resolveBiomeClimate(level, pos));
+		return SeasonEnvironmentTransitionAPIManager.shouldMeltAt(resolveWaterClimate(level, pos, null));
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
@@ -347,6 +361,3 @@ public final class SeasonAPIManager {
 		ClimateHudState state
 	) { }
 }
-
-
-

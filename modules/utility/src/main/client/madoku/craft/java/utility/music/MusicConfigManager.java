@@ -26,14 +26,14 @@ public final class MusicConfigManager {
 	private static final String FREQUENCY = "frequency";
 	private static final String DEFAULT = "default";
 	private static final String FREQUENT = "frequent";
-	private static final String OFTEN = "often";
+	private static final String CONSTANT = "constant";
 	private static final String MUSIC = "music";
 	private static final String MUSIC_ID = "music-id";
 	private static final String VOLUME = "volume";
 	private static final String WEIGHT = "weight";
 	private static final FrequencySettings DEFAULT_FREQUENCY = new FrequencySettings(16, 24);
 	private static final FrequencySettings FREQUENT_FREQUENCY = new FrequencySettings(12, 16);
-	private static final FrequencySettings OFTEN_FREQUENCY = new FrequencySettings(9, 12);
+	private static final FrequencySettings CONSTANT_FREQUENCY = new FrequencySettings(9, 12);
 	private static volatile Settings settings = Settings.defaults();
 
 	private MusicConfigManager() { }
@@ -160,22 +160,22 @@ public final class MusicConfigManager {
 		boolean enabled,
 		FrequencySettings defaultFrequency,
 		FrequencySettings frequentFrequency,
-		FrequencySettings oftenFrequency,
+		FrequencySettings constantFrequency,
 		List<TrackSettings> music
 	) {
 		public PlaylistSettings {
 			defaultFrequency = defaultFrequency == null ? DEFAULT_FREQUENCY : defaultFrequency;
 			frequentFrequency = frequentFrequency == null ? FREQUENT_FREQUENCY : frequentFrequency;
-			oftenFrequency = oftenFrequency == null ? OFTEN_FREQUENCY : oftenFrequency;
+			constantFrequency = constantFrequency == null ? CONSTANT_FREQUENCY : constantFrequency;
 			music = music == null ? List.of() : List.copyOf(music);
 		}
 
 		public FrequencySettings frequency(String option) {
 		return switch (option == null ? "default" : option) {
 			case "frequent" -> frequentFrequency;
-			case "often", "constant" -> oftenFrequency;
+			case "constant" -> constantFrequency;
 			default -> defaultFrequency;
-			};
+		};
 		}
 
 		private static PlaylistSettings fromJson(JsonObject source, PlaylistSettings fallback) {
@@ -187,7 +187,7 @@ public final class MusicConfigManager {
 				.object(FREQUENCY, frequency -> frequency
 					.object(DEFAULT, value -> writeFrequency(value, defaultFrequency))
 					.object(FREQUENT, value -> writeFrequency(value, frequentFrequency))
-					.object(OFTEN, value -> writeFrequency(value, oftenFrequency)))
+					.object(CONSTANT, value -> writeFrequency(value, constantFrequency)))
 				.array(MUSIC, value -> writeTracks(value, music));
 		}
 	}
@@ -201,9 +201,9 @@ public final class MusicConfigManager {
 
 		private static Settings defaults() {
 			return new Settings(
-				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, OFTEN_FREQUENCY, overworldTracks()),
-				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, OFTEN_FREQUENCY, overworldTracks()),
-				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, OFTEN_FREQUENCY, netherTracks())
+				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, overworldTracks()),
+				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, overworldTracks()),
+				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, netherTracks())
 			);
 		}
 
@@ -230,7 +230,7 @@ public final class MusicConfigManager {
 			readBoolean(source, ENABLED, fallback.enabled()),
 			readFrequency(source, DEFAULT, fallback.defaultFrequency()),
 			readFrequency(source, FREQUENT, fallback.frequentFrequency()),
-			readFrequency(source, OFTEN, fallback.oftenFrequency()),
+			readFrequency(source, CONSTANT, fallback.constantFrequency()),
 			readTracks(source, fallback.music())
 		);
 	}
@@ -265,7 +265,7 @@ public final class MusicConfigManager {
 		return List.of(
 			track("ballad-of-the-cats", 5), track("concrete-halls", 5), track("chrysopoeia", 1),
 			track("dead-voxel", 9), track("rubedo", 1), track("so-below", 9), track("warmth", 9),
-			track("the-end", 9), track("the-end-2", 15), track("alpha-2", 15), track("intro", 15)
+			track("the-end", 9), track("the-end-2", 15)
 		);
 	}
 

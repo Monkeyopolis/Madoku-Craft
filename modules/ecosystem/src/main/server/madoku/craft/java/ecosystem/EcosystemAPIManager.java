@@ -128,6 +128,7 @@ final class EcosystemAPIManager {
 	private static final Set<ChunkRefKey> RETAINED_UNLOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final Map<ChunkRefKey, Integer> SURFACE_SCAN_CURSORS = new LinkedHashMap<>();
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	private static final Map<String, Map<Long, DirtState>> dirtStatesByLevelAndPosition = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
@@ -167,6 +168,7 @@ final class EcosystemAPIManager {
 
 	public static void initialize() {
 		EcosystemConfigManager.initialize();
+		EcosystemMsptMonitor.initialize();
 		ChunkAPIManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 	}
 
@@ -197,11 +199,12 @@ final class EcosystemAPIManager {
 		cachedAbsoluteTimeLevelId = "";
 		cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
 		cachedAbsoluteDayTime = Long.MIN_VALUE;
+		SURFACE_SCAN_CURSORS.clear();
+		EcosystemMsptMonitor.reset();
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		// Candidate discovery is now event/state driven. Vanilla random ticking
-		// performs the only recurring work, so there is no periodic chunk scan.
+		EcosystemMsptMonitor.onServerTick(server);
 	}
 
 	public static boolean isEnabled() {
@@ -794,6 +797,7 @@ final class EcosystemAPIManager {
 		if (chunkKey == null) {
 			return;
 		}
+		SURFACE_SCAN_CURSORS.remove(chunkKey);
 
 		Set<String> dirtKeys = dirtKeysByChunk.remove(chunkKey);
 		if (dirtKeys != null) {
@@ -935,8 +939,8 @@ final class EcosystemAPIManager {
 		return cachedAbsoluteDayTime;
 	}
 
-	static BlockPos resolveCachedGroundPosition(ServerLevel world, BlockPos position) {
-		if (world == null || position == null) {
+	static BlockPos resolveCachedGroundPosition(ServerLevel world, LevelChunk chunk, BlockPos position) {
+		if (world == null || chunk == null || position == null) {
 			return null;
 		}
 		String currentLevelId = levelId(world);
@@ -952,7 +956,11 @@ final class EcosystemAPIManager {
 		}
 		int topY = Math.min(
 			world.getMaxY() - 1,
-			world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, currentX, currentZ) - 1
+			chunk.getHeight(
+				net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+				currentX & 15,
+				currentZ & 15
+			)
 		);
 		BlockPos groundPosition = topY < world.getMinY() ? null : new BlockPos(currentX, topY, currentZ);
 		cachedProbeLevelId = currentLevelId;
@@ -961,6 +969,34 @@ final class EcosystemAPIManager {
 		cachedProbeZ = currentZ;
 		cachedGroundPosition = groundPosition;
 		return groundPosition;
+	}
+
+	static BlockPos nextSurfaceGroundPosition(ServerLevel world, LevelChunk chunk) {
+		if (world == null || chunk == null) {
+			return null;
+		}
+
+		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunk.getPos().x(), chunk.getPos().z());
+		int cursor = SURFACE_SCAN_CURSORS.getOrDefault(chunkKey, 0);
+		long scanSeed = 0x9E3779B97F4A7C15L
+			^ ((long) chunk.getPos().x() * 0xBF58476D1CE4E5B9L)
+			^ ((long) chunk.getPos().z() * 0x94D049BB133111EBL)
+			^ (long) levelId(world).hashCode();
+		long mixedSeed = mixSurfaceScanSeed(scanSeed);
+		int scanStart = (int) mixedSeed & 255;
+		int scanStep = (((int) (mixedSeed >>> 8)) & 255) | 1;
+		int localIndex = (scanStart + cursor * scanStep) & 255;
+		int localX = localIndex & 15;
+		int localZ = (localIndex >>> 4) & 15;
+		SURFACE_SCAN_CURSORS.put(chunkKey, (cursor + 1) & 255);
+		BlockPos probe = new BlockPos(chunk.getPos().getMinBlockX() + localX, world.getMinY(), chunk.getPos().getMinBlockZ() + localZ);
+		return resolveCachedGroundPosition(world, chunk, probe);
+	}
+
+	private static long mixSurfaceScanSeed(long value) {
+		value = (value ^ (value >>> 30)) * 0xBF58476D1CE4E5B9L;
+		value = (value ^ (value >>> 27)) * 0x94D049BB133111EBL;
+		return value ^ (value >>> 31);
 	}
 
 	static void invalidateCachedGroundPosition() {

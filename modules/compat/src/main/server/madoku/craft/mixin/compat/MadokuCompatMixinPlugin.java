@@ -37,13 +37,6 @@ public final class MadokuCompatMixinPlugin implements IMixinConfigPlugin {
 				MadokuCompatModuleState.MOBS_ID
 			);
 		}
-		if (mixinClassName.endsWith("ItemInputRarityMixin")) {
-			return MadokuCompatModuleState.hasAll(
-				MadokuCompatModuleState.CORE_ID,
-				MadokuCompatModuleState.ITEMS_ID,
-				MadokuCompatModuleState.PETS_ID
-			);
-		}
 		if (mixinClassName.endsWith("BlockFarmingDropsMixin")
 			|| mixinClassName.endsWith("LootTableFarmingMixin")) {
 			return MadokuCompatModuleState.hasAll(

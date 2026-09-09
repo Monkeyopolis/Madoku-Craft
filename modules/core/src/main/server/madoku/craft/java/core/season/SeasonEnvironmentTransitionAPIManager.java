@@ -116,6 +116,11 @@ public final class SeasonEnvironmentTransitionAPIManager {
 		return adjustTemperatureByTime(seasonalTemperature, absoluteDayTime);
 	}
 
+	/** Applies the seasonal offset without the daily day/night temperature cycle. */
+	public static double adjustSeasonalTemperature(double base) {
+		return isTemperatureTransitionEnabled() ? base + temperatureOffset : base;
+	}
+
 	public static double adjustTemperatureByTime(double seasonalTemperature, long absoluteDayTime) {
 		return seasonalTemperature * (1.0D + resolveDailyTemperatureModifier(absoluteDayTime));
 	}
@@ -429,4 +434,3 @@ public final class SeasonEnvironmentTransitionAPIManager {
 	private record ShelterCoverage(int verticalBlocks, int horizontalBlocks) { }
 
 }
-

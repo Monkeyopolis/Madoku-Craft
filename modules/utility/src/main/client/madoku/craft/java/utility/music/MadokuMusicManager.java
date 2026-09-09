@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /** Runtime subsystem that overrides vanilla music selection for configured contexts. */
 public final class MadokuMusicManager {
@@ -83,18 +84,19 @@ public final class MadokuMusicManager {
 			return false;
 		}
 
-		Identifier soundLocation = getSoundLocation(track.musicId());
-		if (soundLocation == null) {
+		String musicId = MusicConfigManager.normalizeMusicId(track.musicId());
+		Identifier soundLocation = getSoundLocation(musicId);
+		if (soundLocation == null || musicId.isBlank()) {
 			nextSongDelay = INITIAL_DELAY_TICKS;
 			return true;
 		}
 
-		Identifier eventId = Identifier.fromNamespaceAndPath("madoku-craft", "music/" + track.musicId());
+		Identifier eventId = Identifier.fromNamespaceAndPath("madoku-craft", "music/" + musicId);
 		MadokuMusicSoundInstance instance = new MadokuMusicSoundInstance(eventId, soundLocation, track.volume());
 		SoundEngine.PlayResult result = soundManager.play(instance);
 		if (result == SoundEngine.PlayResult.STARTED || result == SoundEngine.PlayResult.STARTED_SILENTLY) {
 			currentMusic = instance;
-			currentMusicId = track.musicId();
+			currentMusicId = musicId;
 			nextSongDelay = Integer.MAX_VALUE;
 			return true;
 		}
@@ -124,7 +126,7 @@ public final class MadokuMusicManager {
 	private static int chooseDelay(Minecraft client, MusicConfigManager.PlaylistSettings playlist) {
 		Object value = client.options.musicFrequency().get();
 		String option = value instanceof MusicManager.MusicFrequency frequency
-			? frequency.getSerializedName() : "default";
+			? frequency.getSerializedName().toLowerCase(Locale.ROOT) : "default";
 		MusicConfigManager.FrequencySettings frequency = playlist.frequency(option);
 		long minimum = (long) frequency.minimumMinutes() * TICKS_PER_MINUTE;
 		long maximum = (long) frequency.maximumMinutes() * TICKS_PER_MINUTE;

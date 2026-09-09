@@ -27,7 +27,7 @@ public final class RarityRuntimeManager {
 
 	public static void applyGeneratedRarity(ItemStack stack, RandomSource randomSource, ServerPlayer luckPlayer) {
 		if (!isEnabled() || stack == null || stack.isEmpty()
-			|| !RarityItemAPIManager.isRarityCategoryItem(stack) || detectAppliedRarity(stack) != null) {
+			|| !RarityEligibilityAPIManager.isEligible(stack) || detectAppliedRarity(stack) != null) {
 			return;
 		}
 
@@ -38,7 +38,7 @@ public final class RarityRuntimeManager {
 
 	public static void applyConfiguredRarity(ItemStack stack, Tier rarity) {
 		if (!isEnabled() || stack == null || stack.isEmpty() || rarity == null
-			|| detectAppliedRarity(stack) != null) {
+			|| !RarityEligibilityAPIManager.isEligible(stack) || detectAppliedRarity(stack) != null) {
 			return;
 		}
 		applyRarity(stack, rarity);
@@ -103,7 +103,7 @@ public final class RarityRuntimeManager {
 		if (stack == null || stack.isEmpty() || rarity == null) {
 			return;
 		}
-		if (rarity != Tier.COMMON) {
+		if (rarity != Tier.COMMON && RarityItemAPIManager.isRarityCategoryItem(stack)) {
 			double buffPercent = getRarityStatBuffPercent(rarity);
 			if (buffPercent > 0.0D) {
 				RarityItemAPIManager.applyRarityScaling(stack, multiplierFromBuffPercent(buffPercent));
@@ -112,11 +112,15 @@ public final class RarityRuntimeManager {
 		MutableComponent coloredName = stack.getItem().getName(stack).copy()
 			.withStyle(style -> style.withColor(rarity.color()).withItalic(false));
 		stack.set(DataComponents.CUSTOM_NAME, coloredName);
-		RarityItemAPIManager.updateDurabilityLore(stack);
+		if (RarityItemAPIManager.isRarityCategoryItem(stack)) {
+			RarityItemAPIManager.updateDurabilityLore(stack);
+		}
 	}
 
 	public static void preserveRarityOnRename(ItemStack source, ItemStack target) {
-		if (source == null || source.isEmpty() || target == null || target.isEmpty()) {
+		if (source == null || source.isEmpty() || target == null || target.isEmpty()
+			|| !RarityEligibilityAPIManager.isEligible(source)
+			|| !RarityEligibilityAPIManager.isEligible(target)) {
 			return;
 		}
 

@@ -2,10 +2,12 @@ package madoku.craft.java.core.smithing;
 
 import net.minecraft.world.item.ItemStack;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /** Access point for optional feature behavior required by the Core smithing subsystem. */
 public final class SmithingFeatureAPIManager {
-	private static final SmithingFeatureAdapter NO_ADAPTER = new SmithingFeatureAdapter() { };
-	private static volatile SmithingFeatureAdapter adapter = NO_ADAPTER;
+	private static final List<SmithingFeatureAdapter> adapters = new CopyOnWriteArrayList<>();
 
 	private SmithingFeatureAPIManager() {
 	}
@@ -14,23 +16,100 @@ public final class SmithingFeatureAPIManager {
 		if (candidate == null) {
 			throw new IllegalArgumentException("Smithing feature adapter must not be null.");
 		}
-		adapter = candidate;
+		if (!adapters.contains(candidate)) {
+			adapters.add(candidate);
+		}
 	}
 
 	public static void unregisterAdapter() {
-		adapter = NO_ADAPTER;
+		adapters.clear();
 	}
 
-	public static boolean isItemsEnabled() { return adapter.isItemsEnabled(); }
-	public static boolean isRarityCategoryItem(ItemStack stack) { return adapter.isRarityCategoryItem(stack); }
-	public static boolean areItemLevelsEnabled() { return adapter.areItemLevelsEnabled(); }
-	public static void setItemLevel(ItemStack stack, int level) { adapter.setItemLevel(stack, level); }
-	public static Integer getItemLevel(ItemStack stack) { return adapter.getItemLevel(stack); }
-	public static int getItemStartingLevel() { return adapter.getItemStartingLevel(); }
-	public static int getItemMaximumLevel() { return adapter.getItemMaximumLevel(); }
-	public static boolean isPetsEnabled() { return adapter.isPetsEnabled(); }
-	public static boolean isPetItem(ItemStack stack) { return adapter.isPetItem(stack); }
-	public static int petLevel(ItemStack stack) { return adapter.petLevel(stack); }
-	public static int maxPetLevel() { return adapter.maxPetLevel(); }
-	public static void setPetLevel(ItemStack stack, int level) { adapter.setPetLevel(stack, level); }
+	public static boolean isItemsEnabled() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isItemsEnabled()) return true;
+		}
+		return false;
+	}
+
+	public static boolean isRarityCategoryItem(ItemStack stack) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isRarityCategoryItem(stack)) return true;
+		}
+		return false;
+	}
+
+	public static boolean areItemLevelsEnabled() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.areItemLevelsEnabled()) return true;
+		}
+		return false;
+	}
+
+	public static void setItemLevel(ItemStack stack, int level) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isRarityCategoryItem(stack)) {
+				adapter.setItemLevel(stack, level);
+				return;
+			}
+		}
+	}
+
+	public static Integer getItemLevel(ItemStack stack) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isRarityCategoryItem(stack)) return adapter.getItemLevel(stack);
+		}
+		return null;
+	}
+
+	public static int getItemStartingLevel() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isItemsEnabled()) return adapter.getItemStartingLevel();
+		}
+		return 1;
+	}
+
+	public static int getItemMaximumLevel() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isItemsEnabled()) return adapter.getItemMaximumLevel();
+		}
+		return 1;
+	}
+
+	public static boolean isPetsEnabled() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isPetsEnabled()) return true;
+		}
+		return false;
+	}
+
+	public static boolean isPetItem(ItemStack stack) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isPetItem(stack)) return true;
+		}
+		return false;
+	}
+
+	public static int petLevel(ItemStack stack) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isPetItem(stack)) return adapter.petLevel(stack);
+		}
+		return 1;
+	}
+
+	public static int maxPetLevel() {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isPetsEnabled()) return adapter.maxPetLevel();
+		}
+		return 1;
+	}
+
+	public static void setPetLevel(ItemStack stack, int level) {
+		for (SmithingFeatureAdapter adapter : adapters) {
+			if (adapter.isPetItem(stack)) {
+				adapter.setPetLevel(stack, level);
+				return;
+			}
+		}
+	}
 }

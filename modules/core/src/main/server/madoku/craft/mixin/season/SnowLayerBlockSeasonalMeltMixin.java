@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import madoku.craft.java.core.season.SeasonAPIManager;
+import madoku.craft.java.core.season.SeasonEnvironmentTransitionAPIManager;
 
 @Mixin(SnowLayerBlock.class)
 public abstract class SnowLayerBlockSeasonalMeltMixin {
@@ -30,12 +31,18 @@ public abstract class SnowLayerBlockSeasonalMeltMixin {
 			return;
 		}
 
-		if (!SeasonAPIManager.shouldSeasonMeltAt(level, pos)) {
+		if (!madoku$isSeasonalWaterTransitionActive()) {
 			return;
 		}
 
-		level.removeBlock(pos, false);
+		if (SeasonAPIManager.shouldSeasonMeltAt(level, pos)) {
+			level.removeBlock(pos, false);
+		}
 		ci.cancel();
+	}
+
+	private static boolean madoku$isSeasonalWaterTransitionActive() {
+		return SeasonEnvironmentTransitionAPIManager.isWaterTransitionEnabled();
 	}
 }
 

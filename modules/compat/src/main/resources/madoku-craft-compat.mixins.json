@@ -6,7 +6,6 @@
   "mixins": [
     "attributes.LivingEntityArmorDamageMixin",
     "attributes.LivingEntityLuckLootMixin",
-    "core.ItemInputRarityMixin",
     "farming.BlockFarmingDropsMixin",
     "farming.LootTableFarmingMixin",
     "utility.ConfiguredFuelValuesMixin"

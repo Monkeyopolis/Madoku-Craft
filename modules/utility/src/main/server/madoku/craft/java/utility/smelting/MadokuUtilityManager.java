@@ -21,6 +21,7 @@ public final class MadokuUtilityManager {
 	}
 
 	public static void onServerStarted(MinecraftServer server) {
+		initialize();
 		MadokuSmeltingManager.onServerStarted(server);
 	}
 

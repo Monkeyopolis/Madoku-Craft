@@ -1,7 +1,6 @@
 package madoku.craft.mixin.season;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelReader;
@@ -20,7 +19,7 @@ import madoku.craft.java.core.season.SeasonEnvironmentTransitionAPIManager;
 public abstract class BiomeSeasonalFreezeMixin {
 	@Inject(
 		method = "shouldFreeze(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;)Z",
-		at = @At("RETURN"),
+		at = @At("HEAD"),
 		cancellable = true
 	)
 	private void madoku$seasonalShouldFreeze(
@@ -41,10 +40,10 @@ public abstract class BiomeSeasonalFreezeMixin {
 
 	@Inject(
 		method = "shouldFreeze(Lnet/minecraft/world/level/LevelReader;Lnet/minecraft/core/BlockPos;Z)Z",
-		at = @At("RETURN"),
+		at = @At("HEAD"),
 		cancellable = true
 	)
-	private void madoku$seasonalShouldFreezeWithEdgeCheck(
+	private void madoku$seasonalShouldFreezeWithVanillaSignature(
 		LevelReader levelReader,
 		BlockPos pos,
 		boolean mustBeAtEdge,
@@ -54,13 +53,11 @@ public abstract class BiomeSeasonalFreezeMixin {
 			|| !SeasonEnvironmentTransitionAPIManager.isWaterTransitionEnabled()
 			|| !(levelReader instanceof ServerLevel serverLevel)
 			|| pos == null
-			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)
-			|| (mustBeAtEdge && madoku$isSurroundedByWater(levelReader, pos))) {
+			|| !madoku$isSeasonalWaterCandidate(levelReader, pos)) {
 			return;
 		}
 
-		boolean seasonalFreeze = SeasonAPIManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos);
-		cir.setReturnValue(seasonalFreeze);
+		cir.setReturnValue(SeasonAPIManager.shouldSeasonFreezeAt(serverLevel, (Biome) (Object) this, pos));
 	}
 
 	@Inject(
@@ -102,17 +99,6 @@ public abstract class BiomeSeasonalFreezeMixin {
 			&& state.getFluidState().isSource();
 	}
 
-	private static boolean madoku$isSurroundedByWater(LevelReader levelReader, BlockPos pos) {
-		for (Direction direction : Direction.Plane.HORIZONTAL) {
-			BlockPos neighborPos = pos.relative(direction);
-			BlockState neighborState = levelReader.getBlockState(neighborPos);
-			if (neighborState == null || !neighborState.getFluidState().is(FluidTags.WATER)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	private static boolean madoku$canPlaceSeasonalSnow(LevelReader levelReader, BlockPos pos) {
 		BlockState stateAtPos = levelReader.getBlockState(pos);
 		if (stateAtPos == null || !stateAtPos.isAir()) {
@@ -121,5 +107,3 @@ public abstract class BiomeSeasonalFreezeMixin {
 		return Blocks.SNOW.defaultBlockState().canSurvive(levelReader, pos);
 	}
 }
-
-
