@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.java.hud.HudPayloadManager;
+import madoku.craft.java.attributes.MadokuAttributesClient;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -16,7 +16,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Item.class)
 public abstract class ItemFoodClientGateMixin {
 	@Inject(method = "use", at = @At("HEAD"), cancellable = true)
-	private void madokuCraft$gateClientFoodUse(Level level, Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+	private void madokuCraft$gateClientFoodUse(
+		Level level,
+		Player player,
+		InteractionHand hand,
+		CallbackInfoReturnable<InteractionResult> cir
+	) {
 		if (level == null || !level.isClientSide() || player == null) {
 			return;
 		}
@@ -26,7 +31,7 @@ public abstract class ItemFoodClientGateMixin {
 			return;
 		}
 
-		if (!HudPayloadManager.canConsumeFoodClient(false)) {
+		if (!MadokuAttributesClient.canConsumeFoodClient(false)) {
 			cir.setReturnValue(InteractionResult.FAIL);
 		}
 	}

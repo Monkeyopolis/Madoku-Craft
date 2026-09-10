@@ -1,7 +1,6 @@
 package madoku.craft.java.compat;
 
-import madoku.craft.java.attributes.HungerPayloadManager;
-import madoku.craft.java.compat.hud.MadokuAttributesHudCompat;
+import madoku.craft.java.attributes.MadokuAttributesClient;
 import madoku.craft.java.core.season.PlayerClimatePayloadAPIManager;
 import madoku.craft.java.core.season.SeasonPayloadAPIManager;
 import madoku.craft.java.core.time.TimePayloadAPIManager;
@@ -25,9 +24,8 @@ public final class MadokuCompatClient {
 		ClientPlayNetworking.registerGlobalReceiver(TimePayloadAPIManager.TYPE,
 			(payload, context) -> HudPayloadManager.setServerTime(payload.day(), payload.hour(), payload.minute()));
 		if (MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.ATTRIBUTES_ID)) {
-			MadokuAttributesHudCompat.initialize();
-			ClientPlayNetworking.registerGlobalReceiver(HungerPayloadManager.TYPE,
-				(payload, context) -> HudPayloadManager.setServerHunger(payload.current(), payload.max()));
+			MadokuAttributesClient.initialize();
+			MadokuAttributesClient.addHungerListener(HudPayloadManager::setServerHunger);
 		}
 		if (MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.MOBS_ID)) {
 			ClientPlayNetworking.registerGlobalReceiver(MobPayloadManager.TYPE,
@@ -54,9 +52,6 @@ public final class MadokuCompatClient {
 			));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
 			HudPayloadManager.reset();
-			if (MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.ATTRIBUTES_ID)) {
-				MadokuAttributesHudCompat.reset();
-			}
 		});
 	}
 }

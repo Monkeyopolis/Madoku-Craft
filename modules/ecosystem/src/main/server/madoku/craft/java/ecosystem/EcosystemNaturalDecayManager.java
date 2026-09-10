@@ -265,27 +265,8 @@ public final class EcosystemNaturalDecayManager {
 		long currentAbsoluteDayTime = EcosystemAPIManager.resolveCachedAbsoluteDayTime(world);
 		int chunkX = event.chunk().getPos().x();
 		int chunkZ = event.chunk().getPos().z();
-		long candidateStartedNanos = System.nanoTime();
-		try {
-			processTreeDecayCandidatesInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
-		} finally {
-			EcosystemMsptMonitor.recordEcosystemStage(
-				world,
-				"decay-candidate-processing",
-				System.nanoTime() - candidateStartedNanos
-			);
-		}
-
-		long discoveryStartedNanos = System.nanoTime();
-		try {
-			discoverTreeDecayCandidatesInColumn(world, event.chunk(), event.surfaceGroundPosition());
-		} finally {
-			EcosystemMsptMonitor.recordEcosystemStage(
-				world,
-				"decay-surface-discovery",
-				System.nanoTime() - discoveryStartedNanos
-			);
-		}
+		processTreeDecayCandidatesInChunk(world, chunkX, chunkZ, currentAbsoluteDayTime);
+		discoverTreeDecayCandidatesInColumn(world, event.chunk(), event.surfaceGroundPosition());
 	}
 
 	private static void processTreeDecayCandidatesInChunk(

@@ -22,6 +22,7 @@ public final class MusicConfigManager {
 	private static final String OVERWORLD = "overworld";
 	private static final String CREATIVE = "creative";
 	private static final String NETHER = "nether";
+	private static final String PALE_GARDEN = "pale-garden";
 	private static final String ENABLED = "enabled";
 	private static final String FREQUENCY = "frequency";
 	private static final String DEFAULT = "default";
@@ -192,18 +193,25 @@ public final class MusicConfigManager {
 		}
 	}
 
-	public record Settings(PlaylistSettings overworld, PlaylistSettings creative, PlaylistSettings nether) {
+	public record Settings(
+		PlaylistSettings overworld,
+		PlaylistSettings creative,
+		PlaylistSettings nether,
+		PlaylistSettings paleGarden
+	) {
 		public Settings {
 			overworld = overworld == null ? defaults().overworld : overworld;
 			creative = creative == null ? defaults().creative : creative;
 			nether = nether == null ? defaults().nether : nether;
+			paleGarden = paleGarden == null ? defaults().paleGarden : paleGarden;
 		}
 
 		private static Settings defaults() {
 			return new Settings(
 				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, overworldTracks()),
 				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, overworldTracks()),
-				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, netherTracks())
+				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, netherTracks()),
+				new PlaylistSettings(true, DEFAULT_FREQUENCY, FREQUENT_FREQUENCY, CONSTANT_FREQUENCY, paleGardenTracks())
 			);
 		}
 
@@ -212,7 +220,8 @@ public final class MusicConfigManager {
 			return new Settings(
 				PlaylistSettings.fromJson(readObject(source, OVERWORLD), fallback.overworld),
 				PlaylistSettings.fromJson(readObject(source, CREATIVE), fallback.creative),
-				PlaylistSettings.fromJson(readObject(source, NETHER), fallback.nether)
+				PlaylistSettings.fromJson(readObject(source, NETHER), fallback.nether),
+				PlaylistSettings.fromJson(readObject(source, PALE_GARDEN), fallback.paleGarden)
 			);
 		}
 
@@ -221,6 +230,7 @@ public final class MusicConfigManager {
 				.object(OVERWORLD, value -> overworld.write(value))
 				.object(CREATIVE, value -> creative.write(value))
 				.object(NETHER, value -> nether.write(value))
+				.object(PALE_GARDEN, value -> paleGarden.write(value))
 				.build();
 		}
 	}
@@ -266,6 +276,14 @@ public final class MusicConfigManager {
 			track("ballad-of-the-cats", 5), track("concrete-halls", 5), track("chrysopoeia", 1),
 			track("dead-voxel", 9), track("rubedo", 1), track("so-below", 9), track("warmth", 9),
 			track("the-end", 9), track("the-end-2", 15)
+		);
+	}
+
+	private static List<TrackSettings> paleGardenTracks() {
+		return List.of(
+			track("ballad-of-the-cats", 5), track("concrete-halls", 5), track("chrysopoeia", 1),
+			track("dead-voxel", 9), track("rubedo", 1), track("so-below", 9), track("warmth", 9),
+			track("the-end", 9)
 		);
 	}
 

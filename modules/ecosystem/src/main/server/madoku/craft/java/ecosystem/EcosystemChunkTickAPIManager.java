@@ -47,37 +47,15 @@ public final class EcosystemChunkTickAPIManager {
 			return;
 		}
 
-		long startedNanos = System.nanoTime();
-		try {
-			long surfaceStartedNanos = System.nanoTime();
-			BlockPos surfaceGroundPosition = null;
-			BlockState surfaceGroundState = null;
-			BlockState surfaceAboveState = null;
-			try {
-				surfaceGroundPosition = EcosystemAPIManager.nextSurfaceGroundPosition(level, chunk);
-				surfaceGroundState = surfaceGroundPosition == null ? null : level.getBlockState(surfaceGroundPosition);
-				surfaceAboveState = surfaceGroundPosition == null ? null : level.getBlockState(surfaceGroundPosition.above());
-				EcosystemMsptMonitor.recordEcosystemOutcome(
-					level,
-					surfaceGroundPosition == null ? "chunk.surface-sample-missing" : "chunk.surface-sample-found",
-					1L
-				);
-			} finally {
-				EcosystemMsptMonitor.recordEcosystemStage(
-					level,
-					"surface-sampling",
-					System.nanoTime() - surfaceStartedNanos
-				);
-			}
-			provider.dispatch(new EcosystemChunkTickEvent(
-				level,
-				chunk,
-				surfaceGroundPosition,
-				surfaceGroundState,
-				surfaceAboveState
-			));
-		} finally {
-			EcosystemMsptMonitor.recordEcosystemDispatch(level, System.nanoTime() - startedNanos);
-		}
+		BlockPos surfaceGroundPosition = EcosystemAPIManager.nextSurfaceGroundPosition(level, chunk);
+		BlockState surfaceGroundState = surfaceGroundPosition == null ? null : level.getBlockState(surfaceGroundPosition);
+		BlockState surfaceAboveState = surfaceGroundPosition == null ? null : level.getBlockState(surfaceGroundPosition.above());
+		provider.dispatch(new EcosystemChunkTickEvent(
+			level,
+			chunk,
+			surfaceGroundPosition,
+			surfaceGroundState,
+			surfaceAboveState
+		));
 	}
 }

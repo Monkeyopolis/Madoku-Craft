@@ -57,6 +57,7 @@ dependencies {
 	implementation "madoku.craft:madoku-craft-items:${project.items_version}"
 	implementation "madoku.craft:madoku-craft-utility:${project.utility_version}"
 	clientImplementation "madoku.craft:madoku-craft-core:${project.core_version}@jar"
+	clientImplementation "madoku.craft:madoku-craft-attributes:${project.attributes_version}@jar"
 	clientImplementation "madoku.craft:madoku-craft-hud:${project.hud_version}@jar"
 	clientImplementation "madoku.craft:madoku-craft-pets:${project.pets_version}@jar"
 

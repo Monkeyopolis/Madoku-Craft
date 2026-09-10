@@ -2,6 +2,7 @@
 
 The HUD module depends only on Core and can be installed independently.
 
-Attribute-specific health, hunger, armor, oxygen, and luck presentation is
-installed by the optional Compat module when both HUD and Attributes are
-present. HUD does not require Attributes at runtime or compile time.
+Health, hunger, armor, oxygen, and luck presentation is owned by HUD and is
+read from vanilla client state, so HUD works without the Attributes module.
+When Attributes is present, the optional Compat module synchronizes extended
+server-authoritative values such as custom hunger limits.

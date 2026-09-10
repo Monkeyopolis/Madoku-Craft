@@ -12,6 +12,7 @@
     "attributes.FoodDataSaturationDisableMixin",
     "attributes.FoodDataStarvationDamageMixin",
     "attributes.ItemFoodGateMixin",
+    "attributes.MadokuArmorDamageMixin",
     "attributes.LivingEntityEffectAttributeOverrideMixin",
     "attributes.LivingEntityEffectMixin",
     "attributes.LivingEntityKnockbackMixin",
@@ -25,6 +26,11 @@
     "attributes.ProjectileWeaponInfinityMixin",
     "attributes.SaturationMobEffectMixin",
     "attributes.ServerPlayerTeleportHungerMixin"
+  ],
+  "client": [
+    "attributes.HudFoodLevelMixin",
+    "attributes.ItemFoodClientGateMixin",
+    "attributes.PlayerEatClientGateMixin"
   ],
   "injectors": { "defaultRequire": 1 }
 }

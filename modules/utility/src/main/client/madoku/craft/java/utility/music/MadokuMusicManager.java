@@ -1,13 +1,16 @@
 package madoku.craft.java.utility.music;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.Sound;
 import net.minecraft.client.sounds.MusicManager;
 import net.minecraft.client.sounds.SoundEngine;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biomes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,16 +50,22 @@ public final class MadokuMusicManager {
 
 	public static String getCurrentMusicId() { return currentMusicId; }
 
+	/** Claims the complete configured world music context so vanilla cannot transition by biome. */
+	public static boolean overridesVanillaMusic(Minecraft client) {
+		return initialized && client != null && !resolvePlaylistId(client).isBlank();
+	}
+
 	/** Returns true when this tick replaced vanilla's MusicManager behavior. */
 	public static boolean tick(Minecraft client) {
 		if (!initialized || client == null) return false;
 
 		String playlistId = resolvePlaylistId(client);
 		MusicConfigManager.PlaylistSettings playlist = resolvePlaylist(client, playlistId);
-		if (playlist == null || !playlist.enabled() || playlist.music().isEmpty() || client.getMusicVolume() <= 0.0F) {
+		if (playlist == null || !playlist.enabled() || playlist.music().isEmpty()
+			|| client.options.getSoundSourceVolume(SoundSource.MUSIC) <= 0.0F) {
 			stopCurrentMusic(client);
 			currentPlaylistId = "";
-			return false;
+			return overridesVanillaMusic(client);
 		}
 
 		if (!playlistId.equals(currentPlaylistId)) {
@@ -86,7 +95,8 @@ public final class MadokuMusicManager {
 
 		String musicId = MusicConfigManager.normalizeMusicId(track.musicId());
 		Identifier soundLocation = getSoundLocation(musicId);
-		if (soundLocation == null || musicId.isBlank()) {
+		if (soundLocation == null || musicId.isBlank() || !isSoundResourceAvailable(soundLocation)) {
+			LOGGER.warn("Madoku Music resource is unavailable for configured track {} ({}).", musicId, soundLocation);
 			nextSongDelay = INITIAL_DELAY_TICKS;
 			return true;
 		}
@@ -111,6 +121,7 @@ public final class MadokuMusicManager {
 		return switch (playlistId) {
 			case "creative" -> settings.creative();
 			case "nether" -> settings.nether();
+			case "pale-garden" -> settings.paleGarden();
 			case "overworld" -> settings.overworld();
 			default -> null;
 		};
@@ -120,6 +131,7 @@ public final class MadokuMusicManager {
 		if (client.level == null || client.player == null) return "";
 		if (Level.END.equals(client.level.dimension())) return "";
 		if (Level.NETHER.equals(client.level.dimension())) return "nether";
+		if (client.level.getBiome(client.player.blockPosition()).is(Biomes.PALE_GARDEN)) return "pale-garden";
 		return client.player.isCreative() ? "creative" : "overworld";
 	}
 
@@ -140,7 +152,9 @@ public final class MadokuMusicManager {
 		List<MusicConfigManager.TrackSettings> supported = new ArrayList<>();
 		long totalWeight = 0L;
 		for (MusicConfigManager.TrackSettings track : tracks) {
-			if (track == null || getSoundLocation(track.musicId()) == null) continue;
+			if (track == null) continue;
+			Identifier soundLocation = getSoundLocation(track.musicId());
+			if (soundLocation == null || !isSoundResourceAvailable(soundLocation)) continue;
 			supported.add(track);
 			totalWeight += track.weight();
 		}
@@ -151,6 +165,14 @@ public final class MadokuMusicManager {
 			if (selected < 0L) return track;
 		}
 		return supported.get(supported.size() - 1);
+	}
+
+	private static boolean isSoundResourceAvailable(Identifier soundLocation) {
+		Minecraft client = Minecraft.getInstance();
+		return client != null
+			&& client.getResourceManager()
+				.getResource(Sound.SOUND_LISTER.idToFile(soundLocation))
+				.isPresent();
 	}
 
 	private static Identifier getSoundLocation(String musicId) {
@@ -219,13 +241,13 @@ public final class MadokuMusicManager {
 			case "aerie" -> "music/game/swamp/aerie";
 			case "firebugs" -> "music/game/swamp/firebugs";
 			case "labyrinthine" -> "music/game/swamp/labyrinthine";
-			case "ballad-of-the-cats" -> "music/game/nether/basalt_deltas/ballad_of_the_cats";
-			case "concrete-halls" -> "music/game/nether/basalt_deltas/concrete_halls";
+			case "ballad-of-the-cats" -> "music/game/nether/ballad_of_the_cats";
+			case "concrete-halls" -> "music/game/nether/concrete_halls";
 			case "chrysopoeia" -> "music/game/nether/crimson_forest/chrysopoeia";
-			case "dead-voxel" -> "music/game/nether/nether_wastes/dead_voxel";
+			case "dead-voxel" -> "music/game/nether/dead_voxel";
 			case "rubedo" -> "music/game/nether/nether_wastes/rubedo";
-			case "so-below" -> "music/game/nether/soul_sand_valley/so_below";
-			case "warmth" -> "music/game/nether/warped_forest/warmth";
+			case "so-below" -> "music/game/nether/soulsand_valley/so_below";
+			case "warmth" -> "music/game/nether/warmth";
 			case "the-end" -> "music/game/end/the_end";
 			default -> "";
 		};

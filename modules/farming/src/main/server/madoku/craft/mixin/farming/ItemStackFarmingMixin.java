@@ -1,5 +1,6 @@
 package madoku.craft.mixin.farming;
 
+import madoku.craft.java.core.data.ChunkDataAPIManager;
 import madoku.craft.java.farming.FarmingAPIManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -139,6 +140,10 @@ public abstract class ItemStackFarmingMixin {
 			return;
 		}
 
+		// Crop seeds are BlockItems, so Core's generic placement tracker also
+		// records the planted crop. Farming owns these crops and must not let that
+		// marker suppress the configured harvest path.
+		ChunkDataAPIManager.removePlayerPlacedBlock(serverLevel, soilPos.above());
 		FarmingAPIManager.syncPlotFromSoil(serverLevel, soilPos, FarmingAPIManager.isFertilized(serverLevel, soilPos));
 		madokuCraft$preUseOnCount = -1;
 	}

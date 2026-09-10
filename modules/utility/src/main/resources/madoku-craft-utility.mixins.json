@@ -9,6 +9,6 @@
     "utility.smelting.FurnaceCookTimeMixin",
     "utility.smelting.FurnaceMenuMixin"
   ],
-  "client": ["music.MusicManagerMixin"],
+	"client": ["music.MusicManagerMixin"],
   "injectors": { "defaultRequire": 1 }
 }

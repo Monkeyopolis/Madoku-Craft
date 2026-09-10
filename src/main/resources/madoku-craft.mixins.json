@@ -121,7 +121,7 @@
     "mob.ThrownTridentDamageMixin",
     "mob.WitherSkeletonWitherEffectMixin"
   ],
-  "client": [
+	"client": [
 	  "music.MusicManagerMixin",
 	  "inventory.AbstractContainerScreenAccessor",
     "core.EnchantmentScreenMixin",

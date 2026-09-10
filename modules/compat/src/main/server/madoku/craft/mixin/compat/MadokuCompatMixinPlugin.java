@@ -52,14 +52,6 @@ public final class MadokuCompatMixinPlugin implements IMixinConfigPlugin {
 				MadokuCompatModuleState.ITEMS_ID
 			);
 		}
-		if (mixinClassName.endsWith("HudFoodLevelMixin")
-			|| mixinClassName.endsWith("ItemFoodClientGateMixin")
-			|| mixinClassName.endsWith("PlayerEatClientGateMixin")) {
-			return MadokuCompatModuleState.hasAll(
-				MadokuCompatModuleState.ATTRIBUTES_ID,
-				MadokuCompatModuleState.HUD_ID
-			);
-		}
 		if (mixinClassName.endsWith("BiomeTemperatureColorMixin")
 			|| mixinClassName.endsWith("SpruceBirchLeafTintMixin")) {
 			return MadokuCompatModuleState.isLoaded(MadokuCompatModuleState.CORE_ID);

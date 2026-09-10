@@ -1,6 +1,6 @@
 package madoku.craft.mixin.attributes;
 
-import madoku.craft.java.hud.HudPayloadManager;
+import madoku.craft.java.attributes.MadokuAttributesClient;
 import net.minecraft.client.gui.Hud;
 import net.minecraft.world.food.FoodData;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,12 +17,12 @@ public abstract class HudFoodLevelMixin {
 		)
 	)
 	private int madokuCraft$normalizeFoodLevelForVanillaBars(FoodData foodData) {
-		if (!HudPayloadManager.hasServerHunger()) {
+		if (!MadokuAttributesClient.hasServerHunger()) {
 			return Math.max(0, Math.min(20, foodData.getFoodLevel()));
 		}
 
-		int maxHunger = Math.max(1, HudPayloadManager.getServerHungerMax());
-		int currentHunger = Math.max(0, Math.min(maxHunger, HudPayloadManager.getServerHungerCurrent()));
+		int maxHunger = Math.max(1, MadokuAttributesClient.getServerHungerMax());
+		int currentHunger = Math.max(0, Math.min(maxHunger, MadokuAttributesClient.getServerHungerCurrent()));
 		return Math.max(0, Math.min(20, Math.round(currentHunger * 20.0F / maxHunger)));
 	}
 }

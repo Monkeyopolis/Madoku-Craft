@@ -16,5 +16,6 @@ public final class MusicAPIManager {
 
 	public static void unregisterProvider() { provider = UNAVAILABLE_PROVIDER; }
 	public static boolean tick(Minecraft client) { return provider.tick(client); }
+	public static boolean overridesVanillaMusic(Minecraft client) { return provider.overridesVanillaMusic(client); }
 	public static String getCurrentMusicId() { return provider.getCurrentMusicId(); }
 }

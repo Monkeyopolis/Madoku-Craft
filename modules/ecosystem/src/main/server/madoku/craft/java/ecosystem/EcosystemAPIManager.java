@@ -128,7 +128,9 @@ final class EcosystemAPIManager {
 	private static final Set<ChunkRefKey> RETAINED_UNLOADED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> LOADED_PERSISTED_CHUNK_KEYS = new LinkedHashSet<>();
 	private static final Set<ChunkRefKey> DIRTY_CHUNK_KEYS = new LinkedHashSet<>();
+	private static final long SURFACE_SCAN_INTERVAL_TICKS = 10L;
 	private static final Map<ChunkRefKey, Integer> SURFACE_SCAN_CURSORS = new LinkedHashMap<>();
+	private static final Map<ChunkRefKey, Long> NEXT_SURFACE_SCAN_TICKS = new LinkedHashMap<>();
 	static final Map<String, DirtState> dirtBlocksByKey = new LinkedHashMap<>();
 	private static final Map<String, Map<Long, DirtState>> dirtStatesByLevelAndPosition = new LinkedHashMap<>();
 	static final Map<ChunkRefKey, Set<String>> dirtKeysByChunk = new LinkedHashMap<>();
@@ -168,7 +170,6 @@ final class EcosystemAPIManager {
 
 	public static void initialize() {
 		EcosystemConfigManager.initialize();
-		EcosystemMsptMonitor.initialize();
 		ChunkAPIManager.registerChunkLifecycleListener(CHUNK_LISTENER);
 	}
 
@@ -200,11 +201,10 @@ final class EcosystemAPIManager {
 		cachedAbsoluteTimeGameTime = Long.MIN_VALUE;
 		cachedAbsoluteDayTime = Long.MIN_VALUE;
 		SURFACE_SCAN_CURSORS.clear();
-		EcosystemMsptMonitor.reset();
+		NEXT_SURFACE_SCAN_TICKS.clear();
 	}
 
 	public static void onServerTick(MinecraftServer server) {
-		EcosystemMsptMonitor.onServerTick(server);
 	}
 
 	public static boolean isEnabled() {
@@ -369,6 +369,7 @@ final class EcosystemAPIManager {
 		}
 
 		lastAutosaveBucket = bucket;
+		materializeCandidateProgressForSave(server);
 		if (dirty) {
 			savePersistedData(server);
 		}
@@ -378,6 +379,7 @@ final class EcosystemAPIManager {
 		if (server == null || !isEnabled() || (!isNaturalGrowthEnabled() && !isNaturalErosionEnabled() && !isNaturalDecayEnabled())) {
 			return;
 		}
+		materializeCandidateProgressForSave(server);
 
 		Set<ChunkRefKey> currentChunkKeys = collectCurrentChunkKeys();
 		currentChunkKeys.addAll(RETAINED_UNLOADED_CHUNK_KEYS);
@@ -429,13 +431,24 @@ final class EcosystemAPIManager {
 	}
 
 	static boolean trackDirtCandidateForMode(ServerLevel world, BlockPos dirtPos, BlockState state, String mode, BlockState discoveredAboveState) {
+		return trackDirtCandidateForMode(world, dirtPos, state, mode, discoveredAboveState, null);
+	}
+
+	static boolean trackDirtCandidateForMode(
+		ServerLevel world,
+		BlockPos dirtPos,
+		BlockState state,
+		String mode,
+		BlockState discoveredAboveState,
+		Boolean discoveredSubmerged
+	) {
 		if (world == null || dirtPos == null || state == null || mode == null || mode.isBlank()) {
 			return false;
 		}
 		if (!isModeEnabled(mode)) {
 			return false;
 		}
-		if (!isCandidateForMode(world, dirtPos, state, mode, discoveredAboveState)) {
+		if (!isCandidateForMode(world, dirtPos, state, mode, discoveredAboveState, discoveredSubmerged)) {
 			return false;
 		}
 
@@ -513,6 +526,17 @@ final class EcosystemAPIManager {
 	}
 
 	static boolean isCandidateForMode(ServerLevel world, BlockPos blockPos, BlockState state, String mode, BlockState discoveredAboveState) {
+		return isCandidateForMode(world, blockPos, state, mode, discoveredAboveState, null);
+	}
+
+	static boolean isCandidateForMode(
+		ServerLevel world,
+		BlockPos blockPos,
+		BlockState state,
+		String mode,
+		BlockState discoveredAboveState,
+		Boolean discoveredSubmerged
+	) {
 		if (!isModeEnabled(mode)) {
 			return false;
 		}
@@ -522,7 +546,8 @@ final class EcosystemAPIManager {
 				&& EcosystemNaturalErosionManager.isWetTrackedCandidate(world, blockPos, state);
 		}
 		if (MODE_SURFACE_DIRT.equals(mode)) {
-			return isBlockGrowthEnabled() && EcosystemNaturalGrowthManager.isSurfaceDirtCandidate(world, blockPos, state, discoveredAboveState);
+			return isBlockGrowthEnabled()
+				&& EcosystemNaturalGrowthManager.isSurfaceDirtCandidate(world, blockPos, state, discoveredAboveState, discoveredSubmerged);
 		}
 		return false;
 	}
@@ -578,6 +603,14 @@ final class EcosystemAPIManager {
 			addChunkIndex(dirtKeysByChunk, nextChunkKey, key);
 			addColumnIndex(value, key);
 			markChunkDirty(nextChunkKey);
+		}
+		if (value != null) {
+			EcosystemNaturalGrowthManager.registerCandidateSchedule(
+				nextChunkKey,
+				value.progressGrowthTicks,
+				value.lastProcessedAbsoluteDayTime,
+				value.requiredGrowthTicks
+			);
 		}
 		return previous;
 	}
@@ -798,6 +831,7 @@ final class EcosystemAPIManager {
 			return;
 		}
 		SURFACE_SCAN_CURSORS.remove(chunkKey);
+		NEXT_SURFACE_SCAN_TICKS.remove(chunkKey);
 
 		Set<String> dirtKeys = dirtKeysByChunk.remove(chunkKey);
 		if (dirtKeys != null) {
@@ -977,18 +1011,31 @@ final class EcosystemAPIManager {
 		}
 
 		ChunkRefKey chunkKey = new ChunkRefKey(levelId(world), chunk.getPos().x(), chunk.getPos().z());
-		int cursor = SURFACE_SCAN_CURSORS.getOrDefault(chunkKey, 0);
+		long currentGameTime = world.getGameTime();
+		Long nextScanTick = NEXT_SURFACE_SCAN_TICKS.get(chunkKey);
 		long scanSeed = 0x9E3779B97F4A7C15L
 			^ ((long) chunk.getPos().x() * 0xBF58476D1CE4E5B9L)
 			^ ((long) chunk.getPos().z() * 0x94D049BB133111EBL)
 			^ (long) levelId(world).hashCode();
 		long mixedSeed = mixSurfaceScanSeed(scanSeed);
+		if (nextScanTick == null) {
+			int initialDelay = Math.floorMod((int) (mixedSeed >>> 16), (int) SURFACE_SCAN_INTERVAL_TICKS);
+			if (initialDelay > 0) {
+				NEXT_SURFACE_SCAN_TICKS.put(chunkKey, currentGameTime + initialDelay);
+				return null;
+			}
+		} else if (currentGameTime < nextScanTick) {
+			return null;
+		}
+
+		int cursor = SURFACE_SCAN_CURSORS.getOrDefault(chunkKey, 0);
 		int scanStart = (int) mixedSeed & 255;
 		int scanStep = (((int) (mixedSeed >>> 8)) & 255) | 1;
 		int localIndex = (scanStart + cursor * scanStep) & 255;
 		int localX = localIndex & 15;
 		int localZ = (localIndex >>> 4) & 15;
 		SURFACE_SCAN_CURSORS.put(chunkKey, (cursor + 1) & 255);
+		NEXT_SURFACE_SCAN_TICKS.put(chunkKey, currentGameTime + SURFACE_SCAN_INTERVAL_TICKS);
 		BlockPos probe = new BlockPos(chunk.getPos().getMinBlockX() + localX, world.getMinY(), chunk.getPos().getMinBlockZ() + localZ);
 		return resolveCachedGroundPosition(world, chunk, probe);
 	}
@@ -1158,6 +1205,15 @@ final class EcosystemAPIManager {
 			builder.put(FIELD_TREE_DECAY_CANDIDATES, decayData.get(FIELD_TREE_DECAY_CANDIDATES));
 		}
 		return builder.build();
+	}
+
+	private static void materializeCandidateProgressForSave(MinecraftServer server) {
+		if (server == null) {
+			return;
+		}
+		for (ServerLevel level : server.getAllLevels()) {
+			EcosystemNaturalGrowthManager.materializeCandidateProgressForSave(level);
+		}
 	}
 
 	static JsonObject buildChunkPersistedData(Consumer<JSONFormatAPIManager.ObjectBuilder> writer) {

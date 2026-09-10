@@ -25,31 +25,25 @@ public final class MadokuEcosystemManager {
 	}
 
 	private static void dispatchGrowthChunkTick(EcosystemChunkTickEvent event) {
-		recordChunkTickStage("growth", event, NaturalGrowthAPIManager::onChunkTick);
+		dispatchChunkTick(event, NaturalGrowthAPIManager::onChunkTick);
 	}
 
 	private static void dispatchErosionChunkTick(EcosystemChunkTickEvent event) {
-		recordChunkTickStage("erosion", event, NaturalErosionAPIManager::onChunkTick);
+		dispatchChunkTick(event, NaturalErosionAPIManager::onChunkTick);
 	}
 
 	private static void dispatchDecayChunkTick(EcosystemChunkTickEvent event) {
-		recordChunkTickStage("decay", event, NaturalDecayAPIManager::onChunkTick);
+		dispatchChunkTick(event, NaturalDecayAPIManager::onChunkTick);
 	}
 
-	private static void recordChunkTickStage(
-		String stage,
+	private static void dispatchChunkTick(
 		EcosystemChunkTickEvent event,
 		EcosystemChunkTickListener listener
 	) {
 		if (event == null) {
 			return;
 		}
-		long startedNanos = System.nanoTime();
-		try {
-			listener.onChunkTick(event);
-		} finally {
-			EcosystemMsptMonitor.recordEcosystemStage(event.level(), stage, System.nanoTime() - startedNanos);
-		}
+		listener.onChunkTick(event);
 	}
 
 	/** Initializes the shared ecosystem runtime and each ecosystem subsystem. */

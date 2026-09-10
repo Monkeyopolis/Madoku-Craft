@@ -11,9 +11,6 @@
     "utility.ConfiguredFuelValuesMixin"
   ],
   "client": [
-    "attributes.HudFoodLevelMixin",
-    "attributes.ItemFoodClientGateMixin",
-    "attributes.PlayerEatClientGateMixin",
     "color.BiomeTemperatureColorMixin",
     "color.SpruceBirchLeafTintMixin"
   ],

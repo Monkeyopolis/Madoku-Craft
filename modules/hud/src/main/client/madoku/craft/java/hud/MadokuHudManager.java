@@ -14,6 +14,7 @@ public final class MadokuHudManager {
 		HudConfigManager.initialize();
 		HudPayloadManager.initialize();
 		HudAPIManager.initialize();
+		MadokuHudAttributeBars.initialize();
 		initialized = true;
 	}
 
@@ -21,6 +22,7 @@ public final class MadokuHudManager {
 		HudAPIManager.reset();
 		HudPayloadManager.reset();
 		HudConfigManager.reset();
+		MadokuHudAttributeBars.reset();
 		initialized = false;
 	}
 

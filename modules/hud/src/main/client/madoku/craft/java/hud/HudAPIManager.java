@@ -68,7 +68,9 @@ public final class HudAPIManager {
 		if (HudConfigManager.isEnabled("temperature")) drawWorldLine(context, client, "Temperature", formatClimate(climate.temperature()), line++, HudConfigManager.isColored("temperature") ? temperatureColor(climate.temperature()) : COLOR);
 		if (HudConfigManager.isEnabled("humidity")) drawWorldLine(context, client, "Humidity", formatClimate(climate.humidity()), line++, HudConfigManager.isColored("humidity") ? humidityColor(climate.humidity()) : COLOR);
 		if (HudConfigManager.isEnabled("biome")) drawWorldLine(context, client, "Biome", getBiomeDisplayName(player, level), line++, COLOR);
-		if (HudConfigManager.isEnabled("difficulty")) drawWorldLine(context, client, "Difficulty", getDifficultyDisplayText(), line, HudConfigManager.isColored("difficulty") ? difficultyColor(HudPayloadManager.getServerDifficulty()) : COLOR);
+		if (HudConfigManager.isEnabled("difficulty") && HudPayloadManager.hasServerDifficulty()) {
+			drawWorldLine(context, client, "Difficulty", getDifficultyDisplayText(), line, HudConfigManager.isColored("difficulty") ? difficultyColor(HudPayloadManager.getServerDifficulty()) : COLOR);
+		}
 	}
 
 	private static void drawWorldLine(GuiGraphicsExtractor context, Minecraft client, String label, String value, int line, int valueColor) {
@@ -208,9 +210,6 @@ public final class HudAPIManager {
 	}
 
 	private static String getDifficultyDisplayText() {
-		if (!HudPayloadManager.hasServerDifficulty()) {
-			return "1";
-		}
 		return Integer.toString(Math.max(1, HudPayloadManager.getServerDifficulty()));
 	}
 

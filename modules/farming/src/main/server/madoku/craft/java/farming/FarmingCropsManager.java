@@ -834,6 +834,9 @@ public final class FarmingCropsManager {
 	}
 
 	public static boolean isCropHarvestReady(ServerLevel world, BlockPos cropPos, BlockState state) {
+		if (isDirectlyPlacedMatureCrop(world, cropPos, state)) {
+			return false;
+		}
 		if (resolvePendingHarvestRule(world, cropPos) != null) {
 			return true;
 		}
@@ -851,6 +854,9 @@ public final class FarmingCropsManager {
 	}
 
 	public static boolean isManagedHarvestState(ServerLevel world, BlockPos cropPos, BlockState state) {
+		if (isDirectlyPlacedMatureCrop(world, cropPos, state)) {
+			return false;
+		}
 		CropRule pendingRule = resolvePendingHarvestRule(world, cropPos);
 		if (pendingRule != null) {
 			return true;
@@ -1285,7 +1291,24 @@ public final class FarmingCropsManager {
 		if (stateRule == null) {
 			return null;
 		}
+		if (isDirectlyPlacedMatureCrop(world, cropPos, state)) {
+			return null;
+		}
 		return stateRule;
+	}
+
+	/**
+	 * Mature melon/pumpkin blocks placed directly by a player are decorations,
+	 * not the mature result of a managed stem. Seed-planted crops also carry the
+	 * player-placed marker, so only distinct mature blocks are excluded here.
+	 */
+	private static boolean isDirectlyPlacedMatureCrop(ServerLevel world, BlockPos cropPos, BlockState state) {
+		if (world == null || cropPos == null || state == null
+			|| !ChunkDataAPIManager.isPlayerPlacedBlock(world, cropPos)) {
+			return false;
+		}
+		CropRule rule = resolveCropRuleByCropState(state);
+		return rule != null && rule.usesDistinctMatureBlock() && isCropMatureBlock(state, rule);
 	}
 
 	private static void applyFarmingLore(CropRule rule, Set<String> processedItemIds) {
