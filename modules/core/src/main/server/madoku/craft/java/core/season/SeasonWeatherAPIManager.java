@@ -87,7 +87,6 @@ public final class SeasonWeatherAPIManager {
 		lastObservedAbsoluteTime = now;
 		nextEvaluationAbsoluteTime = safeAdd(now, resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes()));
 		if (isEnabled()) restorePersistedState(server, now);
-
 		if (isEnabled()) {
 			applyCondition(server, currentCondition == null ? WeatherCondition.CLEAR : currentCondition, true);
 		}
@@ -113,7 +112,6 @@ public final class SeasonWeatherAPIManager {
 			return;
 		}
 		nextAdaptivePollGameplayTick = safeAdd(gameplayTick, adaptiveInterval);
-
 		if (lastObservedAbsoluteTime >= 0L && now < lastObservedAbsoluteTime) {
 			// A backwards world-time change should not leave the state waiting on a
 			// deadline that belongs to the old time coordinate.
@@ -152,7 +150,8 @@ public final class SeasonWeatherAPIManager {
 		WeatherCondition persistedCondition = resolveCondition(readString(source, FIELD_CONDITION, ""));
 		long persistedEnd = readLong(source, FIELD_CONDITION_END, -1L);
 		long persistedNextEvaluation = readLong(source, FIELD_NEXT_EVALUATION, -1L);
-		if (persistedCondition != null && persistedEnd > now) {
+		long maximumConditionDuration = resolveMaximumConditionDurationTicks();
+		if (persistedCondition != null && isPersistedDeadlineValid(persistedEnd, now, maximumConditionDuration)) {
 			currentCondition = persistedCondition;
 			conditionEndAbsoluteTime = persistedEnd;
 			nextEvaluationAbsoluteTime = -1L;
@@ -160,9 +159,23 @@ public final class SeasonWeatherAPIManager {
 		}
 		currentCondition = null;
 		conditionEndAbsoluteTime = -1L;
-		nextEvaluationAbsoluteTime = persistedNextEvaluation > now
+		long evaluationInterval = resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes());
+		nextEvaluationAbsoluteTime = isPersistedDeadlineValid(persistedNextEvaluation, now, evaluationInterval)
 			? persistedNextEvaluation
-			: safeAdd(now, resolveMinutesToTicks(WeatherConfigManager.getSettings().timeRateMinutes()));
+			: safeAdd(now, evaluationInterval);
+	}
+
+	private static long resolveMaximumConditionDurationTicks() {
+		int maximumMinutes = 1;
+		for (Integer duration : WeatherConfigManager.getSettings().durationMinutes()) {
+			if (duration != null) maximumMinutes = Math.max(maximumMinutes, duration);
+		}
+		return resolveMinutesToTicks(maximumMinutes);
+	}
+
+	private static boolean isPersistedDeadlineValid(long deadline, long now, long maximumRemainingTicks) {
+		if (deadline <= now || maximumRemainingTicks < 1L) return false;
+		return safeSubtract(deadline, now) <= maximumRemainingTicks;
 	}
 
 	private static void persistState() {
@@ -302,6 +315,14 @@ public final class SeasonWeatherAPIManager {
 	private static long safeAdd(long base, long delta) {
 		try {
 			return Math.addExact(base, delta);
+		} catch (ArithmeticException exception) {
+			return Long.MAX_VALUE;
+		}
+	}
+
+	private static long safeSubtract(long minuend, long subtrahend) {
+		try {
+			return Math.subtractExact(minuend, subtrahend);
 		} catch (ArithmeticException exception) {
 			return Long.MAX_VALUE;
 		}

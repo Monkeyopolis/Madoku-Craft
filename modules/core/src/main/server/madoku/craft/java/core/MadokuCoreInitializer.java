@@ -2,7 +2,6 @@ package madoku.craft.java.core;
 
 import madoku.craft.java.core.module.MadokuStandaloneModule;
 import madoku.craft.java.core.module.MadokuStandaloneRuntime;
-import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.time.TimeAPIManager;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
@@ -38,21 +37,12 @@ public final class MadokuCoreInitializer implements ModInitializer, MadokuStanda
 
 	@Override
 	public void onServerStartTick(MinecraftServer server) {
-		TimeAPIManager.refreshSleepTickIncrement(server);
-		SeasonAPIManager.onServerStartTick(server);
+		MadokuCoreManager.onServerStartTick(server);
 	}
 
 	@Override
 	public void onServerTick(MinecraftServer server) {
-		TimeAPIManager.advance(server, TimeAPIManager.getCachedSleepTickIncrement());
-		TimeAPIManager.update(server);
 		MadokuCoreManager.onServerTick(server);
-		SeasonAPIManager.onServerTick(server);
-		if (MadokuCoreManager.shouldRunWorldSync(server)) {
-			TimeAPIManager.broadcastWorldTimeIfChanged(server);
-			SeasonAPIManager.broadcastWorldSeasonIfChanged(server);
-			SeasonAPIManager.syncPlayerClimateIfChanged(server);
-		}
 	}
 
 	@Override

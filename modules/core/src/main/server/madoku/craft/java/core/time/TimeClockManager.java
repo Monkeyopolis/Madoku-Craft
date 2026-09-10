@@ -146,7 +146,8 @@ public final class TimeClockManager {
 	}
 
 	public static void setClockFromAbsoluteDayTime(long absoluteDayTime) {
-		observeWorldTime(Math.max(0L, absoluteDayTime));
+		long normalized = Math.max(0L, absoluteDayTime);
+		observeWorldTime(normalized);
 	}
 
 	public static void setGameplayTicks(long value) {

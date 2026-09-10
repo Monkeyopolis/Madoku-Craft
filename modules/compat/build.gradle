@@ -49,6 +49,7 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	implementation "madoku.craft:madoku-craft-core:${project.core_version}"
+	implementation "madoku.craft:madoku-craft-ecosystem:${project.ecosystem_version}"
 	implementation "madoku.craft:madoku-craft-attributes:${project.attributes_version}"
 	implementation "madoku.craft:madoku-craft-levels:${project.levels_version}"
 	implementation "madoku.craft:madoku-craft-farming:${project.farming_version}"

@@ -12,4 +12,5 @@ public final class MadokuEcosystemInitializer implements ModInitializer, MadokuS
 	@Override public void reset() { MadokuEcosystemManager.reset(); }
 	@Override public void loadPersistedData(MinecraftServer server) { MadokuEcosystemManager.loadPersistedData(server); }
 	@Override public void onServerStarted(MinecraftServer server) { MadokuEcosystemManager.onServerStarted(server); }
+	@Override public void onServerTick(MinecraftServer server) { MadokuEcosystemManager.onServerTick(server); }
 }

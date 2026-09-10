@@ -86,14 +86,16 @@ public final class MobRegionalDifficultyManager {
 		if (server == null) return;
 		Snapshot config = snapshot;
 		if (!config.enabled() || !config.timeEnabled()) {
+			nextTimeTick = Long.MIN_VALUE;
 			cachedTimeDayCount = Long.MIN_VALUE;
 			cachedTimeAdjustment = 0;
 			return;
 		}
 		long now = Math.max(0L, TimeAPIManager.getGameplayTicks());
-		if (nextTimeTick != Long.MIN_VALUE && now < nextTimeTick) return;
-		nextTimeTick = now + Math.max(1L, resolveTimeAdaptiveInterval(server));
-		refreshCachedTimeAdjustment(server, config);
+		if (nextTimeTick == Long.MIN_VALUE || now >= nextTimeTick) {
+			nextTimeTick = now + Math.max(1L, resolveTimeAdaptiveInterval(server));
+			refreshCachedTimeAdjustment(server, config);
+		}
 	}
 
 	public static void onServerStopped() {
@@ -133,11 +135,13 @@ public final class MobRegionalDifficultyManager {
 		UUID playerId = player.getUUID();
 		PlayerDifficultyState previous = LAST_SYNC_STATE_BY_PLAYER.get(playerId);
 		PlayerDifficultyState currentKey = captureSyncStateKey(player);
-		if (currentKey == null || (!force && previous != null && previous.sameKey(currentKey))) {
+		int difficultyLevel = resolveHudDifficultyLevel(player);
+		if (currentKey == null || (!force && previous != null
+			&& previous.sameKey(currentKey)
+			&& previous.difficultyLevel() == difficultyLevel)) {
 			return;
 		}
 
-		int difficultyLevel = resolveHudDifficultyLevel(player);
 		if (force || previous == null || previous.difficultyLevel() != difficultyLevel) {
 			SyncWorldAPIManager.send(player, new MobPayloadManager(difficultyLevel));
 		}

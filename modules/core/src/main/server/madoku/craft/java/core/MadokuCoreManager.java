@@ -23,6 +23,7 @@ import madoku.craft.java.core.runtime.MadokuAdaptiveIntervalProvider;
 import madoku.craft.java.core.season.SeasonAPIManager;
 import madoku.craft.java.core.smithing.SmithingAPIManager;
 import madoku.craft.java.core.sync.SyncAPIManager;
+import madoku.craft.java.core.sync.SyncConfigAPIManager;
 import madoku.craft.java.core.sync.MadokuSyncProvider;
 import madoku.craft.java.core.time.TimeAPIManager;
 import madoku.craft.java.core.time.MadokuTimeProvider;
@@ -91,6 +92,7 @@ public final class MadokuCoreManager {
 
 	/** Resets runtime state for the core services and all core subsystems. */
 	public static void reset() {
+		SyncConfigAPIManager.resetClientSynchronizedState();
 		HelperAPIManager.reset();
 		DataAPIManager.reset();
 		JSONAPIManager.reset();
@@ -125,12 +127,27 @@ public final class MadokuCoreManager {
 		EnchantAPIManager.initialize();
 		RarityAPIManager.initialize();
 		SmithingAPIManager.onServerStarted(server);
+		TimeAPIManager.broadcastWorldTimeNow(server);
+		SeasonAPIManager.broadcastWorldSeasonNow(server);
+	}
+
+	public static void onServerStartTick(net.minecraft.server.MinecraftServer server) {
+		TimeAPIManager.refreshSleepTickIncrement(server);
+		SeasonAPIManager.onServerStartTick(server);
 	}
 
 	public static void onServerTick(net.minecraft.server.MinecraftServer server) {
+		TimeAPIManager.advance(server, TimeAPIManager.getCachedSleepTickIncrement());
+		TimeAPIManager.update(server);
 		HelperAPIManager.onServerTick(server);
 		EnchantAPIManager.onServerTick(server);
 		ChunkAPIManager.onServerTick(server);
+		SeasonAPIManager.onServerTick(server);
+		if (shouldRunWorldSync(server)) {
+			TimeAPIManager.broadcastWorldTimeIfChanged(server);
+			SeasonAPIManager.broadcastWorldSeasonIfChanged(server);
+			SeasonAPIManager.syncPlayerClimateIfChanged(server);
+		}
 	}
 
 	public static boolean shouldRunWorldSync(net.minecraft.server.MinecraftServer server) {

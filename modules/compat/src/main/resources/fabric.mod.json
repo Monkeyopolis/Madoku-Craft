@@ -31,6 +31,7 @@
     "madoku-craft-items": "*",
     "madoku-craft-hud": "*",
     "madoku-craft-utility": "*",
+    "madoku-craft-ecosystem": "*",
     "sodium": "*",
     "iris": "*"
   }
