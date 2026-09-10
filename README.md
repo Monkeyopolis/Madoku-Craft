@@ -7,38 +7,44 @@ All of these systems can be adjusted in the config files.
 
 ## Main Features:
 
-Mobs:
+**Mobs:**
 
-The mob system modifies mob behaviors and scales their stats based on regional difficulty and world difficulty.
-Regional Difficulty is determined by the biome, structure, and in-game time when a mob spawns.
+- The mob system modifies mob behaviors and scales their stats based on regional difficulty and world difficulty.
+- Regional Difficulty is determined by the biome, structure, and in-game time when a mob spawns.
 
-Items:
+**Items:**
 
-The item system modifies item stats and properities based on their category.
-This allows you to modify their stacking limit, damage, mining speed, etc.
+- The item system modifies item stats and properities based on their category.
+- This allows you to modify their stacking limit, damage, mining speed, etc.
 
-Attributes:
+**Attributes:**
 
-The attribute system modifies attributes to rebalance the game.
-This allows you to customize the game's difficulty to your needs.
+- The attribute system modifies attributes to rebalance the game.
+- This allows you to customize the game's difficulty to your needs.
 
-Levels:
+**Levels:**
 
-The levels system allows players to allocate points to increase certain stats.
-Press K to open up the Menu.
-This keybind can be customized in the options menu.
+- The levels system allows players to allocate points to increase certain stats.
+- Press K to open up the Menu.
+- This keybind can be customized in the options menu.
 
-Pets:
+**Pets:**
 
-The pet system allows players to equip pet items in the player's inventory.
-This spawns a tiny mob that helps and follows you without getting in the way.
+- The pet system allows players to equip pet items in the player's inventory.
+- This spawns a tiny mob that helps and follows you without getting in the way.
 
-Core:
+**Core:**
 
-The core system adds seasonal changes, and rarity.
-It also modifies loot tables, recipes, enchanting, and smithing.
+- The core system adds seasonal changes, and rarity.
+- It also modifies loot tables, recipes, enchanting, and smithing.
+
+**Utility:**
+
+- The utility system modifies smelting and in-game music.
+- It allows you to configure how fast smelting occurs.
+- It also allows you to customize which in-game music plays and how often.
 
 ## Disclaimer:
 
-Make sure to backup your worlds before using this mod.
-This mod severely modifies Minecraft and might cause unintended issues if removed.
+- Make sure to backup your worlds before using this mod.
+- This mod severely modifies Minecraft and might cause unintended issues if removed.
