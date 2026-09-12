@@ -5,32 +5,6 @@ This mod adds seasons, an ecosystem, pets, and a leveling system.
 It also modifies items, attributes, recipes, loot, smithing, enchanting and mobs.
 All of these systems can be adjusted in the config files.
 
-## Development layout:
-
-The root project is the Unified aggregate build. The feature directories under
-`modules/` remain independent Gradle builds, each using Java 21, official Mojang
-mappings, and its own Loom cache.
-
-Unified can be launched from the repository root:
-
-```powershell
-.\gradlew.bat --no-daemon --no-parallel runClient
-```
-
-Compat consumes the independently published module artifacts. Publish Core
-first, then the feature modules, before launching Compat from `modules/compat`:
-
-```powershell
-$modules = @('core','ecosystem','attributes','levels','farming','mobs','pets','items','utility','hud')
-foreach ($module in $modules) {
-    .\gradlew.bat --no-daemon --no-parallel --max-workers=1 -p ("modules/" + $module) publishToMavenLocal
-}
-.\gradlew.bat --no-daemon --no-parallel --max-workers=1 -p modules/compat runClient
-```
-
-The Compat build uses `mavenLocal()` by default. Sibling composite builds are
-available for dependency development with `-Puse_composite_modules=true`.
-
 ## Main Features:
 
 **Mobs:**
