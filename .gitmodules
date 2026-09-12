@@ -1,0 +1,44 @@
+[submodule "modules/utility"]
+	path = modules/utility
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Utility.git
+	branch = Fabric-1.21.11
+[submodule "modules/items"]
+	path = modules/items
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Items.git
+	branch = Fabric-1.21.11
+[submodule "modules/core"]
+	path = modules/core
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Core.git
+	branch = Fabric-1.21.11
+[submodule "modules/ecosystem"]
+	path = modules/ecosystem
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Ecosystem.git
+	branch = Fabric-1.21.11
+[submodule "modules/attributes"]
+	path = modules/attributes
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Attributes.git
+	branch = Fabric-1.21.11
+[submodule "modules/mobs"]
+	path = modules/mobs
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Mobs.git
+	branch = Fabric-1.21.11
+[submodule "modules/hud"]
+	path = modules/hud
+	url = https://github.com/Monkeyopolis/Madoku-Craft-HUD.git
+	branch = Fabric-1.21.11
+[submodule "modules/pets"]
+	path = modules/pets
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Pets.git
+	branch = Fabric-1.21.11
+[submodule "modules/levels"]
+	path = modules/levels
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Levels.git
+	branch = Fabric-1.21.11
+[submodule "modules/farming"]
+	path = modules/farming
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Farming.git
+	branch = Fabric-1.21.11
+[submodule "modules/compat"]
+	path = modules/compat
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Compat.git
+	branch = Fabric-1.21.11

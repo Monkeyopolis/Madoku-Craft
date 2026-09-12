@@ -3,32 +3,37 @@
 	"id": "madoku-craft",
 	"version": "${version}",
 	"name": "Madoku Craft",
-	"description": "A Minecraft Overhaul MOD. Modifies Minecraft's core Gameplay into a configurable one.",
+	"description": "An interconnected overhaul mod that modifies vanilla Minecraft.",
 	"authors": [
 		"Monkeyopolis"
 	],
 	"contact": {
 		"homepage": "https://www.curseforge.com/minecraft/mc-mods/madoku-craft",
-		"sources": "This MOD's Repository is Private."
+		"sources": "The GitHub repository is private."
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/madoku-craft/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"madoku.craft.MadokuCraft"
+			"madoku.craft.java.MadokuCraft"
 		],
 		"client": [
-			"madoku.craft.MadokuCraftClient"
+			"madoku.craft.java.MadokuCraftClient"
 		]
 	},
 	"mixins": [
-		"madoku-craft.mixins.json"
+		"madoku-craft.mixins.json",
+		"madoku-craft.sodium.mixins.json"
 	],
 	"depends": {
-		"fabricloader": ">=0.18.4",
+		"fabricloader": "${loader_version}",
 		"minecraft": "~${minecraft_version}",
 		"java": ">=21",
-		"fabric-api": "*"
+		"fabric-api": "${fabric_api_version}"
+	},
+	"suggests": {
+		"sodium": "${sodium_version}",
+		"iris": "${iris_version}"
 	}
 }

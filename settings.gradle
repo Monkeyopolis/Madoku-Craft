@@ -1,4 +1,11 @@
 pluginManagement {
+	resolutionStrategy {
+		eachPlugin {
+			if (requested.id.id == 'net.fabricmc.fabric-loom-remap') {
+				useModule('net.fabricmc:fabric-loom:1.17.20')
+			}
+		}
+	}
 	repositories {
 		maven {
 			name = 'Fabric'
@@ -8,3 +15,12 @@ pluginManagement {
 		gradlePluginPortal()
 	}
 }
+
+rootProject.name = "madoku-craft"
+
+// Keep the remapped Loom cache outside OneDrive and below Windows' path limit.
+// Each module is an independent Gradle build, so its cache must stay unique.
+gradle.startParameter.projectCacheDir = new File(
+	System.getProperty("user.home"),
+	".gradle/m/2111/${rootProject.name}"
+)
