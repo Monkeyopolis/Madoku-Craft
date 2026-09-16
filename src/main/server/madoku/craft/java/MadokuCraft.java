@@ -63,6 +63,7 @@ public class MadokuCraft implements ModInitializer {
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+			MadokuLevelsManager.savePersistedData(server);
 			MadokuCoreManager.onServerStopping(server);
 		});
 

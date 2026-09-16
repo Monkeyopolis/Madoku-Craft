@@ -17,10 +17,3 @@ pluginManagement {
 }
 
 rootProject.name = "madoku-craft"
-
-// Keep the remapped Loom cache outside OneDrive and below Windows' path limit.
-// Each module is an independent Gradle build, so its cache must stay unique.
-gradle.startParameter.projectCacheDir = new File(
-	System.getProperty("user.home"),
-	".gradle/m/2111/${rootProject.name}"
-)
