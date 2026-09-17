@@ -38,6 +38,7 @@
     "attributes.FoodDataSaturationDisableMixin",
     "attributes.FoodDataStarvationDamageMixin",
     "utility.ConfiguredFuelValuesMixin",
+    "utility.ConfiguredFuelMenuMixin",
     "utility.smelting.FurnaceCookTimeMixin",
     "utility.smelting.FurnaceMenuMixin",
     "mob.HuskHungerEffectMixin",
