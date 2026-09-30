@@ -77,7 +77,25 @@ sourceSets {
 		java {
 			srcDirs = ["src/main/client"] + madokuModuleSourceDirs("client")
 		}
+		resources {
+			// Reuse the filtered aggregate resources used by the unified mod jar.
+			srcDirs = [sourceSets.main.output.resourcesDir]
+		}
 	}
+}
+
+tasks.named("processClientResources") {
+	dependsOn("processResources")
+}
+
+tasks.matching { it.name == "sourcesJar" }.configureEach {
+	dependsOn("processResources")
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named("jar") {
+	// Main and client source sets share the same processed aggregate resources.
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 tasks.register("validateMadokuModuleBoundaries") {
