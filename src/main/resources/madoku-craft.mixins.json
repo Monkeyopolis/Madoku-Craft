@@ -118,6 +118,8 @@
     "mob.WitherSkeletonWitherEffectMixin"
   ],
 	"client": [
+	  "mob.LivingEntityRenderStateMixin",
+	  "mob.LivingEntityRendererMixin",
 	  "music.MusicManagerMixin",
 	  "inventory.AbstractContainerScreenAccessor",
     "core.EnchantmentScreenMixin",

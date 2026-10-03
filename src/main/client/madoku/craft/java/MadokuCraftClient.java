@@ -4,6 +4,7 @@ import madoku.craft.java.compat.MadokuCompatClient;
 import madoku.craft.java.farming.MadokuFarmingClient;
 import madoku.craft.java.items.MadokuItemsClient;
 import madoku.craft.java.levels.MadokuLevelsClient;
+import madoku.craft.java.mob.MobIndicatorClient;
 import madoku.craft.java.hud.MadokuHudManager;
 import madoku.craft.java.core.season.MadokuSeasonClient;
 import madoku.craft.java.core.sync.MadokuSyncClient;
@@ -27,5 +28,6 @@ public class MadokuCraftClient implements ClientModInitializer {
 		MadokuHudManager.initialize();
 		MadokuPetClient.initialize();
 		MadokuLevelsClient.initialize();
+		MobIndicatorClient.initialize();
 	}
 }
