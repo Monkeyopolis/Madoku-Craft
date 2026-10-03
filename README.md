@@ -16,6 +16,9 @@ All of these systems can be adjusted in the config files.
 
 - The item system modifies item stats and properities based on their category.
 - This allows you to modify their stacking limit, damage, mining speed, etc.
+- You can also upgrade tools, armor, and weapons in the items menu.
+- Press Tab to open up the main menu.
+- That keybind can be customized in the options menu.
 
 **Attributes:**
 
