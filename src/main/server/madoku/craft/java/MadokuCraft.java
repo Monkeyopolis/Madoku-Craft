@@ -13,7 +13,7 @@ import madoku.craft.java.items.ItemsAPIManager;
 import madoku.craft.java.items.MadokuItemsManager;
 import madoku.craft.java.levels.MadokuLevelsManager;
 import madoku.craft.java.pet.PetAPIManager;
-import madoku.craft.java.pet.MadokuPetManager;
+import madoku.craft.java.pet.MadokuPetProvider;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -32,7 +32,8 @@ public class MadokuCraft implements ModInitializer {
 		MadokuEcosystemManager.initialize();
 		MadokuAttributesManager.initialize();
 		MadokuLevelsManager.initialize();
-		MadokuPetManager.initialize();
+		PetAPIManager.registerProvider(new MadokuPetProvider());
+		PetAPIManager.initialize();
 		MadokuCompatManager.initialize();
 		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeAPIManager::shouldAllowResettingTime);
 
