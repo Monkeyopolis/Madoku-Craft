@@ -11,6 +11,7 @@ All of these systems can be adjusted in the config files.
 
 - The mob system modifies mob behaviors and scales their stats based on regional difficulty and world difficulty.
 - Regional Difficulty is determined by the biome, structure, and in-game time when a mob spawns.
+- A dedicated mob indicator displays a mob's health, armor, and debuffs.
 
 **Items:**
 
