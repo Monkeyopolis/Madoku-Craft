@@ -3,6 +3,7 @@
 .gradle/
 .gradle-local/
 .gradle-user/
+.gradle-home/
 build/
 out/
 classes/
