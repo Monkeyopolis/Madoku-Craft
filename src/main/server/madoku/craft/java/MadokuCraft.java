@@ -87,6 +87,7 @@ public class MadokuCraft implements ModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			MadokuCoreManager.onServerTick(server);
 			MadokuEcosystemManager.onServerTick(server);
+			MadokuFarmingManager.onServerTick(server);
 			MadokuAttributesManager.onServerTick(server);
 			ItemsAPIManager.onServerTick(server);
 			PetAPIManager.onServerTick(server);

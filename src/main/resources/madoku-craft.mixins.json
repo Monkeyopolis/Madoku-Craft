@@ -118,7 +118,7 @@
     "mob.ServerExplosionBlockRadiusMixin",
     "mob.ServerExplosionPlayerDamageMixin",
     "core.ServerClockManagerMixin",
-    "core.ServerLevelEcosystemChunkTickMixin",
+    "core.ServerLevelActiveChunkTickMixin",
     "pet.ServerEntityPetUpdateIntervalMixin",
     "core.ServerPlayerSleepTimeMixin",
     "pet.ServerPlayerTeleportPetMixin",
