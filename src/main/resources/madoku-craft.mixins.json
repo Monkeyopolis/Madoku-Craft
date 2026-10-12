@@ -47,6 +47,7 @@
     "mob.HuskHungerEffectMixin",
     "season.IceBlockSeasonalMeltMixin",
 	"pet.PetItemTooltipMixin",
+    "pet.PlayerPetMovementSpeedMixin",
     "core.InventoryMenuRarityMixin",
 	"core.LevelEcosystemBlockChangeMixin",
     "item.ItemBuiltInRegistryHolderAccessor",
