@@ -35,6 +35,7 @@
     "mob.DrownedRuntimeTickMixin",
     "mob.DrownedTargetingUnderwaterMixin",
     "mob.DrownedTravelInWaterSpeedMixin",
+    "mob.EndermanRandomTeleportMixin",
     "attributes.EffectCommandsSaturationDurationMixin",
     "pet.EntityPetBehaviorMixin",
     "farming.FarmlandBlockFarmingMixin",
@@ -136,6 +137,7 @@
   ],
 	"client": [
 	  "mob.CreeperRendererMixin",
+	  "mob.EndermanRendererMixin",
 	  "mob.LivingEntityRenderStateMixin",
 	  "mob.LivingEntityRendererMixin",
 	  "music.MusicManagerMixin",
