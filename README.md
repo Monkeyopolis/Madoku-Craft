@@ -11,7 +11,7 @@ All of these systems can be adjusted in the config files.
 
 - The mob system modifies mob behaviors and scales their stats based on regional difficulty and world difficulty.
 - Regional Difficulty is determined by the biome, structure, and in-game time when a mob spawns.
-- A dedicated mob indicator displays a mob's health, armor, and debuffs.
+- A dedicated mob indicator displays a mob's health, damage, armor, and debuffs.
 
 **Items:**
 
@@ -48,6 +48,12 @@ All of these systems can be adjusted in the config files.
 - The utility system modifies smelting and in-game music.
 - It allows you to configure how fast smelting occurs.
 - It also allows you to customize which in-game music plays and how often.
+
+**Farming:**
+
+- The Farming system modifies crops to grow through time instead of being random.
+- Farmland can be fertilized with bonemeal to increase crop growing speed and yield.
+- Farm plots have an indicator that shows growth time and speed.
 
 ## Disclaimer:
 

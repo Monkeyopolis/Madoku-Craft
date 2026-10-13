@@ -159,7 +159,8 @@
     "color.SpruceBirchLeafTintMixin",
     "mob.SkeletonRendererMixin",
     "mob.SpiderRendererMixin",
-    "mob.ZombieRendererMixin"
+    "mob.ZombieRendererMixin",
+    "farming.LevelRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

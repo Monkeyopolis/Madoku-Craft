@@ -6,7 +6,8 @@ import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.java.core.json.JSONAPIManager;
 import madoku.craft.java.utility.smelting.MadokuUtilityManager;
 import madoku.craft.java.core.time.TimeAPIManager;
-import madoku.craft.java.mob.MadokuMobManager;
+import madoku.craft.java.mob.MadokuMobProvider;
+import madoku.craft.java.mob.MobAPIManager;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
 import madoku.craft.java.farming.MadokuFarmingManager;
 import madoku.craft.java.items.ItemsAPIManager;
@@ -26,7 +27,8 @@ public class MadokuCraft implements ModInitializer {
 	public void onInitialize() {
 		MadokuCoreManager.initialize();
 		MadokuUtilityManager.initialize();
-		MadokuMobManager.initialize();
+		MobAPIManager.registerProvider(new MadokuMobProvider());
+		MobAPIManager.initialize();
 		MadokuItemsManager.initialize();
 		MadokuFarmingManager.initialize();
 		MadokuEcosystemManager.initialize();
@@ -59,7 +61,7 @@ public class MadokuCraft implements ModInitializer {
 			ItemsAPIManager.onServerStarted(server);
 			MadokuAttributesManager.onServerStarted(server);
 			PetAPIManager.onServerStarted(server);
-			MadokuMobManager.onServerStarted(server);
+			MobAPIManager.onServerStarted(server);
 			MadokuCompatManager.onServerStarted(server);
 		});
 
@@ -74,7 +76,7 @@ public class MadokuCraft implements ModInitializer {
 			MadokuCoreManager.reset();
 			MadokuUtilityManager.onServerStopped(server);
 			MadokuUtilityManager.reset();
-			MadokuMobManager.onServerStopped();
+			MobAPIManager.onServerStopped();
 			MadokuAttributesManager.reset();
 			MadokuLevelsManager.reset();
 			PetAPIManager.reset();
@@ -92,7 +94,7 @@ public class MadokuCraft implements ModInitializer {
 			ItemsAPIManager.onServerTick(server);
 			PetAPIManager.onServerTick(server);
 			MadokuCoreManager.autosavePersistedData(server);
-			MadokuMobManager.onServerTick(server);
+			MobAPIManager.onServerTick(server);
 			MadokuCompatManager.onServerTick(server);
 			MadokuLevelsManager.flushDirtySyncs(server);
 		});

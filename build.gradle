@@ -159,6 +159,17 @@ tasks.register("validateMadokuModuleBoundaries") {
 				}
 			}
 		}
+		def forbiddenCompatImplementationImport = ~/^\s*import\s+madoku\.craft\.java\.(mob\.(MobEntityManager|MadokuMobManager|MobIndicatorClient)|attributes\.(MadokuAttributesManager|MadokuAttributesClient)|hud\.HudPayloadManager|core\.season\.ClientSeasonalPrecipitationState)\s*;/
+		fileTree("modules/compat/src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
+			sourceFile.eachLine { String line, int lineNumber ->
+				if (line ==~ forbiddenCompatImplementationImport) {
+					errors << "Compat must use a public API instead of an implementation import at ${sourceFile}: ${lineNumber}: ${line.trim()}"
+				}
+				if (line.contains("BuiltInRegistries")) {
+					errors << "Compat must use a registry API helper instead of BuiltInRegistries at ${sourceFile}: ${lineNumber}: ${line.trim()}"
+				}
+			}
+		}
 
 		File hudBuildFile = file("modules/hud/build.gradle")
 		if (hudBuildFile.isFile() && hudBuildFile.text.contains("madoku-craft-attributes")) {
