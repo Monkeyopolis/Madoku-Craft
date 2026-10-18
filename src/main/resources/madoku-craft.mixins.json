@@ -57,6 +57,7 @@
     "pet.ItemCostEggVariantsMixin",
     "attributes.ItemFoodGateMixin",
     "core.ItemInputRarityMixin",
+    "core.LivingEntityDamageQuantizationMixin",
     "core.PlayerInventoryRecipeUnlockMixin",
     "itemstack.ItemStackCodecMixin",
     "itemstack.ItemStackDurabilityLoreMixin",
