@@ -53,6 +53,7 @@
 	"core.LevelEcosystemBlockChangeMixin",
     "item.ItemBuiltInRegistryHolderAccessor",
     "item.ItemComponentsAccessor",
+	"item.FoodStatusEffectDurationMixin",
 	"inventory.SlotAccessor",
     "pet.ItemCostEggVariantsMixin",
     "attributes.ItemFoodGateMixin",
