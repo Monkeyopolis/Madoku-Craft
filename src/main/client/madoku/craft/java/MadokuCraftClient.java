@@ -11,6 +11,7 @@ import madoku.craft.java.core.season.MadokuSeasonClient;
 import madoku.craft.java.core.sync.MadokuSyncClient;
 import madoku.craft.java.core.sync.SyncAPIManager;
 import madoku.craft.java.core.menu.MadokuMenuClient;
+import madoku.craft.java.core.ui.UiLayoutAPIManager;
 import madoku.craft.java.utility.MadokuUtilityClient;
 import madoku.craft.java.pet.MadokuPetClient;
 import net.fabricmc.api.ClientModInitializer;
@@ -22,6 +23,7 @@ public class MadokuCraftClient implements ClientModInitializer {
 		SyncAPIManager.initializeClient();
 		MadokuSyncClient.initialize();
 		MadokuSeasonClient.initialize();
+		UiLayoutAPIManager.initialize();
 		MadokuMenuClient.initialize();
 		MadokuCompatClient.initialize();
 		MadokuItemsClient.initialize();

@@ -153,6 +153,7 @@
     "mob.WitherSkeletonWitherEffectMixin"
   ],
 	"client": [
+	  "core.KeyMappingAccessor",
 	  "mob.CreeperRendererMixin",
 	  "mob.EndermanRendererMixin",
 	  "mob.LivingEntityRenderStateMixin",
