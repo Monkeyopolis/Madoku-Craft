@@ -1,37 +1,30 @@
 package madoku.craft.java;
 
-import madoku.craft.java.compat.MadokuCompatClient;
-import madoku.craft.java.farming.MadokuFarmingClient;
-import madoku.craft.java.items.MadokuItemsClient;
-import madoku.craft.java.levels.MadokuLevelsClient;
-import madoku.craft.java.mob.MobClientAPIManager;
-import madoku.craft.java.mob.MobVariantClient;
-import madoku.craft.java.hud.MadokuHudManager;
-import madoku.craft.java.core.season.MadokuSeasonClient;
-import madoku.craft.java.core.sync.MadokuSyncClient;
-import madoku.craft.java.core.sync.SyncAPIManager;
-import madoku.craft.java.core.menu.MadokuMenuClient;
-import madoku.craft.java.core.ui.UiLayoutAPIManager;
-import madoku.craft.java.utility.MadokuUtilityClient;
-import madoku.craft.java.pet.MadokuPetClient;
+import madoku.craft.java.attributes.MadokuAttributesClientInitializer;
+import madoku.craft.java.compat.MadokuCompatClientInitializer;
+import madoku.craft.java.core.MadokuCoreClientInitializer;
+import madoku.craft.java.core.module.MadokuClientRuntime;
+import madoku.craft.java.farming.MadokuFarmingClientInitializer;
+import madoku.craft.java.hud.MadokuHudClientInitializer;
+import madoku.craft.java.items.MadokuItemsClientInitializer;
+import madoku.craft.java.levels.MadokuLevelsClientInitializer;
+import madoku.craft.java.mob.MadokuMobsClientInitializer;
+import madoku.craft.java.pet.MadokuPetsClientInitializer;
+import madoku.craft.java.utility.MadokuUtilityClientInitializer;
 import net.fabricmc.api.ClientModInitializer;
 
 public class MadokuCraftClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		MadokuUtilityClient.initialize();
-		SyncAPIManager.initializeClient();
-		MadokuSyncClient.initialize();
-		MadokuSeasonClient.initialize();
-		UiLayoutAPIManager.initialize();
-		MadokuMenuClient.initialize();
-		MadokuCompatClient.initialize();
-		MadokuItemsClient.initialize();
-		MadokuFarmingClient.initialize();
-		MadokuHudManager.initialize();
-		MadokuPetClient.initialize();
-		MadokuLevelsClient.initialize();
-		MobVariantClient.initialize();
-		MobClientAPIManager.initialize();
+		MadokuClientRuntime.initialize(new MadokuCoreClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuUtilityClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuCompatClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuItemsClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuFarmingClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuHudClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuPetsClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuLevelsClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuMobsClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuAttributesClientInitializer());
 	}
 }

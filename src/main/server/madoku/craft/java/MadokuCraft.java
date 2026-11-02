@@ -1,22 +1,28 @@
 package madoku.craft.java;
 
+import madoku.craft.java.attributes.MadokuAttributesInitializer;
 import madoku.craft.java.attributes.MadokuAttributesManager;
+import madoku.craft.java.compat.MadokuCompatInitializer;
 import madoku.craft.java.compat.MadokuCompatManager;
+import madoku.craft.java.core.MadokuCoreInitializer;
 import madoku.craft.java.core.MadokuCoreManager;
 import madoku.craft.java.core.json.JSONAPIManager;
-import madoku.craft.java.utility.smelting.MadokuUtilityManager;
-import madoku.craft.java.core.time.TimeAPIManager;
-import madoku.craft.java.mob.MadokuMobProvider;
-import madoku.craft.java.mob.MobAPIManager;
+import madoku.craft.java.core.module.MadokuModuleLifecycleManager;
+import madoku.craft.java.ecosystem.MadokuEcosystemInitializer;
 import madoku.craft.java.ecosystem.MadokuEcosystemManager;
+import madoku.craft.java.farming.MadokuFarmingInitializer;
 import madoku.craft.java.farming.MadokuFarmingManager;
+import madoku.craft.java.items.MadokuItemsInitializer;
 import madoku.craft.java.items.ItemsAPIManager;
-import madoku.craft.java.items.MadokuItemsManager;
+import madoku.craft.java.levels.MadokuLevelsInitializer;
 import madoku.craft.java.levels.MadokuLevelsManager;
+import madoku.craft.java.mob.MadokuMobsInitializer;
+import madoku.craft.java.mob.MobAPIManager;
+import madoku.craft.java.pet.MadokuPetsInitializer;
 import madoku.craft.java.pet.PetAPIManager;
-import madoku.craft.java.pet.MadokuPetProvider;
+import madoku.craft.java.utility.MadokuUtilityInitializer;
+import madoku.craft.java.utility.smelting.MadokuUtilityManager;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.entity.event.v1.EntitySleepEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
@@ -25,19 +31,17 @@ public class MadokuCraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		MadokuCoreManager.initialize();
-		MadokuUtilityManager.initialize();
-		MobAPIManager.registerProvider(new MadokuMobProvider());
-		MobAPIManager.initialize();
-		MadokuItemsManager.initialize();
-		MadokuFarmingManager.initialize();
-		MadokuEcosystemManager.initialize();
-		MadokuAttributesManager.initialize();
-		MadokuLevelsManager.initialize();
-		PetAPIManager.registerProvider(new MadokuPetProvider());
-		PetAPIManager.initialize();
-		MadokuCompatManager.initialize();
-		EntitySleepEvents.ALLOW_RESETTING_TIME.register(TimeAPIManager::shouldAllowResettingTime);
+		MadokuModuleLifecycleManager lifecycle = MadokuModuleLifecycleManager.server();
+		lifecycle.register(new MadokuCoreInitializer());
+		lifecycle.register(new MadokuUtilityInitializer());
+		lifecycle.register(new MadokuMobsInitializer());
+		lifecycle.register(new MadokuItemsInitializer());
+		lifecycle.register(new MadokuFarmingInitializer());
+		lifecycle.register(new MadokuEcosystemInitializer());
+		lifecycle.register(new MadokuAttributesInitializer());
+		lifecycle.register(new MadokuLevelsInitializer());
+		lifecycle.register(new MadokuPetsInitializer());
+		lifecycle.register(new MadokuCompatInitializer());
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
 			MadokuFarmingManager.reset();
