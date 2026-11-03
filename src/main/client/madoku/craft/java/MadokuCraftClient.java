@@ -10,6 +10,7 @@ import madoku.craft.java.items.MadokuItemsClientInitializer;
 import madoku.craft.java.levels.MadokuLevelsClientInitializer;
 import madoku.craft.java.mob.MadokuMobsClientInitializer;
 import madoku.craft.java.pet.MadokuPetsClientInitializer;
+import madoku.craft.java.quests.MadokuQuestsClientInitializer;
 import madoku.craft.java.utility.MadokuUtilityClientInitializer;
 import net.fabricmc.api.ClientModInitializer;
 
@@ -26,5 +27,6 @@ public class MadokuCraftClient implements ClientModInitializer {
 		MadokuClientRuntime.initialize(new MadokuLevelsClientInitializer());
 		MadokuClientRuntime.initialize(new MadokuMobsClientInitializer());
 		MadokuClientRuntime.initialize(new MadokuAttributesClientInitializer());
+		MadokuClientRuntime.initialize(new MadokuQuestsClientInitializer());
 	}
 }

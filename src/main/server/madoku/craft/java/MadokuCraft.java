@@ -20,6 +20,7 @@ import madoku.craft.java.mob.MadokuMobsInitializer;
 import madoku.craft.java.mob.MobAPIManager;
 import madoku.craft.java.pet.MadokuPetsInitializer;
 import madoku.craft.java.pet.PetAPIManager;
+import madoku.craft.java.quests.MadokuQuestsInitializer;
 import madoku.craft.java.utility.MadokuUtilityInitializer;
 import madoku.craft.java.utility.smelting.MadokuUtilityManager;
 import net.fabricmc.api.ModInitializer;
@@ -41,6 +42,7 @@ public class MadokuCraft implements ModInitializer {
 		lifecycle.register(new MadokuAttributesInitializer());
 		lifecycle.register(new MadokuLevelsInitializer());
 		lifecycle.register(new MadokuPetsInitializer());
+		lifecycle.register(new MadokuQuestsInitializer());
 		lifecycle.register(new MadokuCompatInitializer());
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {

@@ -40,6 +40,7 @@ def madokuModuleNames = [
 	"levels",
 	"mobs",
 	"pets",
+	"quests",
 	"utility",
 	"hud",
 	"compat"
@@ -209,7 +210,7 @@ tasks.register("validateMadokuModuleBoundaries") {
 			}
 		}
 
-		def forbiddenCoreImport = ~/^\s*import\s+madoku\.craft\.java\.(attributes|items|farming|ecosystem|levels|mob|pet|hud|compat|entity|utility)\./
+		def forbiddenCoreImport = ~/^\s*import\s+madoku\.craft\.java\.(attributes|items|farming|ecosystem|levels|mob|pet|quests|hud|compat|entity|utility)\./
 		fileTree("modules/core/src/main").matching { include "**/*.java" }.files.each { File sourceFile ->
 			sourceFile.eachLine { String line, int lineNumber ->
 				if (line ==~ forbiddenCoreImport) {

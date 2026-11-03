@@ -42,3 +42,7 @@
 	path = modules/compat
 	url = https://github.com/Monkeyopolis/Madoku-Craft-Compat.git
 	branch = Fabric-26.3
+[submodule "modules/quests"]
+	path = modules/quests
+	url = https://github.com/Monkeyopolis/Madoku-Craft-Quests.git
+	branch = Fabric-26.3
