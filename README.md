@@ -55,6 +55,12 @@ All of these systems can be adjusted in the config files.
 - Farmland can be fertilized with bonemeal to increase crop growing speed and yield.
 - Farm plots have an indicator that shows growth time and speed.
 
+**Quests**
+
+- The quests menu is located in the main menu.
+- You can select which quest to track on the HUD.
+- Once the requirements are met, you can turn in quest for rewards.
+
 ## Disclaimer:
 
 - Make sure to backup your worlds before using this mod.

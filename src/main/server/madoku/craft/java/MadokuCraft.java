@@ -33,6 +33,7 @@ public class MadokuCraft implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		MadokuModuleLifecycleManager lifecycle = MadokuModuleLifecycleManager.server();
+		MadokuQuestsInitializer questsModule = new MadokuQuestsInitializer();
 		lifecycle.register(new MadokuCoreInitializer());
 		lifecycle.register(new MadokuUtilityInitializer());
 		lifecycle.register(new MadokuMobsInitializer());
@@ -42,10 +43,11 @@ public class MadokuCraft implements ModInitializer {
 		lifecycle.register(new MadokuAttributesInitializer());
 		lifecycle.register(new MadokuLevelsInitializer());
 		lifecycle.register(new MadokuPetsInitializer());
-		lifecycle.register(new MadokuQuestsInitializer());
+		lifecycle.register(questsModule);
 		lifecycle.register(new MadokuCompatInitializer());
 
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+			lifecycle.reset(questsModule.id());
 			MadokuFarmingManager.reset();
 			MadokuEcosystemManager.reset();
 			MadokuUtilityManager.reset();
@@ -69,10 +71,13 @@ public class MadokuCraft implements ModInitializer {
 			PetAPIManager.onServerStarted(server);
 			MobAPIManager.onServerStarted(server);
 			MadokuCompatManager.onServerStarted(server);
+			questsModule.loadPersistedData(server);
+			questsModule.onServerStarted(server);
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
 			MadokuCoreManager.onServerStopping(server);
+			questsModule.onServerStopping(server);
 		});
 
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
@@ -83,6 +88,8 @@ public class MadokuCraft implements ModInitializer {
 			MadokuUtilityManager.onServerStopped(server);
 			MadokuUtilityManager.reset();
 			MobAPIManager.onServerStopped();
+			questsModule.onServerStopped(server);
+			lifecycle.reset(questsModule.id());
 			MadokuAttributesManager.reset();
 			MadokuLevelsManager.reset();
 			PetAPIManager.reset();
@@ -94,6 +101,9 @@ public class MadokuCraft implements ModInitializer {
 
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			MadokuCoreManager.onServerTick(server);
+			if (lifecycle.isRunning(questsModule.id())) {
+				questsModule.onServerTick(server);
+			}
 			MadokuEcosystemManager.onServerTick(server);
 			MadokuFarmingManager.onServerTick(server);
 			MadokuAttributesManager.onServerTick(server);
